@@ -17,6 +17,8 @@ jobs:
     if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[post-closure-applied]') }}
     runs-on: windows-latest
     timeout-minutes: 30
+    env:
+      PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -40,7 +42,7 @@ jobs:
             'tools/apply_post_closure_repeated_markers.py'
           )
           foreach ($patch in $patches) {
-            python $patch
+            python -X utf8 $patch
             if ($LASTEXITCODE -ne 0) {
               Write-Error "补丁脚本失败: $patch"
               exit $LASTEXITCODE
