@@ -1,0 +1,59 @@
+name: Audit repair validation
+on:
+  push:
+    branches: [fix/audit-20260909]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: audit-repair-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install script-test dependencies (no OCR, GPU or cloud requests)
+        run: python -m pip install numpy pillow
+      - name: Prepare baseline native dependency
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/cuda-validation | Out-Null
+          $dll = Get-ChildItem OcrLineTool.App/bin -Recurse -Filter cuda_hash.dll | Select-Object -First 1
+          if ($dll) { Copy-Item $dll.FullName artifacts/cuda-validation/cuda_hash.dll }
+      - name: Apply reviewed source changes
+        shell: pwsh
+        run: |
+          if (Test-Path tools/apply_audit_fixes.py) {
+            python tools/apply_audit_fixes.py
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+      - name: Python regression tests
+        run: python -m unittest discover -s OcrLineTool.Tests -p '*_test.py'
+      - name: Windows managed tests - Debug
+        run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category!=CUDA' --logger 'trx;LogFileName=debug.trx' --results-directory audit-test-results
+      - name: Windows managed tests - Release
+        run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Release --filter 'Category!=CUDA' --logger 'trx;LogFileName=release.trx' --results-directory audit-test-results
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-test-results
+          path: audit-test-results
+      - name: Commit only reviewed, tested files to the repair branch
+        if: success()
+        shell: pwsh
+        run: |
+          if (Test-Path tools/apply_audit_fixes.py) {
+            python tools/apply_audit_fixes.py --commit-tested
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            git push origin HEAD:fix/audit-20260909
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
