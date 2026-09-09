@@ -29,6 +29,7 @@ jobs:
         run: |
           python tools/apply_latest_accuracy_patch.py
           python tools/apply_latest_accuracy_compat.py
+          python tools/apply_latest_accuracy_compat2.py
       - name: Accuracy regression tests
         run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category=ReauditAccuracy'
       - name: Windows Debug regression tests
