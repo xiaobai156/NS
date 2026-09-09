@@ -23,7 +23,9 @@ public static class RuleEngine
 {
     private static readonly Regex IssueRegex = new(@"(?<!\d)(?<issue>\d{1,6})\s*期", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex CompactYearIssueRegex = new(@"(?<!\d)20\d{2}(?<issue>\d{3})\s*期", RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    private static readonly Regex BareIssueRegex = new(@"^[^\d]{0,8}(?<issue>\d{3,6})(?!\d)(?!\s*\*)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex BareIssueRegex = new(
+        @"^\s*[【\[（({]?\s*(?<issue>\d{3,6})(?!\d)(?!\s*\*)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex YearIssueRegex = new(@"^\s*\d{4}\s*[-—/]\s*(?<issue>\d{3,6})(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private const string Zodiac = "马蛇龙兔虎牛鼠猪狗鸡猴羊";
     // Only reviewed layouts may place part of one physical number row before
@@ -249,6 +251,12 @@ public static class RuleEngine
         if (!rule.IgnoreIssue)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(issue);
         string[] lines = cloudLines.Select(line => rule.StrictIssueBlock ? SimplifyFixedCardText(line) : line).ToArray();
+        if (rule.IgnoreIssue)
+        {
+            int[] explicitIssues = FindIssues(lines).Distinct().ToArray();
+            if (explicitIssues.Length > 0 && !explicitIssues.Contains(issue))
+                return null;
+        }
         // A requested issue is a query, never evidence for repairing OCR.
         if (!rule.StrictIssueBlock)
             lines = SplitInlineIssueRows(lines);
@@ -292,7 +300,7 @@ public static class RuleEngine
             string combined = line;
             for (int next = index + 1; next < lines.Length && next <= index + 4; next++)
             {
-                if (ContainsAnyIssue(lines[next]) || combined.Length + lines[next].Length >= 180)
+                if (ContainsIssueBoundary(lines[next], issue) || combined.Length + lines[next].Length >= 180)
                     break;
                 combined += " " + lines[next];
                 candidates.Add(combined);
@@ -320,13 +328,19 @@ public static class RuleEngine
         // Match that row within the requested issue, never combine the smaller tiers.
         if (rule.Id == "杰少九肖" && rule.Type == "九肖")
         {
+            var nineValues = new HashSet<string>(StringComparer.Ordinal);
             foreach (string candidate in candidates)
             {
-                Match nine = Regex.Match(Normalize(candidate), $"九肖(?<value>[{Zodiac}]{{9}})(?![{Zodiac}])");
-                if (nine.Success && nine.Groups["value"].Value.Distinct().Count() == 9)
-                    return nine.Groups["value"].Value;
+                string normalized = Normalize(candidate);
+                MatchCollection matches = Regex.Matches(normalized, $"九肖(?<value>[{Zodiac}]{{9}})(?![{Zodiac}])");
+                foreach (Match nine in matches)
+                {
+                    string value = nine.Groups["value"].Value;
+                    if (value.Distinct().Count() == 9)
+                        nineValues.Add(value);
+                }
             }
-            return null;
+            return nineValues.Count == 1 ? nineValues.Single() : null;
         }
 
         if (rule.Type.StartsWith("号码:", StringComparison.Ordinal)
@@ -344,9 +358,11 @@ public static class RuleEngine
         IEnumerable<string> relevant = keywordInTarget
             ? candidates.Where(line => aliases.Any(alias => Normalize(line).Contains(alias, StringComparison.Ordinal)))
             : candidates;
+        if (rule.Type is "生肖" or "单生肖" or "生肖组合" or "九肖")
+            relevant = MaximalCandidates(relevant);
         foreach (string line in relevant)
         {
-            string? value = ExtractTyped(line, rule.Type);
+            string? value = ExtractTypedForRule(line, rule);
             if (value is not null)
                 observed.Add(value);
         }
@@ -383,6 +399,14 @@ public static class RuleEngine
         }
 
         return null;
+    }
+
+    private static IEnumerable<string> MaximalCandidates(IEnumerable<string> source)
+    {
+        string[] values = source.Distinct(StringComparer.Ordinal).ToArray();
+        return values.Where(candidate => !values.Any(other =>
+            other.Length > candidate.Length
+            && other.StartsWith(candidate + " ", StringComparison.Ordinal)));
     }
 
     private static string? ExtractSingleHeadPerIssue(string[] lines, int issue)
@@ -601,8 +625,6 @@ public static class RuleEngine
                     }
                 }
             }
-            if (rowValue.Length == 0)
-                continue;
             rows.Add((count, rowValue));
         }
 
@@ -610,8 +632,10 @@ public static class RuleEngine
             return null;
 
         int maximum = rows.Max(row => row.Count);
-        string result = string.Concat(rows
-            .Where(row => row.Count == maximum)
+        (int Count, string Value)[] maximumRows = rows.Where(row => row.Count == maximum).ToArray();
+        if (maximumRows.Any(row => row.Value.Length == 0))
+            return null;
+        string result = string.Concat(maximumRows
             .Select(row => row.Value)
             .SelectMany(item => item)
             .Distinct());
@@ -620,6 +644,14 @@ public static class RuleEngine
 
     private static bool TryExtractFrequencyRow(string line, out int count, out string value)
     {
+        string normalized = Normalize(line);
+        if (normalized.Contains("总次数", StringComparison.Ordinal)
+            || normalized.Contains("總次數", StringComparison.Ordinal))
+        {
+            count = 0;
+            value = string.Empty;
+            return false;
+        }
         Match match = Regex.Match(line, @"(?<!\d)(?<count>\d{1,2})\s*次");
         if (!match.Success || !int.TryParse(match.Groups["count"].Value, out count))
         {
@@ -830,8 +862,6 @@ public static class RuleEngine
                 string normalized = Normalize(line);
                 if (Regex.IsMatch(normalized, $"^[{Zodiac}]$"))
                     standaloneValues.Add(SimplifyOcrText(normalized));
-                else if (rule.Id == "包公肖肖" && line.Trim() == "￥")
-                    standaloneValues.Add("羊");
             }
         }
         if (standaloneValues.Count > 0)
@@ -1015,6 +1045,8 @@ public static class RuleEngine
             if (block.Length == 0)
                 return null;
         }
+        if (Regex.IsMatch(block, @"[?？]"))
+            return null;
         // Decorations are separators, not values. Keep unknown letters and
         // digits so malformed OCR cannot silently become a successful result.
         block = Regex.Replace(block, @"[^\p{L}\p{N}\s]", " ").Trim();
@@ -1038,10 +1070,22 @@ public static class RuleEngine
         }
         if (rule.Id == "小骚货" && rule.Type == "九肖")
         {
-            Match heading = Regex.Match(block, @"[\s\S]*?快乐的骚货\s*九肖\s*(?:正\s*)?");
-            if (!heading.Success)
+            string field = SimplifyOcrText(block);
+            int marker = field.IndexOf("九肖", StringComparison.Ordinal);
+            if (marker < 0)
                 return null;
-            block = block[heading.Length..];
+            field = field[(marker + "九肖".Length)..];
+            int tierEnd = new[] { "六肖", "三肖", "一肖" }
+                .Select(tier => field.IndexOf(tier, StringComparison.Ordinal))
+                .Where(index => index >= 0)
+                .DefaultIfEmpty(field.Length)
+                .Min();
+            field = field[..tierEnd];
+            MatchCollection zodiacs = Regex.Matches(field, $"[{Zodiac}]");
+            if (zodiacs.Count != 9)
+                return null;
+            string nineValue = string.Concat(zodiacs.Select(match => match.Value));
+            return nineValue.Distinct().Count() == 9 ? nineValue : null;
         }
         if (rule.Id is "祖师公肖" or "祖师公尾")
         {
@@ -1157,9 +1201,10 @@ public static class RuleEngine
 
     private static bool FormulaBlockAppliesToRule(string block, OcrRule rule)
     {
-        Match marker = Regex.Match(block, @"[=＝]\s*杀");
-        if (!marker.Success)
+        MatchCollection markers = Regex.Matches(block, @"[=＝]\s*杀");
+        if (markers.Count == 0)
             return false;
+        Match marker = markers[^1];
         string payload = block[(marker.Index + marker.Length)..];
         bool hasZodiac = Regex.IsMatch(payload, $"[{Zodiac}]");
         return rule.Type == "生肖组合" ? hasZodiac
@@ -1195,10 +1240,19 @@ public static class RuleEngine
             "骁腾" => @"九肖",
             _ => "(?!)"
         };
-        Match marker = Regex.Match(block, pattern, RegexOptions.Singleline);
-        if (!marker.Success)
+        MatchCollection markers = Regex.Matches(block, pattern, RegexOptions.Singleline);
+        if (markers.Count == 0)
             return string.Empty;
+        Match marker = rule.Id is "公式杀两肖肖" or "公式杀两尾尾" ? markers[^1] : markers[0];
         string payload = block[(marker.Index + marker.Length)..];
+        if (rule.Id == "绿格子双杀")
+        {
+            MatchCollection framedValues = Regex.Matches(payload,
+                @"【(?<value>[^】]+)】|\[(?<value>[^\]]+)\]|（(?<value>[^）]+)）|\((?<value>[^\)]+)\)");
+            if (framedValues.Count != 1)
+                return string.Empty;
+            return framedValues[0].Groups["value"].Value;
+        }
         Match framed = Regex.Match(payload,
             @"^[：:，,、\-]*(?:【(?<value>[^】]+)】|\[(?<value>[^\]]+)\]|（(?<value>[^）]+)）|\((?<value>[^\)]+)\)|《(?<value>[^》]+)》|『(?<value>[^』]+)』|\{(?<value>[^}]+)\})");
         if (framed.Success)
@@ -1279,6 +1333,18 @@ public static class RuleEngine
         return value;
     }
 
+    private static string? ExtractTypedForRule(string tail, OcrRule rule)
+    {
+        if (rule.Id == "翩翩公子肖" && rule.Type == "生肖")
+        {
+            string beforeOpening = BeforeOpeningResult(SimplifyOcrText(tail));
+            MatchCollection matches = Regex.Matches(beforeOpening, $"[{Zodiac}]");
+            string[] distinct = matches.Select(match => match.Value).Distinct(StringComparer.Ordinal).ToArray();
+            return matches.Count > 0 && distinct.Length == 1 ? distinct[0] : null;
+        }
+        return ExtractTyped(tail, rule.Type);
+    }
+
     private static string? ExtractTyped(string tail, string type)
     {
         tail = SimplifyOcrText(tail);
@@ -1343,10 +1409,12 @@ public static class RuleEngine
             string zodiacText = type == "九肖" && nineMarker >= 0
                 ? beforeOpening[(nineMarker + "解九肖".Length)..]
                 : beforeOpening;
-            string value = string.Concat(Regex.Matches(zodiacText, $"[{Zodiac}]").Select(match => match.Value).Distinct());
-            return type == "九肖"
-                ? value.Length == 9 ? value : null
-                : value.Length >= 2 ? value : null;
+            MatchCollection matches = Regex.Matches(zodiacText, $"[{Zodiac}]");
+            int expected = type == "九肖" ? 9 : 2;
+            if (matches.Count != expected)
+                return null;
+            string value = string.Concat(matches.Select(match => match.Value));
+            return value.Distinct().Count() == expected ? value : null;
         }
 
         if (type == "单五行")
@@ -1441,9 +1509,12 @@ public static class RuleEngine
             }
         }
 
+        if (type == "生肖")
+            return ExtractSingleZodiac(beforeOpening);
+
         Match match = type switch
         {
-            "生肖" => Regex.Match(beforeOpening, $"[{Zodiac}]"),
+            "生肖" => Match.Empty,
             "合" => Regex.Match(beforeOpening, @"(?<!\d)(0?[1-9]|1[0-3])合"),
             "段" => Regex.Match(beforeOpening, @"(?<!\d)[0-7]段"),
             "尾" => Regex.Match(beforeOpening, @"(?<!\d)[0-9]尾"),
@@ -1750,6 +1821,17 @@ public static class RuleEngine
     {
         '零' => '0', '一' => '1', '二' => '2', '三' => '3', '四' => '4', _ => value
     };
+
+    private static bool ContainsIssueBoundary(string line, int selectedIssue)
+    {
+        if (ContainsAnyIssue(line))
+            return true;
+        Match leading = BareIssueRegex.Match(line);
+        if (!leading.Success || leading.Groups["issue"].Value.Length <= 3
+            || !int.TryParse(leading.Groups["issue"].Value, out int actual))
+            return false;
+        return actual != selectedIssue && Math.Abs((long)actual - selectedIssue) <= 10;
+    }
 
     private static bool ContainsAnyIssue(string line)
     {

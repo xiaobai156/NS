@@ -195,6 +195,9 @@ public static class RuleCatalog
                     && withoutKeywordElement.ValueKind == JsonValueKind.True;
                 bool singleValuePerIssue = item.TryGetProperty("singleValuePerIssue", out JsonElement singleValueElement)
                     && singleValueElement.ValueKind == JsonValueKind.True;
+                bool itemStrictIssueBlock = item.TryGetProperty("strictIssueBlock", out JsonElement itemStrictElement)
+                    ? itemStrictElement.ValueKind == JsonValueKind.True
+                    : strictIssueBlock;
                 if (keyword.Length > 0 && type.Length > 0)
                     output.Add(new OcrRule(
                         keyword,
@@ -206,7 +209,7 @@ public static class RuleCatalog
                         ignoreIssue,
                         allowNearbyValue,
                         allowValueWithoutKeyword,
-                        strictIssueBlock,
+                        itemStrictIssueBlock,
                         singleValuePerIssue));
             }
             if (output.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count() != output.Count)

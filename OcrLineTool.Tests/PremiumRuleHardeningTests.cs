@@ -120,15 +120,18 @@ public sealed class PremiumRuleHardeningTests
     }
 
     [Fact]
-    public void StrictModeIsEnabledOnlyInTheHardenedCatalogs()
+    public void StrictModeComesFromCatalogDefaultOrAnExplicitRuleOverride()
     {
         string directory = ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory);
         foreach (string path in Directory.EnumerateFiles(directory, "*.json")
             .Where(path => !path.EndsWith(".templates.json") && !path.EndsWith("分发规则.json")))
         {
-            Assert.All(RuleCatalog.Load(path), rule => Assert.Equal(
-                Path.GetFileName(path) is "新澳高级会员.json" or "新澳六合彩资料.json" or "黄大仙新澳.json" or "蜻蜓一套骁腾.json",
-                rule.StrictIssueBlock));
+            bool hardenedCatalog = Path.GetFileName(path) is "新澳高级会员.json" or "新澳六合彩资料.json" or "黄大仙新澳.json" or "蜻蜓一套骁腾.json";
+            foreach (OcrRule rule in RuleCatalog.Load(path))
+            {
+                bool explicitYanranStrict = Path.GetFileName(path) == "嫣然心水.json" && rule.Id == "小骚货";
+                Assert.Equal(hardenedCatalog || explicitYanranStrict, rule.StrictIssueBlock);
+            }
         }
     }
 

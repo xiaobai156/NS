@@ -761,7 +761,7 @@ public sealed class RuleEngineTests
     }
 
     [Fact]
-    public void TreatsTheCurrencyGlyphAsSheepOnlyForTheBaogongPoster()
+    public void CurrencyGlyphIsNotHardCodedIntoAZodiacGuess()
     {
         var baogong = new OcrRule(
             "包公图", "生肖", "包公肖肖", AllowNearbyValue: true, StrictIssueBlock: true);
@@ -769,7 +769,7 @@ public sealed class RuleEngineTests
             "禁肖图", "生肖", "禁止肖肖", AllowNearbyValue: true, StrictIssueBlock: true);
         string[] lines = ["包公图", "第247期", "杀一肖一码", "￥", "24"];
 
-        Assert.Equal("羊", RuleEngine.ExtractFinalValue(lines, 247, baogong));
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 247, baogong));
         Assert.Null(RuleEngine.ExtractFinalValue(lines, 247, other));
     }
 
