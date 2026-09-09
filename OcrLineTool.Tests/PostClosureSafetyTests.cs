@@ -7,48 +7,38 @@ namespace OcrLineTool.Tests;
 public sealed class PostClosureSafetyTests
 {
     private static OcrRule NearbyRule() => new(
-        "九宫寻肖",
-        "生肖",
-        "九宫格肖肖",
-        AllowNearbyValue: true,
-        StrictIssueBlock: true);
+        "九宫寻肖", "生肖", "九宫格肖肖",
+        AllowNearbyValue: true, StrictIssueBlock: true);
 
     private static OcrRule XiaotengRule() => new(
-        "骁腾杀一肖",
-        "生肖",
-        "骁腾杀肖",
-        RequiredKeyword: "杀一肖",
-        Folder: "骁腾系列",
-        AllowNearbyValue: true,
-        StrictIssueBlock: true);
+        "骁腾杀一肖", "生肖", "骁腾杀肖",
+        RequiredKeyword: "杀一肖", Folder: "骁腾系列",
+        AllowNearbyValue: true, StrictIssueBlock: true);
 
     [Fact]
     public void StrictNearbyZodiacStopsAtTheNextBareFourDigitIssue()
     {
-        OcrRule rule = NearbyRule();
         Assert.Null(RuleEngine.ExtractFinalValue(
-            ["九宫格肖肖", "第1001期", "1002", "虎"], 1001, rule));
+            ["九宫格肖肖", "第1001期", "1002", "虎"], 1001, NearbyRule()));
     }
 
     [Fact]
     public void StrictNearbyZodiacStillReadsAValueInsideTheSelectedIssueBlock()
     {
-        OcrRule rule = NearbyRule();
         Assert.Equal("虎", RuleEngine.ExtractFinalValue(
-            ["九宫格肖肖", "第1001期", "宣传文字", "更多宣传文字", "虎"], 1001, rule));
+            ["九宫格肖肖", "第1001期", "宣传文字", "更多宣传文字", "虎"], 1001, NearbyRule()));
     }
 
     [Fact]
     public void PositionedEvidenceCannotBorrowTheNextBareIssueZodiac()
     {
-        OcrRule rule = NearbyRule();
         string[] lines = ["九宫格肖肖", "第1001期", "1002", "虎"];
         var evidence = new OcrEvidence(
             "source.png", "input.png", "source-hash", "input-hash", "test",
             lines.Select((text, index) => new OcrLineEvidence(
                 text, new OcrBox(0, index * 30, 500, 20), 0.99, "test", "main")).ToArray());
         Assert.Equal(RuleExtractionStatus.Missing,
-            RuleEngine.ExtractFinalResult(evidence, 1001, rule).Status);
+            RuleEngine.ExtractFinalResult(evidence, 1001, NearbyRule()).Status);
     }
 
     [Fact]
@@ -100,5 +90,37 @@ public sealed class PostClosureSafetyTests
         var rule = new OcrRule("测试双尾", "尾数组合");
         Assert.Equal("1尾+2尾", RuleEngine.ExtractFinalValue(
             ["251期 测试双尾 1尾+2尾"], 251, rule));
+    }
+
+    [Fact]
+    public void GenericTailPairRejectsTheSameTailTwice()
+    {
+        var rule = new OcrRule("测试双尾", "尾数组合");
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["251期 测试双尾 1尾+1尾"], 251, rule));
+    }
+
+    [Fact]
+    public void GenericFiveElementComplementRejectsDuplicateRawEntries()
+    {
+        var rule = new OcrRule("测试四行", "五行");
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["251期 测试四行 金木水火火"], 251, rule));
+    }
+
+    [Fact]
+    public void GenericMissingTailRejectsDuplicateRawEntries()
+    {
+        var rule = new OcrRule("测试九尾", "缺尾");
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["251期 测试九尾 0 1 2 3 4 5 6 7 8 8"], 251, rule));
+    }
+
+    [Fact]
+    public void GenericMissingHeadRejectsDuplicateRawEntries()
+    {
+        var rule = new OcrRule("测试四头", "缺头");
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["251期 测试四头 0 0 1 2 3"], 251, rule));
     }
 }
