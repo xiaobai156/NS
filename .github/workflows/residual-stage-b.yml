@@ -26,7 +26,9 @@ jobs:
       - name: Configure hosted test desktop
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/Set-TestDisplay.ps1
       - name: Apply stage B source patch
-        run: python tools/apply_residual_lifecycle_stage_b.py
+        run: |
+          python tools/apply_residual_lifecycle_stage_b.py
+          python tools/fix_stage_b_compile.py
       - name: Accuracy regression tests
         run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category=ReauditAccuracy'
       - name: Windows Debug regression tests
@@ -40,7 +42,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add OcrLineTool.App/RuleEngine.cs OcrLineTool.App/OcrClients.cs OcrLineTool.App/MainForm.cs
+          git add OcrLineTool.App/RuleEngine.cs OcrLineTool.App/OcrClients.cs OcrLineTool.App/MainForm.cs OcrLineTool.App/RecognitionStateStore.cs
           if (-not (git diff --cached --quiet)) {
             git commit -m "fix: close residual cache conflict and state gaps [stage-b-applied]"
             git push origin HEAD:${{ github.ref_name }}
