@@ -1891,9 +1891,9 @@ public static class RuleEngine
             bool followingTable = rule.Id == "蓝色" || target.Contains("特码开在", StringComparison.Ordinal);
             bool precedingTable = rule.Id == "彩图" || target.Contains("开奖结果", StringComparison.Ordinal);
             string? directional = followingTable
-                ? ExtractDirectionalNumberTable(lines, index, issue, expectedCount, forward: true)
+                ? ExtractDirectionalNumberTable(lines, index, issue, expectedCount, forward: true, rule)
                 : precedingTable
-                    ? ExtractDirectionalNumberTable(lines, index, issue, expectedCount, forward: false)
+                    ? ExtractDirectionalNumberTable(lines, index, issue, expectedCount, forward: false, rule)
                     : null;
             if (directional is not null)
             {
@@ -2078,7 +2078,7 @@ public static class RuleEngine
     }
 
     private static string? ExtractDirectionalNumberTable(
-        string[] lines, int issueIndex, int issue, int expectedCount, bool forward)
+        string[] lines, int issueIndex, int issue, int expectedCount, bool forward, OcrRule rule)
     {
         int start;
         int end;
@@ -2101,17 +2101,9 @@ public static class RuleEngine
         var payload = new List<string>();
         for (int index = start; index < end; index++)
         {
-            if (Regex.IsMatch(SimplifyOcrText(lines[index]), @"参考|旁栏|排行|统计|说明"))
+            if (!IsNumberContinuation(lines[index], expectedCount, rule))
                 continue;
-            string candidate = BeforeOpeningResult(RemoveIssue(lines[index]));
-            string[]? numbers = ParseNumbers(candidate);
-            if (numbers is null || numbers.Length == 0)
-                continue;
-            if (numbers.Length == 1 && Regex.IsMatch(lines[index], @"\p{L}")
-                && !lines[index].Contains(':') && !lines[index].Contains('：')
-                && !lines[index].Contains('←') && !lines[index].Contains('→'))
-                continue;
-            payload.Add(candidate);
+            payload.Add(BeforeOpeningResult(RemoveIssue(lines[index])));
         }
         return payload.Count == 0 ? null : ExtractNumbers(string.Join(' ', payload), expectedCount);
     }
