@@ -34,6 +34,7 @@ jobs:
           python tools/apply_final_lifecycle_closure.py
           python tools/apply_final_crop_creation_pin.py
           python tools/apply_template_version_pin.py
+          python tools/apply_retry_template_evidence_scope.py
       - name: Accuracy and lifecycle regression tests
         run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category=ReauditAccuracy'
       - name: Windows Debug regression tests
