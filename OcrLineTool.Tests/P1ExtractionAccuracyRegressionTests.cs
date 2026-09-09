@@ -79,10 +79,10 @@ public sealed class P1ExtractionAccuracyRegressionTests
     }
 
     [Fact]
-    public void UnnumberedIgnoreIssueCardStillSucceeds()
+    public void UnnumberedIgnoreIssueCardStaysUnverifiedWithoutTrustedPublicationEvidence()
     {
         string numbers = string.Join(' ', Enumerable.Range(1, 36).Select(n => n.ToString("00")));
-        Assert.Equal(numbers, RuleEngine.ExtractFinalValue(
+        Assert.Null(RuleEngine.ExtractFinalValue(
             [$"十点半集团大围36码 {numbers}"], 251, Rule("新澳六合彩资料", "时点半")));
     }
 
