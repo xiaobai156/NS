@@ -25,8 +25,10 @@ jobs:
         run: python -m pip install numpy pillow
       - name: Configure hosted test desktop
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/Set-TestDisplay.ps1
-      - name: Apply bounded nearby-issue fix
-        run: python tools/apply_post_closure_safety.py
+      - name: Apply post-closure safety fixes
+        run: |
+          python tools/apply_post_closure_safety.py
+          python tools/apply_post_closure_complement.py
       - name: Accuracy regression tests
         run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category=ReauditAccuracy'
       - name: Windows Debug regression tests
@@ -42,6 +44,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add OcrLineTool.App/RuleEngine.cs
           if (-not (git diff --cached --quiet)) {
-            git commit -m "fix: bound nearby zodiac extraction to selected issue [post-closure-applied]"
+            git commit -m "fix: close post-closure extraction safety gaps [post-closure-applied]"
             git push origin HEAD:${{ github.ref_name }}
           }
