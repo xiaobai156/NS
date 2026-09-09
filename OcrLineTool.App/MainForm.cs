@@ -915,14 +915,17 @@ public sealed class MainForm : Form
                     string sourcePath = item.Key.SourcePath;
                     string ocrPath = item.Key.OcrPath;
                     mediumResults.TryGetValue(ocrPath, out IReadOnlyList<string>? lines);
-                    return new RecognitionCandidate(
-                        sourcePath,
-                        ocrPath,
-                        candidateRules,
-                        true,
-                        "本地主识别云兜底",
-                        null,
-                        lines ?? []);
+                    RecognitionCandidate original = candidates.First(candidate =>
+                        candidate.SourcePath.Equals(sourcePath, StringComparison.OrdinalIgnoreCase)
+                        && candidate.OcrPath.Equals(ocrPath, StringComparison.OrdinalIgnoreCase));
+                    return original with
+                    {
+                        Rules = candidateRules,
+                        IsPrimary = true,
+                        SelectionMode = "本地主识别云兜底",
+                        TemplateDistance = null,
+                        LocalLines = lines ?? []
+                    };
                 })
                 .ToArray();
 
@@ -960,8 +963,10 @@ public sealed class MainForm : Form
 
                     if (!cloudDeduplicators.TryGetValue(credential.Provider, out CloudImageDeduplicator? deduplicator))
                         cloudDeduplicators[credential.Provider] = deduplicator = new CloudImageDeduplicator();
-                    OcrEvidenceIdentity identity = OcrEvidenceIdentity.Capture(
-                        candidate.SourcePath, candidate.OcrPath,
+                    OcrEvidenceIdentity identity = RequirePinnedCandidateIdentity(
+                        candidate.PinnedIdentity,
+                        candidate.SourcePath,
+                        candidate.OcrPath,
                         $"local-primary/cloud/{credential.Provider}/{candidate.SelectionMode}");
                     try
                     {
@@ -1089,8 +1094,8 @@ public sealed class MainForm : Form
                     recognizedRuleIds.Contains(rule.Id));
 
             ActiveToken.ThrowIfCancellationRequested();
-            using IDisposable publishGuard = RecognitionStateStore.LockCurrentEvidenceForPublish(
-                rules, values, evidenceLedger);
+            using IDisposable publishGuard = RecognitionStateStore.LockValidEvidenceForPublish(
+                rules, values, evidenceLedger, missingReasons);
             string[] outputLines = RuleEngine.FormatOutput(rules, values, missingReasons);
             ResultFilePaths.EnsureOutputDirectories(AppContext.BaseDirectory);
             string groupOutputPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, selectedImageDirectory!, issue);
@@ -1232,8 +1237,11 @@ public sealed class MainForm : Form
                 int displayTotal,
                 string stage)
             {
-                OcrEvidenceIdentity identity = OcrEvidenceIdentity.Capture(
-                    candidate.SourcePath, candidate.OcrPath, $"cloud-primary/{candidate.SelectionMode}");
+                OcrEvidenceIdentity identity = RequirePinnedCandidateIdentity(
+                    candidate.PinnedIdentity,
+                    candidate.SourcePath,
+                    candidate.OcrPath,
+                    $"cloud-primary/{candidate.SelectionMode}");
                 int automaticRetry = 0;
                 while (true)
                 {
@@ -1297,8 +1305,11 @@ public sealed class MainForm : Form
                 int cloudIndex,
                 Action<string> setError)
             {
-                OcrEvidenceIdentity identity = OcrEvidenceIdentity.Capture(
-                    candidate.SourcePath, candidate.SourcePath, "cloud-fallback/original");
+                OcrEvidenceIdentity identity = RequirePinnedCandidateIdentity(
+                    candidate.PinnedIdentity,
+                    candidate.SourcePath,
+                    candidate.SourcePath,
+                    "cloud-fallback/original");
                 int fallbackRetry = 0;
                 while (true)
                 {
@@ -1383,8 +1394,11 @@ public sealed class MainForm : Form
                 candidateImages++;
                 int cloudIndex = candidateImages;
                 OcrEvidence cloudEvidence;
-                OcrEvidenceIdentity currentPrimaryIdentity = OcrEvidenceIdentity.Capture(
-                    candidate.SourcePath, candidate.OcrPath, $"cloud-primary/{candidate.SelectionMode}");
+                OcrEvidenceIdentity currentPrimaryIdentity = RequirePinnedCandidateIdentity(
+                    candidate.PinnedIdentity,
+                    candidate.SourcePath,
+                    candidate.OcrPath,
+                    $"cloud-primary/{candidate.SelectionMode}");
                 if (!checkedCloudEvidence.TryGetValue(CloudEvidenceKey(currentPrimaryIdentity), out cloudEvidence!))
                 {
                     cloudEvidence = await RecognizePrimaryDeduplicatedAsync(
@@ -1489,8 +1503,8 @@ public sealed class MainForm : Form
             }
 
             ActiveToken.ThrowIfCancellationRequested();
-            using IDisposable publishGuard = RecognitionStateStore.LockCurrentEvidenceForPublish(
-                rules, values, evidenceLedger);
+            using IDisposable publishGuard = RecognitionStateStore.LockValidEvidenceForPublish(
+                rules, values, evidenceLedger, missingReasons);
             string[] outputLines = RuleEngine.FormatOutput(rules, values, missingReasons);
             ResultFilePaths.EnsureOutputDirectories(AppContext.BaseDirectory);
             string groupOutputPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, selectedImageDirectory!, issue);
@@ -1693,8 +1707,13 @@ public sealed class MainForm : Form
                             async () =>
                             {
                                 cloudRequests++;
+                                OcrEvidenceIdentity retryIdentity = RequirePinnedCandidateIdentity(
+                                    candidate.PinnedIdentity,
+                                    candidate.SourcePath,
+                                    primaryInputPath,
+                                    $"retry/{credential.Provider}");
                                 return await RecognizeRetryEvidenceAsync(
-                                    cloudClient, credential, candidate.SourcePath, primaryInputPath,
+                                    cloudClient, credential, retryIdentity,
                                     completed + 1, selection.Candidates.Count);
                             });
                         AddExtractedEvidenceValues(primaryEvidence, evidenceRules, lastIssue, lastValues, lastEvidenceLedger);
@@ -1723,8 +1742,13 @@ public sealed class MainForm : Form
                             async () =>
                             {
                                 cloudRequests++;
+                                OcrEvidenceIdentity retryIdentity = RequirePinnedCandidateIdentity(
+                                    candidate.PinnedIdentity,
+                                    candidate.SourcePath,
+                                    candidate.SourcePath,
+                                    $"retry/{fallbackCredential.Provider}");
                                 return await RecognizeRetryEvidenceAsync(
-                                    fallbackClient, fallbackCredential, candidate.SourcePath, candidate.SourcePath,
+                                    fallbackClient, fallbackCredential, retryIdentity,
                                     completed + 1, selection.Candidates.Count);
                             });
                         AddExtractedEvidenceValues(fallbackEvidence, evidenceRules, lastIssue, lastValues, lastEvidenceLedger);
@@ -1764,8 +1788,8 @@ public sealed class MainForm : Form
             }
 
             ActiveToken.ThrowIfCancellationRequested();
-            using IDisposable publishGuard = RecognitionStateStore.LockCurrentEvidenceForPublish(
-                lastRules, lastValues, lastEvidenceLedger);
+            using IDisposable publishGuard = RecognitionStateStore.LockValidEvidenceForPublish(
+                lastRules, lastValues, lastEvidenceLedger, lastMissingReasons);
             string[] outputLines = RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons);
             ResultFilePaths.EnsureOutputDirectories(AppContext.BaseDirectory);
             string groupOutputPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, selectedImageDirectory!, lastIssue);
@@ -1817,13 +1841,13 @@ public sealed class MainForm : Form
     private async Task<OcrEvidence> RecognizeRetryEvidenceAsync(
         IOcrClient client,
         OcrCredential credential,
-        string sourcePath,
-        string inputPath,
+        OcrEvidenceIdentity identity,
         int current,
         int total)
     {
-        OcrEvidenceIdentity identity = OcrEvidenceIdentity.Capture(
-            sourcePath, inputPath, $"retry/{credential.Provider}");
+        identity.EnsureCurrent();
+        string sourcePath = identity.SourcePath;
+        string inputPath = identity.InputPath;
         int retry = 0;
         while (true)
         {
@@ -1923,6 +1947,72 @@ public sealed class MainForm : Form
         }
     }
 
+    internal static OcrEvidenceIdentity PinCreatedCandidateView(
+        OcrEvidenceIdentity sourceAtStart,
+        string inputPath)
+    {
+        // sourceAtStart must itself be a source==input snapshot taken before the
+        // crop/compact rendering begins.
+        if (!Path.GetFullPath(sourceAtStart.SourcePath).Equals(
+                Path.GetFullPath(sourceAtStart.InputPath), StringComparison.OrdinalIgnoreCase)
+            || !sourceAtStart.SourceHash.Equals(sourceAtStart.InputHash, StringComparison.OrdinalIgnoreCase))
+            throw new OcrException("候选来源起始身份无效，请重新识别。", "OCR_IMAGE_CHANGED");
+
+        sourceAtStart.EnsureCurrent();
+        string input = Path.GetFullPath(inputPath);
+        string source = Path.GetFullPath(sourceAtStart.SourcePath);
+        string inputHash;
+        try
+        {
+            inputHash = input.Equals(source, StringComparison.OrdinalIgnoreCase)
+                ? sourceAtStart.SourceHash
+                : LocalOcrIdentity.Image(input);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            throw new OcrException("无法固定候选裁剪身份，请重新识别。", "OCR_IMAGE_CHANGED");
+        }
+
+        // Check the source again after hashing the crop. This proves that the
+        // source stayed on the same version throughout crop creation/finalization.
+        sourceAtStart.EnsureCurrent();
+        return new OcrEvidenceIdentity(
+            source,
+            input,
+            sourceAtStart.SourceHash,
+            inputHash,
+            "candidate");
+    }
+
+    internal static OcrEvidenceIdentity RequirePinnedCandidateIdentity(
+        OcrEvidenceIdentity pinned,
+        string sourcePath,
+        string inputPath,
+        string viewId)
+    {
+        string source = Path.GetFullPath(sourcePath);
+        string input = Path.GetFullPath(inputPath);
+        if (!source.Equals(Path.GetFullPath(pinned.SourcePath), StringComparison.OrdinalIgnoreCase))
+            throw new OcrException("候选来源与创建时不一致，请重新识别。", "OCR_IMAGE_CHANGED");
+
+        string inputHash;
+        if (input.Equals(Path.GetFullPath(pinned.InputPath), StringComparison.OrdinalIgnoreCase))
+            inputHash = pinned.InputHash;
+        else if (input.Equals(Path.GetFullPath(pinned.SourcePath), StringComparison.OrdinalIgnoreCase))
+            inputHash = pinned.SourceHash;
+        else
+            throw new OcrException("候选识别视图与创建时不一致，请重新识别。", "OCR_IMAGE_CHANGED");
+
+        var identity = new OcrEvidenceIdentity(
+            source,
+            input,
+            pinned.SourceHash,
+            inputHash,
+            string.IsNullOrWhiteSpace(viewId) ? pinned.ViewId : viewId);
+        identity.EnsureCurrent();
+        return identity;
+    }
+
     internal static bool IsEvidenceCurrent(OcrEvidence evidence)
     {
         try
@@ -1966,8 +2056,31 @@ public sealed class MainForm : Form
             RuleEngine.ExtractFinalResult(evidence, issue, rule).Status == RuleExtractionStatus.Success);
     }
 
+    internal static IReadOnlyList<OcrRule> ExpandDeclaredEvidenceRules(
+        IReadOnlyList<OcrRule> selectedRules,
+        IReadOnlyList<OcrRule> allRules,
+        IReadOnlyList<string>? declaredRuleIds)
+    {
+        if (declaredRuleIds is not { Count: > 0 })
+            return selectedRules;
+        string[] ids = declaredRuleIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var byId = allRules.ToDictionary(rule => rule.Id, StringComparer.Ordinal);
+        // A malformed declaration must never broaden evidence to an approximate
+        // set. Fall back to the already-selected rules instead.
+        if (ids.Length == 0 || ids.Any(id => !byId.ContainsKey(id)))
+            return selectedRules;
+        return ids.Select(id => byId[id]).ToArray();
+    }
+
     private static OcrRule[] RetryEvidenceRules(RecognitionCandidate candidate, IReadOnlyList<OcrRule> allRules)
     {
+        if (candidate.DeclaredRuleIds is { Count: > 0 })
+            return ExpandDeclaredEvidenceRules(
+                candidate.Rules, allRules, candidate.DeclaredRuleIds).ToArray();
+
         HashSet<string> selectedIds = candidate.Rules.Select(rule => rule.Id).ToHashSet(StringComparer.Ordinal);
         HashSet<string> folders = candidate.Rules
             .Select(rule => rule.Folder)
@@ -2161,6 +2274,8 @@ public sealed class MainForm : Form
                         int index = 0;
                         foreach (VisualTemplateMatch match in matches)
                         {
+                            OcrEvidenceIdentity sourceAtStart = OcrEvidenceIdentity.Capture(
+                                match.SourcePath, match.SourcePath, "candidate-source");
                             string cropPath = Path.Combine(templateCropFolder, $"{index++:D2}.png");
                             string ocrPath = cropPath;
                             try
@@ -2174,13 +2289,20 @@ public sealed class MainForm : Form
                             {
                                 ocrPath = match.SourcePath;
                             }
+                            OcrEvidenceIdentity creationIdentity = PinCreatedCandidateView(
+                                sourceAtStart, ocrPath);
+                            string[] declaredRuleIds = catalog.Templates
+                                .Single(template => template.Id.Equals(match.Template.Id, StringComparison.Ordinal))
+                                .RuleIds;
                             templateCandidates.Add(new RecognitionCandidate(
                                 match.SourcePath,
                                 ocrPath,
                                 match.Template.RuleIds.Select(id => ruleMap[id]).ToArray(),
                                 true,
                                 "标题模板",
-                                match.Distance));
+                                match.Distance,
+                                CreationIdentity: creationIdentity,
+                                DeclaredRuleIds: declaredRuleIds));
                         }
 
                         if (hasCompleteTemplateMatches)
@@ -2261,7 +2383,12 @@ public sealed class MainForm : Form
             foreach (LocalCandidatePlan plan in LocalCandidatePlanner.Build(
                 imagePaths, localResults, rules, issue, completeIdentityRules))
             {
-                string ocrPath = PrepareLocalCloudImage(selectedImageDirectory!, plan.Path, plan.Rules, ref templateCropFolder);
+                OcrEvidenceIdentity sourceAtStart = OcrEvidenceIdentity.Capture(
+                    plan.Path, plan.Path, "candidate-source");
+                string ocrPath = PrepareLocalCloudImage(
+                    selectedImageDirectory!, plan.Path, plan.Rules, ref templateCropFolder);
+                OcrEvidenceIdentity creationIdentity = PinCreatedCandidateView(
+                    sourceAtStart, ocrPath);
                 localCandidates.Add(new RecognitionCandidate(
                     plan.Path,
                     ocrPath,
@@ -2270,7 +2397,8 @@ public sealed class MainForm : Form
                     (plan.IsPrimary ? "本地OCR首选" : "本地OCR备选") + (ocrPath == plan.Path ? "" : "（杰少密集表横向压缩整图）"),
                     null,
                     localResults.TryGetValue(plan.Path, out IReadOnlyList<string>? planLines) ? planLines : [],
-                    BindPaddleEvidence(localClient, plan.Path, plan.Path, "candidate-small")));
+                    BindPaddleEvidence(localClient, plan.Path, plan.Path, "candidate-small"),
+                    creationIdentity));
             }
             return new CandidateSelection(templateCandidates.Concat(localCandidates).ToArray(), templateCropFolder, "本地OCR");
         }
@@ -2305,8 +2433,17 @@ public sealed class MainForm : Form
     private static OcrEvidence? BindPaddleEvidence(
         PaddleLocalOcrClient client,
         RecognitionCandidate candidate,
-        string stage) =>
-        BindPaddleEvidence(client, candidate.SourcePath, candidate.OcrPath, stage + "/" + candidate.SelectionMode);
+        string stage)
+    {
+        if (!client.LastEvidence.TryGetValue(candidate.OcrPath, out OcrEvidence? evidence))
+            return null;
+        OcrEvidenceIdentity identity = RequirePinnedCandidateIdentity(
+            candidate.PinnedIdentity,
+            candidate.SourcePath,
+            candidate.OcrPath,
+            stage + "/" + candidate.SelectionMode);
+        return evidence.Bind(identity);
+    }
 
     private static OcrEvidence? BindPaddleEvidence(
         PaddleLocalOcrClient client,
@@ -2434,7 +2571,13 @@ public sealed class MainForm : Form
         string SelectionMode,
         int? TemplateDistance,
         IReadOnlyList<string>? LocalLines = null,
-        OcrEvidence? LocalEvidence = null);
+        OcrEvidence? LocalEvidence = null,
+        OcrEvidenceIdentity? CreationIdentity = null,
+        IReadOnlyList<string>? DeclaredRuleIds = null)
+    {
+        internal OcrEvidenceIdentity PinnedIdentity { get; } =
+            CreationIdentity ?? OcrEvidenceIdentity.Capture(SourcePath, OcrPath, "candidate");
+    }
 
     private sealed record CandidateSelection(
         IReadOnlyList<RecognitionCandidate> Candidates,

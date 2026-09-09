@@ -279,7 +279,7 @@ public sealed class TencentOcrClient : IOcrClient
             ? parsedConfidence
             : null;
         if (!item.TryGetProperty("ItemPolygon", out JsonElement polygon))
-            return new(text, null, confidence, "tencent", $"unpositioned-{index}");
+            return new(text, null, confidence, "tencent", "main");
         int x = polygon.GetProperty("X").GetInt32();
         int y = polygon.GetProperty("Y").GetInt32();
         int width = polygon.TryGetProperty("Width", out JsonElement widthElement) ? widthElement.GetInt32() : 0;
@@ -440,7 +440,7 @@ public sealed class BaiduOcrClient : IOcrClient
                     && probability.TryGetProperty("average", out JsonElement average)
                     && average.TryGetDouble(out double parsed))
                     confidence = parsed;
-                items.Add(new(text, box, confidence, "baidu", box is null ? $"unpositioned-{index}" : "main"));
+                items.Add(new(text, box, confidence, "baidu", "main"));
                 index++;
             }
             return OcrEvidenceLayout.Partition(items);

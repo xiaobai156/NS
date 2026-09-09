@@ -2,6 +2,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace OcrLineTool;
@@ -27,7 +28,8 @@ public sealed record VisualTemplateMatch(
     string SourcePath,
     VisualTemplateDefinition Template,
     int Distance,
-    double VerticalShiftWidthRatio);
+    double VerticalShiftWidthRatio,
+    string SourceHash = "");
 
 public sealed record VisualTemplateProgress(int Completed, int Total, string Path);
 
@@ -264,21 +266,27 @@ public static class VisualTemplateMatcher
         ulong[][] templateHashes = templates.Select(item => ParseFingerprint(item.Fingerprint)).ToArray();
         FingerprintRegion[] templateRegions = templates.Select(regionSelector).ToArray();
         FingerprintRegion[] regions = templateRegions.Distinct().ToArray();
-        var imageHashes = new (string Path, Dictionary<FingerprintRegion, ulong[][]> Hashes)[imagePaths.Count];
+        var imageHashes = new (string Path, string SourceHash, Dictionary<FingerprintRegion, ulong[][]> Hashes)[imagePaths.Count];
         int completed = 0;
         Parallel.For(0, imagePaths.Count, index =>
         {
             string path = imagePaths[index];
             try
             {
-                using var image = new Bitmap(path);
-                imageHashes[index] = (path, regions.ToDictionary(
+                // Fingerprint and source identity must be derived from the exact
+                // same bytes. Otherwise a same-path replacement between matching
+                // and cropping could bind template A's location to image B.
+                byte[] bytes = File.ReadAllBytes(path);
+                string sourceHash = Convert.ToHexString(SHA256.HashData(bytes));
+                using var stream = new MemoryStream(bytes, writable: false);
+                using var image = new Bitmap(stream);
+                imageHashes[index] = (path, sourceHash, regions.ToDictionary(
                     region => region,
                     region => CreateCudaFingerprints(image, region)));
             }
             catch (Exception exception) when (exception is ArgumentException or IOException)
             {
-                imageHashes[index] = (path, []);
+                imageHashes[index] = (path, string.Empty, []);
             }
             int current = Interlocked.Increment(ref completed);
             progress?.Report(new VisualTemplateProgress(current, imagePaths.Count, path));
@@ -343,14 +351,30 @@ public static class VisualTemplateMatcher
                 imageHashes[score.ImageIndex].Path,
                 templates[score.TemplateIndex],
                 score.Distance,
-                ShiftRatios[score.ShiftIndex]));
+                ShiftRatios[score.ShiftIndex],
+                imageHashes[score.ImageIndex].SourceHash));
         }
         return matches.OrderBy(item => item.Template.Id, StringComparer.Ordinal).ToArray();
     }
 
     public static void CreateCrop(VisualTemplateMatch match, string destinationPath, bool includeRemainingRows = false, int scale = 1)
     {
-        using var image = new Bitmap(match.SourcePath);
+        byte[] sourceBytes;
+        try
+        {
+            sourceBytes = File.ReadAllBytes(match.SourcePath);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new OcrException("模板来源图片在裁剪前不可用，请重新识别。", "OCR_IMAGE_CHANGED");
+        }
+        string sourceHash = Convert.ToHexString(SHA256.HashData(sourceBytes));
+        if (!string.IsNullOrWhiteSpace(match.SourceHash)
+            && !sourceHash.Equals(match.SourceHash, StringComparison.OrdinalIgnoreCase))
+            throw new OcrException("模板来源图片在匹配后发生变化，请重新识别。", "OCR_IMAGE_CHANGED");
+
+        using var stream = new MemoryStream(sourceBytes, writable: false);
+        using var image = new Bitmap(stream);
         double shift = Math.Round(match.VerticalShiftWidthRatio, 2);
         int top = (int)Math.Round(image.Width * (match.Template.CropTopWidthRatio + shift));
         int bottom = includeRemainingRows ? image.Height : (int)Math.Round(image.Width *

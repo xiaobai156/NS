@@ -191,7 +191,8 @@ internal static class OcrEvidenceLayout
             // that stronger identity by repartitioning everything as "main".
             string[] declaredRegions = items
                 .Select(item => item.RegionId)
-                .Where(region => !string.IsNullOrWhiteSpace(region) && region != "main")
+                .Where(region => !string.IsNullOrWhiteSpace(region) && region != "main"
+                    && !region.StartsWith("unpositioned-", StringComparison.Ordinal))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
             if (declaredRegions.Length > 0)
@@ -239,8 +240,20 @@ internal static class OcrEvidenceLayout
 
     private static List<List<RowSegment>> BuildHorizontalColumns(IEnumerable<RowSegment> source)
     {
+        RowSegment[] segments = source.OrderBy(item => item.Box.CenterX).ToArray();
+        if (segments.Length == 0)
+            return [];
+        int pageLeft = segments.Min(item => item.Box.X);
+        int pageRight = segments.Max(item => item.Box.Right);
+        int pageWidth = Math.Max(1, pageRight - pageLeft);
+        double medianWidth = segments.Select(item => Math.Max(1, item.Box.Width))
+            .OrderBy(value => value).ElementAt(segments.Length / 2);
+        bool IsSpanning(RowSegment segment) => segments.Length >= 3
+            && segment.Box.Width >= pageWidth * 0.60
+            && segment.Box.Width >= medianWidth * 1.75;
+
         var columns = new List<List<RowSegment>>();
-        foreach (RowSegment segment in source.OrderBy(item => item.Box.CenterX))
+        foreach (RowSegment segment in segments.Where(item => !IsSpanning(item)))
         {
             int chosen = -1;
             int bestGap = int.MaxValue;
@@ -264,6 +277,11 @@ internal static class OcrEvidenceLayout
             else
                 columns[chosen].Add(segment);
         }
+
+        // A full-width title/header is provenance for the page, not a bridge
+        // between physically separated body columns. Keep it in its own region.
+        foreach (RowSegment spanning in segments.Where(IsSpanning))
+            columns.Add([spanning]);
         return columns.OrderBy(column => column.Average(item => item.Box.CenterX)).ToList();
     }
 

@@ -17,6 +17,10 @@ public static class ResultFilePaths
     public static string RecognitionStateDirectory(string appDirectory) =>
         Path.Combine(ImportantResultsDirectory(appDirectory), "识别状态");
 
+    public static string RecognitionEvidenceDirectory(
+        string appDirectory, string groupName, int issue) =>
+        Path.Combine(RecognitionStateDirectory(appDirectory), "证据", $"{groupName}_{issue}期");
+
     public static string ForRecognitionState(string appDirectory, string selectedDirectory, int issue) =>
         Path.Combine(
             RecognitionStateDirectory(appDirectory),

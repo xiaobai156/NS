@@ -209,6 +209,13 @@ internal static class RecognitionStateStore
                 record.Status != "success" || record.Value != value ||
                 !RuleEngine.IsCanonicalValueValid(rule, value))
                 continue;
+
+            // A successful OCR view may live in a temporary crop directory that
+            // MainForm deletes when the run ends. Persist the exact input bytes
+            // before writing trusted state, while retaining the original source
+            // path/hash as the primary provenance check.
+            record = PersistInputSnapshot(appDirectory, group, issue, record);
+            evidence.Seed(record);
             results.Add(record);
         }
 
@@ -229,6 +236,132 @@ internal static class RecognitionStateStore
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             throw new OcrException("无法保存带来源证明的识别状态；本次结果不会作为可恢复成功值。", "OCR_STATE_WRITE_ERROR");
+        }
+    }
+
+    private static ResultEvidenceRecord PersistInputSnapshot(
+        string appDirectory,
+        string group,
+        int issue,
+        ResultEvidenceRecord record)
+    {
+        try
+        {
+            string source = Path.GetFullPath(record.SourcePath);
+            string input = Path.GetFullPath(record.InputPath);
+            if (!File.Exists(source)
+                || !LocalOcrIdentity.Image(source).Equals(record.SourceHash, StringComparison.OrdinalIgnoreCase))
+                throw new OcrException(
+                    "识别来源在状态保存前发生变化，请重新识别。",
+                    "OCR_IMAGE_CHANGED");
+
+            if (source.Equals(input, StringComparison.OrdinalIgnoreCase))
+                return record with { SourcePath = source, InputPath = input };
+            if (!File.Exists(input)
+                || !LocalOcrIdentity.Image(input).Equals(record.InputHash, StringComparison.OrdinalIgnoreCase))
+                throw new OcrException(
+                    "识别裁剪在状态保存前发生变化，请重新识别。",
+                    "OCR_IMAGE_CHANGED");
+
+            string directory = ResultFilePaths.RecognitionEvidenceDirectory(
+                appDirectory, group, issue);
+            Directory.CreateDirectory(directory);
+            string extension = Path.GetExtension(input);
+            if (string.IsNullOrWhiteSpace(extension) || extension.Length > 8)
+                extension = ".img";
+            string destination = Path.Combine(directory,
+                record.InputHash.ToLowerInvariant() + extension.ToLowerInvariant());
+
+            if (!File.Exists(destination)
+                || !LocalOcrIdentity.Image(destination).Equals(record.InputHash, StringComparison.OrdinalIgnoreCase))
+            {
+                string staging = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                try
+                {
+                    File.Copy(input, staging, overwrite: true);
+                    if (!LocalOcrIdentity.Image(staging).Equals(record.InputHash, StringComparison.OrdinalIgnoreCase))
+                        throw new OcrException(
+                            "识别裁剪在持久化时发生变化，请重新识别。",
+                            "OCR_IMAGE_CHANGED");
+                    File.Move(staging, destination, overwrite: true);
+                }
+                finally
+                {
+                    try { if (File.Exists(staging)) File.Delete(staging); } catch { }
+                }
+            }
+            return record with { SourcePath = source, InputPath = destination };
+        }
+        catch (OcrException) { throw; }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            throw new OcrException(
+                "无法持久化识别裁剪，本次结果不会作为可恢复成功值。",
+                "OCR_STATE_WRITE_ERROR");
+        }
+    }
+
+    /// <summary>
+    /// Automatic publishing is per-rule fail-closed: an invalid success is
+    /// downgraded to missing, but a different rule's already-known conflict is
+    /// preserved so it can be saved and revoke an owned stale output.
+    /// </summary>
+    internal static IDisposable LockValidEvidenceForPublish(
+        IReadOnlyList<OcrRule> rules,
+        ResultValues values,
+        ResultEvidenceLedger evidence,
+        IDictionary<string, string> missingReasons)
+    {
+        var handles = new Dictionary<string, FileStream>(StringComparer.OrdinalIgnoreCase);
+        var expectedHashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (OcrRule rule in rules)
+        {
+            if (ResultValues.IsConflict(values, rule.Id) || !values.ContainsKey(rule.Id))
+                continue;
+
+            if (!evidence.Records.TryGetValue(rule.Id, out ResultEvidenceRecord? record)
+                || record.Status != "success"
+                || record.RuleSignature != RuleSignature(rule)
+                || string.IsNullOrWhiteSpace(record.SourcePath)
+                || string.IsNullOrWhiteSpace(record.InputPath)
+                || string.IsNullOrWhiteSpace(record.SourceHash)
+                || string.IsNullOrWhiteSpace(record.InputHash)
+                || !TryLock(record.SourcePath, record.SourceHash)
+                || !TryLock(record.InputPath, record.InputHash))
+            {
+                values.Remove(rule.Id);
+                evidence.Remove(rule.Id);
+                missingReasons[rule.Id] = "图片或识别视图在发布前发生变化";
+            }
+        }
+        return new EvidencePublishLock(handles.Values.ToArray());
+
+        bool TryLock(string path, string expectedHash)
+        {
+            try
+            {
+                string fullPath = Path.GetFullPath(path);
+                if (expectedHashes.TryGetValue(fullPath, out string? existingHash))
+                    return existingHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase);
+
+                FileStream stream = new(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                string currentHash = Convert.ToHexString(
+                    System.Security.Cryptography.SHA256.HashData(stream));
+                stream.Position = 0;
+                if (!currentHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    stream.Dispose();
+                    return false;
+                }
+                handles.Add(fullPath, stream);
+                expectedHashes.Add(fullPath, expectedHash);
+                return true;
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                return false;
+            }
         }
     }
 
