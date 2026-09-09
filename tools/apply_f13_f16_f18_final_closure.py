@@ -2,8 +2,10 @@ from pathlib import Path
 
 main_path = Path('OcrLineTool.App/MainForm.cs')
 state_path = Path('OcrLineTool.App/RecognitionStateStore.cs')
+rule_path = Path('OcrLineTool.App/RuleEngine.cs')
 main = main_path.read_text(encoding='utf-8')
 state = state_path.read_text(encoding='utf-8')
+rule = rule_path.read_text(encoding='utf-8')
 
 def repl(text: str, old: str, new: str, label: str, expected: int = 1) -> str:
     count = text.count(old)
@@ -86,6 +88,55 @@ main = repl(main,
 'F16 manual source')
 
 # ---------------------------------------------------------------------------
+# F18 final closure: the business extractor never sees a synthetic sequence that
+# spans physical OCR regions/views. Each (ViewId, RegionId) is extracted on its
+# own; multiple different valid values are a conflict, identical observations
+# collapse to one value. This makes the boundary independent of every special
+# parser branch inside RuleEngine.
+# ---------------------------------------------------------------------------
+rule = repl(rule,
+'''    public static string? ExtractFinalValue(OcrEvidence evidence, int issue, OcrRule rule)
+    {
+        ArgumentNullException.ThrowIfNull(evidence);
+        string? value = ExtractFinalValue(evidence.Lines, issue, rule);
+        if (value is null)
+            return null;
+
+        OcrLineEvidence[] nonEmpty = evidence.Items
+            .Where(item => !string.IsNullOrWhiteSpace(item.Text))
+            .ToArray();
+        if (nonEmpty.Length == 0)
+            return null;
+
+        // Positioned evidence has already been partitioned into physical
+        // regions/columns. For an engine that cannot provide geometry, never
+        // accept a value that only becomes valid after joining multiple opaque
+        // lines: one returned physical OCR item must independently prove it.
+        if (evidence.HasCompleteGeometry)
+            return value;
+        return nonEmpty.Any(item =>
+            string.Equals(ExtractFinalValue(new[] { item.Text }, issue, rule), value, StringComparison.Ordinal))
+            ? value
+            : null;
+    }
+''',
+'''    public static string? ExtractFinalValue(OcrEvidence evidence, int issue, OcrRule rule)
+    {
+        ArgumentNullException.ThrowIfNull(evidence);
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (IGrouping<string, OcrLineEvidence> region in evidence.Items
+            .Where(item => !string.IsNullOrWhiteSpace(item.Text))
+            .GroupBy(item => item.ViewId + "\u001f" + item.RegionId, StringComparer.Ordinal))
+        {
+            string? value = ExtractFinalValue(region.Select(item => item.Text), issue, rule);
+            if (value is not null)
+                observed.Add(value);
+        }
+        return observed.Count == 1 ? observed.Single() : null;
+    }
+''', 'F18 region extraction')
+
+# ---------------------------------------------------------------------------
 # Structured state also binds success to the exact current rule contract, not
 # only RuleId/Type/Label. A rule/config change invalidates old trusted state.
 # ---------------------------------------------------------------------------
@@ -150,7 +201,6 @@ insert = '''    internal static string RuleSignature(OcrRule rule)
         string appDirectory,'''
 state = repl(state, insert_anchor, insert, 'state helpers')
 
-# Silence nullable warning after validation has proven Value non-null/non-empty.
 state = repl(state,
 '''                ResultValues.AddTo(values, rule.Id, record.Value);
                 if (!ResultValues.IsConflict(values, rule.Id))''',
@@ -159,4 +209,5 @@ state = repl(state,
 
 main_path.write_text(main, encoding='utf-8')
 state_path.write_text(state, encoding='utf-8')
+rule_path.write_text(rule, encoding='utf-8')
 print('Applied final F13/F16/F18 closure')
