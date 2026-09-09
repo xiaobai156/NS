@@ -6,6 +6,12 @@ using System.Text.Json;
 
 namespace OcrLineTool;
 
+internal static class OcrLayoutMarkers
+{
+    internal const string RegionBoundary = "\u001e";
+    internal static bool IsBoundary(string line) => line == RegionBoundary;
+}
+
 public sealed class OcrException(string message, string? code = null) : Exception(message)
 {
     public string? Code { get; } = code;
@@ -87,6 +93,21 @@ internal static class OcrHttp
 
         return await File.ReadAllBytesAsync(path, cancellationToken);
     }
+
+    internal static void EnsureImageUnchanged(string path, byte[] sentBytes)
+    {
+        try
+        {
+            byte[] current = File.ReadAllBytes(path);
+            if (!current.AsSpan().SequenceEqual(sentBytes))
+                throw new OcrException("图片在云 OCR 请求期间发生变化，请重新识别。", "OCR_IMAGE_CHANGED");
+        }
+        catch (OcrException) { throw; }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new OcrException("图片在云 OCR 请求期间不可用，请重新识别。", "OCR_IMAGE_CHANGED");
+        }
+    }
 }
 
 public sealed class TencentOcrClient : IOcrClient
@@ -137,7 +158,9 @@ public sealed class TencentOcrClient : IOcrClient
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
                 throw new OcrException($"腾讯云请求失败（HTTP {(int)response.StatusCode}）。");
-            return ParseLines(json);
+            IReadOnlyList<string> lines = ParseLines(json);
+            OcrHttp.EnsureImageUnchanged(imagePath, bytes);
+            return lines;
         }
         catch (OcrException)
         {
@@ -217,20 +240,22 @@ public sealed class TencentOcrClient : IOcrClient
         }
     }
 
-    private sealed record TextPiece(string Text, int X, int Y, int Height, int Index, bool HasPosition)
+    private sealed record TextPiece(string Text, int X, int Y, int Width, int Height, int Index, bool HasPosition)
     {
         public double CenterY => Y + Height / 2d;
+        public int Right => X + Math.Max(0, Width);
     }
 
     private static TextPiece ParsePiece(JsonElement item, int index)
     {
         string text = item.GetProperty("DetectedText").GetString() ?? "";
         if (!item.TryGetProperty("ItemPolygon", out JsonElement polygon))
-            return new(text, 0, 0, 0, index, false);
+            return new(text, 0, 0, 0, 0, index, false);
         return new(
             text,
             polygon.GetProperty("X").GetInt32(),
             polygon.GetProperty("Y").GetInt32(),
+            polygon.TryGetProperty("Width", out JsonElement width) ? width.GetInt32() : 0,
             polygon.GetProperty("Height").GetInt32(),
             index,
             true);
@@ -255,8 +280,35 @@ public sealed class TencentOcrClient : IOcrClient
 
         return rows
             .OrderBy(row => row.Average(piece => piece.CenterY))
-            .Select(row => string.Concat(row.OrderBy(piece => piece.X).Select(piece => piece.Text)))
+            .SelectMany(AssembleRowSegments)
             .ToArray();
+    }
+
+    private static IEnumerable<string> AssembleRowSegments(List<TextPiece> row)
+    {
+        TextPiece[] ordered = row.OrderBy(piece => piece.X).ToArray();
+        var segment = new List<TextPiece>();
+        int previousRight = 0;
+        for (int index = 0; index < ordered.Length; index++)
+        {
+            TextPiece piece = ordered[index];
+            if (segment.Count > 0)
+            {
+                TextPiece previous = segment[^1];
+                int gap = piece.X - previousRight;
+                int splitGap = Math.Max(48, Math.Max(previous.Height, piece.Height) * 4);
+                if (gap > splitGap)
+                {
+                    yield return string.Concat(segment.Select(item => item.Text));
+                    yield return OcrLayoutMarkers.RegionBoundary;
+                    segment.Clear();
+                }
+            }
+            segment.Add(piece);
+            previousRight = Math.Max(previousRight, piece.Right);
+        }
+        if (segment.Count > 0)
+            yield return string.Concat(segment.Select(item => item.Text));
     }
 }
 
@@ -298,7 +350,9 @@ public sealed class BaiduOcrClient : IOcrClient
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
                 throw new OcrException($"百度 OCR 请求失败（HTTP {(int)response.StatusCode}）。");
-            return ParseLines(json);
+            IReadOnlyList<string> lines = ParseLines(json);
+            OcrHttp.EnsureImageUnchanged(imagePath, bytes);
+            return lines;
         }
         catch (OcrException)
         {

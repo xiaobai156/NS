@@ -46,12 +46,16 @@ public static class RuleEngine
     public static IReadOnlyList<OcrRule> FindMatches(
         string imagePath,
         IEnumerable<string> localLines,
-        IEnumerable<OcrRule> rules)
+        IEnumerable<OcrRule> rules,
+        IEnumerable<OcrRule>? completeRules = null)
     {
         string[] lines = localLines.ToArray();
+        OcrRule[] requestedRules = rules.ToArray();
+        OcrRule[] identityRules = completeRules?.ToArray() ?? [];
+        bool hasCompleteIdentityCatalog = completeRules is not null;
         string text = Normalize(string.Concat(lines));
         string folder = Path.GetFileName(Path.GetDirectoryName(imagePath)) ?? "";
-        return rules.Where(rule =>
+        return requestedRules.Where(rule =>
         {
             string expectedFolder = rule.Folder ?? rule.Keyword;
             bool folderMatches = folder.Equals(expectedFolder, StringComparison.OrdinalIgnoreCase)
@@ -64,15 +68,22 @@ public static class RuleEngine
                     .Equals(RuleCatalog.NormalizeGroupName(expectedFolder), StringComparison.OrdinalIgnoreCase)
                 && !ContainsKeyword(text, Normalize(rule.RequiredKeyword)))
                 return false;
+            bool explicitIdentity = MatchesText(text, rule)
+                && (string.IsNullOrWhiteSpace(rule.Section)
+                    || text.Contains(Normalize(rule.Section), StringComparison.Ordinal));
+            if (explicitIdentity)
+                return true;
             return HasValueForAnyIssue(lines, rule)
                 || (!string.IsNullOrWhiteSpace(rule.RequiredKeyword)
                     && !RuleCatalog.NormalizeGroupName(rule.RequiredKeyword).Equals(
                         RuleCatalog.NormalizeGroupName(expectedFolder), StringComparison.OrdinalIgnoreCase)
                     && ContainsKeyword(text, Normalize(rule.RequiredKeyword))
-                    && (rules.Count(other => (other.Folder ?? other.Keyword).Equals(expectedFolder, StringComparison.OrdinalIgnoreCase)
-                        && Normalize(other.RequiredKeyword ?? other.Keyword) == Normalize(rule.RequiredKeyword)) == 1
+                    && (hasCompleteIdentityCatalog
+                        && identityRules.Count(other => (other.Folder ?? other.Keyword).Equals(expectedFolder, StringComparison.OrdinalIgnoreCase)
+                            && Normalize(other.RequiredKeyword ?? other.Keyword) == Normalize(rule.RequiredKeyword)) == 1
                         || !string.IsNullOrWhiteSpace(rule.Section) && text.Contains(Normalize(rule.Section), StringComparison.Ordinal)))
-                || (rules.Count(other => (other.Folder ?? other.Keyword).Equals(expectedFolder, StringComparison.OrdinalIgnoreCase)) == 1
+                || (hasCompleteIdentityCatalog
+                    && identityRules.Count(other => (other.Folder ?? other.Keyword).Equals(expectedFolder, StringComparison.OrdinalIgnoreCase)) == 1
                     && expectedFolder.Equals(rule.RequiredKeyword ?? rule.Keyword, StringComparison.OrdinalIgnoreCase));
         }).ToArray();
     }
@@ -300,7 +311,9 @@ public static class RuleEngine
             string combined = line;
             for (int next = index + 1; next < lines.Length && next <= index + 4; next++)
             {
-                if (ContainsIssueBoundary(lines[next], issue) || combined.Length + lines[next].Length >= 180)
+                if (OcrLayoutMarkers.IsBoundary(lines[next])
+                    || ContainsIssueBoundary(lines[next], issue)
+                    || combined.Length + lines[next].Length >= 180)
                     break;
                 combined += " " + lines[next];
                 candidates.Add(combined);
@@ -1318,6 +1331,60 @@ public static class RuleEngine
             : missingReasons is not null && missingReasons.TryGetValue(rule.Id, out string? reason)
                 ? $"缺失（{reason}） {rule.OutputLabel}"
                 : $"缺失 {rule.OutputLabel}").ToArray();
+
+    public static bool IsFormattedOutputValueValid(OcrRule rule, string value)
+    {
+        value = SimplifyOcrText(value.Trim());
+        if (rule.Type.StartsWith("号码:", StringComparison.Ordinal)
+            && int.TryParse(rule.Type.AsSpan("号码:".Length), out int count))
+        {
+            string[] numbers = value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            return numbers.Length == count && numbers.Distinct(StringComparer.Ordinal).Count() == count
+                && numbers.All(number => number.Length == 2 && int.TryParse(number, out int parsed)
+                    && parsed is >= 1 and <= 49);
+        }
+        if (rule.Type is "生肖" or "单生肖")
+            return value.Length == 1 && Zodiac.Contains(value[0]);
+        if (rule.Type == "生肖组合")
+            return value.Length == 2 && value.All(Zodiac.Contains) && value.Distinct().Count() == 2;
+        if (rule.Type == "九肖")
+            return value.Length == 9 && value.All(Zodiac.Contains) && value.Distinct().Count() == 9;
+        if (rule.Type == "统计生肖")
+            return value.Length > 0 && value.Length <= Zodiac.Length && value.All(Zodiac.Contains)
+                && value.Distinct().Count() == value.Length;
+        if (rule.Type == "头")
+            return Regex.IsMatch(value, "^[0-4]头$");
+        if (rule.Type == "尾")
+        {
+            if (rule.Id is "亚太尾" or "战澳尾")
+            {
+                string[] tails = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                return tails.Length == 2 && tails.Distinct(StringComparer.Ordinal).Count() == 2
+                    && tails.All(item => Regex.IsMatch(item, "^[0-9]尾$"));
+            }
+            return Regex.IsMatch(value, "^[0-9]尾$");
+        }
+        if (rule.Type == "尾数组合")
+        {
+            string[] tails = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return tails.Length == 2 && tails.Distinct(StringComparer.Ordinal).Count() == 2
+                && tails.All(item => Regex.IsMatch(item, "^[0-9]尾$"));
+        }
+        if (rule.Type == "头数组合")
+        {
+            string[] heads = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return heads.Length > 0 && heads.Length <= 5 && heads.Distinct(StringComparer.Ordinal).Count() == heads.Length
+                && heads.All(item => Regex.IsMatch(item, "^[0-4]头$"));
+        }
+        if (rule.Type == "缺尾") return Regex.IsMatch(value, "^[0-9]尾$");
+        if (rule.Type == "缺头") return Regex.IsMatch(value, "^[0-4]头$");
+        if (rule.Type is "五行" or "单五行") return value.Length == 1 && "金木水火土".Contains(value[0]);
+        if (rule.Type == "色单双") return Regex.IsMatch(value, "^[红蓝绿][单双]$");
+        if (rule.Type == "合") return Regex.IsMatch(value, "^(?:0[1-9]|1[0-3])合$");
+        if (rule.Type == "段") return Regex.IsMatch(value, "^[0-7]段$");
+        if (rule.Type == "半头") return Regex.IsMatch(value, "^[0-4]头[单双]$");
+        return false;
+    }
 
     private static string FormatForOutput(OcrRule rule, string value)
     {

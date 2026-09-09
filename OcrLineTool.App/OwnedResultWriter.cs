@@ -9,8 +9,16 @@ internal static class OwnedResultWriter
 {
     private sealed record OwnedLine(string SourceGroup, string Label, string Line);
 
+    // Compatibility overload: callers that only add/update successful values
+    // retain the original behavior. Revocation is opt-in and used only when a
+    // same-issue conflict is explicitly propagated by ResultDistributor.
+    internal static Task<IReadOnlySet<string>> ApplyAsync(string targetPath, string sourceGroup,
+        string[] configuredLines, string? marker, bool blankLineBeforeMarker) =>
+        ApplyAsync(targetPath, sourceGroup, configuredLines,
+            new HashSet<string>(StringComparer.Ordinal), marker, blankLineBeforeMarker);
+
     internal static async Task<IReadOnlySet<string>> ApplyAsync(string targetPath, string sourceGroup,
-        string[] configuredLines, string? marker, bool blankLineBeforeMarker)
+        string[] configuredLines, IReadOnlySet<string> revokedLabels, string? marker, bool blankLineBeforeMarker)
     {
         string stateDirectory = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(targetPath))!, ".ocr-state");
         string ownerPath = Path.Combine(stateDirectory, Path.GetFileName(targetPath) + ".owners.json");
@@ -29,6 +37,34 @@ internal static class OwnedResultWriter
                 : [];
             var pending = new List<string>();
             bool modified = false;
+            foreach (string label in revokedLabels)
+            {
+                OwnedLine[] matchingOwners = owners
+                    .Where(item => item.SourceGroup == sourceGroup && item.Label == label)
+                    .ToArray();
+                if (matchingOwners.Length > 1)
+                    throw new OcrException("分流归属记录重复，未修改目标文件。");
+                OwnedLine? owned = matchingOwners.SingleOrDefault();
+                if (owned is null)
+                    continue;
+                int[] sameLabel = Enumerable.Range(0, rows.Count)
+                    .Where(index => Label(rows[index]) == label).ToArray();
+                if (sameLabel.Length == 0)
+                {
+                    owners.Remove(owned);
+                    modified = true;
+                    continue;
+                }
+                if (sameLabel.Length == 1 && rows[sameLabel[0]] == owned.Line
+                    && !owners.Any(item => item.SourceGroup != sourceGroup && item.Label == label))
+                {
+                    rows.RemoveAt(sameLabel[0]);
+                    owners.Remove(owned);
+                    modified = true;
+                    continue;
+                }
+                throw new OcrException($"分流冲突需撤销旧值，但目标归属已变化：{label}。保留原文件，请核对。");
+            }
             foreach (IGrouping<string, string> group in configuredLines.GroupBy(Label, StringComparer.Ordinal))
             {
                 string[] distinct = group.Distinct(StringComparer.Ordinal).ToArray();

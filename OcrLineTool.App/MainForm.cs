@@ -2059,10 +2059,14 @@ public sealed class MainForm : Form
         localResults = candidateResults;
         await Task.Yield();
         var localCandidates = new List<RecognitionCandidate>();
+        IReadOnlyList<OcrRule> completeIdentityRules = selectedRulePath is null
+            ? rules
+            : RuleCatalog.Load(selectedRulePath);
         bool isYanran = RuleCatalog.IsGroupFolder(selectedImageDirectory!, "嫣然心水");
         if (isYanran)
         {
-            foreach (LocalCandidatePlan plan in LocalCandidatePlanner.Build(imagePaths, localResults, rules, issue))
+            foreach (LocalCandidatePlan plan in LocalCandidatePlanner.Build(
+                imagePaths, localResults, rules, issue, completeIdentityRules))
             {
                 string ocrPath = PrepareLocalCloudImage(selectedImageDirectory!, plan.Path, plan.Rules, ref templateCropFolder);
                 localCandidates.Add(new RecognitionCandidate(
@@ -2080,7 +2084,7 @@ public sealed class MainForm : Form
         {
             if (!localResults.TryGetValue(path, out IReadOnlyList<string>? lines))
                 continue;
-            IReadOnlyList<OcrRule> matched = RuleEngine.FindMatches(path, lines, rules);
+            IReadOnlyList<OcrRule> matched = RuleEngine.FindMatches(path, lines, rules, completeIdentityRules);
             if (localLimitedRuleIds is not null && limitedImagePaths.Count > 0 &&
                 !limitedImagePaths.Contains(path))
             {

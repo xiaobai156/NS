@@ -10,7 +10,8 @@ public static class LocalCandidatePlanner
     public static IReadOnlyList<LocalCandidatePlan> Build(
         IReadOnlyList<string> imagePaths,
         IReadOnlyDictionary<string, IReadOnlyList<string>> localResults,
-        IReadOnlyList<OcrRule> rules, int? issue = null)
+        IReadOnlyList<OcrRule> rules, int? issue = null,
+        IReadOnlyList<OcrRule>? completeRules = null)
     {
         var options = new List<CandidateOption>();
         foreach (string path in imagePaths)
@@ -22,7 +23,7 @@ public static class LocalCandidatePlanner
                 .Select(rule => rule.Id)
                 .ToHashSet(StringComparer.Ordinal);
             bool isSummary = RuleEngine.IsZodiacSummary(lines);
-            IReadOnlyList<OcrRule> matchedRules = RuleEngine.FindMatches(path, lines, rules);
+            IReadOnlyList<OcrRule> matchedRules = RuleEngine.FindMatches(path, lines, rules, completeRules);
             // 汇总图通常包含所有肖名，但本地 OCR 可能只识别到“统计表”标题。
             // 仍把生肖规则交给云 OCR，避免误报“未找到对应图片”。
             if (isSummary)

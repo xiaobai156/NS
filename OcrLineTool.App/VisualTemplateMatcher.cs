@@ -177,6 +177,9 @@ public static class VisualTemplateMatcher
             .ToDictionary(template => template.Id, StringComparer.Ordinal);
         if (matches.Select(match => match.Template.Id).Distinct(StringComparer.Ordinal).Count() != matches.Count)
             return false;
+        if (matches.GroupBy(match => match.SourcePath, StringComparer.OrdinalIgnoreCase)
+            .Any(group => group.Select(match => match.Template.Id).Distinct(StringComparer.Ordinal).Count() > 1))
+            return false;
 
         var coveredRuleIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (VisualTemplateMatch match in matches)
@@ -319,11 +322,12 @@ public static class VisualTemplateMatcher
                 if (ordered.Length > 1 &&
                     ordered[1].Distance - ordered[0].Distance < minimumDistanceMargin)
                     return [];
-                return ordered.Take(1);
+                return ordered;
             })
             .ToList();
 
         var usedTemplates = new HashSet<int>();
+        var usedImages = new HashSet<int>();
         var matches = new List<VisualTemplateMatch>();
         foreach (Score score in pairs
             .OrderBy(item => item.Distance)
@@ -331,8 +335,10 @@ public static class VisualTemplateMatcher
             .ThenBy(item => Math.Abs(ShiftRatios[item.ShiftIndex]))
             .ThenBy(item => imageHashes[item.ImageIndex].Path, StringComparer.OrdinalIgnoreCase))
         {
-            if (!usedTemplates.Add(score.TemplateIndex))
+            if (usedTemplates.Contains(score.TemplateIndex) || usedImages.Contains(score.ImageIndex))
                 continue;
+            usedTemplates.Add(score.TemplateIndex);
+            usedImages.Add(score.ImageIndex);
             matches.Add(new VisualTemplateMatch(
                 imageHashes[score.ImageIndex].Path,
                 templates[score.TemplateIndex],

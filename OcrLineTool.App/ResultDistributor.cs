@@ -80,11 +80,24 @@ public static class ResultDistributor
             return EmptyResult;
 
         var labels = new HashSet<string>(rule.Labels, StringComparer.Ordinal);
-        string[] configuredLines = outputLines
+        IReadOnlyDictionary<string, OcrRule> rulesByLabel = RuleCatalog.Load(
+                RuleCatalog.PathForFolder(AppContext.BaseDirectory, selectedDirectory))
+            .Where(item => labels.Contains(item.OutputLabel))
+            .ToDictionary(item => item.OutputLabel, StringComparer.Ordinal);
+        string[] normalizedLines = outputLines
             .Select(line => line.EndsWith("（已分流）", StringComparison.Ordinal) ? line[..^5] : line)
-            .Where(line => IsConfiguredLine(line, labels, rule.NumberCounts))
             .ToArray();
-        if (configuredLines.Length == 0)
+        string[] configuredLines = normalizedLines
+            .Where(line => IsConfiguredLine(line, labels, rule.NumberCounts, rulesByLabel))
+            .ToArray();
+        HashSet<string> revokedLabels = normalizedLines
+            .Where(line => line.StartsWith("缺失（同一期结果冲突", StringComparison.Ordinal))
+            .Select(line => labels.OrderByDescending(label => label.Length)
+                .FirstOrDefault(label => line.EndsWith(" " + label, StringComparison.Ordinal)))
+            .Where(label => label is not null)
+            .Select(label => label!)
+            .ToHashSet(StringComparer.Ordinal);
+        if (configuredLines.Length == 0 && revokedLabels.Count == 0)
             return EmptyResult;
 
         targetDirectory ??= config.TargetDirectory ?? TargetDirectory;
@@ -101,7 +114,7 @@ public static class ResultDistributor
             ? config.Placement.Marker.Replace("{issue}", issue.ToString(), StringComparison.Ordinal)
             : null;
         return await OwnedResultWriter.ApplyAsync(targetPath, sourceGroup!, configuredLines,
-            marker, config.Placement?.BlankLineBeforeMarker == true);
+            revokedLabels, marker, config.Placement?.BlankLineBeforeMarker == true);
     }
 
     private static readonly IReadOnlySet<string> EmptyResult =
@@ -160,7 +173,8 @@ public static class ResultDistributor
     private static bool IsConfiguredLine(
         string line,
         HashSet<string> labels,
-        IReadOnlyDictionary<string, int>? numberCounts)
+        IReadOnlyDictionary<string, int>? numberCounts,
+        IReadOnlyDictionary<string, OcrRule> rulesByLabel)
     {
         int separator = line.LastIndexOf(' ');
         if (separator < 0 || line.StartsWith("缺失", StringComparison.Ordinal))
@@ -169,14 +183,28 @@ public static class ResultDistributor
         string label = line[(separator + 1)..];
         if (!labels.Contains(label))
             return false;
-        if (numberCounts?.TryGetValue(label, out int expectedCount) != true)
-            return true;
+        string value = line[..separator].Trim();
 
-        string[] numbers = line[..separator]
-            .Split(',', StringSplitOptions.TrimEntries);
-        return numbers.Length == expectedCount && numbers.Distinct(StringComparer.Ordinal).Count() == expectedCount
-            && numbers.All(number => number.Length == 2 && number.All(c => c is >= '0' and <= '9')
-                && int.TryParse(number, out int value) && value is >= 1 and <= 49);
+        if (numberCounts?.TryGetValue(label, out int expectedCount) == true)
+            return IsSafeNumberList(value, expectedCount);
+        if (rulesByLabel.TryGetValue(label, out OcrRule? ocrRule))
+            return RuleEngine.IsFormattedOutputValueValid(ocrRule, value);
+
+        // Custom labels have no OCR rule to prove a semantic type. Preserve the
+        // generic distributor contract only for an unambiguous numeric list;
+        // arbitrary text/生肖/尾数 cannot bypass business validation this way.
+        return IsSafeNumberList(value, expectedCount: null);
+    }
+
+    private static bool IsSafeNumberList(string value, int? expectedCount)
+    {
+        string[] numbers = value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (numbers.Length == 0 || expectedCount is int count && numbers.Length != count)
+            return false;
+        return numbers.Distinct(StringComparer.Ordinal).Count() == numbers.Length
+            && numbers.All(number => number.Length == 2
+                && number.All(character => character is >= '0' and <= '9')
+                && int.TryParse(number, out int parsed) && parsed is >= 1 and <= 49);
     }
 
     private sealed record DistributionConfig(
