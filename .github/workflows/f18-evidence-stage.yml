@@ -24,10 +24,11 @@ jobs:
         run: python -m pip install numpy pillow
       - name: Configure hosted test desktop
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/Set-TestDisplay.ps1
-      - name: Apply structured cloud evidence patch
+      - name: Apply structured OCR evidence patches
         run: |
           python tools/apply_f18_clients.py
           python tools/refine_f18_clients.py
+          python tools/apply_f18_paddle_cs.py
       - name: Accuracy tests
         run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category=ReauditAccuracy'
       - name: Windows Debug regression tests
@@ -41,8 +42,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add OcrLineTool.App/RuleEngine.cs OcrLineTool.App/OcrClients.cs OcrLineTool.App/CloudImageDeduplicator.cs
+          git add OcrLineTool.App/RuleEngine.cs OcrLineTool.App/OcrClients.cs OcrLineTool.App/CloudImageDeduplicator.cs OcrLineTool.App/PaddleLocalOcrClient.cs
           if (-not (git diff --cached --quiet)) {
-            git commit -m "feat: carry structured OCR evidence through cloud clients [f18-cloud-applied]"
+            git commit -m "feat: carry structured OCR evidence through cloud and Paddle clients [f18-clients-applied]"
             git push origin HEAD:${{ github.ref_name }}
           }
