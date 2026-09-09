@@ -68,23 +68,60 @@ public sealed class FinalResidualClosureTests
     }
 
     [Fact]
-    public void PublishGuardKeepsSuccessfulSourceStableUntilDistributionFinishes()
+    public void PublishGuardKeepsSourceAndActualInputStableUntilDistributionFinishes()
     {
         using var temp = new TempFiles("嫣然心水");
-        string image = temp.File("source.png", [5, 6, 7, 8]);
+        string source = temp.File("source.png", [5, 6, 7, 8]);
+        string input = temp.File("crop.png", [8, 7, 6, 5]);
         OcrRule rule = Rule("嫣然心水", "南国挽心");
-        OcrEvidence evidence = OcrEvidence.FromLines(image, ["251期 南国挽心 鸡"], "test");
+        var evidence = new OcrEvidence(
+            source,
+            input,
+            LocalOcrIdentity.Image(source),
+            LocalOcrIdentity.Image(input),
+            "test",
+            [new("251期 南国挽心 鸡", null, 0.99, "test", "main")]);
         var values = new ResultValues(StringComparer.Ordinal);
         var ledger = new ResultEvidenceLedger();
         ledger.Observe(values, rule, "鸡", evidence);
 
         using (RecognitionStateStore.LockCurrentEvidenceForPublish([rule], values, ledger))
         {
-            Assert.Throws<IOException>(() => File.WriteAllBytes(image, [1, 1, 1, 1]));
+            Assert.Throws<IOException>(() => File.WriteAllBytes(source, [1, 1, 1, 1]));
+            Assert.Throws<IOException>(() => File.WriteAllBytes(input, [2, 2, 2, 2]));
         }
 
-        File.WriteAllBytes(image, [1, 1, 1, 1]);
-        Assert.Equal([1, 1, 1, 1], File.ReadAllBytes(image));
+        File.WriteAllBytes(source, [1, 1, 1, 1]);
+        File.WriteAllBytes(input, [2, 2, 2, 2]);
+        Assert.Equal([1, 1, 1, 1], File.ReadAllBytes(source));
+        Assert.Equal([2, 2, 2, 2], File.ReadAllBytes(input));
+    }
+
+    [Fact]
+    public async Task TrustedStateRejectsAReplacedActualInputView()
+    {
+        using var temp = new TempFiles("嫣然心水");
+        string source = temp.File("source.png", [3, 4, 5, 6]);
+        string input = temp.File("crop.png", [6, 5, 4, 3]);
+        OcrRule rule = Rule("嫣然心水", "南国挽心");
+        var evidence = new OcrEvidence(
+            source,
+            input,
+            LocalOcrIdentity.Image(source),
+            LocalOcrIdentity.Image(input),
+            "test",
+            [new("251期 南国挽心 鸡", null, 0.99, "test", "main")]);
+        var values = new ResultValues(StringComparer.Ordinal);
+        var ledger = new ResultEvidenceLedger();
+        ledger.Observe(values, rule, "鸡", evidence);
+
+        await RecognitionStateStore.SaveAsync(
+            temp.Root, temp.GroupDirectory, 251, [rule], values, ledger);
+        File.WriteAllBytes(input, [9, 8, 7, 6]);
+
+        RecognitionStateLoad restored = RecognitionStateStore.Load(
+            temp.Root, temp.GroupDirectory, 251, [rule]);
+        Assert.False(restored.Values.ContainsKey(rule.Id));
     }
 
     private sealed class TempFiles : IDisposable
