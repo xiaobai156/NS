@@ -23,7 +23,7 @@ public sealed class F18EvidenceTests
         ], "legacy-cloud");
 
         Assert.Null(RuleEngine.ExtractFinalValue(evidence, 251, Rule("嫣然心水", "青苹果")));
-        Assert.True(evidence.Lines.Any(OcrLayoutMarkers.IsBoundary));
+        Assert.Contains(evidence.Lines, OcrLayoutMarkers.IsBoundary);
     }
 
     [Fact]
@@ -57,6 +57,21 @@ public sealed class F18EvidenceTests
         ]);
 
         Assert.Null(RuleEngine.ExtractFinalValue(evidence, 251, Rule("嫣然心水", "青苹果")));
+    }
+
+    [Fact]
+    public void TwoPhysicalRegionsWithDifferentValidValuesAreAConflict()
+    {
+        using var temp = new TempEvidenceFiles("嫣然心水");
+        string image = temp.File("sample.png", new byte[] { 6, 6, 6 });
+        string hash = LocalOcrIdentity.Image(image);
+        var evidence = new OcrEvidence(image, image, hash, hash, "test",
+        [
+            new("251期 南国挽心 鸡", new OcrBox(0, 10, 220, 20), 0.99, "test", "column-0"),
+            new("251期 南国挽心 狗", new OcrBox(800, 10, 220, 20), 0.99, "test", "column-1")
+        ]);
+
+        Assert.Null(RuleEngine.ExtractFinalValue(evidence, 251, Rule("嫣然心水", "南国挽心")));
     }
 
     [Fact]
