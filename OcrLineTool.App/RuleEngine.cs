@@ -924,7 +924,7 @@ public static class RuleEngine
                 // earlier row would reintroduce the previous-period borrowing bug.
                 if (previous < 0 || ContainsAnyIssue(lines[previous])
                     || IsOpeningOnlySeparator(lines[previous])
-                    || !HasNumberPayload(BeforeOpeningResult(lines[previous])))
+                    || !IsNumberContinuation(lines[previous], reviewedExpectedCount, rule))
                     continue;
 
                 string? split = ExtractStrictCenteredNumberWindow(
@@ -1934,7 +1934,7 @@ public static class RuleEngine
             return null;
 
         string immediate = BeforeOpeningResult(lines[previous]);
-        if (!HasNumberPayload(immediate))
+        if (!IsNumberContinuation(lines[previous], expectedCount, rule))
             return null;
 
         // Candidate A: the immediate left cell. This is the normal centred-row
@@ -1955,7 +1955,7 @@ public static class RuleEngine
                 || Regex.IsMatch(SimplifyOcrText(lines[index]), @"参考|旁栏|排行|统计|说明"))
                 break;
             string candidate = BeforeOpeningResult(lines[index]);
-            if (!HasNumberPayload(candidate))
+            if (!IsNumberContinuation(lines[index], expectedCount, rule))
                 break;
             expanded.Insert(0, candidate);
             if (IsNumberRowStart(lines[index]))
@@ -2039,8 +2039,7 @@ public static class RuleEngine
             if (IsOpeningOnlySeparator(lines[index]))
                 continue;
             string candidate = BeforeOpeningResult(lines[index]);
-            if (HasNumberPayload(candidate)
-                || HasExactBracketPayload(candidate, expectedCount))
+            if (IsNumberContinuation(lines[index], expectedCount, rule))
                 parts.Add(candidate);
         }
         parts.Add(BeforeOpeningResult(TextAfterIssue(lines[issueIndex], issue)));
@@ -2147,9 +2146,12 @@ public static class RuleEngine
             string decoration = Regex.Replace(
                 simplified, @"[0-9\s,，.。:：*【】\[\]()（）?？←→]+", string.Empty);
             bool structuralField = Regex.IsMatch(decoration,
-                @"^(?:开|開|禁|杀|殺|杀码|殺碼|不开|不開|精选杀|精選殺|码|碼|特码|特碼|码中特码|码中特碼)$");
+                @"^(?:开|開|禁|杀|殺|杀码|殺碼|杀特码|殺特碼|不开|不開|精选杀|精選殺|码|碼|特码|特碼|码中特码|码中特碼|计|計|包围码|包圍碼|锁三十六码|鎖三十六碼|庄家必杀|莊家必殺)$");
             if (!ownIdentity && !structuralField)
                 return false;
+            // A proven field-start label may legitimately carry only the first
+            // number; subsequent pure-number lines complete the same field.
+            return true;
         }
 
         if (numbers.Length >= 2 || !hasLetters
@@ -2175,14 +2177,6 @@ public static class RuleEngine
 
     private static bool IsNumberRowStart(string line) =>
         Regex.IsMatch(line, @"\p{L}.*\d") && !ContainsAnyIssue(line);
-
-    private static bool HasNumberPayload(string line)
-    {
-        string[]? numbers = ParseNumbers(RemoveIssue(line));
-        return numbers is not null && (numbers.Length >= 2
-            || numbers.Length == 1 && (!Regex.IsMatch(line, @"\p{L}")
-                || line.Contains(':') || line.Contains('：') || line.Contains('←') || line.Contains('→')));
-    }
 
     private static string? ExtractNumbers(string text, int expectedCount)
     {
