@@ -1,0 +1,3 @@
+# Regression corrections
+
+Keep type separation when a folder has several materials. Formula cards use their explicit payload parser, not numbers in the formula expression. Dispose is idempotent. Sidecar ownership/locks and backups live in dedicated subdirectories and no longer pollute the external data-file list. The CUDA trait is attached to the actual test class rather than its collection definition. Updated old tests that expected inferred periods, network-error wrapping of explicit cancellation, or a non-versioned model-cache root. These expectation changes follow the reviewed contract; normal data assertions are retained.

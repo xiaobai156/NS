@@ -63,7 +63,7 @@ public sealed class YanranConfirmedHardeningTests
     }
 
     [Fact]
-    public void RestoresTheCurrentDoomsdayRowFromItsAnchoredConsecutiveHistory()
+    public void DoesNotInventTheCurrentDoomsdayRowFromConsecutiveHistory()
     {
         OcrRule rule = Assert.Single(Rules, rule => rule.Id == "末日降临");
         string[] lines =
@@ -75,7 +75,7 @@ public sealed class YanranConfirmedHardeningTests
             "45期◆天机阁论坛末日降临新澳杀段◆【1段】开00准"
         ];
 
-        Assert.Equal("1段", RuleEngine.ExtractFinalValue(lines, 246, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 246, rule));
         Assert.Null(RuleEngine.ExtractFinalValue(lines, 247, rule));
     }
 

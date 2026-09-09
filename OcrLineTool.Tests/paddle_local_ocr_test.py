@@ -164,10 +164,12 @@ class CompactFolderTest(unittest.TestCase):
             }):
                 prepared = module._prepare_model_root(module.MODEL_NAMES["small"])
 
-            self.assertEqual(cache, prepared)
+            self.assertEqual(cache, prepared.parent)
+            self.assertEqual(64, len(prepared.name))
+            self.assertTrue(str(prepared).isascii())
             for name in module.MODEL_NAMES["small"]:
-                self.assertTrue((cache / name / "inference.json").is_file())
-                self.assertTrue((cache / name / "inference.pdiparams").is_file())
+                self.assertTrue((prepared / name / "inference.json").is_file())
+                self.assertTrue((prepared / name / "inference.pdiparams").is_file())
 
     def test_cuda_requires_an_active_gpu_device(self):
         script = Path(__file__).parents[1] / "OcrLineTool.App" / "paddle_local_ocr.py"

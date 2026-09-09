@@ -2522,6 +2522,7 @@ public sealed class MainForm : Form
         {
             activeCancellation?.Cancel();
             activeCancellation?.Dispose();
+            activeCancellation = null;
             dateTimer.Dispose();
             folderRefreshTimer.Dispose();
             recognitionTimer.Dispose();

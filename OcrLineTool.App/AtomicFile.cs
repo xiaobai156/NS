@@ -17,7 +17,11 @@ internal static class AtomicFile
                 .ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             if (File.Exists(fullPath))
-                File.Replace(temporary, fullPath, fullPath + ".bak");
+            {
+                string backups = Path.Combine(Path.GetDirectoryName(fullPath)!, ".ocr-backups");
+                Directory.CreateDirectory(backups);
+                File.Replace(temporary, fullPath, Path.Combine(backups, Path.GetFileName(fullPath) + ".bak"));
+            }
             else
                 File.Move(temporary, fullPath);
         }

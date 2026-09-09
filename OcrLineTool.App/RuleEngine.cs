@@ -56,8 +56,11 @@ public static class RuleEngine
                 return false;
             return HasValueForAnyIssue(lines, rule)
                 || (!string.IsNullOrWhiteSpace(rule.RequiredKeyword)
+                    && !RuleCatalog.NormalizeGroupName(rule.RequiredKeyword).Equals(
+                        RuleCatalog.NormalizeGroupName(expectedFolder), StringComparison.OrdinalIgnoreCase)
                     && ContainsKeyword(text, Normalize(rule.RequiredKeyword)))
-                || expectedFolder.Equals(rule.RequiredKeyword ?? rule.Keyword, StringComparison.OrdinalIgnoreCase);
+                || (rules.Count(other => (other.Folder ?? other.Keyword).Equals(expectedFolder, StringComparison.OrdinalIgnoreCase)) == 1
+                    && expectedFolder.Equals(rule.RequiredKeyword ?? rule.Keyword, StringComparison.OrdinalIgnoreCase));
         }).ToArray();
     }
 
@@ -287,7 +290,7 @@ public static class RuleEngine
         if (rule.Type == "统计生肖")
             return ExtractMostFrequentZodiac(lines, issue, rule);
 
-        if (rule.StrictIssueBlock)
+        if (rule.StrictIssueBlock || rule.Folder == "公式杀料")
             return ExtractStrictIssueBlock(lines, issue, rule);
 
         // This sheet prints the opening result before a separate nine-zodiac row.

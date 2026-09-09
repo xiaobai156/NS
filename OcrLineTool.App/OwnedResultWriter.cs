@@ -12,11 +12,13 @@ internal static class OwnedResultWriter
     internal static async Task<IReadOnlySet<string>> ApplyAsync(string targetPath, string sourceGroup,
         string[] configuredLines, string? marker, bool blankLineBeforeMarker)
     {
-        string ownerPath = targetPath + ".ocr-owners.json";
+        string stateDirectory = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(targetPath))!, ".ocr-state");
+        string ownerPath = Path.Combine(stateDirectory, Path.GetFileName(targetPath) + ".owners.json");
         try
         {
             // Cross-process lock for cooperating instances; a busy target is reported, not silently retried.
-            using FileStream gate = new(targetPath + ".ocr-write.lock", FileMode.OpenOrCreate,
+            Directory.CreateDirectory(stateDirectory);
+            using FileStream gate = new(Path.Combine(stateDirectory, Path.GetFileName(targetPath) + ".lock"), FileMode.OpenOrCreate,
                 FileAccess.ReadWrite, FileShare.None);
             byte[] original = await File.ReadAllBytesAsync(targetPath);
             byte[] originalHash = SHA256.HashData(original);

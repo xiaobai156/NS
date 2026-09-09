@@ -7,10 +7,10 @@ namespace OcrLineTool.Tests;
 
 // These tests replace only the test output's catalog; serialize against other catalog readers.
 [CollectionDefinition("Template selection", DisableParallelization = true)]
-[Trait("Category", "CUDA")]
 public sealed class TemplateSelectionCollection { }
 
 [Collection("Template selection")]
+[Trait("Category", "CUDA")]
 public sealed class TemplateSelectionTests
 {
     [Theory]
