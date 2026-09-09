@@ -33,10 +33,8 @@ pattern = re.compile(
     r'    \{.*?\n    \}\n\n'
     r'    private static string\? ExtractVerticalIssueZodiac',
     re.S)
-match = pattern.search(text)
-if not match:
+if not pattern.search(text):
     raise RuntimeError('ExtractNearbySingleZodiac method not found')
-
 replacement = r'''    private static string? ExtractNearbySingleZodiac(string[] lines, int issue, OcrRule rule)
     {
         lines = lines.TakeWhile(line => !Regex.IsMatch(
@@ -104,5 +102,53 @@ replacement = r'''    private static string? ExtractNearbySingleZodiac(string[] 
 
     private static string? ExtractVerticalIssueZodiac'''
 text = pattern.sub(lambda _: replacement, text, count=1)
+
+old_strict_dragonfly = '''        else if (rule.Folder is "各种杀" or "公式杀料" or "一套组合拳" or "骁腾系列")
+        {
+            block = ExtractDragonflyPayload(Regex.Replace(block, @"\\s+", ""), rule);
+            if (block.Length == 0)
+                return null;
+        }'''
+new_strict_dragonfly = '''        else if (rule.Folder is "各种杀" or "公式杀料" or "一套组合拳" or "骁腾系列")
+        {
+            block = ExtractDragonflyPayload(Regex.Replace(block, @"\\s+", ""), rule);
+            if (block == ConflictMarker)
+                return ConflictMarker;
+            if (block.Length == 0)
+                return null;
+        }'''
+if text.count(old_strict_dragonfly) != 1:
+    raise RuntimeError(f'dragonfly strict anchor mismatch: {text.count(old_strict_dragonfly)}')
+text = text.replace(old_strict_dragonfly, new_strict_dragonfly, 1)
+
+old_framed = '''        Match framed = Regex.Match(payload,
+            @"^[：:，,、\\-]*(?:【(?<value>[^】]+)】|\\[(?<value>[^\\]]+)\\]|（(?<value>[^）]+)）|\\((?<value>[^\\)]+)\\)|《(?<value>[^》]+)》|『(?<value>[^』]+)』|\\{(?<value>[^}]+)\\})");
+        if (framed.Success)
+            return framed.Groups["value"].Value;
+        return Regex.Split(payload, @"发|發")[0].Trim();'''
+new_framed = '''        string framedPayload = Regex.Replace(payload, @"^[：:，,、\\-\\s]*", "");
+        var leadingFrames = new List<string>();
+        int frameOffset = 0;
+        while (frameOffset < framedPayload.Length)
+        {
+            Match frame = Regex.Match(framedPayload[frameOffset..],
+                @"^(?:【(?<value>[^】]+)】|\\[(?<value>[^\\]]+)\\]|（(?<value>[^）]+)）|\\((?<value>[^\\)]+)\\)|《(?<value>[^》]+)》|『(?<value>[^』]+)』|\\{(?<value>[^}]+)\\})");
+            if (!frame.Success)
+                break;
+            leadingFrames.Add(frame.Groups["value"].Value);
+            frameOffset += frame.Length;
+            Match separator = Regex.Match(framedPayload[frameOffset..], @"^[：:，,、+\\-\\s]*");
+            frameOffset += separator.Length;
+        }
+        if (leadingFrames.Count > 0)
+        {
+            string[] distinctFrames = leadingFrames.Distinct(StringComparer.Ordinal).ToArray();
+            return distinctFrames.Length == 1 ? distinctFrames[0] : ConflictMarker;
+        }
+        return Regex.Split(payload, @"发|發")[0].Trim();'''
+if text.count(old_framed) != 1:
+    raise RuntimeError(f'dragonfly framed anchor mismatch: {text.count(old_framed)}')
+text = text.replace(old_framed, new_framed, 1)
+
 path.write_text(text, encoding='utf-8')
-print('Applied bounded nearby-zodiac issue windows')
+print('Applied bounded nearby-zodiac windows and strict framed-value conflict handling')
