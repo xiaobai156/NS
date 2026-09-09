@@ -26,7 +26,9 @@ jobs:
       - name: Configure hosted test desktop
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/Set-TestDisplay.ps1
       - name: Apply extraction and evidence closure patch
-        run: python tools/apply_final_extraction_closure.py
+        run: |
+          python tools/apply_final_extraction_closure.py
+          python tools/apply_final_extraction_followup.py
       - name: Accuracy regression tests
         run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category=ReauditAccuracy'
       - name: Windows Debug regression tests
