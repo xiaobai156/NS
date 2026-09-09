@@ -11,6 +11,7 @@ public sealed record ResultEvidenceRecord(
     string Value,
     string Status,
     string SourcePath,
+    string InputPath,
     string SourceHash,
     string InputHash,
     string ViewId,
@@ -55,8 +56,8 @@ internal sealed class ResultEvidenceLedger
             rule.OutputLabel,
             RecognitionStateStore.RuleSignature(rule),
             value,
-            status,
-            evidence.SourcePath,
+            status,            evidence.SourcePath,
+            evidence.InputPath,
             evidence.SourceHash,
             evidence.InputHash,
             evidence.ViewId,
@@ -149,14 +150,15 @@ internal static class RecognitionStateStore
 
                 if (!string.Equals(record.Status, "success", StringComparison.Ordinal) ||
                     !RuleEngine.IsCanonicalValueValid(rule, record.Value ?? string.Empty) ||
-                    string.IsNullOrWhiteSpace(record.SourcePath) || string.IsNullOrWhiteSpace(record.SourceHash) ||
-                    string.IsNullOrWhiteSpace(record.InputHash) || string.IsNullOrWhiteSpace(record.ViewId) ||
+                    string.IsNullOrWhiteSpace(record.SourcePath) || string.IsNullOrWhiteSpace(record.InputPath) ||
+                    string.IsNullOrWhiteSpace(record.SourceHash) || string.IsNullOrWhiteSpace(record.InputHash) || string.IsNullOrWhiteSpace(record.ViewId) ||
                     record.RegionIds is not { Length: > 0 })
                     continue;
                 try
                 {
-                    if (!File.Exists(record.SourcePath) ||
-                        !LocalOcrIdentity.Image(record.SourcePath).Equals(record.SourceHash, StringComparison.OrdinalIgnoreCase))
+                    if (!File.Exists(record.SourcePath) || !File.Exists(record.InputPath) ||
+                        !LocalOcrIdentity.Image(record.SourcePath).Equals(record.SourceHash, StringComparison.OrdinalIgnoreCase) ||
+                        !LocalOcrIdentity.Image(record.InputPath).Equals(record.InputHash, StringComparison.OrdinalIgnoreCase))
                         continue;
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
@@ -227,6 +229,82 @@ internal static class RecognitionStateStore
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             throw new OcrException("无法保存带来源证明的识别状态；本次结果不会作为可恢复成功值。", "OCR_STATE_WRITE_ERROR");
+        }
+    }
+
+    internal static IDisposable LockCurrentEvidenceForPublish(
+        IReadOnlyList<OcrRule> rules,
+        IReadOnlyDictionary<string, string> values,
+        ResultEvidenceLedger evidence)
+    {
+        var handles = new Dictionary<string, FileStream>(StringComparer.OrdinalIgnoreCase);
+        var expectedHashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            foreach (OcrRule rule in rules)
+            {
+                if (ResultValues.IsConflict(values, rule.Id) || !values.ContainsKey(rule.Id))
+                    continue;
+                if (!evidence.Records.TryGetValue(rule.Id, out ResultEvidenceRecord? record)
+                    || record.Status != "success"
+                    || record.RuleSignature != RuleSignature(rule)
+                    || string.IsNullOrWhiteSpace(record.SourcePath)
+                    || string.IsNullOrWhiteSpace(record.InputPath)
+                    || string.IsNullOrWhiteSpace(record.SourceHash)
+                    || string.IsNullOrWhiteSpace(record.InputHash))
+                    throw new OcrException(
+                        $"{rule.OutputLabel} 缺少可验证的来源状态，本次结果不会发布。",
+                        "OCR_STATE_REQUIRED");
+
+                Lock(record.SourcePath, record.SourceHash);
+                Lock(record.InputPath, record.InputHash);
+            }
+            return new EvidencePublishLock(handles.Values.ToArray());
+        }
+        catch (OcrException)
+        {
+            foreach (FileStream stream in handles.Values) stream.Dispose();
+            throw;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            foreach (FileStream stream in handles.Values) stream.Dispose();
+            throw new OcrException(
+                "无法锁定识别来源到结果发布完成，请重新识别。",
+                "OCR_IMAGE_CHANGED");
+        }
+
+        void Lock(string path, string expectedHash)
+        {
+            string fullPath = Path.GetFullPath(path);
+            if (expectedHashes.TryGetValue(fullPath, out string? existingHash))
+            {
+                if (!existingHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
+                    throw new OcrException("同一识别来源出现不同图片版本，请重新识别。", "OCR_IMAGE_CHANGED");
+                return;
+            }
+
+            FileStream stream = new(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            string currentHash = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(stream));
+            stream.Position = 0;
+            if (!currentHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
+            {
+                stream.Dispose();
+                throw new OcrException(
+                    "图片或识别视图在结果发布前发生变化，请重新识别。",
+                    "OCR_IMAGE_CHANGED");
+            }
+            handles.Add(fullPath, stream);
+            expectedHashes.Add(fullPath, expectedHash);
+        }
+    }
+
+    private sealed class EvidencePublishLock(FileStream[] streams) : IDisposable
+    {
+        public void Dispose()
+        {
+            foreach (FileStream stream in streams) stream.Dispose();
         }
     }
 

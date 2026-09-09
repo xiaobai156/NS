@@ -1089,6 +1089,8 @@ public sealed class MainForm : Form
                     recognizedRuleIds.Contains(rule.Id));
 
             ActiveToken.ThrowIfCancellationRequested();
+            using IDisposable publishGuard = RecognitionStateStore.LockCurrentEvidenceForPublish(
+                rules, values, evidenceLedger);
             string[] outputLines = RuleEngine.FormatOutput(rules, values, missingReasons);
             ResultFilePaths.EnsureOutputDirectories(AppContext.BaseDirectory);
             string groupOutputPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, selectedImageDirectory!, issue);
@@ -1487,6 +1489,8 @@ public sealed class MainForm : Form
             }
 
             ActiveToken.ThrowIfCancellationRequested();
+            using IDisposable publishGuard = RecognitionStateStore.LockCurrentEvidenceForPublish(
+                rules, values, evidenceLedger);
             string[] outputLines = RuleEngine.FormatOutput(rules, values, missingReasons);
             ResultFilePaths.EnsureOutputDirectories(AppContext.BaseDirectory);
             string groupOutputPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, selectedImageDirectory!, issue);
@@ -1571,6 +1575,10 @@ public sealed class MainForm : Form
         {
             IReadOnlyList<OcrRule> rules = RuleCatalog.Load(selectedRulePath
                 ?? RuleCatalog.PathForFolder(AppContext.BaseDirectory, selectedImageDirectory!));
+            RecognitionStateLoad trustedState = RecognitionStateStore.Load(
+                AppContext.BaseDirectory, selectedImageDirectory!, issue, rules);
+            using IDisposable publishGuard = RecognitionStateStore.LockCurrentEvidenceForPublish(
+                rules, trustedState.Values, trustedState.Evidence);
             string[] outputLines = RecognitionStateStore.BuildTrustedOutputLines(
                 AppContext.BaseDirectory, selectedImageDirectory!, issue, rules);
             DistributionResult distribution = await ResultDistributor.DistributeAllAsync(selectedImageDirectory!, issue, outputLines);
@@ -1756,6 +1764,8 @@ public sealed class MainForm : Form
             }
 
             ActiveToken.ThrowIfCancellationRequested();
+            using IDisposable publishGuard = RecognitionStateStore.LockCurrentEvidenceForPublish(
+                lastRules, lastValues, lastEvidenceLedger);
             string[] outputLines = RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons);
             ResultFilePaths.EnsureOutputDirectories(AppContext.BaseDirectory);
             string groupOutputPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, selectedImageDirectory!, lastIssue);

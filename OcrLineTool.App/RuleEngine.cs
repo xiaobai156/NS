@@ -928,7 +928,7 @@ public static class RuleEngine
                     continue;
 
                 string? split = ExtractStrictCenteredNumberWindow(
-                    lines, index, issue, reviewedExpectedCount);
+                    lines, index, issue, reviewedExpectedCount, rule);
                 if (split is not null)
                     reviewed.Add(split);
             }
@@ -1867,7 +1867,7 @@ public static class RuleEngine
                 if (!ContainsIssue(lines[index], issue))
                     continue;
                 string? split = ExtractReviewedSplitNumberWindow(
-                    lines, scopeStart, index, issue, expectedCount);
+                    lines, scopeStart, index, issue, expectedCount, rule);
                 if (split is not null)
                     splitObserved.Add(split);
             }
@@ -1913,7 +1913,7 @@ public static class RuleEngine
                     break;
                 if (SplitIssueNumberRuleIds.Contains(rule.Id) && IsOpeningOnlySeparator(lines[next]))
                     continue;
-                if (!IsNumberContinuation(lines[next], expectedCount))
+                if (!IsNumberContinuation(lines[next], expectedCount, rule))
                     break;
                 parts.Add(BeforeOpeningResult(lines[next]));
             }
@@ -1926,7 +1926,7 @@ public static class RuleEngine
     }
 
     private static string? ExtractStrictCenteredNumberWindow(
-        string[] lines, int issueIndex, int issue, int expectedCount)
+        string[] lines, int issueIndex, int issue, int expectedCount, OcrRule rule)
     {
         int previous = issueIndex - 1;
         if (previous < 0 || ContainsAnyIssue(lines[previous])
@@ -2000,7 +2000,7 @@ public static class RuleEngine
                 continue;
             if (IsNumberRowStart(lines[index]) && sawRightPayload)
                 break;
-            if (!IsNumberContinuation(lines[index], expectedCount))
+            if (!IsNumberContinuation(lines[index], expectedCount, rule))
             {
                 if (IsNumberRowStart(lines[index]))
                     break;
@@ -2019,7 +2019,7 @@ public static class RuleEngine
     }
 
     private static string? ExtractReviewedSplitNumberWindow(
-        string[] lines, int scopeStart, int issueIndex, int issue, int expectedCount)
+        string[] lines, int scopeStart, int issueIndex, int issue, int expectedCount, OcrRule rule)
     {
         int left = issueIndex;
         for (int index = issueIndex - 1; index >= scopeStart; index--)
@@ -2059,7 +2059,7 @@ public static class RuleEngine
                 break;
             if (IsOpeningOnlySeparator(lines[index]))
                 continue;
-            if (!IsNumberContinuation(lines[index], expectedCount))
+            if (!IsNumberContinuation(lines[index], expectedCount, rule))
             {
                 if (IsNumberRowStart(lines[index]))
                     break;
@@ -2116,21 +2116,55 @@ public static class RuleEngine
         return payload.Count == 0 ? null : ExtractNumbers(string.Join(' ', payload), expectedCount);
     }
 
-    private static bool IsNumberContinuation(string line, int expectedCount)
+    private static bool IsNumberContinuation(string line, int expectedCount, OcrRule rule)
     {
+        string simplified = SimplifyOcrText(line);
         if (ContainsAnyIssue(line)
-            || Regex.IsMatch(SimplifyOcrText(line), @"参考|旁栏|排行|统计|说明"))
+            || ContainsPeerIdentity(line, rule)
+            || Regex.IsMatch(simplified, @"参考|旁栏|排行|统计|说明"))
             return false;
+
+        // A complete numeric bracket is an explicit field boundary even when
+        // OCR leaves unrelated title fragments around it.
         if (HasExactBracketPayload(line, expectedCount))
             return true;
-        string simplified = SimplifyOcrText(line);
+
         string[]? numbers = ParseNumbers(RemoveIssue(BeforeOpeningResult(simplified)));
         if (numbers is null || numbers.Length == 0)
             return false;
-        if (numbers.Length >= 2 || !Regex.IsMatch(line, @"\p{L}")
+
+        bool hasLetters = Regex.IsMatch(line, @"\p{L}");
+        if (hasLetters)
+        {
+            string normalized = Normalize(line);
+            bool ownIdentity = new[]
+            {
+                rule.Keyword,
+                rule.Label ?? string.Empty,
+                rule.RequiredKeyword ?? string.Empty,
+                rule.Section ?? string.Empty
+            }
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(Normalize)
+                .Distinct(StringComparer.Ordinal)
+                .Any(alias => normalized.Contains(alias, StringComparison.Ordinal));
+
+            // Remove numbers and layout punctuation, then allow only explicit
+            // number-field decorations already used by reviewed production cards.
+            // Arbitrary labels such as “其他栏目 10 02” cannot become continuation.
+            string decoration = Regex.Replace(
+                simplified, @"[0-9\s,，.。:：*【】\[\]()（）?？←→]+", string.Empty);
+            bool structuralField = Regex.IsMatch(decoration,
+                @"^(?:开|開|禁|杀|殺|杀码|殺碼|不开|不開|精选杀|精選殺|码|碼|特码|特碼|码中特码|码中特碼)$");
+            if (!ownIdentity && !structuralField)
+                return false;
+        }
+
+        if (numbers.Length >= 2 || !hasLetters
             || line.Contains('←') || line.Contains('→'))
             return true;
-        return Regex.IsMatch(simplified, @"^\s*[0-9 ,，.。]+\s*开(?=\s*(?:[?？]+|[0-9]+))");
+        return Regex.IsMatch(
+            simplified, @"^\s*[0-9 ,，.。【】\[\]]+\s*开(?=\s*(?:[?？]+|[0-9]+|$))");
     }
 
     private static bool HasExactBracketPayload(string line, int expectedCount)
