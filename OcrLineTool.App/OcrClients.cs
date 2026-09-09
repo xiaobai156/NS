@@ -20,6 +20,14 @@ public sealed class OcrException(string message, string? code = null) : Exceptio
 public interface IOcrClient
 {
     Task<IReadOnlyList<string>> RecognizeAsync(string imagePath, CancellationToken cancellationToken = default);
+
+    async Task<OcrEvidence> RecognizeEvidenceAsync(
+        string imagePath,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<string> lines = await RecognizeAsync(imagePath, cancellationToken);
+        return OcrEvidence.FromLines(imagePath, lines, "legacy");
+    }
 }
 
 public static class OcrClientFactory
@@ -34,6 +42,13 @@ public static class OcrClientFactory
             cancellationToken.ThrowIfCancellationRequested();
             client ??= Create(string.IsNullOrWhiteSpace(descriptor.Id) ? CredentialSchedule.Resolve(descriptor) : descriptor);
             return client.RecognizeAsync(imagePath, cancellationToken);
+        }
+
+        public Task<OcrEvidence> RecognizeEvidenceAsync(string imagePath, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            client ??= Create(string.IsNullOrWhiteSpace(descriptor.Id) ? CredentialSchedule.Resolve(descriptor) : descriptor);
+            return client.RecognizeEvidenceAsync(imagePath, cancellationToken);
         }
     }
 
@@ -132,6 +147,11 @@ public sealed class TencentOcrClient : IOcrClient
 
     public async Task<IReadOnlyList<string>> RecognizeAsync(
         string imagePath,
+        CancellationToken cancellationToken = default) =>
+        (await RecognizeEvidenceAsync(imagePath, cancellationToken)).Lines;
+
+    public async Task<OcrEvidence> RecognizeEvidenceAsync(
+        string imagePath,
         CancellationToken cancellationToken = default)
     {
         byte[] bytes = await OcrHttp.ReadImageAsync(imagePath, 7_500_000, cancellationToken);
@@ -158,9 +178,9 @@ public sealed class TencentOcrClient : IOcrClient
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
                 throw new OcrException($"腾讯云请求失败（HTTP {(int)response.StatusCode}）。");
-            IReadOnlyList<string> lines = ParseLines(json);
+            IReadOnlyList<OcrLineEvidence> items = ParseEvidenceItems(json);
             OcrHttp.EnsureImageUnchanged(imagePath, bytes);
-            return lines;
+            return OcrEvidence.FromCapturedBytes(imagePath, bytes, "tencent", items);
         }
         catch (OcrException)
         {
@@ -208,6 +228,14 @@ public sealed class TencentOcrClient : IOcrClient
 
     public static IReadOnlyList<string> ParseLines(string json)
     {
+        IReadOnlyList<OcrLineEvidence> items = ParseEvidenceItems(json);
+        return items.All(item => item.Box is null)
+            ? items.Select(item => item.Text).ToArray()
+            : OcrEvidence.SafeLines(items);
+    }
+
+    internal static IReadOnlyList<OcrLineEvidence> ParseEvidenceItems(string json)
+    {
         try
         {
             using JsonDocument document = JsonDocument.Parse(json);
@@ -222,13 +250,14 @@ public sealed class TencentOcrClient : IOcrClient
             if (!response.TryGetProperty("TextDetections", out JsonElement detections))
                 throw new OcrException("腾讯云 OCR 未返回文字结果。");
 
-            var pieces = detections.EnumerateArray()
-                .Select((item, index) => ParsePiece(item, index))
-                .Where(piece => piece.Text.Length > 0)
+            OcrLineEvidence[] pieces = detections.EnumerateArray()
+                .Select((item, index) => ParseEvidencePiece(item, index))
+                .Where(piece => piece is not null)
+                .Select(piece => piece!)
                 .ToArray();
-            if (pieces.All(piece => piece.HasPosition))
-                return AssembleRows(pieces);
-            return pieces.OrderBy(piece => piece.Index).Select(piece => piece.Text).ToArray();
+            if (pieces.Length == 0)
+                return [];
+            return OcrEvidenceLayout.Partition(pieces);
         }
         catch (OcrException)
         {
@@ -240,76 +269,24 @@ public sealed class TencentOcrClient : IOcrClient
         }
     }
 
-    private sealed record TextPiece(string Text, int X, int Y, int Width, int Height, int Index, bool HasPosition)
-    {
-        public double CenterY => Y + Height / 2d;
-        public int Right => X + Math.Max(0, Width);
-    }
-
-    private static TextPiece ParsePiece(JsonElement item, int index)
+    private static OcrLineEvidence? ParseEvidencePiece(JsonElement item, int index)
     {
         string text = item.GetProperty("DetectedText").GetString() ?? "";
+        if (text.Length == 0)
+            return null;
+        double? confidence = item.TryGetProperty("Confidence", out JsonElement confidenceElement)
+            && confidenceElement.TryGetDouble(out double parsedConfidence)
+            ? parsedConfidence
+            : null;
         if (!item.TryGetProperty("ItemPolygon", out JsonElement polygon))
-            return new(text, 0, 0, 0, 0, index, false);
-        return new(
-            text,
-            polygon.GetProperty("X").GetInt32(),
-            polygon.GetProperty("Y").GetInt32(),
-            polygon.TryGetProperty("Width", out JsonElement width) ? width.GetInt32() : 0,
-            polygon.GetProperty("Height").GetInt32(),
-            index,
-            true);
+            return new(text, null, confidence, "tencent", $"unpositioned-{index}");
+        int x = polygon.GetProperty("X").GetInt32();
+        int y = polygon.GetProperty("Y").GetInt32();
+        int width = polygon.TryGetProperty("Width", out JsonElement widthElement) ? widthElement.GetInt32() : 0;
+        int height = polygon.GetProperty("Height").GetInt32();
+        return new(text, new OcrBox(x, y, width, height), confidence, "tencent", "main");
     }
 
-    private static IReadOnlyList<string> AssembleRows(IEnumerable<TextPiece> pieces)
-    {
-        var rows = new List<List<TextPiece>>();
-        foreach (TextPiece piece in pieces.OrderBy(piece => piece.CenterY))
-        {
-            List<TextPiece>? row = rows.FirstOrDefault(candidate =>
-            {
-                double center = candidate.Average(item => item.CenterY);
-                double height = candidate.Average(item => item.Height);
-                return Math.Abs(center - piece.CenterY) <= Math.Max(3, Math.Min(height, piece.Height) * 0.55);
-            });
-            if (row is null)
-                rows.Add([piece]);
-            else
-                row.Add(piece);
-        }
-
-        return rows
-            .OrderBy(row => row.Average(piece => piece.CenterY))
-            .SelectMany(AssembleRowSegments)
-            .ToArray();
-    }
-
-    private static IEnumerable<string> AssembleRowSegments(List<TextPiece> row)
-    {
-        TextPiece[] ordered = row.OrderBy(piece => piece.X).ToArray();
-        var segment = new List<TextPiece>();
-        int previousRight = 0;
-        for (int index = 0; index < ordered.Length; index++)
-        {
-            TextPiece piece = ordered[index];
-            if (segment.Count > 0)
-            {
-                TextPiece previous = segment[^1];
-                int gap = piece.X - previousRight;
-                int splitGap = Math.Max(48, Math.Max(previous.Height, piece.Height) * 4);
-                if (gap > splitGap)
-                {
-                    yield return string.Concat(segment.Select(item => item.Text));
-                    yield return OcrLayoutMarkers.RegionBoundary;
-                    segment.Clear();
-                }
-            }
-            segment.Add(piece);
-            previousRight = Math.Max(previousRight, piece.Right);
-        }
-        if (segment.Count > 0)
-            yield return string.Concat(segment.Select(item => item.Text));
-    }
 }
 
 public sealed class BaiduOcrClient : IOcrClient
@@ -332,6 +309,11 @@ public sealed class BaiduOcrClient : IOcrClient
 
     public async Task<IReadOnlyList<string>> RecognizeAsync(
         string imagePath,
+        CancellationToken cancellationToken = default) =>
+        (await RecognizeEvidenceAsync(imagePath, cancellationToken)).Lines;
+
+    public async Task<OcrEvidence> RecognizeEvidenceAsync(
+        string imagePath,
         CancellationToken cancellationToken = default)
     {
         byte[] bytes = await OcrHttp.ReadImageAsync(imagePath, 2_500_000, cancellationToken);
@@ -350,9 +332,9 @@ public sealed class BaiduOcrClient : IOcrClient
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
                 throw new OcrException($"百度 OCR 请求失败（HTTP {(int)response.StatusCode}）。");
-            IReadOnlyList<string> lines = ParseLines(json);
+            IReadOnlyList<OcrLineEvidence> items = ParseEvidenceItems(json);
             OcrHttp.EnsureImageUnchanged(imagePath, bytes);
-            return lines;
+            return OcrEvidence.FromCapturedBytes(imagePath, bytes, "baidu", items);
         }
         catch (OcrException)
         {
@@ -413,10 +395,19 @@ public sealed class BaiduOcrClient : IOcrClient
 
     public static IReadOnlyList<string> ParseLines(string json)
     {
+        IReadOnlyList<OcrLineEvidence> items = ParseEvidenceItems(json);
+        return items.All(item => item.Box is null)
+            ? items.Select(item => item.Text).ToArray()
+            : OcrEvidence.SafeLines(items);
+    }
+
+    internal static IReadOnlyList<OcrLineEvidence> ParseEvidenceItems(string json)
+    {
         try
         {
             using JsonDocument document = JsonDocument.Parse(json);
-            if (document.RootElement.TryGetProperty("error_code", out JsonElement errorCode))
+            if (document.RootElement.TryGetProperty("error_code", out JsonElement errorCodeElement)
+                && errorCodeElement.TryGetInt32(out int errorCode))
             {
                 string message = document.RootElement.TryGetProperty("error_msg", out JsonElement error)
                     ? error.GetString() ?? ""
@@ -428,10 +419,30 @@ public sealed class BaiduOcrClient : IOcrClient
             if (!document.RootElement.TryGetProperty("words_result", out JsonElement results))
                 throw new OcrException("百度 OCR 未返回文字结果。");
 
-            return results.EnumerateArray()
-                .Select(item => item.GetProperty("words").GetString() ?? "")
-                .Where(line => line.Length > 0)
-                .ToArray();
+            var items = new List<OcrLineEvidence>();
+            int index = 0;
+            foreach (JsonElement item in results.EnumerateArray())
+            {
+                string text = item.GetProperty("words").GetString() ?? "";
+                if (text.Length == 0) { index++; continue; }
+                OcrBox? box = null;
+                if (item.TryGetProperty("location", out JsonElement location)
+                    && location.ValueKind == JsonValueKind.Object
+                    && location.TryGetProperty("left", out JsonElement left)
+                    && location.TryGetProperty("top", out JsonElement top)
+                    && location.TryGetProperty("width", out JsonElement width)
+                    && location.TryGetProperty("height", out JsonElement height))
+                    box = new(left.GetInt32(), top.GetInt32(), width.GetInt32(), height.GetInt32());
+                double? confidence = null;
+                if (item.TryGetProperty("probability", out JsonElement probability)
+                    && probability.ValueKind == JsonValueKind.Object
+                    && probability.TryGetProperty("average", out JsonElement average)
+                    && average.TryGetDouble(out double parsed))
+                    confidence = parsed;
+                items.Add(new(text, box, confidence, "baidu", box is null ? $"unpositioned-{index}" : "main"));
+                index++;
+            }
+            return OcrEvidenceLayout.Partition(items);
         }
         catch (OcrException)
         {
@@ -442,4 +453,5 @@ public sealed class BaiduOcrClient : IOcrClient
             throw new OcrException("百度 OCR 返回格式异常。");
         }
     }
+
 }

@@ -7,6 +7,8 @@ public sealed class CloudImageDeduplicator
 {
     private readonly Dictionary<string, IReadOnlyList<string>> responses =
         new(StringComparer.Ordinal);
+    private readonly Dictionary<string, OcrEvidence> evidenceResponses =
+        new(StringComparer.Ordinal);
 
     public async Task<IReadOnlyList<string>> RecognizeAsync(
         string groupDirectory,
@@ -26,6 +28,26 @@ public sealed class CloudImageDeduplicator
         IReadOnlyList<string> lines = await request();
         responses[fingerprint] = lines;
         return lines;
+    }
+
+    public async Task<OcrEvidence> RecognizeEvidenceAsync(
+        string groupDirectory,
+        string originalImagePath,
+        IReadOnlyList<OcrRule> rules,
+        Func<Task<OcrEvidence>> request)
+    {
+        if (!ShouldDeduplicate(groupDirectory, rules))
+            return await request();
+
+        string? fingerprint = TryFingerprint(originalImagePath);
+        if (fingerprint is null)
+            return await request();
+        if (evidenceResponses.TryGetValue(fingerprint, out OcrEvidence? cached))
+            return cached;
+
+        OcrEvidence evidence = await request();
+        evidenceResponses[fingerprint] = evidence;
+        return evidence;
     }
 
     private static bool ShouldDeduplicate(string groupDirectory, IReadOnlyList<OcrRule> rules) =>

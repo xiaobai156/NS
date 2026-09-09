@@ -710,6 +710,31 @@ public static class RuleEngine
     public static string? ExtractFinalValue(IEnumerable<string> cloudLines, int issue, OcrRule rule) =>
         ExtractValueCore(RejectCrossIssueNearbyValue(cloudLines, issue, rule), issue, rule, requireCloudKeyword: false);
 
+    public static string? ExtractFinalValue(OcrEvidence evidence, int issue, OcrRule rule)
+    {
+        ArgumentNullException.ThrowIfNull(evidence);
+        string? value = ExtractFinalValue(evidence.Lines, issue, rule);
+        if (value is null)
+            return null;
+
+        OcrLineEvidence[] nonEmpty = evidence.Items
+            .Where(item => !string.IsNullOrWhiteSpace(item.Text))
+            .ToArray();
+        if (nonEmpty.Length == 0)
+            return null;
+
+        // Positioned evidence has already been partitioned into physical
+        // regions/columns. For an engine that cannot provide geometry, never
+        // accept a value that only becomes valid after joining multiple opaque
+        // lines: one returned physical OCR item must independently prove it.
+        if (evidence.HasCompleteGeometry)
+            return value;
+        return nonEmpty.Any(item =>
+            string.Equals(ExtractFinalValue(new[] { item.Text }, issue, rule), value, StringComparison.Ordinal))
+            ? value
+            : null;
+    }
+
     private static IEnumerable<string> RejectCrossIssueNearbyValue(IEnumerable<string> source, int issue, OcrRule rule)
     {
         string[] lines = source.ToArray();
