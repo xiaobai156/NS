@@ -29,6 +29,7 @@ jobs:
         run: |
           python tools/apply_p2_source_integrity.py
           python tools/refine_p2_source_integrity.py
+          python tools/refine_p2_compatibility.py
       - name: Second-pass full acceptance tests
         run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category=ReauditAccuracy' --logger 'trx;LogFileName=p2.trx' --results-directory test-results
       - name: Windows Debug regression tests
@@ -50,7 +51,7 @@ jobs:
         if: success()
         shell: pwsh
         run: |
-          git add -- OcrLineTool.App/RuleEngine.cs OcrLineTool.App/LocalCandidatePlanner.cs OcrLineTool.App/MainForm.cs OcrLineTool.App/VisualTemplateMatcher.cs OcrLineTool.App/OcrClients.cs OcrLineTool.App/ResultDistributor.cs OcrLineTool.App/OwnedResultWriter.cs
+          git add -- OcrLineTool.App/RuleEngine.cs OcrLineTool.App/LocalCandidatePlanner.cs OcrLineTool.App/MainForm.cs OcrLineTool.App/VisualTemplateMatcher.cs OcrLineTool.App/OcrClients.cs OcrLineTool.App/ResultDistributor.cs OcrLineTool.App/OwnedResultWriter.cs OcrLineTool.Tests/KillNumberDistributorTests.cs
           if (git diff --cached --quiet) { throw 'P2 patch produced no tested source change.' }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
