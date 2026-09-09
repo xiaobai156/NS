@@ -25,7 +25,9 @@ jobs:
       - name: Configure hosted test desktop
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/Set-TestDisplay.ps1
       - name: Apply structured cloud evidence patch
-        run: python tools/apply_f18_clients.py
+        run: |
+          python tools/apply_f18_clients.py
+          python tools/refine_f18_clients.py
       - name: Accuracy tests
         run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category=ReauditAccuracy'
       - name: Windows Debug regression tests
