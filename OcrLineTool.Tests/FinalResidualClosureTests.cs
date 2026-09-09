@@ -50,6 +50,25 @@ public sealed class FinalResidualClosureTests
     }
 
     [Fact]
+    public void DirectionalNumberTableCannotBorrowAnUnknownLabeledRow()
+    {
+        OcrRule rule = Rule("嫣然心水", "蓝色");
+        string first = string.Join(' ', Enumerable.Range(1, 17).Select(n => n.ToString("00")));
+        string second = string.Join(' ', Enumerable.Range(18, 17).Select(n => n.ToString("00")));
+        RuleExtractionResult result = RuleEngine.ExtractFinalResult(
+        [
+            "251期 特码开在",
+            first,
+            second,
+            "其他栏目 35 36",
+            "250期 特码开在"
+        ], 251, rule);
+
+        Assert.Equal(RuleExtractionStatus.Missing, result.Status);
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
     public void PublishGuardRejectsAReplacedSuccessfulSource()
     {
         using var temp = new TempFiles("嫣然心水");
