@@ -1,7 +1,7 @@
 name: Windows and Python regression tests
 on:
   push:
-    branches: [main, 'fix/audit-20260909', 'fix/data-accuracy-*']
+    branches: [main, 'fix/audit-20260909', 'fix/data-accuracy-*', 'fix/f01-f18-*']
   pull_request:
   workflow_dispatch:
 permissions:
