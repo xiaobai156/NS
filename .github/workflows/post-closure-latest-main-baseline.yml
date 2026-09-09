@@ -26,7 +26,9 @@ jobs:
       - name: Configure hosted test desktop
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/Set-TestDisplay.ps1
       - name: Apply latest-main repair
-        run: python tools/apply_post_closure_latest_main.py
+        run: |
+          python tools/apply_post_closure_latest_main.py
+          python tools/apply_post_closure_halfwave_section_followup.py
       - name: Accuracy regression tests
         run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category=ReauditAccuracy'
       - name: Windows Debug regression tests
