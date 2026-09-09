@@ -77,9 +77,6 @@ replacement = r'''    private static string? ExtractNearbySingleZodiac(string[] 
         int before,
         int after)
     {
-        // Preserve the reviewed poster layout where a standalone value can sit a
-        // few lines before the first printed issue. Once any earlier issue exists,
-        // however, text before the selected issue cannot belong to this block.
         bool hasEarlierIssue = lines.Take(issueIndex).Any(ContainsAnyIssue);
         int start = hasEarlierIssue ? issueIndex : Math.Max(0, issueIndex - before);
         int end = Math.Min(lines.Length, issueIndex + after + 1);
@@ -90,8 +87,6 @@ replacement = r'''    private static string? ExtractNearbySingleZodiac(string[] 
                 && ContainsAnyIssue(lines[index])
                 && !ContainsIssue(lines[index], issue))
             {
-                // A later issue closes the selected issue block. Do not merely
-                // skip its marker and continue into the following issue's value.
                 if (index > issueIndex)
                     yield break;
                 continue;
@@ -150,5 +145,110 @@ if text.count(old_framed) != 1:
     raise RuntimeError(f'dragonfly framed anchor mismatch: {text.count(old_framed)}')
 text = text.replace(old_framed, new_framed, 1)
 
+old_conflicts = r'''    private static bool HasConflictingSingleValues(string tail, string type)
+    {
+        string text = BeforeOpeningResult(SimplifyOcrText(tail));
+        IEnumerable<string> values = type switch
+        {
+            "合" => Regex.Matches(text, @"(?<!\d)(?:0?[1-9]|1[0-3])合")
+                .Select(match => $"{int.Parse(match.Value[..^1]):00}合"),
+            "段" => Regex.Matches(text, @"(?<!\d)[0-7]\s*段")
+                .Select(match => Regex.Replace(match.Value, @"\s+", "")),
+            "尾" => Regex.Matches(text, @"(?<!\d)[0-9]\s*尾")
+                .Select(match => Regex.Replace(match.Value, @"\s+", "")),
+            // Head cards often contain an instruction count ("杀一头" / "禁止1头")
+            // before the actual value. Existing head extraction already resolves the
+            // value field; do not reinterpret the instruction as a conflicting result.
+            "头" => Array.Empty<string>(),
+            "单五行" => Regex.Matches(text, @"[金木水火土]").Select(match => match.Value),
+            "半头" => Regex.Matches(text, @"(?<!\d)[0-4]\s*头\s*[单双]")
+                .Select(match => Regex.Replace(match.Value, @"\s+", "")),
+            "色单双" => Regex.Matches(text, @"[红蓝绿](?:波)?[单双]")
+                .Select(match => match.Value.Replace("波", "", StringComparison.Ordinal)),
+            "生肖" or "单生肖" => Regex.Matches(text, $"[{Zodiac}]").Select(match => match.Value),
+            _ => Array.Empty<string>()
+        };
+        return values.Distinct(StringComparer.Ordinal).Take(2).Count() > 1;
+    }
+'''
+new_conflicts = r'''    private static bool HasConflictingSingleValues(string tail, string type)
+    {
+        string text = BeforeOpeningResult(SimplifyOcrText(tail));
+        IEnumerable<string> values = type switch
+        {
+            "合" => Regex.Matches(text, @"(?<!\d)(?:0?[1-9]|1[0-3])合")
+                .Select(match => $"{int.Parse(match.Value[..^1]):00}合"),
+            "段" => Regex.Matches(text, @"(?<!\d)[0-7]\s*段")
+                .Select(match => Regex.Replace(match.Value, @"\s+", "")),
+            "尾" => TailValueCandidates(text),
+            "尾数组合" => TailPairCandidates(text),
+            "头" => HeadValueCandidates(text),
+            "单五行" => Regex.Matches(text, @"[金木水火土]").Select(match => match.Value),
+            "半头" => Regex.Matches(text, @"(?<!\d)[0-4]\s*头\s*[单双]")
+                .Select(match => Regex.Replace(match.Value, @"\s+", "")),
+            "色单双" => Regex.Matches(text, @"[红蓝绿](?:波)?[单双]")
+                .Select(match => match.Value.Replace("波", "", StringComparison.Ordinal)),
+            "生肖" or "单生肖" => Regex.Matches(text, $"[{Zodiac}]").Select(match => match.Value),
+            _ => Array.Empty<string>()
+        };
+        return values.Distinct(StringComparer.Ordinal).Take(2).Count() > 1;
+    }
+
+    private static IEnumerable<string> HeadValueCandidates(string text)
+    {
+        var values = new List<string>();
+        int delimiter = Math.Max(text.LastIndexOf('：'), text.LastIndexOf(':'));
+        if (delimiter >= 0)
+        {
+            values.AddRange(Regex.Matches(text[(delimiter + 1)..],
+                    @"(?<!\d)(?<head>[0-4零一二三四])\s*头")
+                .Select(match => $"{ToArabicDigit(match.Groups["head"].Value[0])}头"));
+        }
+        values.AddRange(Regex.Matches(text, @"[【\[](?<head>[0-4])\s*[】\]]\s*头")
+            .Select(match => $"{match.Groups["head"].Value}头"));
+        values.AddRange(Regex.Matches(text, @"买\s*(?<head>[0-4零一二三四])\s*头")
+            .Select(match => $"{ToArabicDigit(match.Groups["head"].Value[0])}头"));
+        return values;
+    }
+
+    private static IEnumerable<string> TailValueCandidates(string text)
+    {
+        var values = Regex.Matches(text, @"(?<!\d)[0-9]\s*尾")
+            .Select(match => Regex.Replace(match.Value, @"\s+", ""))
+            .ToList();
+        int marker = text.LastIndexOf('尾');
+        if (marker < 0)
+            return values;
+        foreach (Match run in Regex.Matches(text[(marker + 1)..], @"(?<!\d)[0-9]+(?!\d)"))
+        {
+            if (run.Value.Distinct().Count() == 1)
+                values.Add($"{run.Value[0]}尾");
+        }
+        return values;
+    }
+
+    private static IEnumerable<string> TailPairCandidates(string text)
+    {
+        var values = new List<string>();
+        foreach (Match pair in Regex.Matches(text,
+            @"(?<!\d)(?<first>[0-9])\s*尾?\s*(?:\+|＋|、|,|，|\.|。|-|－)\s*(?<second>[0-9])\s*尾?"))
+        {
+            char[] digits = [pair.Groups["first"].Value[0], pair.Groups["second"].Value[0]];
+            Array.Sort(digits);
+            values.Add(new string(digits));
+        }
+        foreach (Match compact in Regex.Matches(text, @"(?<!\d)(?<digits>[0-9]{2})\s*尾"))
+        {
+            char[] digits = compact.Groups["digits"].Value.ToCharArray();
+            Array.Sort(digits);
+            values.Add(new string(digits));
+        }
+        return values;
+    }
+'''
+if text.count(old_conflicts) != 1:
+    raise RuntimeError(f'generic conflict anchor mismatch: {text.count(old_conflicts)}')
+text = text.replace(old_conflicts, new_conflicts, 1)
+
 path.write_text(text, encoding='utf-8')
-print('Applied bounded nearby-zodiac windows and strict framed-value conflict handling')
+print('Applied bounded nearby windows and residual conflict handling')
