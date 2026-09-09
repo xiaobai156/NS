@@ -145,20 +145,21 @@ public sealed class PostClosureSafetyTests
     }
 
     [Fact]
-    public void ProductionHalfWaveTypeUsesTheSameColorParityContractAsConfirmedHalfWaveCards()
+    public void ProductionHalfWaveTypeUsesTheSameColorParityContractInsideItsConfiguredSection()
     {
         OcrRule rule = ProductionHalfWaveRule();
         Assert.Equal("半波", rule.Type);
+        Assert.Equal("杀半波", rule.Section);
         Assert.Equal("绿单", RuleEngine.ExtractFinalValue(
-            ["红红半波", "245期红红半波【绿单】开"], 245, rule));
+            ["红红半波", "245期杀半波 红红半波【绿单】开"], 245, rule));
         Assert.True(RuleEngine.IsCanonicalValueValid(rule, "绿单"));
     }
 
     [Fact]
-    public void ProductionHalfWaveTypeRejectsUnknownColors()
+    public void ProductionHalfWaveTypeRejectsUnknownColorsInsideItsConfiguredSection()
     {
         OcrRule rule = ProductionHalfWaveRule();
         Assert.Null(RuleEngine.ExtractFinalValue(
-            ["红红半波", "245期红红半波【紫双】开"], 245, rule));
+            ["红红半波", "245期杀半波 红红半波【紫双】开"], 245, rule));
     }
 }
