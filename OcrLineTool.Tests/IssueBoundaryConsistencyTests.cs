@@ -89,4 +89,15 @@ public sealed class IssueBoundaryConsistencyTests
             1001,
             rule));
     }
+
+    [Fact]
+    public void SectionOwnershipDoesNotCrossFourDigitBareIssueBoundary()
+    {
+        var rule = new OcrRule("作者", "生肖", Section: "目标栏目");
+
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["目标栏目", "1000", "1001期 作者 杀狗"],
+            1001,
+            rule));
+    }
 }
