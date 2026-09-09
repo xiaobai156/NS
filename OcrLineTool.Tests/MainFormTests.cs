@@ -532,6 +532,7 @@ public sealed class MainFormTests
         form.Scale(new SizeF(scale, scale));
         form.Size = new Size((int)Math.Ceiling(1100 * scale), (int)Math.Ceiling(700 * scale));
         form.CreateControl();
+        form.Show(); // Measure the visible workspace, not deferred hidden-form percent-row layout.
         continueButton.Visible = true;
         PerformLayoutRecursively(form);
 

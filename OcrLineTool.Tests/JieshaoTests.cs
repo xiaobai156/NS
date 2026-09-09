@@ -74,7 +74,7 @@ public sealed class JieshaoTests
         Assert.False(Reuse("9.2-嫣然心水", tail, Samples[1], 246));
         Assert.True(Reuse("9.2-嫣然心水", tail, Samples[1]));
         Assert.True(Reuse("9.2-嫣然心水", nine, CloudNine));
-        Assert.True(Reuse("其他群", tail, CloudTailColumns));
+        Assert.False(Reuse("其他群", tail, CloudTailColumns));
         OcrRule forbiddenTail = Assert.Single(LoadRules(), rule => rule.Id == "杰少禁一尾");
         Assert.False(Reuse("9.2-嫣然心水", forbiddenTail, CloudTailColumns));
     }

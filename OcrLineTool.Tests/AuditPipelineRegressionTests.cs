@@ -153,6 +153,23 @@ public sealed class AuditPipelineRegressionTests
     }
 
     [Fact]
+    public void IncompleteUnrelatedSlotDoesNotDisableAValidRequestSlot()
+    {
+        using var files = new TemporaryFiles();
+        string json = JsonSerializer.Serialize(new
+        {
+            tencent = new
+            {
+                A = new { secretId = "test-id", secretKey = "test-secret" },
+                B = new { secretId = "incomplete", secretKey = "" }
+            }
+        });
+        OcrSecrets secrets = OcrSecretsLoader.Load(files.File("partial-secrets.json", json), validateAllConfigured: false);
+        Assert.Equal("test-id", secrets.Get(OcrProvider.Tencent, "A").Id);
+        Assert.Throws<OcrException>(() => secrets.Get(OcrProvider.Tencent, "B"));
+    }
+
+    [Fact]
     public void DescribingSlotsDoesNotResolveSecrets()
     {
         Assert.Equal("腾讯云 A", CredentialSchedule.DescribeSlot(0).DisplayName);

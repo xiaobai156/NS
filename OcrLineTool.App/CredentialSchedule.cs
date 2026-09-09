@@ -32,7 +32,7 @@ public static class CredentialSchedule
     ];
 
     // Do not permanently cache a failed configuration load. Reload at request boundaries.
-    private static OcrSecrets ProductionSecrets => OcrSecretsLoader.Load();
+    private static OcrSecrets ProductionSecrets => OcrSecretsLoader.Load(validateAllConfigured: false);
 
     private static readonly AsyncLocal<OcrSecrets?> TestSecrets = new();
 

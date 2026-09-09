@@ -58,7 +58,10 @@ public static class RuleEngine
                 || (!string.IsNullOrWhiteSpace(rule.RequiredKeyword)
                     && !RuleCatalog.NormalizeGroupName(rule.RequiredKeyword).Equals(
                         RuleCatalog.NormalizeGroupName(expectedFolder), StringComparison.OrdinalIgnoreCase)
-                    && ContainsKeyword(text, Normalize(rule.RequiredKeyword)))
+                    && ContainsKeyword(text, Normalize(rule.RequiredKeyword))
+                    && (rules.Count(other => (other.Folder ?? other.Keyword).Equals(expectedFolder, StringComparison.OrdinalIgnoreCase)
+                        && Normalize(other.RequiredKeyword ?? other.Keyword) == Normalize(rule.RequiredKeyword)) == 1
+                        || !string.IsNullOrWhiteSpace(rule.Section) && text.Contains(Normalize(rule.Section), StringComparison.Ordinal)))
                 || (rules.Count(other => (other.Folder ?? other.Keyword).Equals(expectedFolder, StringComparison.OrdinalIgnoreCase)) == 1
                     && expectedFolder.Equals(rule.RequiredKeyword ?? rule.Keyword, StringComparison.OrdinalIgnoreCase));
         }).ToArray();
@@ -277,6 +280,15 @@ public static class RuleEngine
                 combined += " " + lines[next];
                 candidates.Add(combined);
             }
+        }
+
+        // Same issue can appear in several different materials on one sheet.
+        // A section printed on target rows scopes that material before conflict checking.
+        if (!string.IsNullOrWhiteSpace(rule.Section))
+        {
+            string section = Normalize(rule.Section);
+            if (candidates.Any(line => Normalize(line).Contains(section, StringComparison.Ordinal)))
+                candidates = candidates.Where(line => Normalize(line).Contains(section, StringComparison.Ordinal)).ToList();
         }
 
         bool keywordInTarget = candidates.Any(line => aliases.Any(alias => Normalize(line).Contains(alias, StringComparison.Ordinal)));

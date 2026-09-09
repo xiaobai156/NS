@@ -19,6 +19,7 @@ public sealed class PublishConfigurationTests
     }
 
     [Fact]
+    [Trait("Category", "ModelAssets")]
     public void CopiesCudaModelsFromTheSiblingModelDirectory()
     {
         string project = Path.GetFullPath(Path.Combine(
