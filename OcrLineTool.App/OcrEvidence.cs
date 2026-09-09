@@ -186,47 +186,85 @@ internal static class OcrEvidenceLayout
             .GroupBy(item => item.ViewId, StringComparer.Ordinal))
         {
             OcrLineEvidence[] items = view.ToArray();
+
+            // A caller/template may already know physical regions. Never erase
+            // that stronger identity by repartitioning everything as "main".
+            string[] declaredRegions = items
+                .Select(item => item.RegionId)
+                .Where(region => !string.IsNullOrWhiteSpace(region) && region != "main")
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            if (declaredRegions.Length > 0)
+            {
+                foreach (IGrouping<string, OcrLineEvidence> region in items
+                    .GroupBy(item => item.RegionId, StringComparer.Ordinal))
+                {
+                    output.AddRange(region.OrderBy(item => item.Box?.CenterY ?? double.MaxValue)
+                        .ThenBy(item => item.Box?.X ?? int.MaxValue));
+                }
+                continue;
+            }
+
             if (items.Any(item => item.Box is null))
             {
-                int index = 0;
-                output.AddRange(items.Select(item => item with { RegionId = $"unpositioned-{index++}" }));
+                // Unknown geometry remains one opaque region. The business
+                // extractor separately requires holistic + atomic agreement.
+                output.AddRange(items.Select(item => item with { RegionId = "unpositioned" }));
                 continue;
             }
 
             List<List<OcrLineEvidence>> rows = BuildRows(items);
-            List<List<RowSegment>> rowSegments = rows.Select(SplitRow).ToList();
-            int columnCount = rowSegments.Max(row => row.Count);
-            if (columnCount <= 1)
+            RowSegment[] segments = rows.SelectMany(SplitRow).ToArray();
+            List<List<RowSegment>> columns = BuildHorizontalColumns(segments);
+            if (columns.Count <= 1)
             {
-                output.AddRange(rowSegments.SelectMany(row => row)
-                    .OrderBy(segment => segment.Box.CenterY)
+                output.AddRange(segments.OrderBy(segment => segment.Box.CenterY)
+                    .ThenBy(segment => segment.Box.X)
                     .Select(segment => segment.ToEvidence(view.Key, "main")));
                 continue;
             }
 
-            RowSegment[] anchors = rowSegments
-                .OrderByDescending(row => row.Count)
-                .First()
-                .OrderBy(segment => segment.Box.CenterX)
-                .ToArray();
-            var columns = Enumerable.Range(0, anchors.Length)
-                .Select(_ => new List<RowSegment>())
-                .ToArray();
-            foreach (RowSegment segment in rowSegments.SelectMany(row => row))
+            for (int column = 0; column < columns.Count; column++)
             {
-                int column = Enumerable.Range(0, anchors.Length)
-                    .OrderBy(index => Math.Abs(anchors[index].Box.CenterX - segment.Box.CenterX))
-                    .First();
-                columns[column].Add(segment);
-            }
-
-            for (int column = 0; column < columns.Length; column++)
-            {
-                foreach (RowSegment segment in columns[column].OrderBy(segment => segment.Box.CenterY))
+                foreach (RowSegment segment in columns[column]
+                    .OrderBy(segment => segment.Box.CenterY)
+                    .ThenBy(segment => segment.Box.X))
+                {
                     output.Add(segment.ToEvidence(view.Key, $"column-{column}"));
+                }
             }
         }
         return output;
+    }
+
+    private static List<List<RowSegment>> BuildHorizontalColumns(IEnumerable<RowSegment> source)
+    {
+        var columns = new List<List<RowSegment>>();
+        foreach (RowSegment segment in source.OrderBy(item => item.Box.CenterX))
+        {
+            int chosen = -1;
+            int bestGap = int.MaxValue;
+            for (int index = 0; index < columns.Count; index++)
+            {
+                int left = columns[index].Min(item => item.Box.X);
+                int right = columns[index].Max(item => item.Box.Right);
+                int gap = segment.Box.Right < left ? left - segment.Box.Right
+                    : segment.Box.X > right ? segment.Box.X - right
+                    : 0;
+                int averageHeight = (int)Math.Round(columns[index].Average(item => Math.Max(1, item.Box.Height)));
+                int threshold = Math.Max(48, Math.Max(averageHeight, Math.Max(1, segment.Box.Height)) * 4);
+                if (gap <= threshold && gap < bestGap)
+                {
+                    chosen = index;
+                    bestGap = gap;
+                }
+            }
+            if (chosen < 0)
+                columns.Add([segment]);
+            else
+                columns[chosen].Add(segment);
+        }
+        return columns.OrderBy(column => column.Average(item => item.Box.CenterX)).ToList();
     }
 
     private static List<List<OcrLineEvidence>> BuildRows(IEnumerable<OcrLineEvidence> items)

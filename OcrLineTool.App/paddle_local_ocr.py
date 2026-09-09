@@ -171,11 +171,20 @@ def _box_from(value) -> list[int] | None:
 def _prediction_items(first, view_id: str) -> list[dict]:
     if not hasattr(first, "get"):
         return []
-    raw_texts = first.get("rec_texts") or []
-    raw_scores = first.get("rec_scores") or []
+    raw_texts = first.get("rec_texts")
+    if raw_texts is None:
+        raw_texts = []
+    raw_scores = first.get("rec_scores")
+    if raw_scores is None:
+        raw_scores = []
+    # rec_boxes/rec_polys are aligned with filtered rec_texts. dt_polys may
+    # describe the pre-filter detection set and must not be indexed as if it
+    # were guaranteed to have the same semantic rows.
     raw_boxes = first.get("rec_boxes")
     if raw_boxes is None:
-        raw_boxes = first.get("dt_polys") or []
+        raw_boxes = first.get("rec_polys")
+    if raw_boxes is None:
+        raw_boxes = []
     items = []
     for index, raw_text in enumerate(raw_texts):
         text = str(raw_text)

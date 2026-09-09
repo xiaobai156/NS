@@ -682,13 +682,14 @@ public sealed class RuleEngineTests
     }
 
     [Fact]
-    public void ExtractsTimePointNumbersWithoutAnIssueMarkerWhenConfigured()
+    public void TimePointNumbersStayUnverifiedWithoutAnIssueMarker()
     {
         var rule = new OcrRule("十点半集团大围", "号码:36", "时点半", IgnoreIssue: true);
         string[] lines = ["十点半集团大围 36码", "28 01 06 47 42 49", "27 21 19 09 08 45", "43 17 35 12 14 29", "07 39 41 46 37 23", "48 10 13 16 26 15", "11 31 22 38 33 32"];
+        string expected = "28 01 06 47 42 49 27 21 19 09 08 45 43 17 35 12 14 29 07 39 41 46 37 23 48 10 13 16 26 15 11 31 22 38 33 32";
 
-        Assert.Equal("28 01 06 47 42 49 27 21 19 09 08 45 43 17 35 12 14 29 07 39 41 46 37 23 48 10 13 16 26 15 11 31 22 38 33 32",
-            RuleEngine.ExtractFinalValue(lines, 243, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 243, rule));
+        Assert.Equal(expected, RuleEngine.ExtractFinalValue(["243期", ..lines], 243, rule));
     }
 
     [Fact]

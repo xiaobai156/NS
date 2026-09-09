@@ -183,17 +183,19 @@ public sealed class MacauRuleHardeningTests
     }
 
     [Fact]
-    public void TimelessCardIgnoresIssueButNeverAcceptsDuplicateOrOpeningNumbers()
+    public void TimelessCardRequiresExplicitSelectedIssueUntilTrustedPublicationEvidenceExists()
     {
         var rule = Rule("时点半");
         string numbers = string.Join(' ', Enumerable.Range(1, 36).Select(n => n.ToString("00")));
         foreach (int issue in new[] { 7, 318, 1001 })
-            Assert.Equal(numbers, RuleEngine.ExtractFinalValue([rule.Keyword, "36码", numbers, "上期开奖结果:鸡46中"], issue, rule));
-        Assert.Equal(numbers, RuleEngine.ExtractFinalValue(["标题误读", "36码", numbers], 318, rule));
-        Assert.Equal(numbers, RuleEngine.ExtractFinalValue([numbers], 318, rule));
-        Assert.Null(RuleEngine.ExtractFinalValue([rule.Keyword, "36码", numbers + " 36"], 318, rule));
-        Assert.Null(RuleEngine.ExtractFinalValue([rule.Keyword, "36码", numbers.Replace("36", "35")], 318, rule));
-        Assert.Null(RuleEngine.ExtractFinalValue([rule.Keyword, "36码", numbers.Replace("36", ""), "上期开奖结果:36"], 318, rule));
+            Assert.Equal(numbers, RuleEngine.ExtractFinalValue(
+                [$"{issue}期", rule.Keyword, "36码", numbers, "上期开奖结果:鸡46中"], issue, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue([rule.Keyword, "36码", numbers], 318, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(["标题误读", "36码", numbers], 318, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue([numbers], 318, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(["318期", rule.Keyword, "36码", numbers + " 36"], 318, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(["318期", rule.Keyword, "36码", numbers.Replace("36", "35")], 318, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(["318期", rule.Keyword, "36码", numbers.Replace("36", ""), "上期开奖结果:36"], 318, rule));
     }
 
     public static IEnumerable<object[]> NumberSamples() => Samples()
@@ -317,7 +319,7 @@ public sealed class MacauRuleHardeningTests
             values.Add(rule.Id, RuleEngine.ExtractFinalValue([rule.Keyword, "318期", "兔"], issue, rule)!);
         }
         string numbers = string.Join(' ', Enumerable.Range(1, 36).Select(n => n.ToString("00")));
-        values.Add("时点半", RuleEngine.ExtractFinalValue(["十点半集团大围", "36码", numbers], issue, Rule("时点半"))!);
+        values.Add("时点半", RuleEngine.ExtractFinalValue([$"{issue}期", "十点半集团大围", "36码", numbers], issue, Rule("时点半"))!);
         string[] output = RuleEngine.FormatOutput(rules, values);
         Assert.DoesNotContain(output, line => line.StartsWith("缺失"));
         string folder = Path.Combine(Path.GetTempPath(), "ocr-macau-distribution-" + Guid.NewGuid().ToString("N"));
