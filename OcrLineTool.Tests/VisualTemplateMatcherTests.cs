@@ -4,6 +4,7 @@ using OcrLineTool;
 
 namespace OcrLineTool.Tests;
 
+[Trait("Category", "CUDA")]
 public sealed class VisualTemplateMatcherTests
 {
     [Fact]
