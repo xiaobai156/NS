@@ -54,7 +54,7 @@ public sealed class F13F16ClosureTests
     }
 
     [Fact]
-    public void ValidSavedSingleZodiacStillRestoresForRetryState()
+    public void EvenValidLookingTxtIsDisplayOnlyWithoutEvidenceState()
     {
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
         using var form = new MainForm();
@@ -71,6 +71,8 @@ public sealed class F13F16ClosureTests
         });
 
         var values = (Dictionary<string, string>)type.GetField("lastValues", flags)!.GetValue(form)!;
-        Assert.Equal("鸡", values["南国挽心"]);
+        var reasons = (Dictionary<string, string>)type.GetField("lastMissingReasons", flags)!.GetValue(form)!;
+        Assert.DoesNotContain("南国挽心", values.Keys);
+        Assert.Equal("保存TXT仅用于展示，未找到有效来源状态", reasons["南国挽心"]);
     }
 }
