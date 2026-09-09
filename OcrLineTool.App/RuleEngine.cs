@@ -519,7 +519,9 @@ public static class RuleEngine
 
             foundIssue = true;
             int end = index + 1;
-            while (end < lines.Length && !ContainsAnyIssue(lines[end]))
+            while (end < lines.Length
+                && !ContainsIssue(lines[end], issue)
+                && !ContainsIssueBoundary(lines[end], issue))
                 end++;
 
             for (int row = index; row < end; row++)
@@ -622,8 +624,10 @@ public static class RuleEngine
         bool inTarget = false;
         foreach (string line in SplitInlineIssueRows(source))
         {
-            if (ContainsAnyIssue(line))
-                inTarget = ContainsIssue(line, issue);
+            if (ContainsIssue(line, issue))
+                inTarget = true;
+            else if (ContainsIssueBoundary(line, issue))
+                inTarget = false;
             if (inTarget)
                 rows.Add(line);
         }
@@ -698,12 +702,15 @@ public static class RuleEngine
         for (int index = start; index < lines.Length; index++)
         {
             string line = lines[index];
-            if (ContainsAnyIssue(line))
+            if (ContainsIssue(line, issue))
             {
-                if (ContainsIssue(line, issue))
-                    inTargetIssue = true;
-                else if (inTargetIssue)
+                inTargetIssue = true;
+            }
+            else if (ContainsIssueBoundary(line, issue))
+            {
+                if (inTargetIssue)
                     break;
+                continue;
             }
 
             if (!inTargetIssue || !TryExtractFrequencyRow(line, out int count, out string rowValue))
@@ -876,7 +883,8 @@ public static class RuleEngine
         int target = Array.FindIndex(lines, line => ContainsIssue(line, issue));
         if (target < 0)
             return lines;
-        bool hasEarlierIssue = lines.Take(target).Any(ContainsAnyIssue);
+        bool hasEarlierIssue = lines.Take(target).Any(line =>
+            ContainsIssue(line, issue) || ContainsIssueBoundary(line, issue));
         bool hasKeyword = Normalize(lines[target]).Contains(
             Normalize(rule.RequiredKeyword ?? rule.Keyword), StringComparison.Ordinal);
         if (hasEarlierIssue && !hasKeyword)
@@ -1057,13 +1065,14 @@ public static class RuleEngine
             if (!ContainsIssue(lines[index], issue))
                 continue;
             int previousIssueIndex = Enumerable.Range(0, index)
-                .LastOrDefault(i => ContainsAnyIssue(lines[i]), -1);
+                .LastOrDefault(i => ContainsIssue(lines[i], issue)
+                    || ContainsIssueBoundary(lines[i], issue), -1);
             int nearbyStart = previousIssueIndex >= 0 ? index : Math.Max(0, index - 4);
             foreach (string line in lines.Skip(nearbyStart).Take(9))
             {
                 // Do not borrow a nearby value across another issue boundary.
-                if (ContainsAnyIssue(line) && !ContainsIssue(line, issue))
-                    continue;
+                if (ContainsIssueBoundary(line, issue) && !ContainsIssue(line, issue))
+                    break;
                 string normalized = Normalize(line);
                 if (Regex.IsMatch(normalized, $"^[{Zodiac}]$"))
                     standaloneValues.Add(SimplifyOcrText(normalized));
@@ -1078,12 +1087,13 @@ public static class RuleEngine
             if (!ContainsIssue(lines[index], issue))
                 continue;
             int previousIssueIndex = Enumerable.Range(0, index)
-                .LastOrDefault(i => ContainsAnyIssue(lines[i]), -1);
+                .LastOrDefault(i => ContainsIssue(lines[i], issue)
+                    || ContainsIssueBoundary(lines[i], issue), -1);
             int nearbyStart = previousIssueIndex >= 0 ? index : Math.Max(0, index - 1);
             foreach (string line in lines.Skip(nearbyStart).Take(3))
             {
-                if (ContainsAnyIssue(line) && !ContainsIssue(line, issue))
-                    continue;
+                if (ContainsIssueBoundary(line, issue) && !ContainsIssue(line, issue))
+                    break;
                 string? value = ExtractSingleZodiac(line);
                 if (value is not null)
                     values.Add(value);
