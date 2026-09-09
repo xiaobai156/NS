@@ -37,6 +37,7 @@ jobs:
         run: |
           python tools/apply_residual_accuracy_stage_a.py
           python tools/refine_residual_accuracy_stage_a.py
+          python tools/refine_stage_a_split_window.py
       - name: Accuracy regression tests
         run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category=ReauditAccuracy'
       - name: Windows Debug regression tests
