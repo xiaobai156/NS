@@ -3,10 +3,10 @@ using OcrLineTool;
 
 namespace OcrLineTool.Tests;
 
-[Trait("Category", "CUDA")]
 public sealed class SixCardRegressionTests
 {
     [Fact]
+    [Trait("Category", "CUDA")]
     public void LeifengTemplateMatchesTheRealTitle()
     {
         VisualTemplateSet catalog = VisualTemplateMatcher.Load(Path.Combine(

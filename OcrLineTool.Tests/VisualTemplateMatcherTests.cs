@@ -4,7 +4,6 @@ using OcrLineTool;
 
 namespace OcrLineTool.Tests;
 
-[Trait("Category", "CUDA")]
 public sealed class VisualTemplateMatcherTests
 {
     [Fact]
@@ -37,6 +36,7 @@ public sealed class VisualTemplateMatcherTests
     }
 
     [Fact]
+    [Trait("Category", "CUDA")]
     public void MatchesFixedTitleWhenTheCurrentRowChanges()
     {
         using var files = new ImageFixture();
@@ -117,6 +117,7 @@ public sealed class VisualTemplateMatcherTests
     }
 
     [Fact]
+    [Trait("Category", "CUDA")]
     public void FollowsSmallVerticalTitleShiftWhenCropping()
     {
         using var files = new ImageFixture();
@@ -138,6 +139,7 @@ public sealed class VisualTemplateMatcherTests
     }
 
     [Fact]
+    [Trait("Category", "CUDA")]
     public void RestrictsTitleSearchToTheConfiguredSmallOffsetRange()
     {
         using var files = new ImageFixture();
@@ -152,6 +154,7 @@ public sealed class VisualTemplateMatcherTests
     }
 
     [Fact]
+    [Trait("Category", "CUDA")]
     public void MatchesTemplatesUsingCatalogAndPerTemplateFingerprintRegions()
     {
         using var files = new ImageFixture();
@@ -218,6 +221,7 @@ public sealed class VisualTemplateMatcherTests
     }
 
     [Fact]
+    [Trait("Category", "CUDA")]
     public void ProductionCatalogHasSixtySixTemplatesCoveringSixtySevenRules()
     {
         VisualTemplateSet catalog = VisualTemplateMatcher.Load(
