@@ -7,6 +7,7 @@ public sealed record ResultEvidenceRecord(
     string RuleId,
     string RuleType,
     string OutputLabel,
+    string RuleSignature,
     string Value,
     string Status,
     string SourcePath,
@@ -40,6 +41,7 @@ internal sealed class ResultEvidenceLedger
             rule.Id,
             rule.Type,
             rule.OutputLabel,
+            RecognitionStateStore.RuleSignature(rule),
             accepted,
             "success",
             evidence.SourcePath,
@@ -68,6 +70,27 @@ internal static class RecognitionStateStore
     private const int Version = 1;
     private sealed record StateDocument(int Version, string Group, int Issue, List<ResultEvidenceRecord> Results);
 
+    internal static string RuleSignature(OcrRule rule)
+    {
+        string json = JsonSerializer.Serialize(rule);
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(json)));
+    }
+
+    internal static string[] BuildTrustedOutputLines(
+        string appDirectory,
+        string selectedDirectory,
+        int issue,
+        IReadOnlyList<OcrRule> rules)
+    {
+        RecognitionStateLoad restored = Load(appDirectory, selectedDirectory, issue, rules);
+        if (restored.Values.Count == 0)
+            throw new OcrException("当前群结果没有可验证的来源状态，请重新识别后再手动分流。", "OCR_STATE_REQUIRED");
+        var missingReasons = rules
+            .Where(rule => !restored.Values.ContainsKey(rule.Id))
+            .ToDictionary(rule => rule.Id, _ => "未找到可信来源状态", StringComparer.Ordinal);
+        return RuleEngine.FormatOutput(rules, restored.Values, missingReasons);
+    }
+
     internal static RecognitionStateLoad Load(
         string appDirectory,
         string selectedDirectory,
@@ -94,6 +117,7 @@ internal static class RecognitionStateStore
                     string.IsNullOrWhiteSpace(record.RuleId) ||
                     !byId.TryGetValue(record.RuleId, out OcrRule? rule) ||
                     record.RuleType != rule.Type || record.OutputLabel != rule.OutputLabel ||
+                    record.RuleSignature != RuleSignature(rule) ||
                     !RuleEngine.IsFormattedOutputValueValid(rule, record.Value ?? string.Empty) ||
                     string.IsNullOrWhiteSpace(record.SourcePath) || string.IsNullOrWhiteSpace(record.SourceHash) ||
                     string.IsNullOrWhiteSpace(record.InputHash) || string.IsNullOrWhiteSpace(record.ViewId) ||
@@ -110,7 +134,7 @@ internal static class RecognitionStateStore
                     continue;
                 }
 
-                ResultValues.AddTo(values, rule.Id, record.Value);
+                ResultValues.AddTo(values, rule.Id, record.Value!);
                 if (!ResultValues.IsConflict(values, rule.Id))
                     evidence.Seed(record);
             }
@@ -141,6 +165,7 @@ internal static class RecognitionStateStore
                 !evidence.Records.TryGetValue(ruleId, out ResultEvidenceRecord? record) ||
                 record.Status != "success" || record.Value != value ||
                 record.RuleType != rule.Type || record.OutputLabel != rule.OutputLabel ||
+                record.RuleSignature != RuleSignature(rule) ||
                 !RuleEngine.IsFormattedOutputValueValid(rule, value))
                 continue;
             results.Add(record);

@@ -908,7 +908,7 @@ public sealed class MainForm : Form
 
             foreach (RecognitionCandidate candidate in candidates)
             {
-                foreach (OcrRule rule in candidate.Rules.Where(rule => !values.ContainsKey(rule.Id)))
+                foreach (OcrRule rule in RulesForAlreadyRequestedCloudFallback(candidate.Rules, values))
                     AddCloudRule(candidate.SourcePath, candidate.OcrPath, rule);
             }
 
@@ -1558,15 +1558,14 @@ public sealed class MainForm : Form
         }
 
         int issue = Decimal.ToInt32(issueInput.Value);
-        string summaryPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, selectedImageDirectory!, issue);
         SetBusy(true);
         try
         {
-            string[] outputLines = (await File.ReadAllLinesAsync(summaryPath))
-                .Select(GroupResultFormatter.RemoveLegacySourceSuffix).ToArray();
-            DistributionResult distribution = await ResultDistributor.DistributeAllAsync(selectedImageDirectory!, issue, outputLines);
             IReadOnlyList<OcrRule> rules = RuleCatalog.Load(selectedRulePath
                 ?? RuleCatalog.PathForFolder(AppContext.BaseDirectory, selectedImageDirectory!));
+            string[] outputLines = RecognitionStateStore.BuildTrustedOutputLines(
+                AppContext.BaseDirectory, selectedImageDirectory!, issue, rules);
+            DistributionResult distribution = await ResultDistributor.DistributeAllAsync(selectedImageDirectory!, issue, outputLines);
             string[] groupLines = GroupResultFormatter.Format(
                 rules,
                 ResultDistributor.MarkDistributedLines(outputLines, distribution.DistributedLines));
@@ -2216,6 +2215,13 @@ public sealed class MainForm : Form
         }
         return new CandidateSelection(templateCandidates.Concat(localCandidates).ToArray(), templateCropFolder, "本地OCR");
     }
+
+    internal static IReadOnlyList<OcrRule> RulesForAlreadyRequestedCloudFallback(
+        IReadOnlyList<OcrRule> candidateRules,
+        IReadOnlyDictionary<string, string> acceptedValues) =>
+        candidateRules.Any(rule => !acceptedValues.ContainsKey(rule.Id))
+            ? candidateRules
+            : Array.Empty<OcrRule>();
 
     private static OcrEvidence? BindPaddleEvidence(
         PaddleLocalOcrClient client,
