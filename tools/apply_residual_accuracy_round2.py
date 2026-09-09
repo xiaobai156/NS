@@ -48,12 +48,11 @@ rule = replace_once(
     }''',
     "R01 deterministic bare issue boundary")
 
-old_ownership = '''        string normalized = Normalize(line);
-        bool ownIdentity = ContainsOwnNumberIdentity(line, rule);
+old_ownership = '''        bool ownIdentity = ContainsOwnNumberIdentity(line, rule);
         string decoration = Regex.Replace(
             ownershipText, @"[0-9\\s,，.。:：*【】\\[\\]()（）?？←→]+", string.Empty);
         bool structuralField = Regex.IsMatch(decoration,
-            @"^(?:(?:杀|殺){1,3}|开|開|禁|杀码|殺碼|杀码|杀特码|殺特碼|不开|不開|精选杀|精選殺|码|碼|特码|特碼|码中特码|码中特碼|计|計|包围码|包圍碼|锁三十六码|鎖三十六碼|庄家必杀|莊家必殺|绝杀[一二三四五六七八九十0-9]+码|絕殺[一二三四五六七八九十0-9]+碼|封杀|封殺)$");
+            @"^(?:(?:杀|殺){1,3}|开|開|禁|杀码|殺碼|杀特码|殺特碼|不开|不開|精选杀|精選殺|码|碼|特码|特碼|码中特码|码中特碼|计|計|包围码|包圍碼|锁三十六码|鎖三十六碼|庄家必杀|莊家必殺|绝杀[一二三四五六七八九十0-9]+码|絕殺[一二三四五六七八九十0-9]+碼|封杀|封殺)$");
         bool explicitBracketField = HasExactBracketPayload(simplified, expectedCount)
             && Regex.IsMatch(simplified,
                 @"(?:杀码|殺碼|杀码|杀(?:特)?码|殺(?:特)?碼|绝杀|絕殺|禁码|禁碼)[^【\\[]*[【\\[]");
@@ -70,12 +69,12 @@ new_ownership = '''        bool ownIdentity = ContainsOwnNumberIdentity(line, ru
         string decoration = Regex.Replace(
             ownershipText, @"[0-9\\s,，.。:：*【】\\[\\]()（）?？←→]+", string.Empty);
         bool structuralField = Regex.IsMatch(decoration,
-            @"^(?:(?:杀|殺){1,3}|开|開|禁|杀码|殺碼|杀码|杀特码|殺特碼|不开|不開|精选杀|精選殺|码|碼|特码|特碼|码中特码|码中特碼|计|計|包围码|包圍碼|锁三十六码|鎖三十六碼|庄家必杀|莊家必殺|绝杀[一二三四五六七八九十0-9]+码|絕殺[一二三四五六七八九十0-9]+碼|封杀|封殺)$");
+            @"^(?:(?:杀|殺){1,3}|开|開|禁|杀码|殺碼|杀特码|殺特碼|不开|不開|精选杀|精選殺|码|碼|特码|特碼|码中特码|码中特碼|计|計|包围码|包圍碼|锁三十六码|鎖三十六碼|庄家必杀|莊家必殺|绝杀[一二三四五六七八九十0-9]+码|絕殺[一二三四五六七八九十0-9]+碼|封杀|封殺)$");
         if (!ownIdentity && !structuralField)
             return false;
 
-        // Brackets prove grouping after ownership has already been established;
-        // generic words plus a complete bracket can never establish ownership.
+        // Brackets prove grouping only after ownership has been established.
+        // Generic kill words plus a complete bracket can never claim a foreign field.
         return true;'''
 rule = replace_once(rule, old_ownership, new_ownership, "R02 bracket ownership")
 
