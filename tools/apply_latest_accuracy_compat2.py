@@ -42,12 +42,11 @@ if text.count(old) != 1:
 text = text.replace(old, new, 1)
 
 # The selected issue row is not automatically a data field. Reuse the same
-# hardened ownership predicate as continuation rows. Additionally, when the
-# scoped target row by itself already forms one complete valid field, accept it:
-# this preserves generic/legacy rows such as pure numbers, concatenated pairs and
-# zodiac-number annotations without reopening cross-field completion. A row such
-# as “青苹果 ... 01..05 其他栏目06” is scoped to five values first, so it still
-# cannot become a six-number success.
+# hardened ownership predicate as continuation rows. Also preserve explicit
+# issue-row number fields beginning with 杀/绝杀: these are reviewed production
+# layouts and may be incomplete only because the final pair is on the next pure
+# numeric row. Unknown labels do not satisfy this proof. A self-contained complete
+# scoped field is also accepted for generic/legacy rows.
 old = '''            var parts = new List<string>();
             string first = ScopeNumberPayload(TextAfterIssue(lines[index], issue), rule, expectedCount);
             if (!string.IsNullOrWhiteSpace(first))
@@ -55,7 +54,11 @@ old = '''            var parts = new List<string>();
 new = '''            var parts = new List<string>();
             string firstText = TextAfterIssue(lines[index], issue);
             string first = ScopeNumberPayload(firstText, rule, expectedCount);
-            bool firstOwned = IsNumberContinuation(firstText, expectedCount, rule, issue)
+            string firstSimplified = SimplifyOcrText(firstText);
+            bool explicitIssueField = Regex.IsMatch(firstSimplified,
+                @"^\\s*(?:(?:杀|殺)(?:\\s*[:：]\\s*(?:杀|殺))?|(?:绝杀|絕殺)[一二三四五六七八九十0-9]*[码碼])");
+            bool firstOwned = explicitIssueField
+                || IsNumberContinuation(firstText, expectedCount, rule, issue)
                 || ExtractNumbers(first, expectedCount) is not null;
             if (firstOwned && !string.IsNullOrWhiteSpace(first))
                 parts.Add(first);'''
@@ -64,4 +67,4 @@ if text.count(old) != 1:
 text = text.replace(old, new, 1)
 
 path.write_text(text, encoding='utf-8')
-print('Applied final target-row and bracket compatibility refinements')
+print('Applied explicit target-row number field compatibility refinements')
