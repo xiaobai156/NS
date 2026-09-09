@@ -35,7 +35,7 @@ for old, new, label, expected in replacements:
 old_structural = '''            bool structuralField = Regex.IsMatch(decoration,
                 @"^(?:开|開|禁|杀|殺|杀码|殺碼|不开|不開|精选杀|精選殺|码|碼|特码|特碼|码中特码|码中特碼)$");'''
 new_structural = '''            bool structuralField = Regex.IsMatch(decoration,
-                @"^(?:开|開|禁|杀|殺|杀码|殺碼|杀特码|殺特碼|不开|不開|精选杀|精選殺|码|碼|特码|特碼|码中特码|码中特碼)$");'''
+                @"^(?:开|開|禁|杀|殺|杀码|殺碼|杀特码|殺特碼|不开|不開|精选杀|精選殺|码|碼|特码|特碼|码中特码|码中特碼|计|計|包围码|包圍碼|锁三十六码|鎖三十六碼|庄家必杀|莊家必殺)$");'''
 if text.count(old_structural) != 1:
     raise RuntimeError(f'structural field list: expected 1, found {text.count(old_structural)}')
 text = text.replace(old_structural, new_structural, 1)
