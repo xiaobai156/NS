@@ -15,6 +15,10 @@ public sealed class PostClosureSafetyTests
         RequiredKeyword: "杀一肖", Folder: "骁腾系列",
         AllowNearbyValue: true, StrictIssueBlock: true);
 
+    private static OcrRule ProductionHalfWaveRule() => RuleCatalog.Load(Path.Combine(
+        ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "黄大仙新澳.json"))
+        .Single(rule => rule.Id == "红红半波");
+
     [Fact]
     public void StrictNearbyZodiacStopsAtTheNextBareFourDigitIssue()
     {
@@ -122,5 +126,23 @@ public sealed class PostClosureSafetyTests
         var rule = new OcrRule("测试四头", "缺头");
         Assert.Null(RuleEngine.ExtractFinalValue(
             ["251期 测试四头 0 0 1 2 3"], 251, rule));
+    }
+
+    [Fact]
+    public void ProductionHalfWaveTypeUsesTheSameColorParityContractAsConfirmedHalfWaveCards()
+    {
+        OcrRule rule = ProductionHalfWaveRule();
+        Assert.Equal("半波", rule.Type);
+        Assert.Equal("绿单", RuleEngine.ExtractFinalValue(
+            ["红红半波", "245期红红半波【绿单】开"], 245, rule));
+        Assert.True(RuleEngine.IsCanonicalValueValid(rule, "绿单"));
+    }
+
+    [Fact]
+    public void ProductionHalfWaveTypeRejectsUnknownColors()
+    {
+        OcrRule rule = ProductionHalfWaveRule();
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["红红半波", "245期红红半波【紫双】开"], 245, rule));
     }
 }
