@@ -26,7 +26,9 @@ jobs:
       - name: Configure hosted test desktop
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/Set-TestDisplay.ps1
       - name: Apply final closure patch
-        run: python tools/apply_f13_f16_f18_final_closure.py
+        run: |
+          python tools/apply_f13_f16_f18_final_closure.py
+          python tools/refine_final_ui_compat.py
       - name: Accuracy closure tests
         run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category=ReauditAccuracy'
       - name: Windows Debug regression tests
