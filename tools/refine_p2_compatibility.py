@@ -79,17 +79,18 @@ method = r'''    private static bool IsConfiguredLine(
 '''
 result = result[:start] + method + result[end:]
 
-# The old production-target test used two numbers as placeholders for 36-code
-# rules. That is now intentionally invalid. Keep the test's original purpose
-# (each production config writes to the correct target) using a real 36-number
-# value instead of weakening production validation.
+# The old production-target test used two numbers as placeholders for real
+# number-table rules. Keep its original purpose (routing each production config
+# to the right target), but feed each label the count required by its real rule.
 method_name = 'public async Task ProductionPendingConfigsDistributeToTheirIndependentTargets()'
 test_start = tests.index(method_name)
 test_end = tests.index('\n    [Fact]', test_start + len(method_name))
 block = tests[test_start:test_end]
 valid36 = ','.join(f'{number:02d}' for number in range(1, 37))
-for label in ['宝典', '心水', '内幕', '强哥', '锁妖', '赛马会', '龙王', '红人馆', '老人味', '时点半']:
+valid35 = ','.join(f'{number:02d}' for number in range(1, 36))
+for label in ['宝典', '心水', '内幕', '强哥', '锁妖', '龙王', '红人馆', '老人味', '时点半']:
     block = block.replace(f'"01,02 {label}"', f'"{valid36} {label}"')
+block = block.replace('"01,02 赛马会"', f'"{valid35} 赛马会"')
 tests = tests[:test_start] + block + tests[test_end:]
 
 rule_path.write_text(rule, encoding='utf-8')
