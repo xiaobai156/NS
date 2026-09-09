@@ -1,0 +1,31 @@
+name: P1 extraction accuracy validation
+on:
+  push:
+    branches: [fix/data-accuracy-p1-20260909]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: p1-extraction-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Configure hosted test desktop
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/Set-TestDisplay.ps1
+      - name: P1 extraction acceptance tests
+        run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category=P1Extraction' --logger 'trx;LogFileName=p1.trx' --results-directory test-results
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1-extraction-${{ github.sha }}
+          path: test-results
