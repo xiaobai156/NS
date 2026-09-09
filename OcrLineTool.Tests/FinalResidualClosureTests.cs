@@ -69,6 +69,21 @@ public sealed class FinalResidualClosureTests
     }
 
     [Fact]
+    public void ReviewedCenteredRowCannotBorrowAnUnknownLabeledLeftCell()
+    {
+        OcrRule rule = Rule("新澳六合彩资料", "杀料");
+        RuleExtractionResult result = RuleEngine.ExtractFinalResult(
+        [
+            "杀料网绝杀10码",
+            "其他栏目 01 02",
+            "251期 绝杀:03 04 05 06 07 08 09 10"
+        ], 251, rule);
+
+        Assert.Equal(RuleExtractionStatus.Missing, result.Status);
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
     public void PublishGuardRejectsAReplacedSuccessfulSource()
     {
         using var temp = new TempFiles("嫣然心水");
