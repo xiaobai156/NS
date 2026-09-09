@@ -120,19 +120,23 @@ public sealed record OcrEvidence(
             throw new OcrException("无法读取 OCR 输入身份，请重新识别。", "OCR_IMAGE_IDENTITY_ERROR");
         }
 
-        int region = 0;
         var items = new List<OcrLineEvidence>();
+        int explicitRegion = 0;
         foreach (string line in lines)
         {
             if (OcrLayoutMarkers.IsBoundary(line))
             {
-                region++;
+                explicitRegion++;
                 continue;
             }
             if (!string.IsNullOrWhiteSpace(line))
-                items.Add(new(line, null, null, viewId, $"region-{region}"));
+                items.Add(new(line, null, null, viewId, $"input-{explicitRegion}"));
         }
-        return new(inputPath, inputPath, hash, hash, viewId, items);
+        // With no coordinates, line adjacency is not physical proof. Partition
+        // deliberately gives each opaque line its own region; existing explicit
+        // boundaries remain at least as strict as before.
+        IReadOnlyList<OcrLineEvidence> partitioned = OcrEvidenceLayout.Partition(items);
+        return new(inputPath, inputPath, hash, hash, viewId, partitioned);
     }
 
     public static OcrEvidence FromCapturedBytes(
