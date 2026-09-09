@@ -84,18 +84,20 @@ internal static class RecognitionStateStore
             StateDocument? document = JsonSerializer.Deserialize<StateDocument>(File.ReadAllText(path));
             string expectedGroup = RuleCatalog.GroupNameForFolder(appDirectory, selectedDirectory);
             if (document is null || document.Version != Version || document.Issue != issue ||
-                !document.Group.Equals(expectedGroup, StringComparison.Ordinal))
+                !string.Equals(document.Group, expectedGroup, StringComparison.Ordinal))
                 return new(values, evidence);
 
             var byId = rules.ToDictionary(rule => rule.Id, StringComparer.Ordinal);
             foreach (ResultEvidenceRecord record in document.Results ?? [])
             {
-                if (!record.Status.Equals("success", StringComparison.Ordinal) ||
+                if (!string.Equals(record.Status, "success", StringComparison.Ordinal) ||
+                    string.IsNullOrWhiteSpace(record.RuleId) ||
                     !byId.TryGetValue(record.RuleId, out OcrRule? rule) ||
                     record.RuleType != rule.Type || record.OutputLabel != rule.OutputLabel ||
-                    !RuleEngine.IsFormattedOutputValueValid(rule, record.Value) ||
-                    string.IsNullOrWhiteSpace(record.SourceHash) || string.IsNullOrWhiteSpace(record.InputHash) ||
-                    string.IsNullOrWhiteSpace(record.ViewId) || record.RegionIds.Length == 0)
+                    !RuleEngine.IsFormattedOutputValueValid(rule, record.Value ?? string.Empty) ||
+                    string.IsNullOrWhiteSpace(record.SourcePath) || string.IsNullOrWhiteSpace(record.SourceHash) ||
+                    string.IsNullOrWhiteSpace(record.InputHash) || string.IsNullOrWhiteSpace(record.ViewId) ||
+                    record.RegionIds is not { Length: > 0 })
                     continue;
                 try
                 {
