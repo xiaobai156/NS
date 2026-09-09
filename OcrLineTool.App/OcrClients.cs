@@ -18,6 +18,19 @@ public interface IOcrClient
 
 public static class OcrClientFactory
 {
+    public static IOcrClient CreateDeferred(OcrCredential descriptor) => new DeferredOcrClient(descriptor);
+
+    private sealed class DeferredOcrClient(OcrCredential descriptor) : IOcrClient
+    {
+        private IOcrClient? client;
+        public Task<IReadOnlyList<string>> RecognizeAsync(string imagePath, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            client ??= Create(string.IsNullOrWhiteSpace(descriptor.Id) ? CredentialSchedule.Resolve(descriptor) : descriptor);
+            return client.RecognizeAsync(imagePath, cancellationToken);
+        }
+    }
+
     public static IOcrClient Create(OcrCredential credential)
     {
         if (string.IsNullOrWhiteSpace(credential.Id) || string.IsNullOrWhiteSpace(credential.Secret))
@@ -127,6 +140,10 @@ public sealed class TencentOcrClient : IOcrClient
             return ParseLines(json);
         }
         catch (OcrException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
@@ -284,6 +301,10 @@ public sealed class BaiduOcrClient : IOcrClient
             return ParseLines(json);
         }
         catch (OcrException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }

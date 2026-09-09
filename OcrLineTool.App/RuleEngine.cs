@@ -54,7 +54,10 @@ public static class RuleEngine
                     .Equals(RuleCatalog.NormalizeGroupName(expectedFolder), StringComparison.OrdinalIgnoreCase)
                 && !ContainsKeyword(text, Normalize(rule.RequiredKeyword)))
                 return false;
-            return HasValueForAnyIssue(lines, rule);
+            return HasValueForAnyIssue(lines, rule)
+                || (!string.IsNullOrWhiteSpace(rule.RequiredKeyword)
+                    && ContainsKeyword(text, Normalize(rule.RequiredKeyword)))
+                || expectedFolder.Equals(rule.RequiredKeyword ?? rule.Keyword, StringComparison.OrdinalIgnoreCase);
         }).ToArray();
     }
 
@@ -1186,7 +1189,9 @@ public static class RuleEngine
         IEnumerable<OcrRule> rules,
         IReadOnlyDictionary<string, string> values,
         IReadOnlyDictionary<string, string>? missingReasons = null) =>
-        rules.Select(rule => values.TryGetValue(rule.Id, out string? value)
+        rules.Select(rule => ResultValues.IsConflict(values, rule.Id)
+            ? $"缺失（同一期结果冲突，待核对） {rule.OutputLabel}"
+            : values.TryGetValue(rule.Id, out string? value)
             ? $"{FormatForOutput(rule, value)} {rule.OutputLabel}"
             : missingReasons is not null && missingReasons.TryGetValue(rule.Id, out string? reason)
                 ? $"缺失（{reason}） {rule.OutputLabel}"

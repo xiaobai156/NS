@@ -36,6 +36,10 @@ public static class ResultDistributor
             {
                 errors.Add(exception.Message);
             }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+            {
+                errors.Add($"分流配置或目标不可用：{Path.GetFileName(configPath)}。");
+            }
         }
         return new DistributionResult(distributed, errors);
     }
@@ -77,44 +81,27 @@ public static class ResultDistributor
 
         var labels = new HashSet<string>(rule.Labels, StringComparer.Ordinal);
         string[] configuredLines = outputLines
+            .Select(line => line.EndsWith("（已分流）", StringComparison.Ordinal) ? line[..^5] : line)
             .Where(line => IsConfiguredLine(line, labels, rule.NumberCounts))
             .ToArray();
         if (configuredLines.Length == 0)
             return EmptyResult;
 
         targetDirectory ??= config.TargetDirectory ?? TargetDirectory;
+        if (issue <= 0 || !config.TargetFile.Contains("{issue}", StringComparison.Ordinal))
+            throw new OcrException("分发目标必须包含动态 {issue} 期号。");
         string targetFile = config.TargetFile.Replace("{issue}", issue.ToString(), StringComparison.Ordinal);
+        if (Path.GetFileName(targetFile) != targetFile || Path.IsPathRooted(targetFile))
+            throw new OcrException("分发 targetFile 必须是目标目录内的文件名。");
         string targetPath = Path.Combine(targetDirectory, targetFile);
         if (!File.Exists(targetPath))
             throw new OcrException($"未找到分发目标文件：{targetPath}");
 
-        string[] existingLines = await File.ReadAllLinesAsync(targetPath);
-        var existing = new HashSet<string>(existingLines, StringComparer.Ordinal);
-        string[] linesToAppend = configuredLines
-            .Where(existing.Add)
-            .ToArray();
-        if (linesToAppend.Length == 0)
-            return configuredLines.ToHashSet(StringComparer.Ordinal);
-
-        if (config.Placement?.Mode.Equals("beforeLine", StringComparison.Ordinal) == true)
-        {
-            Placement placement = config.Placement with
-            {
-                Marker = config.Placement.Marker.Replace("{issue}", issue.ToString(), StringComparison.Ordinal)
-            };
-            InsertBeforeMarker(targetPath, existingLines, linesToAppend, placement);
-            return configuredLines.ToHashSet(StringComparer.Ordinal);
-        }
-
-        string existingText = await File.ReadAllTextAsync(targetPath);
-        string leadingNewLine = existingText.Length > 0 && !existingText.EndsWith('\n')
-            ? Environment.NewLine
-            : string.Empty;
-        await File.AppendAllTextAsync(
-            targetPath,
-            leadingNewLine + string.Join(Environment.NewLine, linesToAppend) + Environment.NewLine,
-            new UTF8Encoding(false));
-        return configuredLines.ToHashSet(StringComparer.Ordinal);
+        string? marker = config.Placement?.Mode == "beforeLine"
+            ? config.Placement.Marker.Replace("{issue}", issue.ToString(), StringComparison.Ordinal)
+            : null;
+        return await OwnedResultWriter.ApplyAsync(targetPath, sourceGroup!, configuredLines,
+            marker, config.Placement?.BlankLineBeforeMarker == true);
     }
 
     private static readonly IReadOnlySet<string> EmptyResult =
@@ -159,7 +146,7 @@ public static class ResultDistributor
 
         byte[] bytes = File.ReadAllBytes(targetPath);
         bool hasUtf8Bom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
-        File.WriteAllLines(targetPath, updated, new UTF8Encoding(hasUtf8Bom));
+        AtomicFile.WriteAllLines(targetPath, updated, new UTF8Encoding(hasUtf8Bom));
     }
 
     private static bool IsRankingHeader(string line)
@@ -186,8 +173,10 @@ public static class ResultDistributor
             return true;
 
         string[] numbers = line[..separator]
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return numbers.Length == expectedCount && numbers.All(number => int.TryParse(number, out _));
+            .Split(',', StringSplitOptions.TrimEntries);
+        return numbers.Length == expectedCount && numbers.Distinct(StringComparer.Ordinal).Count() == expectedCount
+            && numbers.All(number => number.Length == 2 && number.All(c => c is >= '0' and <= '9')
+                && int.TryParse(number, out int value) && value is >= 1 and <= 49);
     }
 
     private sealed record DistributionConfig(

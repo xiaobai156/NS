@@ -1,0 +1,3 @@
+# Audit repair phase 3
+
+Conflicting observed values are removed from successful output and remain sticky during a run. Selected competing candidates are compared, not silently skipped. Invalid cache hits do not suppress fallback. Disk caches validate actual source content and do not treat transformed inputs as raw images. Date refresh cannot mutate an active session; recognition rescans images at start. Cloud credentials are resolved only when requested, allow unconfigured slots, and failed loads can recover. Esc cancels the current task; window close waits for owned work to unwind. Main result and diagnostic writes use same-directory atomic replacement.

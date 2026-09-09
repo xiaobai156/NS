@@ -53,8 +53,10 @@ public static class OcrSecretsLoader
             var values = new Dictionary<(OcrProvider Provider, string Slot), OcrSecret>();
             foreach (string slot in Slots)
             {
-                values[(OcrProvider.Tencent, slot)] = RequireTencent(document, slot);
-                values[(OcrProvider.Baidu, slot)] = RequireBaidu(document, slot);
+                if (document.Tencent?.ContainsKey(slot) == true)
+                    values[(OcrProvider.Tencent, slot)] = RequireTencent(document, slot);
+                if (document.Baidu?.ContainsKey(slot) == true)
+                    values[(OcrProvider.Baidu, slot)] = RequireBaidu(document, slot);
             }
 
             return new OcrSecrets(values);

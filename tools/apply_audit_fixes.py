@@ -21,6 +21,13 @@ def write(path, text):
 
 def replace(text, old, new, count=1):
     actual = text.count(old)
+    # MainForm.cs also declares a disposable custom control; target the form only.
+    if old == '    protected override void Dispose(bool disposing)' and actual == 2 and count == 1:
+        position = text.index(old)
+        following = text[position:position + 180]
+        if 'dateTimer.Dispose();' not in following:
+            raise RuntimeError('First Dispose is not the audited MainForm timer owner')
+        return text.replace(old, new, 1)
     if actual != count:
         raise RuntimeError(f'Expected {count} audited anchors, found {actual}: {old[:100]!r}')
     return text.replace(old, new)

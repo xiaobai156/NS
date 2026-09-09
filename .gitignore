@@ -3,3 +3,13 @@ secrets.json
 secrets.local.json
 *.secrets.json
 *.secrets.local.json
+
+# Build/test state is never a source of truth.
+**/bin/
+**/obj/
+**/__pycache__/
+**/TestResults/
+*.pyc
+audit-test-results/
+.audit-changed.json
+.audit-remove.json

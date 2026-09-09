@@ -1,0 +1,3 @@
+# Audit repair phase 4
+
+Distribution updates rows by tracked source-group/label ownership, not full-line deduplication alone. Unknown conflicting rows and externally changed owned rows are preserved and reported. The writer uses a per-target cooperating-process lock, rechecks content before replacement, preserves supported text encodings, and keeps a previous-file backup. Owner metadata and target files are individually atomic, not a multi-file transaction; failure is reported rather than marked distributed. Non-cooperating external writers still require a shared protocol. Candidate preference uses the requested issue without rejecting identified difficult cards.

@@ -1,4 +1,6 @@
 import argparse
+import hashlib
+import uuid
 import json
 import os
 import shutil
@@ -76,17 +78,38 @@ def _model_files_present(path: Path) -> bool:
     )
 
 
+def _model_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    for file in sorted(item for item in path.rglob("*") if item.is_file()):
+        digest.update(file.relative_to(path).as_posix().encode("utf-8") + b"\0")
+        with file.open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _stage_model(source: Path, target: Path) -> None:
-    if _model_files_present(target):
+    expected = _model_digest(source)
+    if _model_files_present(target) and _model_digest(target) == expected:
         return
     target.parent.mkdir(parents=True, exist_ok=True)
-    staging = target.parent / f".{target.name}.staging-{os.getpid()}"
-    if staging.exists():
+    staging = target.parent / f".{target.name}.staging-{uuid.uuid4().hex}"
+    retired = target.parent / f".{target.name}.retired-{uuid.uuid4().hex}"
+    try:
+        shutil.copytree(source, staging)
+        if _model_digest(staging) != expected:
+            raise RuntimeError("模型在复制时发生变化，请重试。")
+        if target.exists():
+            os.replace(target, retired)
+        try:
+            os.replace(staging, target)
+        except OSError:
+            if retired.exists() and not target.exists():
+                os.replace(retired, target)
+            raise
+    finally:
         shutil.rmtree(staging, ignore_errors=True)
-    shutil.copytree(source, staging)
-    if target.exists():
-        shutil.rmtree(target, ignore_errors=True)
-    os.replace(staging, target)
+        shutil.rmtree(retired, ignore_errors=True)
 
 
 def _prepare_model_root(model_names: tuple[str, ...]) -> Path:
@@ -96,7 +119,11 @@ def _prepare_model_root(model_names: tuple[str, ...]) -> Path:
     ):
         return source_root
 
-    cache_root = _model_cache_root()
+    # Immutable versioned roots prevent an updated model from reusing old weights.
+    identity = hashlib.sha256("|".join(
+        name + ":" + _model_digest(source_root / name) for name in model_names
+    ).encode("utf-8")).hexdigest()
+    cache_root = _model_cache_root() / identity
     try:
         for model_name in model_names:
             _stage_model(source_root / model_name, cache_root / model_name)
