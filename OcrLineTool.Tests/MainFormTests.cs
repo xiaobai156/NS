@@ -524,7 +524,11 @@ public sealed class MainFormTests
     [InlineData(1.354167F)]
     public void KeepsPrimaryAndRecoveryActionsInsideTheirCardsAtTheMinimumWindowSize(float scale)
     {
-        using var form = new MainForm { Size = new Size(1100, 700) };
+        // Top-level windows are capped by the host desktop's MaxWindowTrackSize.
+        // A child-form viewport tests the intended scaled workspace even on a small CI desktop.
+        using var host = new Panel { Size = new Size(2200, 1600) };
+        using var form = new MainForm { TopLevel = false, Size = new Size(1100, 700) };
+        host.Controls.Add(form);
         Type type = typeof(MainForm);
         var folders = (ListBox)type.GetField("folderList", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
         var continueButton = (Button)type.GetField("continueButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
@@ -535,6 +539,8 @@ public sealed class MainFormTests
         form.Show(); // Measure the visible workspace, not deferred hidden-form percent-row layout.
         continueButton.Visible = true;
         PerformLayoutRecursively(form);
+        Assert.True(form.Height >= (int)Math.Ceiling(700 * scale),
+            $"The viewport must retain the requested scale. Actual={form.Size}; DesktopLimit={SystemInformation.MaxWindowTrackSize}.");
 
         AssertControlFitsItsParent(folders);
         AssertControlFitsItsParent(continueButton);

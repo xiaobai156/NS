@@ -1,6 +1,6 @@
-# Audit validation run 34333475956
+# Audit validation run 34333756162
 
-Commit tested: d4ada068c4a6a979fd51ff6e8ba23dc90aea9825 plus the explicit applied source manifest.
+Commit tested: 65d68a36f6b95385a8859fade5528e0e1b784b38 plus the explicit applied source manifest.
 
 Apply: success; Python: success; Debug: failure; Release: failure.
 
@@ -12,7 +12,7 @@ CUDA and ModelAssets cases are excluded on this hosted VM. No production OCR, se
 
 ### OcrLineTool.Tests.MainFormTests.KeepsPrimaryAndRecoveryActionsInsideTheirCardsAtTheMinimumWindowSize(scale: 1.35416698)
 
-folderList bounds {X=27,Y=379,Width=320,Height=1} should fit inside  client area {X=0,Y=0,Width=374,Height=291}.
+The viewport must retain the requested scale. Actual={Width=1044, Height=788}; DesktopLimit={Width=1044, Height=788}.
 
 ## release.trx counters
 
@@ -20,7 +20,7 @@ folderList bounds {X=27,Y=379,Width=320,Height=1} should fit inside  client area
 
 ### OcrLineTool.Tests.MainFormTests.KeepsPrimaryAndRecoveryActionsInsideTheirCardsAtTheMinimumWindowSize(scale: 1.35416698)
 
-folderList bounds {X=27,Y=379,Width=320,Height=1} should fit inside  client area {X=0,Y=0,Width=374,Height=291}.
+The viewport must retain the requested scale. Actual={Width=1044, Height=788}; DesktopLimit={Width=1044, Height=788}.
 
 ## apply.log
 
@@ -32,24 +32,23 @@ Reviewed changed paths:
 
 ~~~~text
   Determining projects to restore...
-  Restored D:\a\NS\NS\OcrLineTool.Tests\OcrLineTool.Tests.csproj (in 10.75 sec).
-  Restored D:\a\NS\NS\OcrLineTool.App\OcrLineTool.App.csproj (in 11.51 sec).
+  Restored D:\a\NS\NS\OcrLineTool.Tests\OcrLineTool.Tests.csproj (in 14.54 sec).
+  Restored D:\a\NS\NS\OcrLineTool.App\OcrLineTool.App.csproj (in 16.03 sec).
   OcrLineTool.App -> D:\a\NS\NS\OcrLineTool.App\bin\Debug\net8.0-windows\win-x64\OCR整行提取工具-NVIDIA-CUDA.dll
   OcrLineTool.Tests -> D:\a\NS\NS\OcrLineTool.Tests\bin\Debug\net8.0-windows\OcrLineTool.Tests.dll
 Test run for D:\a\NS\NS\OcrLineTool.Tests\bin\Debug\net8.0-windows\OcrLineTool.Tests.dll (.NETCoreApp,Version=v8.0)
 A total of 1 test files matched the specified pattern.
-[xUnit.net 00:00:02.30]     OcrLineTool.Tests.MainFormTests.KeepsPrimaryAndRecoveryActionsInsideTheirCardsAtTheMinimumWindowSize(scale: 1.35416698) [FAIL]
-  Failed OcrLineTool.Tests.MainFormTests.KeepsPrimaryAndRecoveryActionsInsideTheirCardsAtTheMinimumWindowSize(scale: 1.35416698) [121 ms]
+[xUnit.net 00:00:02.59]     OcrLineTool.Tests.MainFormTests.KeepsPrimaryAndRecoveryActionsInsideTheirCardsAtTheMinimumWindowSize(scale: 1.35416698) [FAIL]
+  Failed OcrLineTool.Tests.MainFormTests.KeepsPrimaryAndRecoveryActionsInsideTheirCardsAtTheMinimumWindowSize(scale: 1.35416698) [186 ms]
   Error Message:
-   folderList bounds {X=27,Y=379,Width=320,Height=1} should fit inside  client area {X=0,Y=0,Width=374,Height=291}.
+   The viewport must retain the requested scale. Actual={Width=1044, Height=788}; DesktopLimit={Width=1044, Height=788}.
   Stack Trace:
-     at OcrLineTool.Tests.MainFormTests.AssertControlFitsItsParent(Control control) in D:\a\NS\NS\OcrLineTool.Tests\MainFormTests.cs:line 871
-   at OcrLineTool.Tests.MainFormTests.KeepsPrimaryAndRecoveryActionsInsideTheirCardsAtTheMinimumWindowSize(Single scale) in D:\a\NS\NS\OcrLineTool.Tests\MainFormTests.cs:line 539
+     at OcrLineTool.Tests.MainFormTests.KeepsPrimaryAndRecoveryActionsInsideTheirCardsAtTheMinimumWindowSize(Single scale) in D:\a\NS\NS\OcrLineTool.Tests\MainFormTests.cs:line 542
    at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
    at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)
 Results File: D:\a\NS\NS\audit-test-results\debug.trx
 
-Failed!  - Failed:     1, Passed:   853, Skipped:     0, Total:   854, Duration: 6 s - OcrLineTool.Tests.dll (net8.0)
+Failed!  - Failed:     1, Passed:   853, Skipped:     0, Total:   854, Duration: 3 s - OcrLineTool.Tests.dll (net8.0)
 ~~~~
 
 ## excluded.log
@@ -77,13 +76,13 @@ The following Tests are available:
 ## python.log
 
 ~~~~text
-OCR_PROGRESS|1|2|C:\Users\RUNNER~1\AppData\Local\Temp\ocr-compact-test-a0cjhzm4\杰少\sample.png
-OCR_PROGRESS|2|2|C:\Users\RUNNER~1\AppData\Local\Temp\ocr-compact-test-a0cjhzm4\其他\sample.png
-OCR_PROGRESS|1|2|C:\Users\RUNNER~1\AppData\Local\Temp\ocr-compact-test-5579ee9t\杰少\sample.png
-OCR_PROGRESS|2|2|C:\Users\RUNNER~1\AppData\Local\Temp\ocr-compact-test-5579ee9t\其他\sample.png
+OCR_PROGRESS|1|2|C:\Users\RUNNER~1\AppData\Local\Temp\ocr-compact-test-fq1c7_ew\杰少\sample.png
+OCR_PROGRESS|2|2|C:\Users\RUNNER~1\AppData\Local\Temp\ocr-compact-test-fq1c7_ew\其他\sample.png
+OCR_PROGRESS|1|2|C:\Users\RUNNER~1\AppData\Local\Temp\ocr-compact-test-bdb6e8gc\杰少\sample.png
+OCR_PROGRESS|2|2|C:\Users\RUNNER~1\AppData\Local\Temp\ocr-compact-test-bdb6e8gc\其他\sample.png
 ..............
 ----------------------------------------------------------------------
-Ran 14 tests in 0.140s
+Ran 14 tests in 0.141s
 
 OK
 ~~~~
@@ -97,13 +96,12 @@ OK
   OcrLineTool.Tests -> D:\a\NS\NS\OcrLineTool.Tests\bin\Release\net8.0-windows\OcrLineTool.Tests.dll
 Test run for D:\a\NS\NS\OcrLineTool.Tests\bin\Release\net8.0-windows\OcrLineTool.Tests.dll (.NETCoreApp,Version=v8.0)
 A total of 1 test files matched the specified pattern.
-[xUnit.net 00:00:01.63]     OcrLineTool.Tests.MainFormTests.KeepsPrimaryAndRecoveryActionsInsideTheirCardsAtTheMinimumWindowSize(scale: 1.35416698) [FAIL]
-  Failed OcrLineTool.Tests.MainFormTests.KeepsPrimaryAndRecoveryActionsInsideTheirCardsAtTheMinimumWindowSize(scale: 1.35416698) [106 ms]
+[xUnit.net 00:00:01.71]     OcrLineTool.Tests.MainFormTests.KeepsPrimaryAndRecoveryActionsInsideTheirCardsAtTheMinimumWindowSize(scale: 1.35416698) [FAIL]
+  Failed OcrLineTool.Tests.MainFormTests.KeepsPrimaryAndRecoveryActionsInsideTheirCardsAtTheMinimumWindowSize(scale: 1.35416698) [150 ms]
   Error Message:
-   folderList bounds {X=27,Y=379,Width=320,Height=1} should fit inside  client area {X=0,Y=0,Width=374,Height=291}.
+   The viewport must retain the requested scale. Actual={Width=1044, Height=788}; DesktopLimit={Width=1044, Height=788}.
   Stack Trace:
-     at OcrLineTool.Tests.MainFormTests.AssertControlFitsItsParent(Control control) in D:\a\NS\NS\OcrLineTool.Tests\MainFormTests.cs:line 871
-   at OcrLineTool.Tests.MainFormTests.KeepsPrimaryAndRecoveryActionsInsideTheirCardsAtTheMinimumWindowSize(Single scale) in D:\a\NS\NS\OcrLineTool.Tests\MainFormTests.cs:line 539
+     at OcrLineTool.Tests.MainFormTests.KeepsPrimaryAndRecoveryActionsInsideTheirCardsAtTheMinimumWindowSize(Single scale) in D:\a\NS\NS\OcrLineTool.Tests\MainFormTests.cs:line 542
    at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
    at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)
 Results File: D:\a\NS\NS\audit-test-results\release.trx
