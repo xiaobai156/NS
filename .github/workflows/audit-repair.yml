@@ -29,30 +29,62 @@ jobs:
           $dll = Get-ChildItem OcrLineTool.App/bin -Recurse -Filter cuda_hash.dll | Select-Object -First 1
           if ($dll) { Copy-Item $dll.FullName artifacts/cuda-validation/cuda_hash.dll }
       - name: Apply reviewed source changes
+        id: apply
         shell: pwsh
         run: |
-          if (Test-Path tools/apply_audit_fixes.py) {
-            python tools/apply_audit_fixes.py
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
+          New-Item -ItemType Directory -Force audit-test-results | Out-Null
+          python tools/apply_audit_fixes.py 2>&1 | Tee-Object audit-test-results/apply.log
+          exit $LASTEXITCODE
       - name: Python regression tests
-        run: python -m unittest discover -s OcrLineTool.Tests -p '*_test.py'
+        id: python
+        if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
+        run: |
+          python -m unittest discover -s OcrLineTool.Tests -p '*_test.py' 2>&1 | Tee-Object audit-test-results/python.log
+          exit $LASTEXITCODE
       - name: Windows managed tests - Debug
-        run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category!=CUDA' --logger 'trx;LogFileName=debug.trx' --results-directory audit-test-results
+        id: debug
+        if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
+        run: |
+          dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category!=CUDA' --logger 'trx;LogFileName=debug.trx' --results-directory audit-test-results 2>&1 | Tee-Object audit-test-results/debug.log
+          exit $LASTEXITCODE
       - name: Windows managed tests - Release
-        run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Release --filter 'Category!=CUDA' --logger 'trx;LogFileName=release.trx' --results-directory audit-test-results
+        id: release
+        if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
+        run: |
+          dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Release --filter 'Category!=CUDA' --logger 'trx;LogFileName=release.trx' --results-directory audit-test-results 2>&1 | Tee-Object audit-test-results/release.log
+          exit $LASTEXITCODE
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: audit-test-results
           path: audit-test-results
-      - name: Commit only reviewed, tested files to the repair branch
-        if: success()
+      - name: Retain reviewed source changes and actual test outcomes on repair branch only
+        if: ${{ !cancelled() }}
         shell: pwsh
+        env:
+          APPLY_RESULT: ${{ steps.apply.outcome }}
+          PYTHON_RESULT: ${{ steps.python.outcome }}
+          DEBUG_RESULT: ${{ steps.debug.outcome }}
+          RELEASE_RESULT: ${{ steps.release.outcome }}
         run: |
-          if (Test-Path tools/apply_audit_fixes.py) {
-            python tools/apply_audit_fixes.py --commit-tested
+          New-Item -ItemType Directory -Force docs | Out-Null
+          $report = "# Audit validation run $env:GITHUB_RUN_ID`n`nCommit tested: $env:GITHUB_SHA`n`nApply: $env:APPLY_RESULT; Python: $env:PYTHON_RESULT; Debug: $env:DEBUG_RESULT; Release: $env:RELEASE_RESULT.`n`nCUDA-tagged hardware tests are excluded on this hosted VM. No production OCR, secrets, deployment or image folders are used.`n"
+          foreach ($file in (Get-ChildItem audit-test-results -Filter *.log -ErrorAction SilentlyContinue)) {
+            $tail = (Get-Content $file.FullName -Tail 160) -join "`n"
+            $report += "`n## $($file.Name)`n`n~~~~text`n$tail`n~~~~`n"
+          }
+          Set-Content docs/audit-run-report.md $report -Encoding utf8
+          if ($env:APPLY_RESULT -eq 'success' -and (Test-Path .audit-changed.json)) {
+            $paths = Get-Content .audit-changed.json -Raw | ConvertFrom-Json
+            foreach ($path in $paths) { git add -- $path; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+          }
+          git add -- docs/audit-run-report.md
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 1) {
+            git commit -m "fix: apply reviewed audit changes; validation debug=$env:DEBUG_RESULT release=$env:RELEASE_RESULT"
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             git push origin HEAD:fix/audit-20260909
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
