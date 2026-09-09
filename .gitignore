@@ -10,6 +10,9 @@ secrets.local.json
 **/__pycache__/
 **/TestResults/
 *.pyc
+test-results/
 audit-test-results/
-.audit-changed.json
-.audit-remove.json
+
+# Runtime ownership and recoverable file backups are user data.
+**/.ocr-state/
+**/.ocr-backups/

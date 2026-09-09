@@ -1,0 +1,74 @@
+name: Windows and Python regression tests
+on:
+  push:
+    branches: [main, fix/audit-20260909]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: regression-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Python unit-test dependencies
+        run: python -m pip install numpy pillow
+      - name: Configure hosted test desktop
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/Set-TestDisplay.ps1
+      - name: Python unit tests - no real OCR requests
+        id: python
+        run: |
+          New-Item -ItemType Directory -Force test-results | Out-Null
+          python -m unittest discover -s OcrLineTool.Tests -p '*_test.py' 2>&1 | Tee-Object test-results/python.log
+          exit $LASTEXITCODE
+      - name: Windows Debug regression tests
+        id: debug
+        if: ${{ !cancelled() }}
+        run: |
+          New-Item -ItemType Directory -Force test-results | Out-Null
+          dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category!=CUDA&Category!=ModelAssets' --logger 'trx;LogFileName=debug.trx' --results-directory test-results 2>&1 | Tee-Object test-results/debug.log
+          exit $LASTEXITCODE
+      - name: Windows Release regression tests
+        id: release
+        if: ${{ !cancelled() }}
+        run: |
+          New-Item -ItemType Directory -Force test-results | Out-Null
+          dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Release --filter 'Category!=CUDA&Category!=ModelAssets' --logger 'trx;LogFileName=release.trx' --results-directory test-results 2>&1 | Tee-Object test-results/release.log
+          exit $LASTEXITCODE
+      - name: List integration cases requiring CUDA or local models
+        if: ${{ !cancelled() && steps.debug.outcome == 'success' }}
+        run: |
+          dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --no-build --list-tests --filter 'Category=CUDA|Category=ModelAssets' 2>&1 | Tee-Object test-results/excluded.log
+          exit $LASTEXITCODE
+      - name: Upload exact test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-results-${{ github.sha }}
+          path: test-results
+      - name: Write validation summary
+        if: always()
+        shell: pwsh
+        run: |
+          "## Tested commit: $env:GITHUB_SHA" >> $env:GITHUB_STEP_SUMMARY
+          "No real cloud OCR requests, production images, publishing, or deployment are performed." >> $env:GITHUB_STEP_SUMMARY
+          "CUDA and ModelAssets integration tests require a separate NVIDIA/model-equipped environment." >> $env:GITHUB_STEP_SUMMARY
+          foreach ($file in (Get-ChildItem test-results -Filter *.trx -ErrorAction SilentlyContinue)) {
+            [xml]$trx = Get-Content $file.FullName -Raw
+            $manager = New-Object System.Xml.XmlNamespaceManager($trx.NameTable)
+            $manager.AddNamespace('t', 'http://microsoft.com/schemas/VisualStudio/TeamTest/2010')
+            $counts = $trx.SelectSingleNode('//t:Counters', $manager)
+            "$($file.Name): total=$($counts.total), passed=$($counts.passed), failed=$($counts.failed)." >> $env:GITHUB_STEP_SUMMARY
+          }
