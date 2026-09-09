@@ -304,8 +304,17 @@ public static class RuleEngine
         if (rule.Type == "生肖" && IsZodiacSummary(lines))
             return ExtractZodiacSummaryValue(lines, issue, rule);
 
+        // 半波卡片只能由目标期行本身的完整资料名确认身份。
+        // 这样即使上一期标题仍留在图里，也绝不能把本期“杀半波”通用字段归给旧资料。
+        bool explicitHalfWaveIssueIdentity = rule.StrictIssueBlock
+            && rule.Type == "半波"
+            && lines.Any(line => ContainsIssue(line, issue)
+                && HasExplicitHalfWaveIdentity(line, rule));
+        if (rule.StrictIssueBlock && rule.Type == "半波" && !explicitHalfWaveIssueIdentity)
+            return null;
+
         int scopeStart = 0;
-        if (!string.IsNullOrWhiteSpace(rule.Section))
+        if (!string.IsNullOrWhiteSpace(rule.Section) && !explicitHalfWaveIssueIdentity)
         {
             string section = Normalize(rule.Section);
             scopeStart = Array.FindIndex(lines, line => Normalize(line).Contains(section, StringComparison.Ordinal));
@@ -327,6 +336,7 @@ public static class RuleEngine
                 continue;
             // Section ownership is resolved from the nearest active section.
             if (!string.IsNullOrWhiteSpace(rule.Section)
+                && !HasExplicitHalfWaveIdentity(line, rule)
                 && !HasSectionForIssueRow(lines, index, scopeStart, issue, rule))
                 continue;
 
@@ -579,6 +589,23 @@ public static class RuleEngine
             output.Add(line[start..]);
         }
         return output.ToArray();
+    }
+
+    private static bool HasExplicitHalfWaveIdentity(string text, OcrRule rule)
+    {
+        if (!rule.StrictIssueBlock || rule.Type != "半波")
+            return false;
+
+        string normalized = Normalize(text);
+        string keyword = Normalize(rule.Keyword);
+        if (keyword.Length == 0 || !normalized.Contains(keyword, StringComparison.Ordinal))
+            return false;
+
+        if (string.IsNullOrWhiteSpace(rule.RequiredKeyword))
+            return true;
+        string requiredKeyword = Normalize(rule.RequiredKeyword);
+        return requiredKeyword.Length > 0
+            && normalized.Contains(requiredKeyword, StringComparison.Ordinal);
     }
 
     private static bool HasSectionForIssueRow(
@@ -962,13 +989,11 @@ public static class RuleEngine
         // data from an earlier issue.
         if (rule.AllowNearbyValue && rule.Type == "生肖" && rule.Id != "骁腾杀肖")
         {
-            int[] issueValues = periods
-                .Select(period => int.TryParse(period.Groups["issue"].Value, out int value) ? value : 0)
-                .Where(value => value > 0)
-                .Distinct()
-                .ToArray();
-            if (issueValues.Length == 1 && issueValues[0] == issue)
-                return ExtractNearbySingleZodiac(lines, issue, rule);
+            // This reviewed poster family owns its nearby-value parser. If that
+            // parser cannot prove a value inside the selected issue block, stay
+            // missing instead of falling through to the generic strict-table
+            // parser, which has a different layout contract.
+            return ExtractNearbySingleZodiac(lines, issue, rule);
         }
         var values = new HashSet<string>(StringComparer.Ordinal);
         for (int index = 0; index < periods.Count; index++)
@@ -991,7 +1016,8 @@ public static class RuleEngine
             if (block.StartsWith('开'))
                 continue;
             if (!string.IsNullOrWhiteSpace(rule.Section)
-                && !Normalize(block).Contains(Normalize(rule.Section), StringComparison.Ordinal))
+                && !Normalize(block).Contains(Normalize(rule.Section), StringComparison.Ordinal)
+                && !HasExplicitHalfWaveIdentity(block, rule))
                 continue;
             if (rule.Folder == "公式杀料" && !FormulaBlockAppliesToRule(block, rule))
                 continue;
@@ -1051,45 +1077,66 @@ public static class RuleEngine
     {
         lines = lines.TakeWhile(line => !Regex.IsMatch(
             SimplifyFixedCardText(line), @"上期\s*开奖\s*结果")).ToArray();
+
         var standaloneValues = new HashSet<string>(StringComparer.Ordinal);
-        for (int index = 0; index < lines.Length; index++)
+        for (int issueIndex = 0; issueIndex < lines.Length; issueIndex++)
         {
-            if (!ContainsIssue(lines[index], issue))
+            if (!ContainsIssue(lines[issueIndex], issue))
                 continue;
-            int previousIssueIndex = Enumerable.Range(0, index)
-                .LastOrDefault(i => ContainsAnyIssue(lines[i]), -1);
-            int nearbyStart = previousIssueIndex >= 0 ? index : Math.Max(0, index - 4);
-            foreach (string line in lines.Skip(nearbyStart).Take(9))
+            foreach (string line in NearbyIssueWindow(lines, issueIndex, issue, before: 4, after: 4))
             {
-                // Do not borrow a nearby value across another issue boundary.
-                if (ContainsAnyIssue(line) && !ContainsIssue(line, issue))
-                    continue;
                 string normalized = Normalize(line);
                 if (Regex.IsMatch(normalized, $"^[{Zodiac}]$"))
                     standaloneValues.Add(SimplifyOcrText(normalized));
             }
         }
         if (standaloneValues.Count > 0)
-            return standaloneValues.Count == 0 ? null : standaloneValues.Count == 1 ? standaloneValues.Single() : ConflictMarker;
+            return standaloneValues.Count == 1 ? standaloneValues.Single() : ConflictMarker;
 
         var values = new HashSet<string>(StringComparer.Ordinal);
-        for (int index = 0; index < lines.Length; index++)
+        for (int issueIndex = 0; issueIndex < lines.Length; issueIndex++)
         {
-            if (!ContainsIssue(lines[index], issue))
+            if (!ContainsIssue(lines[issueIndex], issue))
                 continue;
-            int previousIssueIndex = Enumerable.Range(0, index)
-                .LastOrDefault(i => ContainsAnyIssue(lines[i]), -1);
-            int nearbyStart = previousIssueIndex >= 0 ? index : Math.Max(0, index - 1);
-            foreach (string line in lines.Skip(nearbyStart).Take(3))
+            foreach (string line in NearbyIssueWindow(lines, issueIndex, issue, before: 1, after: 1))
             {
-                if (ContainsAnyIssue(line) && !ContainsIssue(line, issue))
-                    continue;
                 string? value = ExtractSingleZodiac(line);
                 if (value is not null)
                     values.Add(value);
             }
         }
         return values.Count == 0 ? null : values.Count == 1 ? values.Single() : ConflictMarker;
+    }
+
+    private static IEnumerable<string> NearbyIssueWindow(
+        string[] lines,
+        int issueIndex,
+        int issue,
+        int before,
+        int after)
+    {
+        bool IsOtherIssue(string line) =>
+            FindIssues(new[] { line }).Any(actual => actual != issue);
+
+        // Values before the first printed issue are allowed for the reviewed
+        // poster layout. Once another issue already exists, text before the
+        // selected issue belongs to an earlier block and is not eligible.
+        bool hasEarlierOtherIssue = lines.Take(issueIndex).Any(IsOtherIssue);
+        int start = hasEarlierOtherIssue ? issueIndex : Math.Max(0, issueIndex - before);
+        int end = Math.Min(lines.Length, issueIndex + after + 1);
+
+        for (int index = start; index < end; index++)
+        {
+            if (index != issueIndex && IsOtherIssue(lines[index]))
+            {
+                // A later issue closes the target block. Never skip the marker
+                // and continue into that issue's value rows.
+                if (index > issueIndex)
+                    yield break;
+                continue;
+            }
+            yield return lines[index];
+        }
     }
 
     private static string? ExtractVerticalIssueZodiac(string[] lines, int issue, OcrRule rule)
@@ -1247,6 +1294,8 @@ public static class RuleEngine
         else if (rule.Folder is "各种杀" or "公式杀料" or "一套组合拳" or "骁腾系列")
         {
             block = ExtractDragonflyPayload(Regex.Replace(block, @"\s+", ""), rule);
+            if (block == ConflictMarker)
+                return ConflictMarker;
             if (block.Length == 0)
                 return null;
         }
@@ -1309,6 +1358,7 @@ public static class RuleEngine
             "生肖" => @"(?:公子杀一肖|帅铁杀一肖)",
             "生肖组合" => @"(?:祥瑞阁杀|绿杀|蓝杀|杀生肖|今期庄吃|(?:广东|福建|广西|贵州|海南|江西|湖南|上海|深圳|云南|四川)报)",
             "色单双" => @"公子秒杀半波",
+            "半波" => @"(?:(?:红红半波|粉红半波|蓝黑半波)\s*)+",
             "五行" => @"(?:公子4行|大赢家四行|必中)",
             "头" => @"(?:公子禁止[1一]头|帅铁杀一头|今晚你买|特杀|禁|买)",
             "尾" => @"(?:一尾绝杀|帅铁杀一尾)",
@@ -1365,7 +1415,7 @@ public static class RuleEngine
                 && (rule.Id == "翩翩公子肖" || value.Length == 1) ? value[..1] : null;
         if (rule.Type == "生肖组合")
             return Regex.IsMatch(value, $"^[{Zodiac}]{{2}}$") && value.Distinct().Count() == 2 ? value : null;
-        if (rule.Type == "色单双")
+        if (rule.Type is "色单双" or "半波")
             return Regex.IsMatch(value, "^[红蓝绿]波?[单双]$") ? value.Replace("波", "") : null;
         if (rule.Type == "头")
             return Regex.IsMatch(value, "^[0-4零一二三四]头?$") ? $"{ToArabicDigit(value[0])}头" : null;
@@ -1448,7 +1498,27 @@ public static class RuleEngine
         MatchCollection markers = Regex.Matches(block, pattern, RegexOptions.Singleline);
         if (markers.Count == 0)
             return string.Empty;
-        Match marker = rule.Id is "公式杀两肖肖" or "公式杀两尾尾" ? markers[^1] : markers[0];
+        bool formulaRule = rule.Id is "公式杀两肖肖" or "公式杀两尾尾";
+        if (!formulaRule && markers.Count > 1)
+        {
+            var repeatedValues = new HashSet<string>(StringComparer.Ordinal);
+            for (int index = 0; index < markers.Count; index++)
+            {
+                Match repeatedMarker = markers[index];
+                int start = repeatedMarker.Index + repeatedMarker.Length;
+                int end = index + 1 < markers.Count ? markers[index + 1].Index : block.Length;
+                string segment = block[start..end];
+                string candidate = ExtractImmediateDragonflyValue(segment);
+                if (candidate.Length == 0 || candidate == ConflictMarker)
+                    return ConflictMarker;
+                repeatedValues.Add(candidate);
+            }
+            if (repeatedValues.Count != 1)
+                return ConflictMarker;
+            return repeatedValues.Single();
+        }
+
+        Match marker = formulaRule ? markers[^1] : markers[0];
         string payload = block[(marker.Index + marker.Length)..];
         if (rule.Id == "绿格子双杀")
         {
@@ -1458,11 +1528,52 @@ public static class RuleEngine
                 return string.Empty;
             return framedValues[0].Groups["value"].Value;
         }
-        Match framed = Regex.Match(payload,
-            @"^[：:，,、\-]*(?:【(?<value>[^】]+)】|\[(?<value>[^\]]+)\]|（(?<value>[^）]+)）|\((?<value>[^\)]+)\)|《(?<value>[^》]+)》|『(?<value>[^』]+)』|\{(?<value>[^}]+)\})");
-        if (framed.Success)
-            return framed.Groups["value"].Value;
+        string framedPayload = Regex.Replace(payload, @"^[：:，,、\-\s]*", "");
+        var leadingFrames = new List<string>();
+        int frameOffset = 0;
+        while (frameOffset < framedPayload.Length)
+        {
+            Match frame = Regex.Match(framedPayload[frameOffset..],
+                @"^(?:【(?<value>[^】]+)】|\[(?<value>[^\]]+)\]|（(?<value>[^）]+)）|\((?<value>[^\)]+)\)|《(?<value>[^》]+)》|『(?<value>[^』]+)』|\{(?<value>[^}]+)\})");
+            if (!frame.Success)
+                break;
+            leadingFrames.Add(frame.Groups["value"].Value);
+            frameOffset += frame.Length;
+            Match separator = Regex.Match(framedPayload[frameOffset..], @"^[：:，,、+\-\s]*");
+            frameOffset += separator.Length;
+        }
+        if (leadingFrames.Count > 0)
+        {
+            string[] distinctFrames = leadingFrames.Distinct(StringComparer.Ordinal).ToArray();
+            return distinctFrames.Length == 1 ? distinctFrames[0] : ConflictMarker;
+        }
         return Regex.Split(payload, @"发|發")[0].Trim();
+    }
+
+    private static string ExtractImmediateDragonflyValue(string payload)
+    {
+        string framedPayload = Regex.Replace(payload, @"^[：:，,、\-\s]*", "");
+        var leadingFrames = new List<string>();
+        int frameOffset = 0;
+        while (frameOffset < framedPayload.Length)
+        {
+            Match frame = Regex.Match(framedPayload[frameOffset..],
+                @"^(?:【(?<value>[^】]+)】|\[(?<value>[^\]]+)\]|（(?<value>[^）]+)）|\((?<value>[^\)]+)\)|《(?<value>[^》]+)》|『(?<value>[^』]+)』|\{(?<value>[^}]+)\})");
+            if (!frame.Success)
+                break;
+            leadingFrames.Add(frame.Groups["value"].Value);
+            frameOffset += frame.Length;
+            Match separator = Regex.Match(framedPayload[frameOffset..], @"^[：:，,、+\-\s]*");
+            frameOffset += separator.Length;
+        }
+        if (leadingFrames.Count > 0)
+        {
+            string[] distinct = leadingFrames.Distinct(StringComparer.Ordinal).ToArray();
+            return distinct.Length == 1 ? distinct[0] : ConflictMarker;
+        }
+
+        string unframed = Regex.Split(payload, @"发|發")[0].Trim();
+        return unframed;
     }
 
     private static string ExtractHuangdaxianPayload(string block, OcrRule rule)
@@ -1587,7 +1698,7 @@ public static class RuleEngine
         if (rule.Type == "缺尾") return Regex.IsMatch(value, "^[0-9]尾$");
         if (rule.Type == "缺头") return Regex.IsMatch(value, "^[0-4]头$");
         if (rule.Type is "五行" or "单五行") return value.Length == 1 && "金木水火土".Contains(value[0]);
-        if (rule.Type == "色单双") return Regex.IsMatch(value, "^[红蓝绿][单双]$");
+        if (rule.Type is "色单双" or "半波") return Regex.IsMatch(value, "^[红蓝绿][单双]$");
         if (rule.Type == "合") return Regex.IsMatch(value, "^(?:0[1-9]|1[0-3])合$");
         if (rule.Type == "段") return Regex.IsMatch(value, "^[0-7]段$");
         if (rule.Type == "半头") return Regex.IsMatch(value, "^[0-4]头[单双]$");
@@ -1653,21 +1764,73 @@ public static class RuleEngine
                 .Select(match => $"{int.Parse(match.Value[..^1]):00}合"),
             "段" => Regex.Matches(text, @"(?<!\d)[0-7]\s*段")
                 .Select(match => Regex.Replace(match.Value, @"\s+", "")),
-            "尾" => Regex.Matches(text, @"(?<!\d)[0-9]\s*尾")
-                .Select(match => Regex.Replace(match.Value, @"\s+", "")),
-            // Head cards often contain an instruction count ("杀一头" / "禁止1头")
-            // before the actual value. Existing head extraction already resolves the
-            // value field; do not reinterpret the instruction as a conflicting result.
-            "头" => Array.Empty<string>(),
+            "尾" => TailValueCandidates(text),
+            "尾数组合" => TailPairCandidates(text),
+            "头" => HeadValueCandidates(text),
             "单五行" => Regex.Matches(text, @"[金木水火土]").Select(match => match.Value),
             "半头" => Regex.Matches(text, @"(?<!\d)[0-4]\s*头\s*[单双]")
                 .Select(match => Regex.Replace(match.Value, @"\s+", "")),
-            "色单双" => Regex.Matches(text, @"[红蓝绿](?:波)?[单双]")
+            "色单双" or "半波" => Regex.Matches(text, @"[红蓝绿](?:波)?[单双]")
                 .Select(match => match.Value.Replace("波", "", StringComparison.Ordinal)),
             "生肖" or "单生肖" => Regex.Matches(text, $"[{Zodiac}]").Select(match => match.Value),
             _ => Array.Empty<string>()
         };
         return values.Distinct(StringComparer.Ordinal).Take(2).Count() > 1;
+    }
+
+    private static IEnumerable<string> HeadValueCandidates(string text)
+    {
+        var values = new List<string>();
+        int delimiter = Math.Max(text.LastIndexOf('：'), text.LastIndexOf(':'));
+        if (delimiter >= 0)
+        {
+            string field = text[(delimiter + 1)..];
+            values.AddRange(Regex.Matches(field,
+                    @"(?<!\d)(?<head>[0-4零一二三四])\s*头")
+                .Where(match => !Regex.IsMatch(
+                    field[..match.Index], @"(?:杀|殺|禁|禁止)\s*$"))
+                .Select(match => $"{ToArabicDigit(match.Groups["head"].Value[0])}头"));
+        }
+        values.AddRange(Regex.Matches(text, @"[【\[](?<head>[0-4])\s*[】\]]\s*头")
+            .Select(match => $"{match.Groups["head"].Value}头"));
+        values.AddRange(Regex.Matches(text, @"买\s*(?<head>[0-4零一二三四])\s*头")
+            .Select(match => $"{ToArabicDigit(match.Groups["head"].Value[0])}头"));
+        return values;
+    }
+
+    private static IEnumerable<string> TailValueCandidates(string text)
+    {
+        var values = Regex.Matches(text, @"(?<!\d)[0-9]\s*尾")
+            .Select(match => Regex.Replace(match.Value, @"\s+", ""))
+            .ToList();
+        int marker = text.LastIndexOf('尾');
+        if (marker < 0)
+            return values;
+        foreach (Match run in Regex.Matches(text[(marker + 1)..], @"(?<!\d)[0-9]+(?!\d)"))
+        {
+            if (run.Value.Distinct().Count() == 1)
+                values.Add($"{run.Value[0]}尾");
+        }
+        return values;
+    }
+
+    private static IEnumerable<string> TailPairCandidates(string text)
+    {
+        var values = new List<string>();
+        foreach (Match pair in Regex.Matches(text,
+            @"(?<!\d)(?<first>[0-9])\s*尾?\s*(?:\+|＋|、|,|，|\.|。|-|－)\s*(?<second>[0-9])\s*尾?"))
+        {
+            char[] digits = [pair.Groups["first"].Value[0], pair.Groups["second"].Value[0]];
+            Array.Sort(digits);
+            values.Add(new string(digits));
+        }
+        foreach (Match compact in Regex.Matches(text, @"(?<!\d)(?<digits>[0-9]{2})\s*尾"))
+        {
+            char[] digits = compact.Groups["digits"].Value.ToCharArray();
+            Array.Sort(digits);
+            values.Add(new string(digits));
+        }
+        return values;
     }
 
     private static string? ExtractTyped(string tail, string type)
@@ -1730,13 +1893,13 @@ public static class RuleEngine
             string tailText = marker >= 0
                 ? withoutIssue[(marker + "公子送尾数".Length)..]
                 : withoutIssue;
-            int[] tails = Regex.Matches(tailText, @"(?<!\d)[0-9]+(?!\d)")
+            int[] rawTails = Regex.Matches(tailText, @"(?<!\d)[0-9]+(?!\d)")
                 .SelectMany(match => marker >= 0 || match.Value.Length == 1 || match.Value.Length == 9
                     ? match.Value.Select(character => character - '0')
                     : [])
-                .Distinct()
                 .ToArray();
-            if (tails.Length != 9)
+            int[] tails = rawTails.Distinct().ToArray();
+            if (rawTails.Length != 9 || tails.Length != 9)
                 return null;
             int missing = Enumerable.Range(0, 10).Single(number => !tails.Contains(number));
             return $"{missing}尾";
@@ -1770,8 +1933,12 @@ public static class RuleEngine
 
         if (type == "五行")
         {
-            string value = string.Concat(Regex.Matches(beforeOpening, "[金木水火土]").Select(match => match.Value).Distinct());
-            return value.Length == 4 ? value : null;
+            string[] elements = Regex.Matches(beforeOpening, "[金木水火土]")
+                .Select(match => match.Value)
+                .ToArray();
+            return elements.Length == 4 && elements.Distinct(StringComparer.Ordinal).Count() == 4
+                ? string.Concat(elements)
+                : null;
         }
 
         if (type == "尾数组合")
@@ -1780,11 +1947,15 @@ public static class RuleEngine
             if (!combination.Success)
                 combination = Regex.Match(beforeOpening, @"[【\[](?<first>[0-9])\s*(?<second>[0-9])\s*[】\]]?尾");
             if (combination.Success)
-                return $"{combination.Groups["first"].Value}尾+{combination.Groups["second"].Value}尾";
+            {
+                string first = combination.Groups["first"].Value;
+                string second = combination.Groups["second"].Value;
+                return first != second ? $"{first}尾+{second}尾" : null;
+            }
 
             // Formula sheets often compact two tails as a two-digit value (e.g. “杀15尾”).
             Match compact = Regex.Match(beforeOpening, @"(?<!\d)(?<digits>[0-9]{2})\s*尾");
-            return compact.Success
+            return compact.Success && compact.Groups["digits"].Value[0] != compact.Groups["digits"].Value[1]
                 ? $"{compact.Groups["digits"].Value[0]}尾+{compact.Groups["digits"].Value[1]}尾"
                 : null;
         }
@@ -1794,11 +1965,11 @@ public static class RuleEngine
             string withoutIssue = RemoveIssue(beforeOpening);
             int marker = withoutIssue.LastIndexOf("四头出特", StringComparison.Ordinal);
             string valueText = marker >= 0 ? withoutIssue[(marker + "四头出特".Length)..] : withoutIssue;
-            char[] heads = valueText
+            char[] rawHeads = valueText
                 .Where(character => character is >= '0' and <= '4')
-                .Distinct()
                 .ToArray();
-            if (heads.Length != 4)
+            char[] heads = rawHeads.Distinct().ToArray();
+            if (heads.Length != 4 || type == "缺头" && rawHeads.Length != 4)
                 return null;
             if (type == "缺头")
             {
@@ -1816,7 +1987,7 @@ public static class RuleEngine
                 : null;
         }
 
-        if (type == "色单双")
+        if (type is "色单双" or "半波")
         {
             Match colorParity = Regex.Match(beforeOpening, "(?<color>[红蓝绿])(?:波)?(?<parity>[单双])");
             return colorParity.Success
