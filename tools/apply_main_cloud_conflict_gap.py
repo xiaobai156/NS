@@ -76,14 +76,17 @@ repl(
             RuleEngine.ExtractFinalResult(evidence, issue, rule).Status == RuleExtractionStatus.Success);''',
 'structured cache success predicate')
 
-old = '''    private static bool CanReuseRetryCloudLines(
+repl(
+'''    private static bool CanReuseRetryCloudLines(
         string groupDirectory, IReadOnlyList<OcrRule> rules, IReadOnlyList<string> lines, int issue) =>
         lines.Any(line => !string.IsNullOrWhiteSpace(line)) &&
-        rules.All(rule => RuleEngine.ExtractFinalValue(lines, issue, rule) is not null);
-
-'''
-if old in text:
-    text = text.replace(old, '', 1)
+        rules.All(rule => RuleEngine.ExtractFinalValue(lines, issue, rule) is not null);''',
+'''    private static bool CanReuseRetryCloudLines(
+        string groupDirectory, IReadOnlyList<OcrRule> rules, IReadOnlyList<string> lines, int issue) =>
+        lines.Any(line => !string.IsNullOrWhiteSpace(line)) &&
+        rules.All(rule =>
+            RuleEngine.ExtractFinalResult(lines, issue, rule).Status == RuleExtractionStatus.Success);''',
+'legacy retry-cache compatibility helper stays success-only')
 
 path.write_text(text, encoding='utf-8')
 print('Applied main cloud conflict propagation patch')
