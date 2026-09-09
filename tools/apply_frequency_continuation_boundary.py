@@ -21,6 +21,23 @@ replace_once(
 'frequency continuation boundary')
 
 replace_once(
+'''    private static bool HasCurrentFieldStartAfterEarlierIssue(
+        string[] lines, int scopeStart, int issueIndex, OcrRule rule, int expectedCount)''',
+'''    private static bool HasCurrentFieldStartAfterEarlierIssue(
+        string[] lines, int scopeStart, int issueIndex, int issue, OcrRule rule, int expectedCount)''',
+'split-number helper signature')
+
+replace_once(
+'''HasCurrentFieldStartAfterEarlierIssue(lines, 0, issueIndex, rule, expectedCount)''',
+'''HasCurrentFieldStartAfterEarlierIssue(lines, 0, issueIndex, issue, rule, expectedCount)''',
+'strict centered split call')
+
+replace_once(
+'''HasCurrentFieldStartAfterEarlierIssue(lines, scopeStart, issueIndex, rule, expectedCount)''',
+'''HasCurrentFieldStartAfterEarlierIssue(lines, scopeStart, issueIndex, issue, rule, expectedCount)''',
+'reviewed split call')
+
+replace_once(
 '''        for (int index = issueIndex - 1; index >= scopeStart; index--)
         {
             if (!ContainsAnyIssue(lines[index]))
