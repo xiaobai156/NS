@@ -26,7 +26,6 @@ public sealed class PostClosureSafetyTests
     public void StrictNearbyZodiacStopsAtTheNextBareFourDigitIssue()
     {
         OcrRule rule = NearbyRule();
-
         Assert.Null(RuleEngine.ExtractFinalValue(
             ["九宫格肖肖", "第1001期", "1002", "虎"], 1001, rule));
     }
@@ -35,7 +34,6 @@ public sealed class PostClosureSafetyTests
     public void StrictNearbyZodiacStillReadsAValueInsideTheSelectedIssueBlock()
     {
         OcrRule rule = NearbyRule();
-
         Assert.Equal("虎", RuleEngine.ExtractFinalValue(
             ["九宫格肖肖", "第1001期", "宣传文字", "更多宣传文字", "虎"], 1001, rule));
     }
@@ -46,20 +44,10 @@ public sealed class PostClosureSafetyTests
         OcrRule rule = NearbyRule();
         string[] lines = ["九宫格肖肖", "第1001期", "1002", "虎"];
         var evidence = new OcrEvidence(
-            "source.png",
-            "input.png",
-            "source-hash",
-            "input-hash",
-            "test",
+            "source.png", "input.png", "source-hash", "input-hash", "test",
             lines.Select((text, index) => new OcrLineEvidence(
-                text,
-                new OcrBox(0, index * 30, 500, 20),
-                0.99,
-                "test",
-                "main")).ToArray());
-
-        Assert.Equal(
-            RuleExtractionStatus.Missing,
+                text, new OcrBox(0, index * 30, 500, 20), 0.99, "test", "main")).ToArray());
+        Assert.Equal(RuleExtractionStatus.Missing,
             RuleEngine.ExtractFinalResult(evidence, 1001, rule).Status);
     }
 
@@ -68,7 +56,6 @@ public sealed class PostClosureSafetyTests
     {
         RuleExtractionResult result = RuleEngine.ExtractFinalResult(
             ["246期骁腾杀一肖《虎》《兔》"], 246, XiaotengRule());
-
         Assert.Equal(RuleExtractionStatus.Conflict, result.Status);
         Assert.Null(result.Value);
     }
@@ -78,5 +65,40 @@ public sealed class PostClosureSafetyTests
     {
         Assert.Equal("虎", RuleEngine.ExtractFinalValue(
             ["246期骁腾杀一肖《虎》"], 246, XiaotengRule()));
+    }
+
+    [Fact]
+    public void GenericHeadFieldWithTwoActualHeadsIsConflict()
+    {
+        var rule = new OcrRule("测试头", "头");
+        RuleExtractionResult result = RuleEngine.ExtractFinalResult(
+            ["251期 测试头 杀一头：1头 2头"], 251, rule);
+        Assert.Equal(RuleExtractionStatus.Conflict, result.Status);
+    }
+
+    [Fact]
+    public void GenericTailFallbackWithTwoActualDigitsIsConflict()
+    {
+        var rule = new OcrRule("测试尾", "尾");
+        RuleExtractionResult result = RuleEngine.ExtractFinalResult(
+            ["251期 测试尾 杀一尾 1 2"], 251, rule);
+        Assert.Equal(RuleExtractionStatus.Conflict, result.Status);
+    }
+
+    [Fact]
+    public void GenericTailPairWithTwoCompletePairsIsConflict()
+    {
+        var rule = new OcrRule("测试双尾", "尾数组合");
+        RuleExtractionResult result = RuleEngine.ExtractFinalResult(
+            ["251期 测试双尾 1尾+2尾 3尾+4尾"], 251, rule);
+        Assert.Equal(RuleExtractionStatus.Conflict, result.Status);
+    }
+
+    [Fact]
+    public void GenericTailPairKeepsOneCompletePair()
+    {
+        var rule = new OcrRule("测试双尾", "尾数组合");
+        Assert.Equal("1尾+2尾", RuleEngine.ExtractFinalValue(
+            ["251期 测试双尾 1尾+2尾"], 251, rule));
     }
 }
