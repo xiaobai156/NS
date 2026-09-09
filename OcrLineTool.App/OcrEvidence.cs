@@ -7,6 +7,8 @@ public sealed record OcrBox(int X, int Y, int Width, int Height)
 {
     public int Right => checked(X + Math.Max(0, Width));
     public int Bottom => checked(Y + Math.Max(0, Height));
+    public double CenterX => X + Width / 2d;
+    public double CenterY => Y + Height / 2d;
 }
 
 /// <summary>
@@ -75,23 +77,7 @@ public sealed record OcrEvidence(
     IReadOnlyList<OcrLineEvidence> Items)
 {
     [JsonIgnore]
-    public IReadOnlyList<string> Lines
-    {
-        get
-        {
-            var output = new List<string>();
-            string? previousRegion = null;
-            foreach (OcrLineEvidence item in Items.Where(item => !string.IsNullOrWhiteSpace(item.Text)))
-            {
-                string region = item.ViewId + "\u001f" + item.RegionId;
-                if (previousRegion is not null && !previousRegion.Equals(region, StringComparison.Ordinal))
-                    output.Add(OcrLayoutMarkers.RegionBoundary);
-                output.Add(item.Text);
-                previousRegion = region;
-            }
-            return output;
-        }
-    }
+    public IReadOnlyList<string> Lines => SafeLines(Items);
 
     [JsonIgnore]
     public bool HasCompleteGeometry =>
@@ -108,6 +94,21 @@ public sealed record OcrEvidence(
                 .ToArray();
             return confidences.Length == 0 ? null : confidences.Min();
         }
+    }
+
+    public static IReadOnlyList<string> SafeLines(IReadOnlyList<OcrLineEvidence> items)
+    {
+        var output = new List<string>();
+        string? previousRegion = null;
+        foreach (OcrLineEvidence item in items.Where(item => !string.IsNullOrWhiteSpace(item.Text)))
+        {
+            string region = item.ViewId + "\u001f" + item.RegionId;
+            if (previousRegion is not null && !previousRegion.Equals(region, StringComparison.Ordinal))
+                output.Add(OcrLayoutMarkers.RegionBoundary);
+            output.Add(item.Text);
+            previousRegion = region;
+        }
+        return output;
     }
 
     public static OcrEvidence FromLines(string inputPath, IReadOnlyList<string> lines, string viewId = "unpositioned")
@@ -162,5 +163,128 @@ public sealed record OcrEvidence(
             identity.InputHash,
             identity.ViewId,
             boundItems);
+    }
+}
+
+/// <summary>
+/// Turns positioned OCR tokens/lines into physical reading regions. A normal
+/// single-column page remains one region. If a row proves that the page has
+/// separated horizontal columns, output becomes column-major and a region
+/// boundary is inserted between columns, preventing row-order cross-column joins.
+/// </summary>
+internal static class OcrEvidenceLayout
+{
+    internal static IReadOnlyList<OcrLineEvidence> Partition(IReadOnlyList<OcrLineEvidence> source)
+    {
+        var output = new List<OcrLineEvidence>();
+        foreach (IGrouping<string, OcrLineEvidence> view in source
+            .Where(item => !string.IsNullOrWhiteSpace(item.Text))
+            .GroupBy(item => item.ViewId, StringComparer.Ordinal))
+        {
+            OcrLineEvidence[] items = view.ToArray();
+            if (items.Any(item => item.Box is null))
+            {
+                int index = 0;
+                output.AddRange(items.Select(item => item with { RegionId = $"unpositioned-{index++}" }));
+                continue;
+            }
+
+            List<List<OcrLineEvidence>> rows = BuildRows(items);
+            List<List<RowSegment>> rowSegments = rows.Select(SplitRow).ToList();
+            int columnCount = rowSegments.Max(row => row.Count);
+            if (columnCount <= 1)
+            {
+                output.AddRange(rowSegments.SelectMany(row => row)
+                    .OrderBy(segment => segment.Box.CenterY)
+                    .Select(segment => segment.ToEvidence(view.Key, "main")));
+                continue;
+            }
+
+            RowSegment[] anchors = rowSegments
+                .OrderByDescending(row => row.Count)
+                .First()
+                .OrderBy(segment => segment.Box.CenterX)
+                .ToArray();
+            var columns = Enumerable.Range(0, anchors.Length)
+                .Select(_ => new List<RowSegment>())
+                .ToArray();
+            foreach (RowSegment segment in rowSegments.SelectMany(row => row))
+            {
+                int column = Enumerable.Range(0, anchors.Length)
+                    .OrderBy(index => Math.Abs(anchors[index].Box.CenterX - segment.Box.CenterX))
+                    .First();
+                columns[column].Add(segment);
+            }
+
+            for (int column = 0; column < columns.Length; column++)
+            {
+                foreach (RowSegment segment in columns[column].OrderBy(segment => segment.Box.CenterY))
+                    output.Add(segment.ToEvidence(view.Key, $"column-{column}"));
+            }
+        }
+        return output;
+    }
+
+    private static List<List<OcrLineEvidence>> BuildRows(IEnumerable<OcrLineEvidence> items)
+    {
+        var rows = new List<List<OcrLineEvidence>>();
+        foreach (OcrLineEvidence item in items.OrderBy(item => item.Box!.CenterY))
+        {
+            List<OcrLineEvidence>? row = rows.FirstOrDefault(candidate =>
+            {
+                double center = candidate.Average(value => value.Box!.CenterY);
+                double height = candidate.Average(value => Math.Max(1, value.Box!.Height));
+                return Math.Abs(center - item.Box!.CenterY) <= Math.Max(3, Math.Min(height, Math.Max(1, item.Box.Height)) * 0.55);
+            });
+            if (row is null) rows.Add([item]);
+            else row.Add(item);
+        }
+        return rows;
+    }
+
+    private static List<RowSegment> SplitRow(List<OcrLineEvidence> row)
+    {
+        OcrLineEvidence[] ordered = row.OrderBy(item => item.Box!.X).ToArray();
+        var segments = new List<RowSegment>();
+        var current = new List<OcrLineEvidence>();
+        int previousRight = 0;
+        foreach (OcrLineEvidence item in ordered)
+        {
+            if (current.Count > 0)
+            {
+                OcrLineEvidence previous = current[^1];
+                int gap = item.Box!.X - previousRight;
+                int splitGap = Math.Max(48, Math.Max(previous.Box!.Height, item.Box.Height) * 4);
+                if (gap > splitGap)
+                {
+                    segments.Add(RowSegment.From(current));
+                    current.Clear();
+                }
+            }
+            current.Add(item);
+            previousRight = Math.Max(previousRight, item.Box!.Right);
+        }
+        if (current.Count > 0) segments.Add(RowSegment.From(current));
+        return segments;
+    }
+
+    private sealed record RowSegment(string Text, OcrBox Box, double? Confidence)
+    {
+        internal static RowSegment From(IReadOnlyList<OcrLineEvidence> items)
+        {
+            int left = items.Min(item => item.Box!.X);
+            int top = items.Min(item => item.Box!.Y);
+            int right = items.Max(item => item.Box!.Right);
+            int bottom = items.Max(item => item.Box!.Bottom);
+            double[] scores = items.Where(item => item.Confidence is not null)
+                .Select(item => item.Confidence!.Value).ToArray();
+            return new(
+                string.Concat(items.OrderBy(item => item.Box!.X).Select(item => item.Text)),
+                new(left, top, right - left, bottom - top),
+                scores.Length == 0 ? null : scores.Min());
+        }
+
+        internal OcrLineEvidence ToEvidence(string viewId, string regionId) =>
+            new(Text, Box, Confidence, viewId, regionId);
     }
 }
