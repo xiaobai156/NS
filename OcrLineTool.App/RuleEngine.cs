@@ -26,6 +26,14 @@ public static class RuleEngine
     private static readonly Regex BareIssueRegex = new(@"^[^\d]{0,8}(?<issue>\d{3,6})(?!\d)(?!\s*\*)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex YearIssueRegex = new(@"^\s*\d{4}\s*[-—/]\s*(?<issue>\d{3,6})(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private const string Zodiac = "马蛇龙兔虎牛鼠猪狗鸡猴羊";
+    // Only reviewed layouts may place part of one physical number row before
+    // its issue cell. Generic rules must never borrow heading/previous data.
+    private static readonly IReadOnlySet<string> SplitIssueNumberRuleIds =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "宝典", "心水", "内幕", "强哥", "锁妖", "赛马会", "龙王", "红人馆", "老人味",
+            "表弟", "祥瑞阁", "小马哥", "杀料", "金钱网", "天线宝杀"
+        };
 
     public static IReadOnlyList<OcrRule> FindMatches(IEnumerable<string> localLines, IEnumerable<OcrRule> rules)
     {
@@ -270,6 +278,15 @@ public static class RuleEngine
             string line = lines[index];
             if (!ContainsIssue(line, issue))
                 continue;
+            // Shared multi-author sheets must identify the author on the selected
+            // issue row itself. A heading attached to an older issue is not proof.
+            if (rule.Folder == "天机阁杀料"
+                && !aliases.Any(alias => Normalize(line).Contains(alias, StringComparison.Ordinal)))
+                continue;
+            // Section ownership is resolved from the nearest active section.
+            if (!string.IsNullOrWhiteSpace(rule.Section)
+                && !HasSectionForIssueRow(lines, index, scopeStart, issue, rule))
+                continue;
 
             candidates.Add(line);
             string combined = line;
@@ -282,14 +299,8 @@ public static class RuleEngine
             }
         }
 
-        // Same issue can appear in several different materials on one sheet.
-        // A section printed on target rows scopes that material before conflict checking.
-        if (!string.IsNullOrWhiteSpace(rule.Section))
-        {
-            string section = Normalize(rule.Section);
-            if (candidates.Any(line => Normalize(line).Contains(section, StringComparison.Ordinal)))
-                candidates = candidates.Where(line => Normalize(line).Contains(section, StringComparison.Ordinal)).ToList();
-        }
+        // Section ownership is enforced while each issue candidate is built; do
+        // not reopen the scope later based on a sibling section.
 
         bool keywordInTarget = candidates.Any(line => aliases.Any(alias => Normalize(line).Contains(alias, StringComparison.Ordinal)));
         bool keywordInHeading = aliases.Any(alias => HasKeywordInHeading(lines, alias));
@@ -323,9 +334,10 @@ public static class RuleEngine
         {
             string? numberValue = rule.IgnoreIssue
                 ? ExtractNumbers(string.Join(' ', lines), expectedCount)
-                : ExtractNumbersAroundIssue(lines, scopeStart, issue, expectedCount);
-            if (numberValue is not null)
-                return numberValue;
+                : ExtractNumbersAroundIssue(lines, scopeStart, issue, expectedCount, rule);
+            // Number extraction is provenance-aware. Never fall through to the
+            // generic candidate concatenation and accidentally rebuild a failed row.
+            return numberValue;
         }
 
         var observed = new HashSet<string>(StringComparer.Ordinal);
@@ -343,8 +355,7 @@ public static class RuleEngine
             return observed.Count == 1 ? observed.Single() : null;
 
         if (rule.AllowNearbyValue
-            && rule.Type is ("生肖" or "单生肖" or "九肖")
-            && (rule.Type != "九肖" || candidates.Count > 0))
+            && rule.Type is ("生肖" or "单生肖"))
         {
             int heading = rule.Type == "九肖"
                 ? Array.FindIndex(lines, line => Normalize(line).Contains(keyword, StringComparison.Ordinal))
@@ -448,6 +459,41 @@ public static class RuleEngine
         return output.ToArray();
     }
 
+    private static bool HasSectionForIssueRow(
+        string[] lines, int issueIndex, int scopeStart, int issue, OcrRule rule)
+    {
+        string section = Normalize(rule.Section ?? string.Empty);
+        if (section.Length == 0)
+            return true;
+        if (Normalize(lines[issueIndex]).Contains(section, StringComparison.Ordinal))
+            return true;
+
+        string[] identity = new[] { rule.Keyword, rule.RequiredKeyword ?? string.Empty, rule.Folder ?? string.Empty }
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(Normalize)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        for (int index = issueIndex - 1; index >= scopeStart; index--)
+        {
+            if (ContainsAnyIssue(lines[index]))
+            {
+                if (ContainsIssue(lines[index], issue))
+                    continue;
+                break;
+            }
+            string current = Normalize(lines[index]);
+            if (current.Length == 0)
+                continue;
+            if (current.Contains(section, StringComparison.Ordinal))
+                return true;
+            if (identity.Any(item => current.Contains(item, StringComparison.Ordinal)))
+                continue;
+            // The nearest non-identity heading is a sibling section boundary.
+            return false;
+        }
+        return false;
+    }
+
     private static string[] SummaryRowsForIssue(IEnumerable<string> source, int issue)
     {
         var rows = new List<string>();
@@ -490,6 +536,12 @@ public static class RuleEngine
                 int forbiddenIndex = tail.IndexOf('禁');
                 if (forbiddenIndex >= 0)
                 {
+                    string statusPrefix = Normalize(tail[..forbiddenIndex]);
+                    // Between this author and its 禁 field only status marks may
+                    // appear; another author or “待更新” closes this cell.
+                    if (statusPrefix.Length > 0
+                        && Regex.IsMatch(statusPrefix, @"[^正准準中错錯对對0-9]"))
+                        continue;
                     string? value = ExtractSingleZodiac(tail[(forbiddenIndex + 1)..]);
                     if (value is not null)
                         observed.Add(value);
@@ -847,8 +899,10 @@ public static class RuleEngine
     private static string? ExtractLeadingSplitNumberTable(
         string text, MatchCollection periods, int issue, OcrRule rule)
     {
-        // This card's payload follows its issue label; preceding numbers belong
-        // to the opening banner, never to a wrapped data row.
+        if (!SplitIssueNumberRuleIds.Contains(rule.Id))
+            return null;
+        // These explicitly reviewed cards have a physical row that can straddle
+        // the issue/opening cells. Every other rule is forbidden from this repair.
         if (rule.Id == "翩翩公子杀十码")
             return null;
         if (periods.Count == 0
@@ -906,9 +960,8 @@ public static class RuleEngine
             string following = text[(run.Index + run.Length)..];
             if (Regex.IsMatch(following, @"^\s*%"))
                 continue;
-            if (int.TryParse(run.Value, out int labelCount)
-                && labelCount == expectedCount
-                && Regex.IsMatch(following, @"^\s*(?:个|個|码|碼|计|計)"))
+            if (int.TryParse(run.Value, out _)
+                && Regex.IsMatch(following, @"^\s*(?:个(?:中特码|特码)?|個(?:码中特碼|特碼)?|码|碼|计|計)"))
                 continue;
             string preceding = text[..run.Index].TrimEnd();
             if (preceding.Length > 0 && (preceding[^1] == '开' || preceding[^1] == '特'
@@ -1229,12 +1282,16 @@ public static class RuleEngine
     private static string? ExtractTyped(string tail, string type)
     {
         tail = SimplifyOcrText(tail);
-        string beforeOpening = tail.Split('开', 2)[0];
+        string beforeOpening = BeforeOpeningResult(tail);
+        string withoutIssueBeforeOpening = RemoveIssue(beforeOpening);
         if (type == "尾" && (tail.Contains("亚太地区八尾", StringComparison.Ordinal) || tail.Contains("团队八尾", StringComparison.Ordinal)))
         {
-            string digits = string.Concat(Regex.Matches(beforeOpening, @"[0-9]").Select(m => m.Value));
+            string digits = string.Concat(Regex.Matches(withoutIssueBeforeOpening, @"[0-9]").Select(m => m.Value));
             var present = digits.Where(char.IsDigit).Select(c => c - '0').Distinct().ToArray();
-            return present.Length == 8 ? string.Join("尾 ", Enumerable.Range(0, 10).Where(n => !present.Contains(n)).Select(n => $"{n}尾")) : null;
+            int[] missing = Enumerable.Range(0, 10).Where(n => !present.Contains(n)).ToArray();
+            return present.Length == 8 && missing.Length == 2
+                ? string.Join(' ', missing.Select(n => $"{n}尾"))
+                : null;
         }
         if (type == "五行" && (tail.Contains("亚太地区四行", StringComparison.Ordinal) || tail.Contains("团队四行", StringComparison.Ordinal)))
         {
@@ -1248,7 +1305,7 @@ public static class RuleEngine
         }
         if (type == "头" && (tail.Contains("亚太地区四头", StringComparison.Ordinal) || tail.Contains("团队四头", StringComparison.Ordinal)))
         {
-            var heads = beforeOpening.Where(c => c is >= '0' and <= '4').Distinct().ToArray();
+            var heads = withoutIssueBeforeOpening.Where(c => c is >= '0' and <= '4').Distinct().ToArray();
             return heads.Length == 4 ? $"{Enumerable.Range(0, 5).Single(n => !heads.Contains((char)('0' + n)))}头" : null;
         }
         if (type.StartsWith("号码:", StringComparison.Ordinal)
@@ -1432,87 +1489,198 @@ public static class RuleEngine
         return match.Value;
     }
 
-    private static string? ExtractNumbersAroundIssue(string[] lines, int scopeStart, int issue, int expectedCount)
+    private static string? ExtractNumbersAroundIssue(
+        string[] lines, int scopeStart, int issue, int expectedCount, OcrRule rule)
     {
+        if (SplitIssueNumberRuleIds.Contains(rule.Id))
+        {
+            var splitObserved = new HashSet<string>(StringComparer.Ordinal);
+            for (int index = scopeStart; index < lines.Length; index++)
+            {
+                if (!ContainsIssue(lines[index], issue))
+                    continue;
+                string? split = ExtractReviewedSplitNumberWindow(
+                    lines, scopeStart, index, issue, expectedCount);
+                if (split is not null)
+                    splitObserved.Add(split);
+            }
+            if (splitObserved.Count > 0)
+                return splitObserved.Count == 1 ? splitObserved.Single() : null;
+        }
+
+        string joined = SimplifyOcrText(string.Join('\n', lines));
+        MatchCollection periods = Regex.Matches(joined,
+            @"(?<!\d)(?:第\s*)?(?<issue>\d{1,6})\s*期|(?m:^\s*(?<issue>\d{3})(?!\d)(?=\s|$))");
+        if (SplitIssueNumberRuleIds.Contains(rule.Id))
+        {
+            string? reviewedSplit = ExtractLeadingSplitNumberTable(joined, periods, issue, rule);
+            if (reviewedSplit is not null)
+                return reviewedSplit;
+        }
+
+        var observed = new HashSet<string>(StringComparer.Ordinal);
         for (int index = scopeStart; index < lines.Length; index++)
         {
             if (!ContainsIssue(lines[index], issue))
                 continue;
 
-            if (expectedCount == 36)
+            string target = Normalize(lines[index]);
+            bool followingTable = rule.Id == "蓝色" || target.Contains("特码开在", StringComparison.Ordinal);
+            bool precedingTable = rule.Id == "彩图" || target.Contains("开奖结果", StringComparison.Ordinal);
+            string? directional = followingTable
+                ? ExtractDirectionalNumberTable(lines, index, issue, expectedCount, forward: true)
+                : precedingTable
+                    ? ExtractDirectionalNumberTable(lines, index, issue, expectedCount, forward: false)
+                    : null;
+            if (directional is not null)
             {
-                int previousIssue = index - 1;
-                while (previousIssue >= scopeStart && !ContainsAnyIssue(lines[previousIssue]))
-                    previousIssue--;
-                string? precedingValue = ExtractNumbers(
-                    string.Join(' ', lines[(previousIssue + 1)..index].Where(HasNumberPayload)),
-                    expectedCount);
-                if (precedingValue is not null)
-                    return precedingValue;
+                observed.Add(directional);
+                continue;
             }
+            if (followingTable || precedingTable)
+                continue;
 
-            if (index + 1 < lines.Length && !ContainsAnyIssue(lines[index + 1]))
+            var parts = new List<string>
             {
-                string? forwardValue = ExtractNumbers(
-                    lines[index] + " " + lines[index + 1],
-                    expectedCount);
-                if (forwardValue is not null)
-                    return forwardValue;
-            }
-
-            int left = index;
-            int right = index;
-            bool leftBlocked = false;
-            bool rightBlocked = false;
-            bool scanToIssueBoundary = expectedCount == 36;
-            int maximumDistance = scanToIssueBoundary ? lines.Length : 12;
-            for (int distance = 0; distance <= maximumDistance; distance++)
+                BeforeOpeningResult(TextAfterIssue(lines[index], issue))
+            };
+            for (int next = index + 1; next < lines.Length; next++)
             {
-                if (distance > 0)
-                {
-                    int nextLeft = index - distance;
-                    if (!leftBlocked && nextLeft >= scopeStart)
-                    {
-                        if (ContainsAnyIssue(lines[nextLeft]))
-                            leftBlocked = true;
-                        else
-                        {
-                            left = nextLeft;
-                            if (IsNumberRowStart(lines[nextLeft])
-                                && (!scanToIssueBoundary || HasNumberPayload(lines[nextLeft])))
-                                leftBlocked = true;
-                        }
-                    }
-
-                    int nextRight = index + distance;
-                    if (!rightBlocked && nextRight < lines.Length)
-                    {
-                        if (ContainsAnyIssue(lines[nextRight]))
-                            rightBlocked = true;
-                        else if (IsNumberRowStart(lines[nextRight])
-                            && (!scanToIssueBoundary || HasNumberPayload(lines[nextRight])))
-                        {
-                            if (nextRight == index + 1)
-                                right = nextRight;
-                            rightBlocked = true;
-                        }
-                        else
-                            right = nextRight;
-                    }
-                }
-
-                string candidate = string.Join(' ', lines[left..(right + 1)]
-                    .Where((line, offset) => left + offset == index || HasNumberPayload(line)));
-                string? value = ExtractNumbers(candidate, expectedCount);
-                if (value is not null)
-                    return value;
-                if (leftBlocked && rightBlocked)
+                if (ContainsAnyIssue(lines[next]))
                     break;
+                if (SplitIssueNumberRuleIds.Contains(rule.Id) && IsOpeningOnlySeparator(lines[next]))
+                    continue;
+                if (!IsNumberContinuation(lines[next], expectedCount))
+                    break;
+                parts.Add(BeforeOpeningResult(lines[next]));
             }
+
+            string? value = ExtractNumbers(string.Join(' ', parts), expectedCount);
+            if (value is not null)
+                observed.Add(value);
+        }
+        return observed.Count == 1 ? observed.Single() : null;
+    }
+
+    private static string? ExtractReviewedSplitNumberWindow(
+        string[] lines, int scopeStart, int issueIndex, int issue, int expectedCount)
+    {
+        int left = issueIndex;
+        for (int index = issueIndex - 1; index >= scopeStart; index--)
+        {
+            if (ContainsAnyIssue(lines[index]))
+                break;
+            left = index;
+            if (IsNumberRowStart(lines[index]))
+                break;
         }
 
-        return null;
+        var parts = new List<string>();
+        for (int index = left; index < issueIndex; index++)
+        {
+            if (Regex.IsMatch(SimplifyOcrText(lines[index]), @"参考|旁栏|排行|统计|说明"))
+                return null;
+            if (IsOpeningOnlySeparator(lines[index]))
+                continue;
+            string candidate = BeforeOpeningResult(lines[index]);
+            if (HasNumberPayload(candidate)
+                || HasExactBracketPayload(candidate, expectedCount))
+                parts.Add(candidate);
+        }
+        parts.Add(BeforeOpeningResult(TextAfterIssue(lines[issueIndex], issue)));
+
+        bool sawRightPayload = false;
+        for (int index = issueIndex + 1; index < lines.Length; index++)
+        {
+            if (ContainsAnyIssue(lines[index]))
+                break;
+            if (Regex.IsMatch(SimplifyOcrText(lines[index]), @"参考|旁栏|排行|统计|说明"))
+                break;
+            if (IsNumberRowStart(lines[index]) && sawRightPayload)
+                break;
+            if (IsOpeningOnlySeparator(lines[index]))
+                continue;
+            if (!IsNumberContinuation(lines[index], expectedCount))
+            {
+                if (IsNumberRowStart(lines[index]))
+                    break;
+                continue;
+            }
+            parts.Add(BeforeOpeningResult(lines[index]));
+            sawRightPayload = true;
+        }
+        return ExtractNumbers(string.Join(' ', parts), expectedCount);
     }
+
+    private static string? ExtractDirectionalNumberTable(
+        string[] lines, int issueIndex, int issue, int expectedCount, bool forward)
+    {
+        int start;
+        int end;
+        if (forward)
+        {
+            start = issueIndex + 1;
+            end = start;
+            while (end < lines.Length && !ContainsAnyIssue(lines[end]))
+                end++;
+        }
+        else
+        {
+            end = issueIndex;
+            start = issueIndex - 1;
+            while (start >= 0 && !ContainsAnyIssue(lines[start]))
+                start--;
+            start++;
+        }
+
+        var payload = new List<string>();
+        for (int index = start; index < end; index++)
+        {
+            if (Regex.IsMatch(SimplifyOcrText(lines[index]), @"参考|旁栏|排行|统计|说明"))
+                continue;
+            string candidate = BeforeOpeningResult(RemoveIssue(lines[index]));
+            string[]? numbers = ParseNumbers(candidate);
+            if (numbers is null || numbers.Length == 0)
+                continue;
+            if (numbers.Length == 1 && Regex.IsMatch(lines[index], @"\p{L}")
+                && !lines[index].Contains(':') && !lines[index].Contains('：')
+                && !lines[index].Contains('←') && !lines[index].Contains('→'))
+                continue;
+            payload.Add(candidate);
+        }
+        return payload.Count == 0 ? null : ExtractNumbers(string.Join(' ', payload), expectedCount);
+    }
+
+    private static bool IsNumberContinuation(string line, int expectedCount)
+    {
+        if (ContainsAnyIssue(line)
+            || Regex.IsMatch(SimplifyOcrText(line), @"参考|旁栏|排行|统计|说明"))
+            return false;
+        if (HasExactBracketPayload(line, expectedCount))
+            return true;
+        string simplified = SimplifyOcrText(line);
+        string[]? numbers = ParseNumbers(RemoveIssue(BeforeOpeningResult(simplified)));
+        if (numbers is null || numbers.Length == 0)
+            return false;
+        if (numbers.Length >= 2 || !Regex.IsMatch(line, @"\p{L}")
+            || line.Contains('←') || line.Contains('→'))
+            return true;
+        return Regex.IsMatch(simplified, @"^\s*[0-9 ,，.。]+\s*开(?=\s*(?:[?？]+|[0-9]+))");
+    }
+
+    private static bool HasExactBracketPayload(string line, int expectedCount)
+    {
+        foreach (Match bracket in Regex.Matches(
+            BeforeOpeningResult(line), @"[【\[（(](?<value>[^】\]）)]*)[】\]）)]"))
+        {
+            if (FormatNumbers(ParseNumbers(bracket.Groups["value"].Value), expectedCount) is not null)
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsOpeningOnlySeparator(string line) =>
+        Regex.IsMatch(SimplifyOcrText(line).Trim(), @"^开[?？中错錯对對准準]*$");
 
     private static bool IsNumberRowStart(string line) =>
         Regex.IsMatch(line, @"\p{L}.*\d") && !ContainsAnyIssue(line);
@@ -1527,20 +1695,22 @@ public static class RuleEngine
 
     private static string? ExtractNumbers(string text, int expectedCount)
     {
-        string beforeOpening = text.Split('开', 2)[0];
+        string beforeOpening = BeforeOpeningResult(text);
         foreach (Match bracket in Regex.Matches(beforeOpening, @"[【\[（(](?<value>[^】\]）)]*)[】\]）)]"))
         {
             string? bracketed = FormatNumbers(ParseNumbers(bracket.Groups["value"].Value), expectedCount);
             if (bracketed is not null)
                 return bracketed;
         }
-        string[]? numbers = ParseNumbers(RemoveIssue(beforeOpening));
-        string? value = FormatNumbers(numbers, expectedCount);
-        if (value is not null || beforeOpening.Length == text.Length)
-            return value;
+        return FormatNumbers(ParseNumbers(RemoveIssue(beforeOpening)), expectedCount);
+    }
 
-        numbers = ParseNumbers(RemoveIssue(text));
-        return FormatNumbers(numbers, expectedCount);
+    private static string BeforeOpeningResult(string text)
+    {
+        string simplified = SimplifyOcrText(text);
+        Match opening = Regex.Match(simplified,
+            $@"(?<!不)(?<!不会)开(?=\s*(?:[?？]+|[0-9]+|[{Zodiac}]))");
+        return opening.Success ? simplified[..opening.Index] : simplified;
     }
 
     private static string[]? ParseNumbers(string text)
