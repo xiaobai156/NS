@@ -63,4 +63,15 @@ public sealed class IssueBoundaryConsistencyTests
             1001,
             rule));
     }
+
+    [Fact]
+    public void FrequencyContinuationDoesNotCrossFourDigitBareIssueBoundary()
+    {
+        var rule = new OcrRule("借花献佛", "统计生肖");
+
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["1001期", "9次：", "1000", "狗"],
+            1001,
+            rule));
+    }
 }
