@@ -30,6 +30,7 @@ jobs:
           python tools/apply_post_closure_safety.py
           python tools/apply_post_closure_complement.py
           python tools/apply_post_closure_halfwave.py
+          python tools/apply_post_closure_repeated_markers.py
       - name: Accuracy regression tests
         run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category=ReauditAccuracy'
       - name: Windows Debug regression tests
