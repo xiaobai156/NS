@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "group": "新澳高级会员",
+  "strictIssueBlock": true,
+  "rules": [
+    { "keyword": "会员特供绝杀10码", "type": "号码:10", "label": "会员特供杀十码" },
+    { "keyword": "表弟主36码", "type": "号码:36", "label": "表弟" },
+    { "keyword": "公子送尾数", "type": "缺尾", "label": "翩翩公子尾", "allowValueWithoutKeyword": true },
+    { "keyword": "公子杀一肖", "type": "生肖", "label": "翩翩公子肖" },
+    { "keyword": "祥瑞阁王中王包围36码", "type": "号码:36", "label": "祥瑞阁" },
+    { "keyword": "公子秒杀半波", "type": "色单双", "label": "翩翩公子半波" },
+    { "keyword": "公子4行", "type": "五行", "label": "翩翩公子五行" },
+    { "keyword": "公子神算杀10码", "type": "号码:10", "label": "翩翩公子杀十码" },
+    { "keyword": "公子禁止1头", "type": "头", "label": "翩翩公子头" },
+    { "keyword": "祥瑞阁", "type": "生肖组合", "label": "祥瑞阁二肖", "required_keyword": "杀2肖" }
+  ]
+}

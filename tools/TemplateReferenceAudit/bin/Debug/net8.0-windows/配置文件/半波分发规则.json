@@ -1,0 +1,39 @@
+{
+  "targetDirectory": "C:\\Users\\Administrator\\Desktop\\每天工具\\爬虫合集\\七类数据统一归纳",
+  "targetFile": "{issue}期-半波.txt",
+  "placement": {
+    "mode": "beforeLine",
+    "marker": "{issue}期排行",
+    "blankLineBeforeMarker": true
+  },
+  "sources": [
+    {
+      "sourceGroup": "嫣然心水",
+      "labels": [
+        "岁月漫长",
+        "雁塔题名半波",
+        "华林半波",
+        "欧阳半波",
+        "玉亚半波"
+      ]
+    },
+    {
+      "sourceGroup": "新澳高级会员",
+      "labels": [
+        "翩翩公子半波"
+      ]
+    },
+    {
+      "sourceGroup": "黄大仙新澳",
+      "labels": [
+        "68波波"
+      ]
+    },
+    {
+      "sourceGroup": "蜻蜓一套骁腾",
+      "labels": [
+        "神奇宇宙"
+      ]
+    }
+  ]
+}

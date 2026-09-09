@@ -1,0 +1,5 @@
+# Local OCR credentials
+secrets.json
+secrets.local.json
+*.secrets.json
+*.secrets.local.json

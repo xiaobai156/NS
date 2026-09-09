@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "/Z4NQ11A5rs=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\Administrator\\Desktop\\每天工具\\N卡本地识别\\OcrLineTool.App\\OcrLineTool.App.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Administrator\\.nuget\\packages\\microsoft.net.illink.tasks\\8.0.29\\microsoft.net.illink.tasks.8.0.29.nupkg.sha512"
+  ],
+  "logs": []
+}

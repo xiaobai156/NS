@@ -1,0 +1,67 @@
+{
+  "targetDirectory": "C:\\Users\\Administrator\\Desktop\\每天工具\\爬虫合集\\七类数据统一归纳",
+  "targetFile": "{issue}期-头.txt",
+  "placement": {
+    "mode": "beforeLine",
+    "marker": "内容\t次数\t排名",
+    "blankLineBeforeMarker": true
+  },
+  "sources": [
+    {
+      "sourceGroup": "新澳六合彩资料",
+      "labels": [
+        "六叔公头",
+        "帅铁头",
+        "姨妈杀头",
+        "大赢家杀头",
+        "铁甲小宝",
+        "特头杀",
+        "特头必中",
+        "藏宝头"
+      ]
+    },
+    {
+      "sourceGroup": "嫣然心水",
+      "labels": [
+        "齐天大圣",
+        "九王爷",
+        "辣椒炒肉头",
+        "小黄人头",
+        "雁塔题名杀头",
+        "永卟弃杀头",
+        "恩平杀头"
+      ]
+    },
+    {
+      "sourceGroup": "新澳高级会员",
+      "labels": [
+        "翩翩公子头"
+      ]
+    },
+    {
+      "sourceGroup": "黄大仙新澳",
+      "labels": [
+        "68赵高",
+        "红红头",
+        "蓝蓝头",
+        "香奈风清扬",
+        "战狼蔷薇"
+      ]
+    },
+    {
+      "sourceGroup": "新澳高手",
+      "labels": [
+        "高手头头",
+        "小红头头",
+        "亚太一头",
+        "战澳头"
+      ]
+    },
+    {
+      "sourceGroup": "蜻蜓一套骁腾",
+      "labels": [
+        "黑字杀头"
+      ]
+    }
+  ]
+}

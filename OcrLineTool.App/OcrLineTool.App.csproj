@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>OCR整行提取工具-NVIDIA-CUDA</AssemblyName>
+    <RootNamespace>OcrLineTool</RootNamespace>
+    <Product>OCR 整行提取工具 NVIDIA CUDA版</Product>
+    <Description>使用 NVIDIA CUDA 从本地图片中提取指定期号的完整一行</Description>
+    <Version>1.5.89</Version>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <DebugType Condition="'$(Configuration)' == 'Debug'">portable</DebugType>
+    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+    <DebugSymbols Condition="'$(Configuration)' == 'Release'">false</DebugSymbols>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="paddle_local_ocr.py" TargetPath="运行组件\paddle_local_ocr.py" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
+    <Content Include="..\artifacts\cuda-validation\cuda_hash.dll" TargetPath="cuda_hash.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
+    <Content Include="..\检查NVIDIA-CUDA环境.py" TargetPath="运行组件\检查NVIDIA-CUDA环境.py" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
+    <Content Include="*.json" TargetPath="配置文件\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
+    <Content Include="..\模型\**\*" TargetPath="模型\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
+  </ItemGroup>
+</Project>
+
+
+
+
+

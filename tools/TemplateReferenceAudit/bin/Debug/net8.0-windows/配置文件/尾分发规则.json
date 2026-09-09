@@ -1,0 +1,60 @@
+{
+  "targetDirectory": "C:\\Users\\Administrator\\Desktop\\每天工具\\爬虫合集\\七类数据统一归纳",
+  "targetFile": "{issue}期-尾.txt",
+  "placement": {
+    "mode": "beforeLine",
+    "marker": "尾数 次数",
+    "blankLineBeforeMarker": true
+  },
+  "sources": [
+    {
+      "sourceGroup": "新澳六合彩资料",
+      "labels": [
+        "宝典尾",
+        "帅铁尾",
+        "刘伯温二尾",
+        "妈祖两尾",
+        "祖师公尾",
+        "大赢家杀尾",
+        "通天资料双尾"
+      ]
+    },
+    {
+      "sourceGroup": "嫣然心水",
+      "labels": [
+        "凌志",
+        "紫燕儿尾",
+        "大小姐",
+        "缘来如此尾",
+        "君军两尾",
+        "辣椒炒肉尾",
+        "小灰灰两尾",
+        "小黄人两尾",
+        "华林尾",
+        "恩平杀一尾",
+        "杰少杀一尾",
+        "杰少禁一尾"
+      ]
+    },
+    {
+      "sourceGroup": "新澳高级会员",
+      "labels": [
+        "翩翩公子尾"
+      ]
+    },
+    {
+      "sourceGroup": "黄大仙新澳",
+      "labels": [
+        "68旺仔",
+        "香奈尾",
+        "红人关公尾"
+      ]
+    },
+    {
+      "sourceGroup": "蜻蜓一套骁腾",
+      "labels": [
+        "公式杀两尾尾"
+      ]
+    }
+  ]
+}

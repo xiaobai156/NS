@@ -1,0 +1,31 @@
+{
+  "targetDirectory": "C:\\Users\\Administrator\\Desktop\\每天工具\\爬虫合集\\七类数据统一归纳",
+  "targetFile": "{issue}期-合.txt",
+  "placement": {
+    "mode": "beforeLine",
+    "marker": "当前合数排行",
+    "blankLineBeforeMarker": true
+  },
+  "sources": [
+    {
+      "sourceGroup": "嫣然心水",
+      "labels": [
+        "依然公主",
+        "游牧草民",
+        "青玉",
+        "最亮月空",
+        "天之涯",
+        "雨后星星",
+        "不决问风",
+        "君军合",
+        "雁塔题名杀合"
+      ]
+    },
+    {
+      "sourceGroup": "蜻蜓一套骁腾",
+      "labels": [
+        "黑字杀合"
+      ]
+    }
+  ]
+}
