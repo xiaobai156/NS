@@ -13,6 +13,15 @@ public sealed class PostClosureSafetyTests
         AllowNearbyValue: true,
         StrictIssueBlock: true);
 
+    private static OcrRule XiaotengRule() => new(
+        "骁腾杀一肖",
+        "生肖",
+        "骁腾杀肖",
+        RequiredKeyword: "杀一肖",
+        Folder: "骁腾系列",
+        AllowNearbyValue: true,
+        StrictIssueBlock: true);
+
     [Fact]
     public void StrictNearbyZodiacStopsAtTheNextBareFourDigitIssue()
     {
@@ -52,5 +61,22 @@ public sealed class PostClosureSafetyTests
         Assert.Equal(
             RuleExtractionStatus.Missing,
             RuleEngine.ExtractFinalResult(evidence, 1001, rule).Status);
+    }
+
+    [Fact]
+    public void StrictDragonflySingleValueRejectsTwoLeadingFramesAsConflict()
+    {
+        RuleExtractionResult result = RuleEngine.ExtractFinalResult(
+            ["246期骁腾杀一肖《虎》《兔》"], 246, XiaotengRule());
+
+        Assert.Equal(RuleExtractionStatus.Conflict, result.Status);
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public void StrictDragonflySingleValueKeepsOneFramedValue()
+    {
+        Assert.Equal("虎", RuleEngine.ExtractFinalValue(
+            ["246期骁腾杀一肖《虎》"], 246, XiaotengRule()));
     }
 }
