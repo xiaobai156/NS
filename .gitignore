@@ -3,3 +3,16 @@ secrets.json
 secrets.local.json
 *.secrets.json
 *.secrets.local.json
+
+# Build/test state is never a source of truth.
+**/bin/
+**/obj/
+**/__pycache__/
+**/TestResults/
+*.pyc
+test-results/
+audit-test-results/
+
+# Runtime ownership and recoverable file backups are user data.
+**/.ocr-state/
+**/.ocr-backups/

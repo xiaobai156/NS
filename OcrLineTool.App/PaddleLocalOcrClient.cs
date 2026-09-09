@@ -53,8 +53,22 @@ internal sealed class SystemProcessRunner : IProcessRunner
             ? process.StandardOutput.ReadToEndAsync(cancellationToken)
             : ReadOutputLinesAsync(process.StandardOutput, reportStandardOutputLine, cancellationToken);
 
-        await process.WaitForExitAsync(cancellationToken);
-        await Task.WhenAll(standardOutputTask, standardErrorTask);
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+            await Task.WhenAll(standardOutputTask, standardErrorTask);
+        }
+        catch
+        {
+            // Own only the process started here. Never kill unrelated Python processes.
+            try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+            catch (InvalidOperationException) { }
+            catch (Win32Exception) { }
+            try { await process.WaitForExitAsync(CancellationToken.None); }
+            catch (InvalidOperationException) { }
+            try { await Task.WhenAll(standardOutputTask, standardErrorTask); } catch { }
+            throw;
+        }
         return new ProcessResult(
             true,
             process.ExitCode,
@@ -85,6 +99,8 @@ public sealed class PaddleLocalOcrClient
 
     private readonly string cachePath;
     private readonly IProcessRunner processRunner;
+    private readonly Dictionary<string, string> imageErrors = new(StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyDictionary<string, string> LastImageErrors => imageErrors;
 
     public PaddleLocalOcrClient()
         : this(new SystemProcessRunner())
@@ -108,6 +124,10 @@ public sealed class PaddleLocalOcrClient
         CancellationToken cancellationToken = default,
         PaddleOcrModel model = PaddleOcrModel.Small)
     {
+        imageErrors.Clear();
+        cancellationToken.ThrowIfCancellationRequested();
+        string pipeline = LocalOcrIdentity.Pipeline(model);
+        var initialKeys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         progress?.Report(new LocalOcrProgress(0, imagePaths.Count, string.Empty, "正在检查本地 OCR 缓存……"));
         var cache = useCache
             ? await ReadCacheAsync(cancellationToken)
@@ -118,7 +138,8 @@ public sealed class PaddleLocalOcrClient
 
         foreach (string path in imagePaths)
         {
-            string key = CacheKeyForModel(path, titleRatio, detectionMaxSide, model);
+            string key = CacheKeyCore(path, titleRatio, detectionMaxSide, model, pipeline);
+            initialKeys[path] = key;
             if (cache.TryGetValue(key, out CacheEntry? entry))
             {
                 results[path] = entry.Texts;
@@ -195,12 +216,26 @@ public sealed class PaddleLocalOcrClient
                         throw new OcrException("PaddleOCR 返回结果缺少 results。");
                     foreach (PaddleResult result in response.Results)
                     {
+                        if (!initialKeys.TryGetValue(result.Path, out string? initialKey))
+                            throw new OcrException("PaddleOCR 返回了未请求的图片路径。", "OCR_PROTOCOL_ERROR");
                         if (!string.IsNullOrWhiteSpace(result.Error))
+                        {
+                            imageErrors[result.Path] = result.Error;
+                            if (ErrorCodeFor(result.Error) == CudaUnavailableCode)
+                                throw new OcrException(result.Error, CudaUnavailableCode);
                             continue;
+                        }
+                        string key = CacheKeyCore(result.Path, titleRatio, detectionMaxSide, model, pipeline);
+                        if (key != initialKey)
+                        {
+                            imageErrors[result.Path] = "图片在识别过程中发生变化，请重新识别。";
+                            continue;
+                        }
                         string[] texts = result.Texts ?? [];
                         results[result.Path] = texts;
-                        string key = CacheKeyForModel(result.Path, titleRatio, detectionMaxSide, model);
-                        cache[key] = new CacheEntry(key, texts);
+                        // Empty results are not durable success-cache entries.
+                        if (texts.Any(line => !string.IsNullOrWhiteSpace(line)))
+                            cache[key] = new CacheEntry(key, texts);
                     }
                 }
                 if (useCache)
@@ -308,7 +343,26 @@ public sealed class PaddleLocalOcrClient
             throw new OcrException("无法启动本机 Python/PaddleOCR。");
 
         if (result.ExitCode != 0)
+        {
+            // The worker writes its useful error before exiting non-zero.
+            // Do not accept partial success on non-zero exit, or expose raw stderr/secrets.
+            if (File.Exists(outputPath))
+            {
+                try
+                {
+                    using JsonDocument document = JsonDocument.Parse(await File.ReadAllTextAsync(outputPath, cancellationToken));
+                    if (document.RootElement.TryGetProperty("error", out JsonElement error) &&
+                        error.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(error.GetString()))
+                    {
+                        string message = error.GetString()!;
+                        throw new OcrException(message, ErrorCodeFor(message));
+                    }
+                }
+                catch (JsonException) { }
+                catch (IOException) { }
+            }
             throw new OcrException($"PaddleOCR 执行失败（代码 {result.ExitCode}）。");
+        }
     }
 
     public static bool TryParseProgress(string line, out LocalOcrProgress progress)
@@ -340,7 +394,9 @@ public sealed class PaddleLocalOcrClient
             {
                 PropertyNameCaseInsensitive = true
             }, cancellationToken) ?? [];
-            return entries.ToDictionary(entry => entry.Key, StringComparer.OrdinalIgnoreCase);
+            return entries.Where(entry => entry.Texts is not null && entry.Texts.Any(line => !string.IsNullOrWhiteSpace(line)))
+                .GroupBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.Last(), StringComparer.OrdinalIgnoreCase);
         }
         catch (Exception exception) when (exception is IOException or JsonException)
         {
@@ -355,10 +411,10 @@ public sealed class PaddleLocalOcrClient
             string? folder = Path.GetDirectoryName(cachePath);
             if (folder is not null)
                 Directory.CreateDirectory(folder);
-            await using FileStream stream = File.Create(cachePath);
-            await JsonSerializer.SerializeAsync(stream, cache.Values.ToArray(), cancellationToken: cancellationToken);
+            await AtomicFile.WriteAllTextAsync(cachePath, JsonSerializer.Serialize(cache.Values.ToArray()),
+                new UTF8Encoding(false), cancellationToken);
         }
-        catch (IOException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             // 缓存不可写不影响本次识别。
         }
@@ -386,15 +442,19 @@ public sealed class PaddleLocalOcrClient
     private static string CacheKey(string path, double titleRatio, int? detectionMaxSide) =>
         CacheKeyForModel(path, titleRatio, detectionMaxSide, PaddleOcrModel.Small);
 
-    private static string CacheKeyForModel(string path, double titleRatio, int? detectionMaxSide, PaddleOcrModel model)
+    private static string CacheKeyForModel(string path, double titleRatio, int? detectionMaxSide, PaddleOcrModel model) =>
+        CacheKeyCore(path, titleRatio, detectionMaxSide, model, LocalOcrIdentity.Pipeline(model));
+
+    private static string CacheKeyCore(string path, double titleRatio, int? detectionMaxSide, PaddleOcrModel model, string pipeline)
     {
         FileInfo file = new(path);
         string key = $"backend=cuda|device={CudaDevice}|{path}|{file.Length}|{file.LastWriteTimeUtc.Ticks}|top={titleRatio.ToString(CultureInfo.InvariantCulture)}";
+        key += $"|sha256={LocalOcrIdentity.Image(path)}|pipeline={pipeline}";
         if (model != PaddleOcrModel.Small)
             key += $"|model={model.ToString().ToLowerInvariant()}";
         if (detectionMaxSide == 960 && (Path.GetDirectoryName(path) ?? string.Empty)
             .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Contains("杰少", StringComparer.OrdinalIgnoreCase))
-            key += "|compact=0.75-header=0.28";
+            key += "|compact=0.55-header=0.28";
         return detectionMaxSide is int maxSide ? $"{key}|det-max={maxSide}" : key;
     }
 

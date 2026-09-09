@@ -10,7 +10,7 @@ public static class LocalCandidatePlanner
     public static IReadOnlyList<LocalCandidatePlan> Build(
         IReadOnlyList<string> imagePaths,
         IReadOnlyDictionary<string, IReadOnlyList<string>> localResults,
-        IReadOnlyList<OcrRule> rules)
+        IReadOnlyList<OcrRule> rules, int? issue = null)
     {
         var options = new List<CandidateOption>();
         foreach (string path in imagePaths)
@@ -48,6 +48,7 @@ public static class LocalCandidatePlanner
                     rule,
                     titleRuleIds.Contains(rule.Id),
                     RuleEngine.HasValueForAnyIssue(lines, rule),
+                    issue is int target && RuleEngine.ExtractFinalValue(lines, target, rule) is not null,
                     (Path.GetFileName(Path.GetDirectoryName(path)) ?? string.Empty)
                         .Equals(expectedFolder, StringComparison.OrdinalIgnoreCase),
                     isSummary));
@@ -74,7 +75,8 @@ public static class LocalCandidatePlanner
                 ? lockedLiangOptions
                 : explicitOptions.Length > 0 ? explicitOptions : ruleOptions;
             CandidateOption best = preferred
-                .OrderByDescending(option => option.Rule.Type == "生肖" && option.IsSummary)
+                .OrderByDescending(option => option.HasTargetValue)
+                .ThenByDescending(option => option.Rule.Type == "生肖" && option.IsSummary)
                 .ThenByDescending(option => option.HasAnyValue)
                 .ThenByDescending(option => option.ExpectedFolder)
                 .ThenByDescending(option => Path.GetFileName(option.Path), StringComparer.OrdinalIgnoreCase)
@@ -116,6 +118,7 @@ public static class LocalCandidatePlanner
         OcrRule Rule,
         bool TitleMatched,
         bool HasAnyValue,
+        bool HasTargetValue,
         bool ExpectedFolder,
         bool IsSummary);
 }

@@ -85,7 +85,7 @@ public sealed class OcrClientHttpTests
     }
 
     [Fact]
-    public async Task TencentRecognizeAsyncObservesCancellationAndMapsConnectionFailure()
+    public async Task TencentRecognizeAsyncPreservesCallerCancellation()
     {
         string imagePath = CreateTestImage();
         var started = NewSignal();
@@ -116,11 +116,9 @@ public sealed class OcrClientHttpTests
             await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
             cancellation.Cancel();
 
-            OcrException exception = await Assert.ThrowsAsync<OcrException>(
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
                 async () => await pending.WaitAsync(TimeSpan.FromSeconds(5)));
             await canceled.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-            Assert.Contains("腾讯云连接失败", exception.Message);
         }
         finally
         {

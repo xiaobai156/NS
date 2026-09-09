@@ -6,6 +6,7 @@ namespace OcrLineTool.Tests;
 public sealed class SixCardRegressionTests
 {
     [Fact]
+    [Trait("Category", "CUDA")]
     public void LeifengTemplateMatchesTheRealTitle()
     {
         VisualTemplateSet catalog = VisualTemplateMatcher.Load(Path.Combine(

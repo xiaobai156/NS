@@ -19,7 +19,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Content Include="paddle_local_ocr.py" TargetPath="运行组件\paddle_local_ocr.py" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
-    <Content Include="..\artifacts\cuda-validation\cuda_hash.dll" TargetPath="cuda_hash.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
+    <Content Include="..\native\win-x64\cuda_hash.dll" TargetPath="cuda_hash.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
     <Content Include="..\检查NVIDIA-CUDA环境.py" TargetPath="运行组件\检查NVIDIA-CUDA环境.py" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
     <Content Include="*.json" TargetPath="配置文件\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
     <Content Include="..\模型\**\*" TargetPath="模型\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />

@@ -107,11 +107,15 @@ public sealed class MainForm : Form
     private string? selectedRulePath;
     private TaskCompletionSource<bool>? cloudResume;
     private IReadOnlyList<OcrRule> lastRules = [];
-    private Dictionary<string, string> lastValues = new(StringComparer.Ordinal);
+    private Dictionary<string, string> lastValues = new ResultValues(StringComparer.Ordinal);
     private Dictionary<string, string> lastMissingReasons = new(StringComparer.Ordinal);
     private HashSet<string> lastTextRecognizedRuleIds = new(StringComparer.Ordinal);
     private Dictionary<string, IReadOnlyList<string>> lastCloudOcrResults = new(StringComparer.OrdinalIgnoreCase);
     private int lastIssue;
+    private bool isBusy;
+    private bool closeWhenIdle;
+    private CancellationTokenSource? activeCancellation;
+    private CancellationToken ActiveToken => activeCancellation?.Token ?? CancellationToken.None;
 
     public MainForm() : this(FixedImageDirectory, info => Process.Start(info)) { }
 
@@ -138,6 +142,7 @@ public sealed class MainForm : Form
         };
         issueInput.ValueChanged += (_, _) =>
         {
+            if (isBusy) return;
             LoadExistingGroupResult();
             manualDistributeButton.Enabled = CanManualDistribute();
             LogOperation("修改期号");
@@ -634,18 +639,18 @@ public sealed class MainForm : Form
     {
         CloudOcrCacheStore.ClearExpired(AppContext.BaseDirectory);
         DateOnly date = CredentialSchedule.TodayInBeijing();
-        if (issueDate != date)
+        if (issueDate != date && !isBusy)
         {
             issueInput.Value = CredentialSchedule.IssueForDate(date);
             issueDate = date;
         }
         if (credentialSelector.SelectedIndex <= 0)
         {
-            credentialLabel.Text = $"北京时间 {date:yyyy-MM-dd} · 今日使用：{CredentialSchedule.ForDate(date).DisplayName} · 每日 00:00 自动轮换";
+            credentialLabel.Text = $"北京时间 {date:yyyy-MM-dd} · 今日使用：{CredentialSchedule.DescribeDate(date).DisplayName} · 每日 00:00 自动轮换";
             return;
         }
 
-        credentialLabel.Text = $"北京时间 {date:yyyy-MM-dd} · 临时使用：{CredentialSchedule.ForSlot(credentialSelector.SelectedIndex - 1).DisplayName} · 不改变自动轮换";
+        credentialLabel.Text = $"北京时间 {date:yyyy-MM-dd} · 临时使用：{CredentialSchedule.DescribeSlot(credentialSelector.SelectedIndex - 1).DisplayName} · 不改变自动轮换";
     }
 
     private void RefreshFolderList(object? sender, EventArgs e)
@@ -774,8 +779,10 @@ public sealed class MainForm : Form
 
         try
         {
+            RefreshImagesForRetry();
+            if (imagePaths.Length == 0) throw new OcrException("所选目录没有可识别图片。");
             var localClient = new PaddleLocalOcrClient();
-            await localClient.EnsureCudaAvailableAsync();
+            await localClient.EnsureCudaAvailableAsync(ActiveToken);
 
             IReadOnlyList<OcrRule> rules = RuleCatalog.Load(selectedRulePath
                 ?? throw new OcrException("请先选择要读取的子文件夹。"));
@@ -820,7 +827,7 @@ public sealed class MainForm : Form
                             localProgress,
                             titleRatio: 1.0,
                             detectionMaxSide: null,
-                            model: PaddleOcrModels.LocalPrimary);
+                            model: PaddleOcrModels.LocalPrimary, cancellationToken: ActiveToken);
                     foreach ((string path, IReadOnlyList<string> lines) in results)
                         mediumResults[path] = lines;
                 }
@@ -843,7 +850,7 @@ public sealed class MainForm : Form
                         : []
                 })
                 .ToArray();
-            var values = new Dictionary<string, string>(StringComparer.Ordinal);
+            var values = new ResultValues(StringComparer.Ordinal);
             var recognizedRuleIds = new HashSet<string>(StringComparer.Ordinal);
 
             void ApplyLocalValues(IEnumerable<RecognitionCandidate> source)
@@ -857,7 +864,7 @@ public sealed class MainForm : Form
                     {
                         string? value = RuleEngine.ExtractFinalValue(lines, issue, rule);
                         if (value is not null)
-                            values.TryAdd(rule.Id, value);
+                            ResultValues.AddTo(values, rule.Id, value);
                     }
                 }
             }
@@ -924,8 +931,8 @@ public sealed class MainForm : Form
             var providerSpacing = new Dictionary<OcrProvider, Stopwatch>();
             var providerStarted = new HashSet<OcrProvider>();
             OcrCredential selectedCredential = credentialSelector.SelectedIndex <= 0
-                ? CredentialSchedule.Today()
-                : CredentialSchedule.ForSlot(credentialSelector.SelectedIndex - 1);
+                ? CredentialSchedule.DescribeDate(CredentialSchedule.TodayInBeijing())
+                : CredentialSchedule.DescribeSlot(credentialSelector.SelectedIndex - 1);
             int cloudRequests = 0;
             int completed = 0;
             SetProgress(0, cloudCandidates.Length);
@@ -941,7 +948,7 @@ public sealed class MainForm : Form
                     IOcrClient client;
                     try
                     {
-                        client = OcrClientFactory.Create(credential);
+                        client = OcrClientFactory.CreateDeferred(credential);
                     }
                     catch (OcrException exception)
                     {
@@ -955,7 +962,7 @@ public sealed class MainForm : Form
                     {
                         return await deduplicator.RecognizeAsync(
                             selectedImageDirectory!,
-                            candidate.SourcePath,
+                            candidate.OcrPath,
                             candidate.Rules,
                             async () =>
                             {
@@ -967,7 +974,7 @@ public sealed class MainForm : Form
                                 providerStarted.Add(credential.Provider);
                                 cloudRequests++;
                                 statusLabel.Text = $"本地主识别：云 OCR 兜底 {credential.DisplayName} · {completed + 1}/{cloudCandidates.Length} · 当前：{ShortPath(candidate.SourcePath)}";
-                                return await client.RecognizeAsync(candidate.OcrPath);
+                                return await client.RecognizeAsync(candidate.OcrPath, ActiveToken);
                             });
                     }
                     catch (OcrException exception) when (CloudOcrPolicy.IsRateLimit(credential.Provider, exception))
@@ -985,7 +992,17 @@ public sealed class MainForm : Form
                 throw lastError ?? new OcrException("没有可用的云 OCR 账号。");
             }
 
-            var diagnostics = new List<object>();
+            var diagnostics = candidates.Select(candidate => (object)new
+            {
+                file = Path.GetFileName(candidate.SourcePath),
+                mode = "本地主识别",
+                model = "medium",
+                selection = candidate.SelectionMode,
+                template_distance = candidate.TemplateDistance,
+                rules = candidate.Rules.Select(rule => rule.Id),
+                lines = candidate.LocalLines,
+                error = localClient.LastImageErrors.GetValueOrDefault(candidate.OcrPath)
+            }).ToList();
             foreach (RecognitionCandidate candidate in cloudCandidates)
             {
                 OcrRule[] pendingRules = candidate.Rules
@@ -997,7 +1014,8 @@ public sealed class MainForm : Form
                 IReadOnlyList<string> cloudLines = [];
                 string? cloudProvider = null;
                 string? cloudError = null;
-                if (lastCloudOcrResults.TryGetValue(candidate.SourcePath, out IReadOnlyList<string>? cached) &&
+                if (candidate.OcrPath.Equals(candidate.SourcePath, StringComparison.OrdinalIgnoreCase) &&
+                    lastCloudOcrResults.TryGetValue(candidate.SourcePath, out IReadOnlyList<string>? cached) &&
                     CanReuseRetryCloudLines(selectedImageDirectory!, pendingRules, cached, issue))
                 {
                     cloudLines = cached;
@@ -1021,7 +1039,7 @@ public sealed class MainForm : Form
                     string? value = RuleEngine.ExtractFinalValue(cloudLines, issue, rule);
                     if (value is not null)
                     {
-                        values.TryAdd(rule.Id, value);
+                        ResultValues.AddTo(values, rule.Id, value);
                         recognizedRuleIds.Add(rule.Id);
                     }
                 }
@@ -1029,7 +1047,7 @@ public sealed class MainForm : Form
                 if (cloudLines.Count > 0)
                 {
                     lastCloudOcrResults[candidate.SourcePath] = cloudLines;
-                    CloudOcrCacheStore.SaveEntry(AppContext.BaseDirectory, groupName, issue, candidate.SourcePath, cloudLines);
+                    CloudOcrCacheStore.SaveEntry(AppContext.BaseDirectory, groupName, issue, candidate.SourcePath, cloudLines, candidate.OcrPath);
                 }
                 diagnostics.Add(new
                 {
@@ -1057,18 +1075,19 @@ public sealed class MainForm : Form
                     candidateRuleIds.Contains(rule.Id),
                     recognizedRuleIds.Contains(rule.Id));
 
+            ActiveToken.ThrowIfCancellationRequested();
             string[] outputLines = RuleEngine.FormatOutput(rules, values, missingReasons);
             ResultFilePaths.EnsureOutputDirectories(AppContext.BaseDirectory);
             string groupOutputPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, selectedImageDirectory!, issue);
             string diagnosticPath = ResultFilePaths.ForDiagnostic(
                 AppContext.BaseDirectory, selectedImageDirectory!, issue);
-            await File.WriteAllLinesAsync(groupOutputPath, outputLines, new UTF8Encoding(true));
+            await AtomicFile.WriteAllLinesAsync(groupOutputPath, outputLines, new UTF8Encoding(true));
             DistributionResult distribution = await ResultDistributor.DistributeAllAsync(selectedImageDirectory!, issue, outputLines);
             string[] groupLines = GroupResultFormatter.Format(
                 rules,
                 ResultDistributor.MarkDistributedLines(outputLines, distribution.DistributedLines));
-            await File.WriteAllLinesAsync(groupOutputPath, groupLines, new UTF8Encoding(true));
-            await File.WriteAllTextAsync(
+            await AtomicFile.WriteAllLinesAsync(groupOutputPath, groupLines, new UTF8Encoding(true));
+            await AtomicFile.WriteAllTextAsync(
                 diagnosticPath,
                 JsonSerializer.Serialize(new
                 {
@@ -1088,12 +1107,16 @@ public sealed class MainForm : Form
             resultsBox.Text = string.Join(Environment.NewLine, groupLines);
             copyButton.Enabled = outputLines.Length > 0;
             lastRules = rules;
-            lastValues = new Dictionary<string, string>(values, StringComparer.Ordinal);
+            lastValues = new ResultValues(values, StringComparer.Ordinal);
             lastMissingReasons = new Dictionary<string, string>(missingReasons, StringComparer.Ordinal);
             lastTextRecognizedRuleIds = new HashSet<string>(recognizedRuleIds, StringComparer.Ordinal);
             lastIssue = issue;
             SetProgress(1, 1);
             statusLabel.Text = $"本地主识别完成{(rules.Count == values.Count ? "" : "，但有缺失")}：目录 {imagePaths.Length} 张，本地优先，云 OCR 兜底 {cloudRequests} 次，提取 {values.Count} 条，缺失 {rules.Count - values.Count} 条，成功分流 {distribution.DistributedLines.Count} 条{DistributionErrorText(distribution)}。群TXT：{groupOutputPath}；诊断：{diagnosticPath}";
+        }
+        catch (OperationCanceledException)
+        {
+            statusLabel.Text = "识别已取消；未完成结果不会自动分流。";
         }
         catch (OcrException exception)
         {
@@ -1142,6 +1165,8 @@ public sealed class MainForm : Form
 
         try
         {
+            RefreshImagesForRetry();
+            if (imagePaths.Length == 0) throw new OcrException("所选目录没有可识别图片。");
             IReadOnlyList<OcrRule> rules = RuleCatalog.Load(selectedRulePath
                 ?? throw new OcrException("请先选择要读取的子文件夹。"));
             string groupName = RuleCatalog.GroupNameForFolder(AppContext.BaseDirectory, selectedImageDirectory!);
@@ -1155,12 +1180,12 @@ public sealed class MainForm : Form
             temporaryCropFolder = selection.TemporaryCropFolder;
 
             OcrCredential credential = credentialSelector.SelectedIndex <= 0
-                ? CredentialSchedule.Today()
-                : CredentialSchedule.ForSlot(credentialSelector.SelectedIndex - 1);
-            IOcrClient cloudClient = OcrClientFactory.Create(credential);
-            OcrCredential fallbackCredential = CredentialSchedule.FallbackFor(credential);
-            IOcrClient fallbackClient = OcrClientFactory.Create(fallbackCredential);
-            var values = new Dictionary<string, string>(StringComparer.Ordinal);
+                ? CredentialSchedule.DescribeDate(CredentialSchedule.TodayInBeijing())
+                : CredentialSchedule.DescribeSlot(credentialSelector.SelectedIndex - 1);
+            IOcrClient cloudClient = OcrClientFactory.CreateDeferred(credential);
+            OcrCredential fallbackCredential = CredentialSchedule.DescribeFallback(credential);
+            IOcrClient fallbackClient = OcrClientFactory.CreateDeferred(fallbackCredential);
+            var values = new ResultValues(StringComparer.Ordinal);
             var missingReasons = new Dictionary<string, string>(StringComparer.Ordinal);
             var textRecognizedRuleIds = new HashSet<string>(StringComparer.Ordinal);
             HashSet<string> candidateRuleIds = candidates
@@ -1197,7 +1222,7 @@ public sealed class MainForm : Form
                         if (pacingDelay > TimeSpan.Zero)
                         {
                             statusLabel.Text = $"{stage}：按免费额度限速，{pacingDelay.TotalMilliseconds:0} 毫秒后处理 {displayIndex}/{displayTotal} · 当前：{ShortPath(candidate.SourcePath)}";
-                            await Task.Delay(pacingDelay);
+                            await Task.Delay(pacingDelay, ActiveToken);
                         }
                     }
 
@@ -1212,7 +1237,7 @@ public sealed class MainForm : Form
                     cloudRequests++;
                     try
                     {
-                        return await cloudClient.RecognizeAsync(candidate.OcrPath);
+                        return await cloudClient.RecognizeAsync(candidate.OcrPath, ActiveToken);
                     }
                     catch (OcrException exception) when (CloudOcrPolicy.IsRateLimit(credential.Provider, exception))
                     {
@@ -1221,7 +1246,7 @@ public sealed class MainForm : Form
                             automaticRetry++;
                             TimeSpan retryDelay = CloudOcrPolicy.RetryDelay(automaticRetry);
                             statusLabel.Text = $"{stage}触发限流：停在 {displayIndex}/{displayTotal}，{retryDelay.TotalSeconds:0} 秒后自动重试（{automaticRetry}/{CloudOcrPolicy.MaxAutomaticRetries}）";
-                            await Task.Delay(retryDelay);
+                            await Task.Delay(retryDelay, ActiveToken);
                             continue;
                         }
 
@@ -1241,7 +1266,7 @@ public sealed class MainForm : Form
             async Task<IReadOnlyList<string>> RecognizePrimaryDeduplicatedAsync(
                 RecognitionCandidate candidate, int displayIndex, int displayTotal, string stage)
                 => await primaryImageDeduplicator.RecognizeAsync(
-                    selectedImageDirectory!, candidate.SourcePath, candidate.Rules,
+                    selectedImageDirectory!, candidate.OcrPath, candidate.Rules,
                     () => RecognizePrimaryAsync(candidate, displayIndex, displayTotal, stage));
 
             async Task<IReadOnlyList<string>> RecognizeFallbackAsync(
@@ -1258,7 +1283,7 @@ public sealed class MainForm : Form
                         if (pacingDelay > TimeSpan.Zero)
                         {
                             statusLabel.Text = $"备用 {fallbackCredential.DisplayName}：等待 {pacingDelay.TotalMilliseconds:0} 毫秒 · {cloudIndex}/{plannedCloudImages} · 当前：{ShortPath(candidate.SourcePath)}";
-                            await Task.Delay(pacingDelay);
+                            await Task.Delay(pacingDelay, ActiveToken);
                         }
                     }
 
@@ -1268,7 +1293,7 @@ public sealed class MainForm : Form
                     statusLabel.Text = $"主云结果不完整，正在用 {fallbackCredential.DisplayName} 整图补识别 {cloudIndex}/{plannedCloudImages} · 当前：{ShortPath(candidate.SourcePath)}";
                     try
                     {
-                        return await fallbackClient.RecognizeAsync(candidate.SourcePath);
+                        return await fallbackClient.RecognizeAsync(candidate.SourcePath, ActiveToken);
                     }
                     catch (OcrException exception) when (CloudOcrPolicy.IsRateLimit(fallbackCredential.Provider, exception))
                     {
@@ -1277,7 +1302,7 @@ public sealed class MainForm : Form
                             fallbackRetry++;
                             TimeSpan retryDelay = CloudOcrPolicy.RetryDelay(fallbackRetry);
                             statusLabel.Text = $"备用 {fallbackCredential.DisplayName} 触发限流，{retryDelay.TotalSeconds:0} 秒后重试（{fallbackRetry}/{CloudOcrPolicy.MaxAutomaticRetries}）";
-                            await Task.Delay(retryDelay);
+                            await Task.Delay(retryDelay, ActiveToken);
                             continue;
                         }
 
@@ -1320,9 +1345,8 @@ public sealed class MainForm : Form
             int candidateImages = 0;
             foreach (RecognitionCandidate candidate in candidates)
             {
-                OcrRule[] activeRules = candidate.Rules
-                    .Where(rule => !values.ContainsKey(rule.Id))
-                    .ToArray();
+                // Selected competing candidates must be compared, not skipped after first success.
+                OcrRule[] activeRules = candidate.Rules.ToArray();
                 if (activeRules.Length == 0)
                     continue;
 
@@ -1345,7 +1369,7 @@ public sealed class MainForm : Form
                     string? value = RuleEngine.ExtractFinalValue(cloudLines, issue, rule);
                     if (value is not null)
                     {
-                        values.TryAdd(rule.Id, value);
+                        ResultValues.AddTo(values, rule.Id, value);
                         matchedValues.Add($"{value} {rule.OutputLabel}");
                     }
                     else if (!values.ContainsKey(rule.Id))
@@ -1367,7 +1391,7 @@ public sealed class MainForm : Form
                         string? value = RuleEngine.ExtractFinalValue(fallbackLines!, issue, rule);
                         if (value is null)
                             continue;
-                        values.TryAdd(rule.Id, value);
+                        ResultValues.AddTo(values, rule.Id, value);
                         matchedValues.Add($"{value} {rule.OutputLabel}");
                     }
                 }
@@ -1376,7 +1400,7 @@ public sealed class MainForm : Form
                     || fallbackLines?.Any(line => !string.IsNullOrWhiteSpace(line)) == true;
                     lastCloudOcrResults[candidate.SourcePath] = cloudLines;
                 CloudOcrCacheStore.SaveEntry(
-                    AppContext.BaseDirectory, groupName, issue, candidate.SourcePath, lastCloudOcrResults[candidate.SourcePath]);
+                    AppContext.BaseDirectory, groupName, issue, candidate.SourcePath, lastCloudOcrResults[candidate.SourcePath], candidate.OcrPath);
                 if (recognizedText)
                     textRecognizedRuleIds.UnionWith(activeRules.Select(rule => rule.Id));
                 foreach (OcrRule rule in activeRules)
@@ -1407,18 +1431,19 @@ public sealed class MainForm : Form
                 });
             }
 
+            ActiveToken.ThrowIfCancellationRequested();
             string[] outputLines = RuleEngine.FormatOutput(rules, values, missingReasons);
             ResultFilePaths.EnsureOutputDirectories(AppContext.BaseDirectory);
             string groupOutputPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, selectedImageDirectory!, issue);
             string diagnosticPath = ResultFilePaths.ForDiagnostic(
                 AppContext.BaseDirectory, selectedImageDirectory!, issue);
-            await File.WriteAllLinesAsync(groupOutputPath, outputLines, new UTF8Encoding(true));
+            await AtomicFile.WriteAllLinesAsync(groupOutputPath, outputLines, new UTF8Encoding(true));
             DistributionResult distribution = await ResultDistributor.DistributeAllAsync(selectedImageDirectory!, issue, outputLines);
             string[] groupLines = GroupResultFormatter.Format(
                 rules,
                 ResultDistributor.MarkDistributedLines(outputLines, distribution.DistributedLines));
-            await File.WriteAllLinesAsync(groupOutputPath, groupLines, new UTF8Encoding(true));
-            await File.WriteAllTextAsync(
+            await AtomicFile.WriteAllLinesAsync(groupOutputPath, groupLines, new UTF8Encoding(true));
+            await AtomicFile.WriteAllTextAsync(
                 diagnosticPath,
                 JsonSerializer.Serialize(new
                 {
@@ -1440,12 +1465,16 @@ public sealed class MainForm : Form
             resultsBox.Text = string.Join(Environment.NewLine, groupLines);
             copyButton.Enabled = outputLines.Length > 0;
             lastRules = rules;
-            lastValues = new Dictionary<string, string>(values, StringComparer.Ordinal);
+            lastValues = new ResultValues(values, StringComparer.Ordinal);
             lastMissingReasons = new Dictionary<string, string>(missingReasons, StringComparer.Ordinal);
             lastTextRecognizedRuleIds = new HashSet<string>(textRecognizedRuleIds, StringComparer.Ordinal);
             lastIssue = issue;
             SetProgress(1, 1);
             statusLabel.Text = $"完成{(rules.Count == values.Count ? "" : "，但有缺失")}：目录 {imagePaths.Length} 张，候选 {candidateImages} 张，云 OCR 请求 {cloudRequests} 次，提取 {values.Count} 条，缺失 {rules.Count - values.Count} 条，成功分流 {distribution.DistributedLines.Count} 条{DistributionErrorText(distribution)}。群TXT：{groupOutputPath}；诊断：{diagnosticPath}";
+        }
+        catch (OperationCanceledException)
+        {
+            statusLabel.Text = "识别已取消；未完成结果不会自动分流。";
         }
         catch (OcrException exception)
         {
@@ -1493,7 +1522,7 @@ public sealed class MainForm : Form
                 ResultDistributor.MarkDistributedLines(outputLines, distribution.DistributedLines));
             string groupOutputPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, selectedImageDirectory!, issue);
             ResultFilePaths.EnsureOutputDirectories(AppContext.BaseDirectory);
-            await File.WriteAllLinesAsync(groupOutputPath, groupLines, new UTF8Encoding(true));
+            await AtomicFile.WriteAllLinesAsync(groupOutputPath, groupLines, new UTF8Encoding(true));
             resultsBox.Text = string.Join(Environment.NewLine, groupLines);
             copyButton.Enabled = outputLines.Length > 0;
             statusLabel.Text = $"手动分流完成：成功 {distribution.DistributedLines.Count} 条{DistributionErrorText(distribution)}。群TXT：{groupOutputPath}";
@@ -1526,8 +1555,9 @@ public sealed class MainForm : Form
             RefreshImagesForRetry();
             OcrRule[] missingRules = lastRules.Where(rule => !lastValues.ContainsKey(rule.Id)).ToArray();
             string groupName = RuleCatalog.GroupNameForFolder(AppContext.BaseDirectory, selectedImageDirectory!);
-            foreach (var cached in CloudOcrCacheStore.Load(AppContext.BaseDirectory, groupName, lastIssue))
-                lastCloudOcrResults.TryAdd(cached.Key, cached.Value);
+            // Revalidate disk/image identity; do not retain stale in-memory paths after image replacement.
+            lastCloudOcrResults = CloudOcrCacheStore.Load(AppContext.BaseDirectory, groupName, lastIssue);
+            if (lastValues is ResultValues guarded) guarded.Conflicts.Clear();
             CandidateSelection selection = await SelectCandidatesAsync(
                 missingRules,
                 lastIssue,
@@ -1545,11 +1575,11 @@ public sealed class MainForm : Form
                     RuleEngine.DescribeMissing(foundImage: false, recognizedText: false));
 
             OcrCredential credential = credentialSelector.SelectedIndex <= 0
-                ? CredentialSchedule.Today()
-                : CredentialSchedule.ForSlot(credentialSelector.SelectedIndex - 1);
-            IOcrClient cloudClient = OcrClientFactory.Create(credential);
-            OcrCredential fallbackCredential = CredentialSchedule.FallbackFor(credential);
-            IOcrClient fallbackClient = OcrClientFactory.Create(fallbackCredential);
+                ? CredentialSchedule.DescribeDate(CredentialSchedule.TodayInBeijing())
+                : CredentialSchedule.DescribeSlot(credentialSelector.SelectedIndex - 1);
+            IOcrClient cloudClient = OcrClientFactory.CreateDeferred(credential);
+            OcrCredential fallbackCredential = CredentialSchedule.DescribeFallback(credential);
+            IOcrClient fallbackClient = OcrClientFactory.CreateDeferred(fallbackCredential);
             var primarySpacing = Stopwatch.StartNew();
             var fallbackSpacing = Stopwatch.StartNew();
             var primaryImageDeduplicator = new CloudImageDeduplicator();
@@ -1562,9 +1592,8 @@ public sealed class MainForm : Form
 
             foreach (RecognitionCandidate candidate in selection.Candidates)
             {
-                OcrRule[] candidateMissing = candidate.Rules
-                    .Where(rule => !lastValues.ContainsKey(rule.Id))
-                    .ToArray();
+                // Selection already contains only the rules missing at retry start.
+                OcrRule[] candidateMissing = candidate.Rules.ToArray();
                 if (candidateMissing.Length == 0)
                     continue;
 
@@ -1587,7 +1616,7 @@ public sealed class MainForm : Form
                     {
                         statusLabel.Text = $"复抓缺失：主云 {completed + 1}/{selection.Candidates.Count} · {ShortPath(candidate.SourcePath)}";
                         primaryLines = await primaryImageDeduplicator.RecognizeAsync(
-                            selectedImageDirectory!, candidate.SourcePath, candidateMissing,
+                            selectedImageDirectory!, RetryPrimaryImage(selectedImageDirectory!, candidate.SourcePath, candidate.OcrPath, candidateMissing), candidateMissing,
                             async () =>
                             {
                                 cloudRequests++;
@@ -1607,7 +1636,7 @@ public sealed class MainForm : Form
 
                 candidateMissing = candidateMissing.Where(rule => !lastValues.ContainsKey(rule.Id)).ToArray();
                 IReadOnlyList<string> fallbackLines = [];
-                if (candidateMissing.Length > 0 && !reusedCache)
+                if (candidateMissing.Length > 0)
                 {
                     if (fallbackStarted)
                         await WaitForPacingAsync(fallbackSpacing, CloudOcrPolicy.MinimumInterval(fallbackCredential.Provider));
@@ -1637,7 +1666,8 @@ public sealed class MainForm : Form
                 {
                     lastCloudOcrResults[candidate.SourcePath] = primaryLines;
                     CloudOcrCacheStore.SaveEntry(
-                        AppContext.BaseDirectory, groupName, lastIssue, candidate.SourcePath, lastCloudOcrResults[candidate.SourcePath]);
+                        AppContext.BaseDirectory, groupName, lastIssue, candidate.SourcePath, lastCloudOcrResults[candidate.SourcePath],
+                        RetryPrimaryImage(selectedImageDirectory!, candidate.SourcePath, candidate.OcrPath, candidate.Rules));
                 }
 
                 bool recognizedText = primaryLines.Any(line => !string.IsNullOrWhiteSpace(line))
@@ -1661,15 +1691,16 @@ public sealed class MainForm : Form
                     RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons));
             }
 
+            ActiveToken.ThrowIfCancellationRequested();
             string[] outputLines = RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons);
             ResultFilePaths.EnsureOutputDirectories(AppContext.BaseDirectory);
             string groupOutputPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, selectedImageDirectory!, lastIssue);
-            await File.WriteAllLinesAsync(groupOutputPath, outputLines, new UTF8Encoding(true));
+            await AtomicFile.WriteAllLinesAsync(groupOutputPath, outputLines, new UTF8Encoding(true));
             DistributionResult distribution = await ResultDistributor.DistributeAllAsync(selectedImageDirectory!, lastIssue, outputLines);
             string[] groupLines = GroupResultFormatter.Format(
                 lastRules,
                 ResultDistributor.MarkDistributedLines(outputLines, distribution.DistributedLines));
-            await File.WriteAllLinesAsync(groupOutputPath, groupLines, new UTF8Encoding(true));
+            await AtomicFile.WriteAllLinesAsync(groupOutputPath, groupLines, new UTF8Encoding(true));
             LogMissingDetails(
                 "手动复抓缺失", groupName, lastIssue, lastRules, lastValues, selection.Candidates);
             resultsBox.Text = string.Join(Environment.NewLine, groupLines);
@@ -1678,6 +1709,10 @@ public sealed class MainForm : Form
             statusLabel.Text = selection.Candidates.Count == 0
                 ? $"复抓未找到 {missingRules.Length} 条缺失项对应的图片，缺失原因已更新；成功分流 {distribution.DistributedLines.Count} 条{DistributionErrorText(distribution)}。TXT：{groupOutputPath}"
                 : $"复抓完成：云 OCR 请求 {cloudRequests} 次，补回 {missingRules.Length - remaining} 条，仍缺失 {remaining} 条，成功分流 {distribution.DistributedLines.Count} 条{DistributionErrorText(distribution)}。TXT：{groupOutputPath}";
+        }
+        catch (OperationCanceledException)
+        {
+            statusLabel.Text = "识别已取消；未完成结果不会自动分流。";
         }
         catch (OcrException exception)
         {
@@ -1718,7 +1753,7 @@ public sealed class MainForm : Form
         {
             try
             {
-                IReadOnlyList<string> lines = await client.RecognizeAsync(imagePath);
+                IReadOnlyList<string> lines = await client.RecognizeAsync(imagePath, ActiveToken);
                 AddExtractedValues(lines, rules, issue, values);
                 return lines;
             }
@@ -1728,7 +1763,7 @@ public sealed class MainForm : Form
                 {
                     TimeSpan delay = CloudOcrPolicy.RetryDelay(++retry);
                     statusLabel.Text = $"复抓触发限流：{delay.TotalSeconds:0} 秒后重试 {current}/{total}";
-                    await Task.Delay(delay);
+                    await Task.Delay(delay, ActiveToken);
                     continue;
                 }
 
@@ -1738,11 +1773,11 @@ public sealed class MainForm : Form
         }
     }
 
-    private static async Task WaitForPacingAsync(Stopwatch spacing, TimeSpan minimumInterval)
+    private async Task WaitForPacingAsync(Stopwatch spacing, TimeSpan minimumInterval)
     {
         TimeSpan delay = minimumInterval - spacing.Elapsed;
         if (delay > TimeSpan.Zero)
-            await Task.Delay(delay);
+            await Task.Delay(delay, ActiveToken);
     }
 
     private static void AddExtractedValues(
@@ -1755,7 +1790,7 @@ public sealed class MainForm : Form
         {
             string? value = RuleEngine.ExtractFinalValue(lines, issue, rule);
             if (value is not null)
-                values.TryAdd(rule.Id, value);
+                ResultValues.AddTo(values, rule.Id, value);
         }
     }
 
@@ -1770,6 +1805,7 @@ public sealed class MainForm : Form
 
     private void LoadExistingGroupResult()
     {
+        if (isBusy) return;
         if (selectedImageDirectory is null)
         {
             ClearRetryState();
@@ -1809,7 +1845,7 @@ public sealed class MainForm : Form
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(selectedRulePath
             ?? throw new OcrException("请先选择要读取的子文件夹。"));
         lastRules = rules;
-        lastValues = new Dictionary<string, string>(StringComparer.Ordinal);
+        lastValues = new ResultValues(StringComparer.Ordinal);
         lastMissingReasons = new Dictionary<string, string>(StringComparer.Ordinal);
         lastTextRecognizedRuleIds = new HashSet<string>(StringComparer.Ordinal);
         lastCloudOcrResults = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
@@ -1838,7 +1874,7 @@ public sealed class MainForm : Form
 
             if (value.Length > 0)
             {
-                lastValues[rule.Id] = value;
+                ResultValues.AddTo(lastValues, rule.Id, value);
                 lastTextRecognizedRuleIds.Add(rule.Id);
             }
         }
@@ -1862,7 +1898,7 @@ public sealed class MainForm : Form
     private void ClearRetryState()
     {
         lastRules = [];
-        lastValues = new Dictionary<string, string>(StringComparer.Ordinal);
+        lastValues = new ResultValues(StringComparer.Ordinal);
         lastMissingReasons = new Dictionary<string, string>(StringComparer.Ordinal);
         lastTextRecognizedRuleIds = new HashSet<string>(StringComparer.Ordinal);
         lastCloudOcrResults = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
@@ -2013,13 +2049,20 @@ public sealed class MainForm : Form
                 localImagePaths,
                 localProgress,
                 LocalRetryTitleRatio(localLimitedRuleIds),
-                PaddleLocalOcrClient.DetectionMaxSideFor(selectedImageDirectory!));
+                PaddleLocalOcrClient.DetectionMaxSideFor(selectedImageDirectory!), cancellationToken: ActiveToken);
+        var candidateResults = new Dictionary<string, IReadOnlyList<string>>(localResults, StringComparer.OrdinalIgnoreCase);
+        foreach ((string failedPath, string error) in localClient.LastImageErrors)
+        {
+            candidateResults[failedPath] = [];
+            statusLabel.Text = $"本地 OCR 单图失败：{ShortPath(failedPath)}；{error}";
+        }
+        localResults = candidateResults;
         await Task.Yield();
         var localCandidates = new List<RecognitionCandidate>();
         bool isYanran = RuleCatalog.IsGroupFolder(selectedImageDirectory!, "嫣然心水");
         if (isYanran)
         {
-            foreach (LocalCandidatePlan plan in LocalCandidatePlanner.Build(imagePaths, localResults, rules))
+            foreach (LocalCandidatePlan plan in LocalCandidatePlanner.Build(imagePaths, localResults, rules, issue))
             {
                 string ocrPath = PrepareLocalCloudImage(selectedImageDirectory!, plan.Path, plan.Rules, ref templateCropFolder);
                 localCandidates.Add(new RecognitionCandidate(
@@ -2069,11 +2112,8 @@ public sealed class MainForm : Form
 
     private static bool CanReuseRetryCloudLines(
         string groupDirectory, IReadOnlyList<OcrRule> rules, IReadOnlyList<string> lines, int issue) =>
-        IsCompactJieshaoTable(groupDirectory, rules)
-            ? rules.All(rule => RuleEngine.ExtractFinalValue(lines, issue, rule) is not null)
-            : RuleCatalog.IsGroupFolder(groupDirectory, "新澳六合彩资料")
-                ? rules.All(rule => RuleEngine.ExtractFinalValue(lines, issue, rule) is not null)
-                : true;
+        lines.Any(line => !string.IsNullOrWhiteSpace(line)) &&
+        rules.All(rule => RuleEngine.ExtractFinalValue(lines, issue, rule) is not null);
 
     private void LogMissingDetails(
         string operation,
@@ -2225,6 +2265,12 @@ public sealed class MainForm : Form
 
     private void SetBusy(bool busy)
     {
+        isBusy = busy;
+        if (busy)
+        {
+            activeCancellation?.Dispose();
+            activeCancellation = new CancellationTokenSource();
+        }
         folderList.Enabled = !busy;
         deleteButton.Enabled = !busy && imagePaths.Length > 0;
         recognizeButton.Enabled = !busy && imagePaths.Length > 0 && selectedRulePath is not null && File.Exists(selectedRulePath);
@@ -2241,6 +2287,9 @@ public sealed class MainForm : Form
             continueButton.Enabled = false;
             continueButton.Visible = false;
             cloudResume = null;
+            activeCancellation?.Dispose();
+            activeCancellation = null;
+            if (closeWhenIdle && !IsDisposed && IsHandleCreated) BeginInvoke(new Action(Close));
         }
     }
 
@@ -2252,7 +2301,7 @@ public sealed class MainForm : Form
         continueButton.Enabled = true;
         UseWaitCursor = false;
         statusLabel.Text = $"云 OCR 多次限流，已暂停在 {current}/{total}：{ShortPath(path)}。点击“继续云 OCR”从此处继续。";
-        return cloudResume.Task;
+        return cloudResume.Task.WaitAsync(ActiveToken);
     }
 
     private void ContinueCloudOcr(object? sender, EventArgs e)
@@ -2445,10 +2494,35 @@ public sealed class MainForm : Form
         }
     }
 
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (isBusy && keyData == Keys.Escape)
+        {
+            activeCancellation?.Cancel();
+            statusLabel.Text = "正在取消本次任务……";
+            return true;
+        }
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        if (isBusy)
+        {
+            e.Cancel = true;
+            closeWhenIdle = true;
+            activeCancellation?.Cancel();
+        }
+        base.OnFormClosing(e);
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
+            activeCancellation?.Cancel();
+            activeCancellation?.Dispose();
+            activeCancellation = null;
             dateTimer.Dispose();
             folderRefreshTimer.Dispose();
             recognitionTimer.Dispose();

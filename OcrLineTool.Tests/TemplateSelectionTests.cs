@@ -10,6 +10,7 @@ namespace OcrLineTool.Tests;
 public sealed class TemplateSelectionCollection { }
 
 [Collection("Template selection")]
+[Trait("Category", "CUDA")]
 public sealed class TemplateSelectionTests
 {
     [Theory]

@@ -532,8 +532,11 @@ public sealed class MainFormTests
         form.Scale(new SizeF(scale, scale));
         form.Size = new Size((int)Math.Ceiling(1100 * scale), (int)Math.Ceiling(700 * scale));
         form.CreateControl();
+        form.Show();
         continueButton.Visible = true;
         PerformLayoutRecursively(form);
+        Assert.True(form.Height >= (int)Math.Ceiling(700 * scale),
+            $"The viewport must retain the requested scale. Actual={form.Size}; DesktopLimit={SystemInformation.MaxWindowTrackSize}.");
 
         AssertControlFitsItsParent(folders);
         AssertControlFitsItsParent(continueButton);

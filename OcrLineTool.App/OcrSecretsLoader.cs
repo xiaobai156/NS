@@ -35,7 +35,7 @@ public static class OcrSecretsLoader
         PropertyNameCaseInsensitive = true
     };
 
-    public static OcrSecrets Load(string? path = null)
+    public static OcrSecrets Load(string? path = null, bool validateAllConfigured = true)
     {
         string resolvedPath = string.IsNullOrWhiteSpace(path) ? DefaultPath : path;
         if (!File.Exists(resolvedPath))
@@ -53,8 +53,16 @@ public static class OcrSecretsLoader
             var values = new Dictionary<(OcrProvider Provider, string Slot), OcrSecret>();
             foreach (string slot in Slots)
             {
-                values[(OcrProvider.Tencent, slot)] = RequireTencent(document, slot);
-                values[(OcrProvider.Baidu, slot)] = RequireBaidu(document, slot);
+                if (document.Tencent?.ContainsKey(slot) == true)
+                {
+                    try { values[(OcrProvider.Tencent, slot)] = RequireTencent(document, slot); }
+                    catch (OcrException) when (!validateAllConfigured) { }
+                }
+                if (document.Baidu?.ContainsKey(slot) == true)
+                {
+                    try { values[(OcrProvider.Baidu, slot)] = RequireBaidu(document, slot); }
+                    catch (OcrException) when (!validateAllConfigured) { }
+                }
             }
 
             return new OcrSecrets(values);

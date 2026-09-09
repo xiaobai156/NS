@@ -54,7 +54,16 @@ public static class RuleEngine
                     .Equals(RuleCatalog.NormalizeGroupName(expectedFolder), StringComparison.OrdinalIgnoreCase)
                 && !ContainsKeyword(text, Normalize(rule.RequiredKeyword)))
                 return false;
-            return HasValueForAnyIssue(lines, rule);
+            return HasValueForAnyIssue(lines, rule)
+                || (!string.IsNullOrWhiteSpace(rule.RequiredKeyword)
+                    && !RuleCatalog.NormalizeGroupName(rule.RequiredKeyword).Equals(
+                        RuleCatalog.NormalizeGroupName(expectedFolder), StringComparison.OrdinalIgnoreCase)
+                    && ContainsKeyword(text, Normalize(rule.RequiredKeyword))
+                    && (rules.Count(other => (other.Folder ?? other.Keyword).Equals(expectedFolder, StringComparison.OrdinalIgnoreCase)
+                        && Normalize(other.RequiredKeyword ?? other.Keyword) == Normalize(rule.RequiredKeyword)) == 1
+                        || !string.IsNullOrWhiteSpace(rule.Section) && text.Contains(Normalize(rule.Section), StringComparison.Ordinal)))
+                || (rules.Count(other => (other.Folder ?? other.Keyword).Equals(expectedFolder, StringComparison.OrdinalIgnoreCase)) == 1
+                    && expectedFolder.Equals(rule.RequiredKeyword ?? rule.Keyword, StringComparison.OrdinalIgnoreCase));
         }).ToArray();
     }
 
@@ -232,7 +241,9 @@ public static class RuleEngine
         if (!rule.IgnoreIssue)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(issue);
         string[] lines = cloudLines.Select(line => rule.StrictIssueBlock ? SimplifyFixedCardText(line) : line).ToArray();
-        lines = RecoverTruncatedDoomsdayIssue(lines, issue, rule);
+        // A requested issue is a query, never evidence for repairing OCR.
+        if (!rule.StrictIssueBlock)
+            lines = SplitInlineIssueRows(lines);
         string keyword = Normalize(rule.Keyword);
         string[] aliases = new[] { rule.Keyword, rule.Label ?? string.Empty }
             .Where(alias => !string.IsNullOrWhiteSpace(alias))
@@ -271,6 +282,15 @@ public static class RuleEngine
             }
         }
 
+        // Same issue can appear in several different materials on one sheet.
+        // A section printed on target rows scopes that material before conflict checking.
+        if (!string.IsNullOrWhiteSpace(rule.Section))
+        {
+            string section = Normalize(rule.Section);
+            if (candidates.Any(line => Normalize(line).Contains(section, StringComparison.Ordinal)))
+                candidates = candidates.Where(line => Normalize(line).Contains(section, StringComparison.Ordinal)).ToList();
+        }
+
         bool keywordInTarget = candidates.Any(line => aliases.Any(alias => Normalize(line).Contains(alias, StringComparison.Ordinal)));
         bool keywordInHeading = aliases.Any(alias => HasKeywordInHeading(lines, alias));
         if (requireCloudKeyword && !rule.AllowValueWithoutKeyword && !keywordInTarget && !keywordInHeading)
@@ -282,7 +302,7 @@ public static class RuleEngine
         if (rule.Type == "统计生肖")
             return ExtractMostFrequentZodiac(lines, issue, rule);
 
-        if (rule.StrictIssueBlock)
+        if (rule.StrictIssueBlock || rule.Folder == "公式杀料")
             return ExtractStrictIssueBlock(lines, issue, rule);
 
         // This sheet prints the opening result before a separate nine-zodiac row.
@@ -308,12 +328,19 @@ public static class RuleEngine
                 return numberValue;
         }
 
-        foreach (string line in candidates.OrderByDescending(line => Normalize(line).Contains(keyword, StringComparison.Ordinal)))
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        IEnumerable<string> relevant = keywordInTarget
+            ? candidates.Where(line => aliases.Any(alias => Normalize(line).Contains(alias, StringComparison.Ordinal)))
+            : candidates;
+        foreach (string line in relevant)
         {
             string? value = ExtractTyped(line, rule.Type);
             if (value is not null)
-                return value;
+                observed.Add(value);
         }
+        // Never let an earlier copy of the selected issue silently win.
+        if (observed.Count > 0)
+            return observed.Count == 1 ? observed.Single() : null;
 
         if (rule.AllowNearbyValue
             && rule.Type is ("生肖" or "单生肖" or "九肖")
@@ -404,37 +431,35 @@ public static class RuleEngine
             : RemoveIssue(line);
     }
 
-    private static string[] RecoverTruncatedDoomsdayIssue(string[] lines, int issue, OcrRule rule)
+    private static string[] SplitInlineIssueRows(IEnumerable<string> source)
     {
-        if (rule.Id != "末日降临" || FindIssues(lines).Contains(issue) || issue < 100)
-            return lines;
-
-        int century = issue / 100;
-        if (!FindIssues(lines).Any(foundIssue => foundIssue / 100 == century))
-            return lines;
-
-        var rows = lines.Select((line, index) => new
-            {
-                Index = index,
-                Match = Regex.Match(line, @"^\s*(?<short>\d{1,2})\s*期(?=.*末日降临)")
-            })
-            .Where(item => item.Match.Success)
-            .Select(item => (item.Index, Short: int.Parse(item.Match.Groups["short"].Value)))
-            .ToArray();
-        int targetSuffix = issue % 100;
-        int rowIndex = rows.LastOrDefault(row => row.Short == targetSuffix).Index;
-        bool foundTargetSuffix = rows.Any(row => row.Short == targetSuffix);
-        if (!foundTargetSuffix)
+        var output = new List<string>();
+        foreach (string line in source)
         {
-            int previousSuffix = (targetSuffix + 99) % 100;
-            if (rows.Length < 2 || rows[^1].Short != previousSuffix || rows[^2].Short != previousSuffix)
-                return lines;
-            rowIndex = rows[^1].Index;
+            MatchCollection periods = IssueRegex.Matches(line);
+            int start = 0;
+            for (int index = 1; index < periods.Count; index++)
+            {
+                output.Add(line[start..periods[index].Index]);
+                start = periods[index].Index;
+            }
+            output.Add(line[start..]);
         }
+        return output.ToArray();
+    }
 
-        string[] recovered = (string[])lines.Clone();
-        recovered[rowIndex] = Regex.Replace(recovered[rowIndex], @"^\s*\d{1,2}(?=\s*期)", issue.ToString());
-        return recovered;
+    private static string[] SummaryRowsForIssue(IEnumerable<string> source, int issue)
+    {
+        var rows = new List<string>();
+        bool inTarget = false;
+        foreach (string line in SplitInlineIssueRows(source))
+        {
+            if (ContainsAnyIssue(line))
+                inTarget = ContainsIssue(line, issue);
+            if (inTarget)
+                rows.Add(line);
+        }
+        return rows.ToArray();
     }
 
     private static string? ExtractZodiacSummaryValue(string[] lines, int issue, OcrRule rule)
@@ -446,6 +471,8 @@ public static class RuleEngine
             return null;
         }
 
+        lines = SummaryRowsForIssue(lines, issue);
+        var observed = new HashSet<string>(StringComparer.Ordinal);
         string[] aliases = [rule.Keyword, rule.Label ?? string.Empty];
         foreach (string aliasText in aliases
             .Where(alias => !string.IsNullOrWhiteSpace(alias))
@@ -465,7 +492,7 @@ public static class RuleEngine
                 {
                     string? value = ExtractSingleZodiac(tail[(forbiddenIndex + 1)..]);
                     if (value is not null)
-                        return value;
+                        observed.Add(value);
                 }
 
                 if (index + 2 < lines.Length
@@ -473,12 +500,12 @@ public static class RuleEngine
                 {
                     string? value = ExtractSingleZodiac(Normalize(lines[index + 2]));
                     if (value is not null)
-                        return value;
+                        observed.Add(value);
                 }
             }
         }
 
-        return null;
+        return observed.Count == 1 ? observed.Single() : null;
     }
 
     private static string? ExtractMostFrequentZodiac(string[] lines, int issue, OcrRule rule)
@@ -911,9 +938,7 @@ public static class RuleEngine
           int[] tails = fixedCard.Groups["digits"].Value
               .Where(char.IsDigit).Select(c => c - '0').Distinct().ToArray();
           int digitCount = fixedCard.Groups["digits"].Value.Count(char.IsDigit);
-          if (digitCount == 8 && !tails.Contains(0))
-              tails = tails.Append(0).ToArray();
-          return (digitCount == 9 && tails.Length == 9) || (digitCount == 8 && tails.Length == 9)
+          return digitCount == 9 && tails.Length == 9
               ? $"{Enumerable.Range(0, 10).Single(n => !tails.Contains(n))}尾"
                     : null;
             }
@@ -1179,7 +1204,9 @@ public static class RuleEngine
         IEnumerable<OcrRule> rules,
         IReadOnlyDictionary<string, string> values,
         IReadOnlyDictionary<string, string>? missingReasons = null) =>
-        rules.Select(rule => values.TryGetValue(rule.Id, out string? value)
+        rules.Select(rule => ResultValues.IsConflict(values, rule.Id)
+            ? $"缺失（同一期结果冲突，待核对） {rule.OutputLabel}"
+            : values.TryGetValue(rule.Id, out string? value)
             ? $"{FormatForOutput(rule, value)} {rule.OutputLabel}"
             : missingReasons is not null && missingReasons.TryGetValue(rule.Id, out string? reason)
                 ? $"缺失（{reason}） {rule.OutputLabel}"
