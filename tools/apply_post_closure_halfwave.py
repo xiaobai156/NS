@@ -50,12 +50,15 @@ replacements = [
             if (scopeStart < 0)
                 return null;
         }''',
-'''        // 半波卡片允许“目标期行本身明确写出完整资料名”替代单独的 section 标题。
-        // 只接受目标期行上的精确资料身份，不能借用上一期标题或同图其他半波资料。
+'''        // 半波卡片只能由目标期行本身的完整资料名确认身份。
+        // 这样即使上一期标题仍留在图里，也绝不能把本期“杀半波”通用字段归给旧资料。
         bool explicitHalfWaveIssueIdentity = rule.StrictIssueBlock
             && rule.Type == "半波"
             && lines.Any(line => ContainsIssue(line, issue)
                 && HasExplicitHalfWaveIdentity(line, rule));
+        if (rule.StrictIssueBlock && rule.Type == "半波" && !explicitHalfWaveIssueIdentity)
+            return null;
+
         int scopeStart = 0;
         if (!string.IsNullOrWhiteSpace(rule.Section) && !explicitHalfWaveIssueIdentity)
         {
@@ -117,4 +120,4 @@ if text.count(anchor) != 1:
 text = text.replace(anchor, helper + anchor, 1)
 
 path.write_text(text, encoding='utf-8')
-print('已应用半波类型兼容，并仅允许目标期行上的精确半波身份替代 section 标题')
+print('已应用半波类型兼容，并禁止半波资料跨期借用标题身份')
