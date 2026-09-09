@@ -132,7 +132,7 @@ public sealed class FinalResidualClosureTests
     }
 
     [Fact]
-    public async Task TrustedStateRejectsAReplacedActualInputView()
+    public async Task TrustedStateUsesPersistedInputSnapshotAfterTemporaryViewChanges()
     {
         using var temp = new TempFiles("嫣然心水");
         string source = temp.File("source.png", [3, 4, 5, 6]);
@@ -151,11 +151,16 @@ public sealed class FinalResidualClosureTests
 
         await RecognitionStateStore.SaveAsync(
             temp.Root, temp.GroupDirectory, 251, [rule], values, ledger);
-        File.WriteAllBytes(input, [9, 8, 7, 6]);
+        ResultEvidenceRecord persisted = ledger.Records[rule.Id];
+        Assert.NotEqual(Path.GetFullPath(input), Path.GetFullPath(persisted.InputPath));
+        Assert.Equal(persisted.InputHash, LocalOcrIdentity.Image(persisted.InputPath), ignoreCase: true);
 
+        // The original temporary view is no longer the trusted artifact after Save.
+        File.WriteAllBytes(input, [9, 8, 7, 6]);
         RecognitionStateLoad restored = RecognitionStateStore.Load(
             temp.Root, temp.GroupDirectory, 251, [rule]);
-        Assert.False(restored.Values.ContainsKey(rule.Id));
+        Assert.Equal("鸡", restored.Values[rule.Id]);
+        Assert.Equal(persisted.InputPath, restored.Evidence.Records[rule.Id].InputPath);
     }
 
     private sealed class TempFiles : IDisposable
