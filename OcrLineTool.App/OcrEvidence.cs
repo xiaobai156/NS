@@ -243,45 +243,73 @@ internal static class OcrEvidenceLayout
         RowSegment[] segments = source.OrderBy(item => item.Box.CenterX).ToArray();
         if (segments.Length == 0)
             return [];
+
         int pageLeft = segments.Min(item => item.Box.X);
         int pageRight = segments.Max(item => item.Box.Right);
         int pageWidth = Math.Max(1, pageRight - pageLeft);
-        double medianWidth = segments.Select(item => Math.Max(1, item.Box.Width))
-            .OrderBy(value => value).ElementAt(segments.Length / 2);
-        bool IsSpanning(RowSegment segment) => segments.Length >= 3
-            && segment.Box.Width >= pageWidth * 0.60
-            && segment.Box.Width >= medianWidth * 1.75;
 
-        var columns = new List<List<RowSegment>>();
-        foreach (RowSegment segment in segments.Where(item => !IsSpanning(item)))
+        static int HorizontalGap(RowSegment segment, IReadOnlyList<RowSegment> column)
         {
-            int chosen = -1;
-            int bestGap = int.MaxValue;
-            for (int index = 0; index < columns.Count; index++)
-            {
-                int left = columns[index].Min(item => item.Box.X);
-                int right = columns[index].Max(item => item.Box.Right);
-                int gap = segment.Box.Right < left ? left - segment.Box.Right
-                    : segment.Box.X > right ? segment.Box.X - right
-                    : 0;
-                int averageHeight = (int)Math.Round(columns[index].Average(item => Math.Max(1, item.Box.Height)));
-                int threshold = Math.Max(48, Math.Max(averageHeight, Math.Max(1, segment.Box.Height)) * 4);
-                if (gap <= threshold && gap < bestGap)
-                {
-                    chosen = index;
-                    bestGap = gap;
-                }
-            }
-            if (chosen < 0)
-                columns.Add([segment]);
-            else
-                columns[chosen].Add(segment);
+            int left = column.Min(item => item.Box.X);
+            int right = column.Max(item => item.Box.Right);
+            return segment.Box.Right < left ? left - segment.Box.Right
+                : segment.Box.X > right ? segment.Box.X - right
+                : 0;
         }
 
-        // A full-width title/header is provenance for the page, not a bridge
-        // between physically separated body columns. Keep it in its own region.
-        foreach (RowSegment spanning in segments.Where(IsSpanning))
-            columns.Add([spanning]);
+        static int MergeThreshold(RowSegment segment, IReadOnlyList<RowSegment> column)
+        {
+            int averageHeight = (int)Math.Round(column.Average(item => Math.Max(1, item.Box.Height)));
+            return Math.Max(48, Math.Max(averageHeight, Math.Max(1, segment.Box.Height)) * 4);
+        }
+
+        static List<List<RowSegment>> Cluster(IEnumerable<RowSegment> candidates)
+        {
+            var columns = new List<List<RowSegment>>();
+            foreach (RowSegment segment in candidates.OrderBy(item => item.Box.CenterX))
+            {
+                int chosen = -1;
+                int bestGap = int.MaxValue;
+                for (int index = 0; index < columns.Count; index++)
+                {
+                    int gap = HorizontalGap(segment, columns[index]);
+                    int threshold = MergeThreshold(segment, columns[index]);
+                    if (gap <= threshold && gap < bestGap)
+                    {
+                        chosen = index;
+                        bestGap = gap;
+                    }
+                }
+                if (chosen < 0)
+                    columns.Add([segment]);
+                else
+                    columns[chosen].Add(segment);
+            }
+            return columns;
+        }
+
+        // Detect bridging banners by asking what the body columns look like when
+        // the candidate is removed. If the candidate can touch two otherwise
+        // separate body columns, it is page/header provenance and must never
+        // expand either body's horizontal envelope.
+        var spanning = new List<RowSegment>();
+        foreach (RowSegment candidate in segments.Where(segment =>
+            segments.Length >= 3 && segment.Box.Width >= pageWidth * 0.50))
+        {
+            List<List<RowSegment>> provisional = Cluster(
+                segments.Where(segment => !ReferenceEquals(segment, candidate)));
+            if (provisional.Count < 2)
+                continue;
+            int touchedColumns = provisional.Count(column =>
+                HorizontalGap(candidate, column) <= MergeThreshold(candidate, column));
+            if (touchedColumns >= 2)
+                spanning.Add(candidate);
+        }
+
+        List<List<RowSegment>> columns = Cluster(segments.Where(segment =>
+            !spanning.Any(item => ReferenceEquals(item, segment))));
+        foreach (RowSegment banner in spanning)
+            columns.Add([banner]);
         return columns.OrderBy(column => column.Average(item => item.Box.CenterX)).ToList();
     }
 

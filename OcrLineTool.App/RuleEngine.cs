@@ -1053,7 +1053,10 @@ public static class RuleEngine
         string after = text[(lineEnd + 1)..(nextEnd < 0 ? text.Length : nextEnd)].Trim();
         string middle = text[(period.Index + period.Length)..lineEnd].Trim();
         Match opening = Regex.Match(middle, $@"(?:开\s*[?？]+|[{Zodiac}]\s*\d{{2}}\s*[中错])\s*$");
-        if (!opening.Success || ContainsAnyIssue(before) || ContainsAnyIssue(after))
+        if (!int.TryParse(period.Groups["issue"].Value, out int selectedIssue)
+            || !opening.Success
+            || ContainsIssueBoundary(before, selectedIssue)
+            || ContainsIssueBoundary(after, selectedIssue))
             return false;
         middle = middle[..opening.Index].Trim();
         if (rule.Id == "天线宝杀")
@@ -1325,10 +1328,13 @@ public static class RuleEngine
             Match heads = Regex.Match(block, @"今晚买\s*[【\[]?(?<values>[0-4\s]{7,})[】\]]?\s*头\s*$");
             if (!heads.Success)
                 return null;
-            string digits = new string(heads.Groups["values"].Value.Where(c => c is >= '0' and <= '4').Distinct().ToArray());
-            return digits.Length == 4
-                ? $"{Enumerable.Range(0, 5).Single(n => !digits.Contains((char)('0' + n)))}头"
-                : null;
+            char[] rawDigits = heads.Groups["values"].Value
+                .Where(c => c is >= '0' and <= '4')
+                .ToArray();
+            if (rawDigits.Length != 4 || rawDigits.Distinct().Count() != 4)
+                return null;
+            string digits = new(rawDigits);
+            return $"{Enumerable.Range(0, 5).Single(n => !digits.Contains((char)('0' + n)))}头";
         }
         if (rule.Id == "小骚货" && rule.Type == "九肖")
         {
@@ -2198,6 +2204,29 @@ public static class RuleEngine
             .Any(alias => normalized.Contains(alias, StringComparison.Ordinal));
     }
 
+    private static bool IsReviewedCompactTrailingCompletion(
+        string[] lines,
+        int index,
+        int issueIndex,
+        int issue,
+        int expectedCount,
+        OcrRule rule,
+        IEnumerable<string> currentParts)
+    {
+        if (!SplitIssueNumberRuleIds.Contains(rule.Id)
+            || index <= issueIndex + 1
+            || !IsOpeningOnlySeparator(lines[index - 1])
+            || !ContainsIssueBoundary(lines[index], issue))
+            return false;
+
+        string trimmed = SimplifyOcrText(lines[index]).Trim();
+        if (!Regex.IsMatch(trimmed, @"^\d{4,6}$"))
+            return false;
+
+        string scoped = ScopeNumberPayload(lines[index], rule, expectedCount);
+        return ExtractNumbers(string.Join(' ', currentParts.Append(scoped)), expectedCount) is not null;
+    }
+
     private static string? ExtractStrictCenteredNumberWindow(
         string[] lines, int issueIndex, int issue, int expectedCount, OcrRule rule)
     {
@@ -2259,7 +2288,10 @@ public static class RuleEngine
         bool sawRightPayload = false;
         for (int index = issueIndex + 1; index < lines.Length; index++)
         {
-            if (ContainsIssueBoundary(lines[index], issue))
+            bool reviewedTrailingCompletion = candidates.Any(parts =>
+                IsReviewedCompactTrailingCompletion(
+                    lines, index, issueIndex, issue, expectedCount, rule, parts));
+            if (ContainsIssueBoundary(lines[index], issue) && !reviewedTrailingCompletion)
                 break;
             if (Regex.IsMatch(SimplifyOcrText(lines[index]), @"参考|旁栏|排行|统计|说明"))
                 break;
@@ -2267,7 +2299,8 @@ public static class RuleEngine
                 continue;
             if (IsNumberRowStart(lines[index]) && sawRightPayload)
                 break;
-            if (!IsNumberContinuation(lines[index], expectedCount, rule, issue))
+            if (!reviewedTrailingCompletion
+                && !IsNumberContinuation(lines[index], expectedCount, rule, issue))
             {
                 if (IsNumberRowStart(lines[index]))
                     break;
@@ -2322,7 +2355,9 @@ public static class RuleEngine
         bool sawRightPayload = false;
         for (int index = issueIndex + 1; index < lines.Length; index++)
         {
-            if (ContainsIssueBoundary(lines[index], issue))
+            bool reviewedTrailingCompletion = IsReviewedCompactTrailingCompletion(
+                lines, index, issueIndex, issue, expectedCount, rule, parts);
+            if (ContainsIssueBoundary(lines[index], issue) && !reviewedTrailingCompletion)
                 break;
             if (Regex.IsMatch(SimplifyOcrText(lines[index]), @"参考|旁栏|排行|统计|说明"))
                 break;
@@ -2330,7 +2365,8 @@ public static class RuleEngine
                 break;
             if (IsOpeningOnlySeparator(lines[index]))
                 continue;
-            if (!IsNumberContinuation(lines[index], expectedCount, rule, issue))
+            if (!reviewedTrailingCompletion
+                && !IsNumberContinuation(lines[index], expectedCount, rule, issue))
             {
                 if (IsNumberRowStart(lines[index]))
                     break;
@@ -2464,17 +2500,11 @@ public static class RuleEngine
             ownershipText, @"[0-9\s,，.。:：*【】\[\]()（）?？←→]+", string.Empty);
         bool structuralField = Regex.IsMatch(decoration,
             @"^(?:(?:杀|殺){1,3}|开|開|禁|杀码|殺碼|杀特码|殺特碼|不开|不開|精选杀|精選殺|码|碼|特码|特碼|码中特码|码中特碼|计|計|包围码|包圍碼|锁三十六码|鎖三十六碼|庄家必杀|莊家必殺|绝杀[一二三四五六七八九十0-9]+码|絕殺[一二三四五六七八九十0-9]+碼|封杀|封殺)$");
-        bool explicitBracketField = HasExactBracketPayload(simplified, expectedCount)
-            && Regex.IsMatch(simplified,
-                @"(?:杀码|殺碼|杀码|杀(?:特)?码|殺(?:特)?碼|绝杀|絕殺|禁码|禁碼)[^【\[]*[【\[]");
-        if (!ownIdentity && !structuralField && !explicitBracketField)
+        if (!ownIdentity && !structuralField)
             return false;
 
-        // Brackets prove value grouping only after the line itself has been
-        // proven to belong to this field; a foreign bracket cannot claim it.
-        if (HasExactBracketPayload(scoped, expectedCount)
-            || explicitBracketField)
-            return true;
+        // Brackets prove grouping only after ownership has been established.
+        // Generic kill words plus a complete bracket can never claim a foreign field.
         return true;
     }
 
@@ -2488,10 +2518,12 @@ public static class RuleEngine
         string selected = selectedIssue.ToString();
         if (trimmed.Length != selected.Length)
             return false;
-        long difference = Math.Abs((long)actual - selectedIssue);
-        // Ambiguous compact digits near the selected period are treated as an
-        // issue boundary. Under the accuracy-first contract, ambiguity is missing.
-        return difference <= Math.Max(100L, selectedIssue / 10L);
+
+        // A same-width bare 4-6 digit row is ambiguous: it can be another issue
+        // marker or compact two-digit lottery pairs. There is no textual proof
+        // that lets a generic field safely choose the latter. Accuracy wins over
+        // recall here, so every such row closes the selected issue block.
+        return true;
     }
 
     private static bool HasExactBracketPayload(string line, int expectedCount)
