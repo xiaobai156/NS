@@ -1409,6 +1409,22 @@ public static class RuleEngine
                 ? $"缺失（{reason}） {rule.OutputLabel}"
                 : $"缺失 {rule.OutputLabel}").ToArray();
 
+    public static bool IsCanonicalValueValid(OcrRule rule, string value)
+    {
+        value = SimplifyOcrText(value.Trim());
+        if (rule.Type == "五行")
+        {
+            return value.Length == 1 && "金木水火土".Contains(value[0])
+                || value.Length == 4 && value.All("金木水火土".Contains)
+                    && value.Distinct().Count() == 4;
+        }
+        if (rule.Type.StartsWith("号码:", StringComparison.Ordinal))
+            return IsFormattedOutputValueValid(rule, Regex.Replace(value, @"\s+", ","));
+        if (rule.Type is "尾数组合" or "头数组合")
+            return IsFormattedOutputValueValid(rule, value.Replace('+', ' '));
+        return IsFormattedOutputValueValid(rule, value);
+    }
+
     public static bool IsFormattedOutputValueValid(OcrRule rule, string value)
     {
         value = SimplifyOcrText(value.Trim());

@@ -31,7 +31,8 @@ internal sealed class ResultEvidenceLedger
     {
         ResultValues.AddTo(values, rule.Id, value);
         bool conflict = ResultValues.IsConflict(values, rule.Id);
-        if (!conflict && !values.TryGetValue(rule.Id, out string? accepted))
+        string? accepted = null;
+        if (!conflict && !values.TryGetValue(rule.Id, out accepted))
         {
             records.Remove(rule.Id);
             return;

@@ -322,12 +322,13 @@ public sealed class BaiduOcrClient : IOcrClient
         [
             new("image", Convert.ToBase64String(bytes)),
             new("language_type", "CHN_ENG"),
-            new("detect_direction", "true")
+            new("detect_direction", "true"),
+            new("probability", "true")
         ]);
 
         try
         {
-            string url = "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic?access_token=" + Uri.EscapeDataString(token);
+            string url = "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate?access_token=" + Uri.EscapeDataString(token);
             using HttpResponseMessage response = await httpClient.PostAsync(url, content, cancellationToken);
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)

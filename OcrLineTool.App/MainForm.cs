@@ -1290,7 +1290,8 @@ public sealed class MainForm : Form
                 .Where(candidate => candidate.IsPrimary)
                 .Take(issueCheckCount)
                 .ToArray();
-            var checkedCloudEvidence = new Dictionary<string, OcrEvidence>(StringComparer.OrdinalIgnoreCase);
+            var checkedCloudEvidence = new Dictionary<string, OcrEvidence>(StringComparer.Ordinal);
+            var issueCheckEvidence = new List<OcrEvidence>();
             async Task<OcrEvidence> RecognizePrimaryDeduplicatedAsync(
                 RecognitionCandidate candidate, int displayIndex, int displayTotal, string stage)
                 => await primaryImageDeduplicator.RecognizeEvidenceAsync(
@@ -1355,13 +1356,15 @@ public sealed class MainForm : Form
                 for (int index = 0; index < issueCheckCandidates.Length; index++)
                 {
                     RecognitionCandidate candidate = issueCheckCandidates[index];
-                    checkedCloudEvidence[candidate.SourcePath] = await RecognizePrimaryDeduplicatedAsync(
+                    OcrEvidence precheckEvidence = await RecognizePrimaryDeduplicatedAsync(
                         candidate, index + 1, issueCheckCount, "云 OCR 期数检查");
+                    checkedCloudEvidence[CloudEvidenceKey(precheckEvidence)] = precheckEvidence;
+                    issueCheckEvidence.Add(precheckEvidence);
                     SetProgress(index + 1, issueCheckCount);
                 }
 
                 int? detectedIssue = RuleEngine.DetectIssueMismatch(
-                    issueCheckCandidates.Select(candidate => checkedCloudEvidence[candidate.SourcePath].Lines),
+                    issueCheckEvidence.Select(evidence => evidence.Lines),
                     issue);
                 if (detectedIssue is not null)
                 {
@@ -1386,7 +1389,9 @@ public sealed class MainForm : Form
                 candidateImages++;
                 int cloudIndex = candidateImages;
                 OcrEvidence cloudEvidence;
-                if (!checkedCloudEvidence.TryGetValue(candidate.SourcePath, out cloudEvidence!))
+                OcrEvidenceIdentity currentPrimaryIdentity = OcrEvidenceIdentity.Capture(
+                    candidate.SourcePath, candidate.OcrPath, $"cloud-primary/{candidate.SelectionMode}");
+                if (!checkedCloudEvidence.TryGetValue(CloudEvidenceKey(currentPrimaryIdentity), out cloudEvidence!))
                 {
                     cloudEvidence = await RecognizePrimaryDeduplicatedAsync(
                         candidate, cloudIndex, plannedCloudImages, "云 OCR");
@@ -1437,7 +1442,7 @@ public sealed class MainForm : Form
                     || fallbackEvidence?.Items.Any(item => !string.IsNullOrWhiteSpace(item.Text)) == true;
                 lastCloudOcrResults[candidate.SourcePath] = cloudLines;
                 CloudOcrCacheStore.SaveEntry(
-                    AppContext.BaseDirectory, groupName, issue, candidate.SourcePath, lastCloudOcrResults[candidate.SourcePath], candidate.OcrPath);
+                    AppContext.BaseDirectory, groupName, issue, cloudEvidence);
                 if (recognizedText)
                     textRecognizedRuleIds.UnionWith(activeRules.Select(rule => rule.Id));
                 foreach (OcrRule rule in activeRules)
@@ -1604,9 +1609,13 @@ public sealed class MainForm : Form
             RefreshImagesForRetry();
             OcrRule[] missingRules = lastRules.Where(rule => !lastValues.ContainsKey(rule.Id)).ToArray();
             string groupName = RuleCatalog.GroupNameForFolder(AppContext.BaseDirectory, selectedImageDirectory!);
-            // Revalidate disk/image identity; do not retain stale in-memory paths after image replacement.
-            lastCloudOcrResults = CloudOcrCacheStore.Load(AppContext.BaseDirectory, groupName, lastIssue);
-            if (lastValues is ResultValues guarded) guarded.Conflicts.Clear();
+            // Revalidate disk/image identity; structured cache entries retain the
+            // exact source hash and OCR evidence. Known conflicts stay sticky.
+            Dictionary<string, OcrEvidence> retryCloudEvidence =
+                CloudOcrCacheStore.LoadEvidence(AppContext.BaseDirectory, groupName, lastIssue);
+            lastCloudOcrResults = retryCloudEvidence.ToDictionary(
+                pair => pair.Key, pair => (IReadOnlyList<string>)pair.Value.Lines.ToArray(),
+                StringComparer.OrdinalIgnoreCase);
             CandidateSelection selection = await SelectCandidatesAsync(
                 missingRules,
                 lastIssue,
@@ -1641,21 +1650,21 @@ public sealed class MainForm : Form
 
             foreach (RecognitionCandidate candidate in selection.Candidates)
             {
-                // Selection already contains only the rules missing at retry start.
+                // Selection contains the rules missing at retry start, but an already
+                // obtained whole-image response must also be compared against sibling rules
+                // that share the same configured source folder.
                 OcrRule[] candidateMissing = candidate.Rules.ToArray();
                 if (candidateMissing.Length == 0)
                     continue;
+                OcrRule[] evidenceRules = RetryEvidenceRules(candidate, lastRules);
 
                 OcrEvidence? primaryEvidence = null;
-                bool reusedCache = lastCloudOcrResults.TryGetValue(candidate.SourcePath, out IReadOnlyList<string>? cachedLines)
-                    && CanReuseRetryCloudLines(selectedImageDirectory!, candidateMissing, cachedLines, lastIssue);
+                bool reusedCache = retryCloudEvidence.TryGetValue(candidate.SourcePath, out OcrEvidence? cachedEvidence)
+                    && CanReuseRetryCloudEvidence(lastValues, candidateMissing, cachedEvidence, lastIssue);
                 if (reusedCache)
                 {
-                    // Legacy cloud cache has no geometry; each opaque line is isolated.
-                    OcrEvidenceIdentity cacheIdentity = OcrEvidenceIdentity.Capture(
-                        candidate.SourcePath, candidate.SourcePath, "retry/cloud-cache");
-                    primaryEvidence = OcrEvidence.FromLines(candidate.SourcePath, cachedLines!, "cache").Bind(cacheIdentity);
-                    AddExtractedEvidenceValues(primaryEvidence, candidateMissing, lastIssue, lastValues, lastEvidenceLedger);
+                    primaryEvidence = cachedEvidence!;
+                    AddExtractedEvidenceValues(primaryEvidence, evidenceRules, lastIssue, lastValues, lastEvidenceLedger);
                 }
                 else
                 {
@@ -1677,7 +1686,7 @@ public sealed class MainForm : Form
                                     cloudClient, credential, candidate.SourcePath, primaryInputPath,
                                     completed + 1, selection.Candidates.Count);
                             });
-                        AddExtractedEvidenceValues(primaryEvidence, candidateMissing, lastIssue, lastValues, lastEvidenceLedger);
+                        AddExtractedEvidenceValues(primaryEvidence, evidenceRules, lastIssue, lastValues, lastEvidenceLedger);
                     }
                     catch (OcrException exception)
                     {
@@ -1707,7 +1716,7 @@ public sealed class MainForm : Form
                                     fallbackClient, fallbackCredential, candidate.SourcePath, candidate.SourcePath,
                                     completed + 1, selection.Candidates.Count);
                             });
-                        AddExtractedEvidenceValues(fallbackEvidence, candidate.Rules, lastIssue, lastValues, lastEvidenceLedger);
+                        AddExtractedEvidenceValues(fallbackEvidence, evidenceRules, lastIssue, lastValues, lastEvidenceLedger);
                     }
                     catch (OcrException)
                     {
@@ -1715,13 +1724,11 @@ public sealed class MainForm : Form
                     }
                 }
 
-                if (!reusedCache)
+                if (!reusedCache && primaryEvidence is not null)
                 {
-                    IReadOnlyList<string> primaryLines = primaryEvidence?.Lines ?? [];
-                    lastCloudOcrResults[candidate.SourcePath] = primaryLines;
+                    lastCloudOcrResults[candidate.SourcePath] = primaryEvidence.Lines;
                     CloudOcrCacheStore.SaveEntry(
-                        AppContext.BaseDirectory, groupName, lastIssue, candidate.SourcePath, lastCloudOcrResults[candidate.SourcePath],
-                        RetryPrimaryImage(selectedImageDirectory!, candidate.SourcePath, candidate.OcrPath, candidate.Rules));
+                        AppContext.BaseDirectory, groupName, lastIssue, primaryEvidence);
                 }
 
                 bool recognizedText = primaryEvidence?.Items.Any(item => !string.IsNullOrWhiteSpace(item.Text)) == true
@@ -1897,6 +1904,45 @@ public sealed class MainForm : Form
             if (value is not null)
                 ledger.Observe(values, rule, value, evidence);
         }
+    }
+
+    internal static string CloudEvidenceKey(OcrEvidenceIdentity identity) =>
+        string.Join("|", identity.SourcePath, identity.SourceHash, identity.InputPath, identity.InputHash, identity.ViewId);
+
+    private static string CloudEvidenceKey(OcrEvidence evidence) =>
+        string.Join("|", evidence.SourcePath, evidence.SourceHash, evidence.InputPath, evidence.InputHash, evidence.ViewId);
+
+    internal static bool CanReuseRetryCloudEvidence(
+        IReadOnlyDictionary<string, string> values,
+        IReadOnlyList<OcrRule> rules,
+        OcrEvidence evidence,
+        int issue)
+    {
+        if (rules.Any(rule => ResultValues.IsConflict(values, rule.Id)))
+            return false;
+        try
+        {
+            if (!File.Exists(evidence.SourcePath) ||
+                !LocalOcrIdentity.Image(evidence.SourcePath).Equals(evidence.SourceHash, StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return false;
+        }
+        return rules.Any(rule => RuleEngine.ExtractFinalValue(evidence, issue, rule) is not null);
+    }
+
+    private static OcrRule[] RetryEvidenceRules(RecognitionCandidate candidate, IReadOnlyList<OcrRule> allRules)
+    {
+        HashSet<string> selectedIds = candidate.Rules.Select(rule => rule.Id).ToHashSet(StringComparer.Ordinal);
+        HashSet<string> folders = candidate.Rules
+            .Select(rule => rule.Folder)
+            .Where(folder => !string.IsNullOrWhiteSpace(folder))
+            .Select(folder => folder!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return allRules.Where(rule => selectedIds.Contains(rule.Id)
+            || !string.IsNullOrWhiteSpace(rule.Folder) && folders.Contains(rule.Folder!)).ToArray();
     }
 
     private bool CanRetryMissing() =>
