@@ -25,6 +25,13 @@ jobs:
         run: python -m pip install numpy pillow
       - name: Configure hosted test desktop
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/Set-TestDisplay.ps1
+      - name: Prepare safe patch runner
+        shell: pwsh
+        run: |
+          $path = 'tools/apply_final_f03_f14_closure.py'
+          $text = Get-Content $path -Raw
+          $text = $text.Replace('re.subn(pattern, replacement, text, count=count, flags=re.S)', 're.subn(pattern, lambda _: replacement, text, count=count, flags=re.S)')
+          Set-Content -Path $path -Value $text -Encoding utf8
       - name: Apply final F03 F14 patch
         run: python tools/apply_final_f03_f14_closure.py
       - name: Accuracy regression tests
