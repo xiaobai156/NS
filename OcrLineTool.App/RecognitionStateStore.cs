@@ -8,6 +8,7 @@ public sealed record ResultEvidenceRecord(
     string RuleType,
     string OutputLabel,
     string Value,
+    string Status,
     string SourcePath,
     string SourceHash,
     string InputHash,
@@ -22,13 +23,13 @@ internal sealed class ResultEvidenceLedger
     internal IReadOnlyDictionary<string, ResultEvidenceRecord> Records => records;
 
     internal void Observe(
-        IDictionary<string, string> values,
+        ResultValues values,
         OcrRule rule,
         string value,
         OcrEvidence evidence)
     {
         ResultValues.AddTo(values, rule.Id, value);
-        if (ResultValues.IsConflict((IReadOnlyDictionary<string, string>)values, rule.Id)
+        if (ResultValues.IsConflict(values, rule.Id)
             || !values.TryGetValue(rule.Id, out string? accepted))
         {
             records.Remove(rule.Id);
@@ -40,6 +41,7 @@ internal sealed class ResultEvidenceLedger
             rule.Type,
             rule.OutputLabel,
             accepted,
+            "success",
             evidence.SourcePath,
             evidence.SourceHash,
             evidence.InputHash,
@@ -53,6 +55,7 @@ internal sealed class ResultEvidenceLedger
     }
 
     internal void Seed(ResultEvidenceRecord record) => records[record.RuleId] = record;
+    internal void Remove(string ruleId) => records.Remove(ruleId);
     internal void Clear() => records.Clear();
 }
 
@@ -87,10 +90,12 @@ internal static class RecognitionStateStore
             var byId = rules.ToDictionary(rule => rule.Id, StringComparer.Ordinal);
             foreach (ResultEvidenceRecord record in document.Results ?? [])
             {
-                if (!byId.TryGetValue(record.RuleId, out OcrRule? rule) ||
+                if (!record.Status.Equals("success", StringComparison.Ordinal) ||
+                    !byId.TryGetValue(record.RuleId, out OcrRule? rule) ||
                     record.RuleType != rule.Type || record.OutputLabel != rule.OutputLabel ||
                     !RuleEngine.IsFormattedOutputValueValid(rule, record.Value) ||
-                    string.IsNullOrWhiteSpace(record.SourceHash) || string.IsNullOrWhiteSpace(record.ViewId))
+                    string.IsNullOrWhiteSpace(record.SourceHash) || string.IsNullOrWhiteSpace(record.InputHash) ||
+                    string.IsNullOrWhiteSpace(record.ViewId) || record.RegionIds.Length == 0)
                     continue;
                 try
                 {
@@ -132,7 +137,8 @@ internal static class RecognitionStateStore
         {
             if (!byId.TryGetValue(ruleId, out OcrRule? rule) ||
                 !evidence.Records.TryGetValue(ruleId, out ResultEvidenceRecord? record) ||
-                record.Value != value || record.RuleType != rule.Type || record.OutputLabel != rule.OutputLabel ||
+                record.Status != "success" || record.Value != value ||
+                record.RuleType != rule.Type || record.OutputLabel != rule.OutputLabel ||
                 !RuleEngine.IsFormattedOutputValueValid(rule, value))
                 continue;
             results.Add(record);
