@@ -1,8 +1,0 @@
-name: Residual accuracy stage A (retired)
-on:
-  workflow_dispatch:
-jobs:
-  retired:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Stage A is already applied and validated; retained temporarily for repair-history cleanup."
