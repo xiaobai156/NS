@@ -11,6 +11,14 @@ def replace_once(old: str, new: str, label: str) -> None:
         raise RuntimeError(f'{label}: expected 1 occurrence, found {count}')
     text = text.replace(old, new, 1)
 
+# The pre-filter for nearby-value cards must recognize the same selected-issue
+# boundaries as the actual extraction pass, including 4-6 digit bare issues.
+replace_once(
+'''        bool hasEarlierIssue = lines.Take(target).Any(ContainsAnyIssue);''',
+'''        bool hasEarlierIssue = lines.Take(target).Any(line =>
+            ContainsIssue(line, issue) || ContainsIssueBoundary(line, issue));''',
+'nearby prefilter earlier issue')
+
 # A later 4-6 digit bare issue row must close a single-head issue block just as
 # a normal NNN期 row does. Also stop on a repeated bare selected issue.
 replace_once(
@@ -79,7 +87,20 @@ new = '''                if (ContainsIssueBoundary(line, issue) && !ContainsIssu
                     break;'''
 count = text.count(old)
 if count != 2:
-    raise RuntimeError(f'nearby zodiac boundary: expected 2 occurrences, found {count}')
+    raise RuntimeError(f'nearby zodiac forward boundary: expected 2 occurrences, found {count}')
+text = text.replace(old, new)
+
+# Likewise, deciding whether it is safe to look backward from the selected issue
+# must recognize a 4-6 digit bare previous issue. Otherwise a previous period's
+# standalone zodiac can be borrowed into the selected period.
+old = '''            int previousIssueIndex = Enumerable.Range(0, index)
+                .LastOrDefault(i => ContainsAnyIssue(lines[i]), -1);'''
+new = '''            int previousIssueIndex = Enumerable.Range(0, index)
+                .LastOrDefault(i => ContainsIssue(lines[i], issue)
+                    || ContainsIssueBoundary(lines[i], issue), -1);'''
+count = text.count(old)
+if count != 2:
+    raise RuntimeError(f'nearby zodiac backward boundary: expected 2 occurrences, found {count}')
 text = text.replace(old, new)
 
 path.write_text(text, encoding='utf-8')
