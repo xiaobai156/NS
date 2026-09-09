@@ -32,7 +32,9 @@ jobs:
       - name: Configure hosted test desktop
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/Set-TestDisplay.ps1
       - name: Apply residual accuracy repairs
-        run: python -X utf8 tools/apply_residual_accuracy_round2.py
+        run: |
+          python -X utf8 tools/apply_residual_accuracy_round2.py
+          python -X utf8 tools/apply_residual_accuracy_round2_compat.py
       - name: Reaudit accuracy tests
         run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category=ReauditAccuracy'
       - name: Windows Debug regression tests
