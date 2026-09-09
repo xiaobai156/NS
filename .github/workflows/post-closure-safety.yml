@@ -28,6 +28,7 @@ jobs:
       - name: Apply post-closure safety fixes
         run: |
           python tools/apply_post_closure_safety.py
+          python tools/apply_post_closure_nearby_boundary_followup.py
           python tools/apply_post_closure_complement.py
           python tools/apply_post_closure_halfwave.py
           python tools/apply_post_closure_repeated_markers.py
