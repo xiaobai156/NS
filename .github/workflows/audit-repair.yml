@@ -26,15 +26,21 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifacts/cuda-validation | Out-Null
-          $dll = Get-ChildItem OcrLineTool.App/bin -Recurse -Filter cuda_hash.dll | Select-Object -First 1
-          if ($dll) { Copy-Item $dll.FullName artifacts/cuda-validation/cuda_hash.dll }
+          if (Test-Path OcrLineTool.App/bin) {
+            $dll = Get-ChildItem OcrLineTool.App/bin -Recurse -Filter cuda_hash.dll | Select-Object -First 1
+            if ($dll) { Copy-Item $dll.FullName artifacts/cuda-validation/cuda_hash.dll }
+          }
       - name: Apply reviewed source changes
         id: apply
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force audit-test-results | Out-Null
           python tools/apply_audit_fixes.py 2>&1 | Tee-Object audit-test-results/apply.log
-          exit $LASTEXITCODE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($phase in (Get-ChildItem tools/audit_phase*.py | Sort-Object Name)) {
+            python $phase.FullName 2>&1 | Tee-Object -Append audit-test-results/apply.log
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
       - name: Python regression tests
         id: python
         if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
@@ -78,6 +84,10 @@ jobs:
           if ($env:APPLY_RESULT -eq 'success' -and (Test-Path .audit-changed.json)) {
             $paths = Get-Content .audit-changed.json -Raw | ConvertFrom-Json
             foreach ($path in $paths) { git add -- $path; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+            if (Test-Path .audit-remove.json) {
+              python -c "import json,subprocess; p=json.load(open('.audit-remove.json',encoding='utf-8')); [subprocess.run(['git','rm','--cached','--ignore-unmatch','--',*p[i:i+40]],check=True) for i in range(0,len(p),40)]"
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            }
           }
           git add -- docs/audit-run-report.md
           git config user.name 'github-actions[bot]'
