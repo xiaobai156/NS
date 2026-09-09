@@ -13,10 +13,25 @@ public sealed record OcrRule(
     bool AllowNearbyValue = false,
     bool AllowValueWithoutKeyword = false,
     bool StrictIssueBlock = false,
-    bool SingleValuePerIssue = false)
+    bool SingleValuePerIssue = false,
+    IReadOnlyList<string>? PeerKeywords = null)
 {
     public string Id => Label ?? Keyword;
     public string OutputLabel => Label ?? Keyword;
+}
+
+public enum RuleExtractionStatus
+{
+    Missing,
+    Success,
+    Conflict
+}
+
+public sealed record RuleExtractionResult(RuleExtractionStatus Status, string? Value)
+{
+    public static RuleExtractionResult Missing { get; } = new(RuleExtractionStatus.Missing, null);
+    public static RuleExtractionResult Conflict { get; } = new(RuleExtractionStatus.Conflict, null);
+    public static RuleExtractionResult Success(string value) => new(RuleExtractionStatus.Success, value);
 }
 
 public static class RuleEngine
@@ -28,6 +43,7 @@ public static class RuleEngine
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex YearIssueRegex = new(@"^\s*\d{4}\s*[-—/]\s*(?<issue>\d{3,6})(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private const string Zodiac = "马蛇龙兔虎牛鼠猪狗鸡猴羊";
+    private const string ConflictMarker = "OCR-CONFLICT";
     // Only reviewed layouts may place part of one physical number row before
     // its issue cell. Generic rules must never borrow heading/previous data.
     private static readonly IReadOnlySet<string> SplitIssueNumberRuleIds =
@@ -255,7 +271,10 @@ public static class RuleEngine
     }
 
     public static string? ExtractValue(IEnumerable<string> cloudLines, int issue, OcrRule rule)
-        => ExtractValueCore(cloudLines, issue, rule, requireCloudKeyword: true);
+    {
+        string? raw = ExtractValueCore(cloudLines, issue, rule, requireCloudKeyword: true);
+        return raw == ConflictMarker ? null : raw;
+    }
 
     private static string? ExtractValueCore(IEnumerable<string> cloudLines, int issue, OcrRule rule, bool requireCloudKeyword)
     {
@@ -311,12 +330,16 @@ public static class RuleEngine
                 && !HasSectionForIssueRow(lines, index, scopeStart, issue, rule))
                 continue;
 
-            candidates.Add(line);
-            string combined = line;
+            string scopedLine = ScopeCandidateToPeerBoundary(line, rule, aliases, out bool peerClosed);
+            candidates.Add(scopedLine);
+            if (peerClosed)
+                continue;
+            string combined = scopedLine;
             for (int next = index + 1; next < lines.Length && next <= index + 4; next++)
             {
                 if (OcrLayoutMarkers.IsBoundary(lines[next])
                     || ContainsIssueBoundary(lines[next], issue)
+                    || ContainsPeerIdentity(lines[next], rule)
                     || combined.Length + lines[next].Length >= 180)
                     break;
                 combined += " " + lines[next];
@@ -357,7 +380,7 @@ public static class RuleEngine
                         nineValues.Add(value);
                 }
             }
-            return nineValues.Count == 1 ? nineValues.Single() : null;
+            return nineValues.Count == 0 ? null : nineValues.Count == 1 ? nineValues.Single() : ConflictMarker;
         }
 
         if (rule.Type.StartsWith("号码:", StringComparison.Ordinal)
@@ -385,7 +408,7 @@ public static class RuleEngine
         }
         // Never let an earlier copy of the selected issue silently win.
         if (observed.Count > 0)
-            return observed.Count == 1 ? observed.Single() : null;
+            return observed.Count == 1 ? observed.Single() : ConflictMarker;
 
         if (rule.AllowNearbyValue
             && rule.Type is ("生肖" or "单生肖"))
@@ -426,6 +449,61 @@ public static class RuleEngine
             && other.StartsWith(candidate + " ", StringComparison.Ordinal)));
     }
 
+    private static string ScopeCandidateToPeerBoundary(
+        string line, OcrRule rule, IReadOnlyList<string> aliases, out bool closed)
+    {
+        closed = false;
+        if (rule.PeerKeywords is not { Count: > 0 })
+            return line;
+        string normalized = Normalize(line);
+        (int Index, int Length)[] own = aliases
+            .Select(alias => (Index: normalized.IndexOf(alias, StringComparison.Ordinal), Length: alias.Length))
+            .Where(item => item.Index >= 0)
+            .ToArray();
+        if (own.Length == 0)
+            return line;
+        int ownIndex = own.Min(item => item.Index);
+        int ownEnd = own.Where(item => item.Index == ownIndex).Max(item => item.Index + item.Length);
+        int peerIndex = rule.PeerKeywords
+            .Where(peer => !string.IsNullOrWhiteSpace(peer))
+            .Select(Normalize)
+            .Distinct(StringComparer.Ordinal)
+            .Select(peer => normalized.IndexOf(peer, ownEnd, StringComparison.Ordinal))
+            .Where(index => index >= 0)
+            .DefaultIfEmpty(-1)
+            .Min();
+        if (peerIndex < 0)
+            return line;
+        closed = true;
+        return normalized[..peerIndex];
+    }
+
+    private static bool ContainsPeerIdentity(string line, OcrRule rule)
+    {
+        if (rule.PeerKeywords is not { Count: > 0 })
+            return false;
+        string normalized = Normalize(line);
+        return rule.PeerKeywords
+            .Where(peer => !string.IsNullOrWhiteSpace(peer))
+            .Select(Normalize)
+            .Any(peer => normalized.Contains(peer, StringComparison.Ordinal));
+    }
+
+    private static string TrimAtPeerBoundary(string normalizedTail, OcrRule rule)
+    {
+        if (rule.PeerKeywords is not { Count: > 0 })
+            return normalizedTail;
+        int peer = rule.PeerKeywords
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(Normalize)
+            .Distinct(StringComparer.Ordinal)
+            .Select(value => normalizedTail.IndexOf(value, StringComparison.Ordinal))
+            .Where(index => index >= 0)
+            .DefaultIfEmpty(-1)
+            .Min();
+        return peer >= 0 ? normalizedTail[..peer] : normalizedTail;
+    }
+
     private static string? ExtractSingleHeadPerIssue(string[] lines, int issue)
     {
         var heads = new HashSet<char>();
@@ -456,7 +534,7 @@ public static class RuleEngine
             }
         }
 
-        return foundIssue && heads.Count == 1 ? $"{heads.Single()}头" : null;
+        return !foundIssue || heads.Count == 0 ? null : heads.Count == 1 ? $"{heads.Single()}头" : ConflictMarker;
     }
 
     private static string TextAfterIssue(string line, int issue)
@@ -573,7 +651,7 @@ public static class RuleEngine
                 if (aliasIndex < 0)
                     continue;
 
-                string tail = line[(aliasIndex + aliasText.Length)..];
+                string tail = TrimAtPeerBoundary(line[(aliasIndex + aliasText.Length)..], rule);
                 int forbiddenIndex = tail.IndexOf('禁');
                 if (forbiddenIndex >= 0)
                 {
@@ -598,7 +676,7 @@ public static class RuleEngine
             }
         }
 
-        return observed.Count == 1 ? observed.Single() : null;
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
     }
 
     private static string? ExtractMostFrequentZodiac(string[] lines, int issue, OcrRule rule)
@@ -711,46 +789,80 @@ public static class RuleEngine
         return false;
     }
 
-    public static string? ExtractFinalValue(IEnumerable<string> cloudLines, int issue, OcrRule rule) =>
-        ExtractValueCore(RejectCrossIssueNearbyValue(cloudLines, issue, rule), issue, rule, requireCloudKeyword: false);
+    public static RuleExtractionResult ExtractFinalResult(
+        IEnumerable<string> cloudLines, int issue, OcrRule rule)
+    {
+        string? raw = ExtractValueCore(
+            RejectCrossIssueNearbyValue(cloudLines, issue, rule), issue, rule, requireCloudKeyword: false);
+        return ToExtractionResult(raw);
+    }
 
-    public static string? ExtractFinalValue(OcrEvidence evidence, int issue, OcrRule rule)
+    public static string? ExtractFinalValue(IEnumerable<string> cloudLines, int issue, OcrRule rule) =>
+        ExtractFinalResult(cloudLines, issue, rule).Value;
+
+    public static RuleExtractionResult ExtractFinalResult(OcrEvidence evidence, int issue, OcrRule rule)
     {
         ArgumentNullException.ThrowIfNull(evidence);
         var observed = new HashSet<string>(StringComparer.Ordinal);
+        bool conflict = false;
         foreach (IGrouping<string, OcrLineEvidence> region in evidence.Items
             .Where(item => !string.IsNullOrWhiteSpace(item.Text))
             .GroupBy(item => item.ViewId + "\u001f" + item.RegionId, StringComparer.Ordinal))
         {
             OcrLineEvidence[] items = region.ToArray();
-            string? value;
+            RuleExtractionResult regional;
             if (items.All(item => item.Box is not null))
             {
-                value = ExtractFinalValue(items.Select(item => item.Text), issue, rule);
+                regional = ExtractFinalResult(items.Select(item => item.Text), issue, rule);
             }
             else
             {
-                // Without geometry, adjacency is not proof that lines may be
-                // concatenated, but neither is it proof that a short valid line
-                // is a complete field. Require the whole opaque region to agree
-                // with one independently complete physical OCR item.
-                string? holistic = ExtractFinalValue(items.Select(item => item.Text), issue, rule);
+                RuleExtractionResult holistic = ExtractFinalResult(items.Select(item => item.Text), issue, rule);
+                if (holistic.Status == RuleExtractionStatus.Conflict)
+                {
+                    conflict = true;
+                    continue;
+                }
                 var atomic = new HashSet<string>(StringComparer.Ordinal);
                 foreach (OcrLineEvidence item in items)
                 {
-                    string? itemValue = ExtractFinalValue(new[] { item.Text }, issue, rule);
-                    if (itemValue is not null)
-                        atomic.Add(itemValue);
+                    RuleExtractionResult itemResult = ExtractFinalResult(new[] { item.Text }, issue, rule);
+                    if (itemResult.Status == RuleExtractionStatus.Conflict)
+                        conflict = true;
+                    else if (itemResult.Status == RuleExtractionStatus.Success)
+                        atomic.Add(itemResult.Value!);
                 }
-                value = holistic is not null && atomic.Count == 1 && atomic.Contains(holistic)
+                if (conflict || atomic.Count > 1)
+                {
+                    conflict = true;
+                    continue;
+                }
+                regional = holistic.Status == RuleExtractionStatus.Success
+                    && atomic.Count == 1 && atomic.Contains(holistic.Value!)
                     ? holistic
-                    : null;
+                    : RuleExtractionResult.Missing;
             }
-            if (value is not null)
-                observed.Add(value);
+            if (regional.Status == RuleExtractionStatus.Conflict)
+                conflict = true;
+            else if (regional.Status == RuleExtractionStatus.Success)
+                observed.Add(regional.Value!);
         }
-        return observed.Count == 1 ? observed.Single() : null;
+        if (conflict || observed.Count > 1)
+            return RuleExtractionResult.Conflict;
+        return observed.Count == 1
+            ? RuleExtractionResult.Success(observed.Single())
+            : RuleExtractionResult.Missing;
     }
+
+    public static string? ExtractFinalValue(OcrEvidence evidence, int issue, OcrRule rule) =>
+        ExtractFinalResult(evidence, issue, rule).Value;
+
+    private static RuleExtractionResult ToExtractionResult(string? raw) =>
+        raw == ConflictMarker
+            ? RuleExtractionResult.Conflict
+            : raw is null
+                ? RuleExtractionResult.Missing
+                : RuleExtractionResult.Success(raw);
 
     private static IEnumerable<string> RejectCrossIssueNearbyValue(IEnumerable<string> source, int issue, OcrRule rule)
     {
@@ -821,7 +933,7 @@ public static class RuleEngine
                     reviewed.Add(split);
             }
             if (reviewed.Count > 0)
-                return reviewed.Count == 1 ? reviewed.Single() : null;
+                return reviewed.Count == 0 ? null : reviewed.Count == 1 ? reviewed.Single() : ConflictMarker;
         }
 
         string text = SimplifyOcrText(string.Join('\n', lines));
@@ -885,7 +997,7 @@ public static class RuleEngine
                 return null;
             values.Add(value);
         }
-        return values.Count == 1 ? values.Single() : null;
+        return values.Count == 0 ? null : values.Count == 1 ? values.Single() : ConflictMarker;
     }
 
     private static bool TryExtractWrappedCardRow(string text, Match period, OcrRule rule, out string? value)
@@ -955,7 +1067,7 @@ public static class RuleEngine
             }
         }
         if (standaloneValues.Count > 0)
-            return standaloneValues.Count == 1 ? standaloneValues.Single() : null;
+            return standaloneValues.Count == 0 ? null : standaloneValues.Count == 1 ? standaloneValues.Single() : ConflictMarker;
 
         var values = new HashSet<string>(StringComparer.Ordinal);
         for (int index = 0; index < lines.Length; index++)
@@ -974,7 +1086,7 @@ public static class RuleEngine
                     values.Add(value);
             }
         }
-        return values.Count == 1 ? values.Single() : null;
+        return values.Count == 0 ? null : values.Count == 1 ? values.Single() : ConflictMarker;
     }
 
     private static string? ExtractVerticalIssueZodiac(string[] lines, int issue, OcrRule rule)
@@ -1013,7 +1125,7 @@ public static class RuleEngine
             if (int.TryParse(issueText, out int actualIssue) && actualIssue == issue)
                 values.Add(zodiacRows[0][column]);
         }
-        return values.Count == 1 ? values[0].ToString() : null;
+        return values.Count == 0 ? null : values.Count == 1 ? values[0].ToString() : ConflictMarker;
     }
 
     private static string? ExtractLeadingSplitNumberTable(
@@ -1065,7 +1177,7 @@ public static class RuleEngine
                 return null;
             values.Add(string.Join(' ', numbers.Select(number => number.ToString("00"))));
         }
-        return values.Count == 1 ? values.Single() : null;
+        return values.Count == 0 ? null : values.Count == 1 ? values.Single() : ConflictMarker;
     }
 
     private static List<(int Position, int Value)>? ExtractPositionedTableNumbers(
@@ -1760,7 +1872,7 @@ public static class RuleEngine
                     splitObserved.Add(split);
             }
             if (splitObserved.Count > 0)
-                return splitObserved.Count == 1 ? splitObserved.Single() : null;
+                return splitObserved.Count == 0 ? null : splitObserved.Count == 1 ? splitObserved.Single() : ConflictMarker;
         }
 
         string joined = SimplifyOcrText(string.Join('\n', lines));
@@ -1810,7 +1922,7 @@ public static class RuleEngine
             if (value is not null)
                 observed.Add(value);
         }
-        return observed.Count == 1 ? observed.Single() : null;
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
     }
 
     private static string? ExtractStrictCenteredNumberWindow(
@@ -2076,7 +2188,7 @@ public static class RuleEngine
             }
             // Multiple complete fields are evidence of ambiguity/conflict, not
             // permission to return the first one.
-            return bracketValues.Count == 1 ? bracketValues.Single() : null;
+            return bracketValues.Count == 0 ? null : bracketValues.Count == 1 ? bracketValues.Single() : ConflictMarker;
         }
         return FormatNumbers(ParseNumbers(RemoveIssue(beforeOpening)), expectedCount);
     }

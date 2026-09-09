@@ -1885,13 +1885,15 @@ public sealed class MainForm : Form
     {
         foreach (OcrRule rule in rules)
         {
-            string? value = RuleEngine.ExtractFinalValue(lines, issue, rule);
-            if (value is not null)
-                ResultValues.AddTo(values, rule.Id, value);
+            RuleExtractionResult result = RuleEngine.ExtractFinalResult(lines, issue, rule);
+            if (result.Status == RuleExtractionStatus.Conflict)
+                ResultValues.MarkConflict(values, rule.Id);
+            else if (result.Status == RuleExtractionStatus.Success)
+                ResultValues.AddTo(values, rule.Id, result.Value!);
         }
     }
 
-    private static void AddExtractedEvidenceValues(
+    internal static void AddExtractedEvidenceValues(
         OcrEvidence evidence,
         IEnumerable<OcrRule> rules,
         int issue,
@@ -1900,9 +1902,11 @@ public sealed class MainForm : Form
     {
         foreach (OcrRule rule in rules)
         {
-            string? value = RuleEngine.ExtractFinalValue(evidence, issue, rule);
-            if (value is not null)
-                ledger.Observe(values, rule, value, evidence);
+            RuleExtractionResult result = RuleEngine.ExtractFinalResult(evidence, issue, rule);
+            if (result.Status == RuleExtractionStatus.Conflict)
+                ledger.ObserveConflict(values, rule, evidence);
+            else if (result.Status == RuleExtractionStatus.Success)
+                ledger.Observe(values, rule, result.Value!, evidence);
         }
     }
 

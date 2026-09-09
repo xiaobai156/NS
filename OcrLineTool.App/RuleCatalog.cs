@@ -177,8 +177,8 @@ public static class RuleCatalog
                 throw new OcrException($"{fileName} 缺少 rules 配置。");
 
             var output = new List<OcrRule>();
-            bool strictIssueBlock = document.RootElement.TryGetProperty("strictIssueBlock", out JsonElement strictElement)
-                && strictElement.ValueKind == JsonValueKind.True;
+            bool strictIssueBlock = ReadOptionalBoolean(
+                document.RootElement, "strictIssueBlock", false, fileName);
             foreach (JsonElement item in rules.EnumerateArray())
             {
                 string keyword = item.GetProperty("keyword").GetString() ?? "";
@@ -187,17 +187,11 @@ public static class RuleCatalog
                 string? section = item.TryGetProperty("section", out JsonElement sectionElement) ? sectionElement.GetString() : null;
                 string? requiredKeyword = item.TryGetProperty("required_keyword", out JsonElement requiredElement) ? requiredElement.GetString() : null;
                 string? folder = item.TryGetProperty("folder", out JsonElement folderElement) ? folderElement.GetString() : null;
-                bool ignoreIssue = item.TryGetProperty("ignoreIssue", out JsonElement ignoreIssueElement)
-                    && ignoreIssueElement.ValueKind == JsonValueKind.True;
-                bool allowNearbyValue = item.TryGetProperty("allowNearbyValue", out JsonElement nearbyElement)
-                    && nearbyElement.ValueKind == JsonValueKind.True;
-                bool allowValueWithoutKeyword = item.TryGetProperty("allowValueWithoutKeyword", out JsonElement withoutKeywordElement)
-                    && withoutKeywordElement.ValueKind == JsonValueKind.True;
-                bool singleValuePerIssue = item.TryGetProperty("singleValuePerIssue", out JsonElement singleValueElement)
-                    && singleValueElement.ValueKind == JsonValueKind.True;
-                bool itemStrictIssueBlock = item.TryGetProperty("strictIssueBlock", out JsonElement itemStrictElement)
-                    ? itemStrictElement.ValueKind == JsonValueKind.True
-                    : strictIssueBlock;
+                bool ignoreIssue = ReadOptionalBoolean(item, "ignoreIssue", false, fileName);
+                bool allowNearbyValue = ReadOptionalBoolean(item, "allowNearbyValue", false, fileName);
+                bool allowValueWithoutKeyword = ReadOptionalBoolean(item, "allowValueWithoutKeyword", false, fileName);
+                bool singleValuePerIssue = ReadOptionalBoolean(item, "singleValuePerIssue", false, fileName);
+                bool itemStrictIssueBlock = ReadOptionalBoolean(item, "strictIssueBlock", strictIssueBlock, fileName);
                 if (keyword.Length > 0 && type.Length > 0)
                     output.Add(new OcrRule(
                         keyword,
@@ -214,7 +208,32 @@ public static class RuleCatalog
             }
             if (output.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count() != output.Count)
                 throw new OcrException($"{fileName} 中存在重复的输出名称。");
-            return output;
+
+            OcrRule[] enriched = output.Select(rule =>
+            {
+                if (string.IsNullOrWhiteSpace(rule.Folder))
+                    return rule;
+                HashSet<string> own = new[]
+                {
+                    rule.Keyword, rule.Label ?? string.Empty, rule.Section ?? string.Empty,
+                    rule.RequiredKeyword ?? string.Empty
+                }
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .ToHashSet(StringComparer.Ordinal);
+                string[] peers = output
+                    .Where(other => other.Id != rule.Id
+                        && string.Equals(other.Folder, rule.Folder, StringComparison.OrdinalIgnoreCase))
+                    .SelectMany(other => new[]
+                    {
+                        other.Keyword, other.Label ?? string.Empty, other.Section ?? string.Empty,
+                        other.RequiredKeyword ?? string.Empty
+                    })
+                    .Where(value => !string.IsNullOrWhiteSpace(value) && !own.Contains(value))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
+                return rule with { PeerKeywords = peers };
+            }).ToArray();
+            return enriched;
         }
         catch (OcrException)
         {
@@ -224,5 +243,18 @@ public static class RuleCatalog
         {
             throw new OcrException($"{fileName} 格式无效。");
         }
+    }
+
+    private static bool ReadOptionalBoolean(
+        JsonElement element, string propertyName, bool fallback, string fileName)
+    {
+        if (!element.TryGetProperty(propertyName, out JsonElement value))
+            return fallback;
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => throw new OcrException($"{fileName} 的 {propertyName} 必须是 true 或 false。")
+        };
     }
 }

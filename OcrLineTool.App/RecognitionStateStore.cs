@@ -67,6 +67,12 @@ internal sealed class ResultEvidenceLedger
                 .ToArray(),
             evidence.MinimumConfidence);
 
+    internal void ObserveConflict(ResultValues values, OcrRule rule, OcrEvidence evidence)
+    {
+        ResultValues.MarkConflict(values, rule.Id);
+        records[rule.Id] = BuildRecord(rule, string.Empty, "conflict", evidence);
+    }
+
     internal void Seed(ResultEvidenceRecord record) => records[record.RuleId] = record;
     internal void Remove(string ruleId) => records.Remove(ruleId);
     internal void Clear() => records.Clear();

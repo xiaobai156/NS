@@ -25,6 +25,13 @@ internal sealed class ResultValues : Dictionary<string, string>
         guarded.TryAdd(id, value);
     }
 
+    internal static void MarkConflict(IDictionary<string, string> values, string id)
+    {
+        values.Remove(id);
+        if (values is ResultValues guarded)
+            guarded.Conflicts.Add(id);
+    }
+
     internal static bool IsConflict(IReadOnlyDictionary<string, string> values, string id) =>
         values is ResultValues guarded && guarded.Conflicts.Contains(id);
 
