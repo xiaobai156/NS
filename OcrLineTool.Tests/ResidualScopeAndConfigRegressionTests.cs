@@ -36,11 +36,19 @@ public sealed class ResidualScopeAndConfigRegressionTests
     }
 
     [Fact]
-    public void CatalogCarriesSiblingBoundariesForSharedSheets()
+    public void CatalogCarriesPeerBoundariesForSharedSheets()
     {
         OcrRule rule = Rule("嫣然心水", "南国挽心");
-        Assert.NotNull(rule.SiblingBoundaries);
-        Assert.Contains("陌上花", rule.SiblingBoundaries!);
+        Assert.NotNull(rule.PeerKeywords);
+        Assert.Contains("陌上花", rule.PeerKeywords!);
+    }
+
+    [Fact]
+    public void CatalogCarriesPeerSectionBoundariesForSharedSections()
+    {
+        OcrRule rule = Rule("嫣然心水", "钦差大臣公式一");
+        Assert.NotNull(rule.PeerKeywords);
+        Assert.Contains("公式二", rule.PeerKeywords!);
     }
 
     [Theory]
