@@ -6,20 +6,29 @@ namespace OcrLineTool.Tests;
 [Trait("Category", "ReauditAccuracy")]
 public sealed class IssueBoundaryConsistencyTests
 {
+    private static OcrRule NearbyZodiacRule() => new(
+        "水哥杀一肖",
+        "生肖",
+        "水哥肖",
+        AllowNearbyValue: true,
+        StrictIssueBlock: true);
+
     [Fact]
     public void NearbySingleZodiacDoesNotCrossFourDigitBareIssueBoundary()
     {
-        var rule = new OcrRule(
-            "水哥杀一肖",
-            "生肖",
-            "水哥肖",
-            AllowNearbyValue: true,
-            StrictIssueBlock: true);
-
         Assert.Null(RuleEngine.ExtractFinalValue(
             ["水哥杀一肖", "1001期", "1000", "狗"],
             1001,
-            rule));
+            NearbyZodiacRule()));
+    }
+
+    [Fact]
+    public void NearbySingleZodiacDoesNotBorrowBackwardAcrossFourDigitBareIssueBoundary()
+    {
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["狗", "1000", "说明", "1001期"],
+            1001,
+            NearbyZodiacRule()));
     }
 
     [Fact]
