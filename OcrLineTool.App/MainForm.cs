@@ -865,12 +865,8 @@ public sealed class MainForm : Form
                         continue;
                     if (evidence.Items.Any(item => !string.IsNullOrWhiteSpace(item.Text)))
                         recognizedRuleIds.UnionWith(candidate.Rules.Select(rule => rule.Id));
-                    foreach (OcrRule rule in candidate.Rules)
-                    {
-                        string? value = RuleEngine.ExtractFinalValue(evidence, issue, rule);
-                        if (value is not null)
-                            evidenceLedger.Observe(values, rule, value, evidence);
-                    }
+                    AddExtractedEvidenceValues(
+                        evidence, candidate.Rules, issue, values, evidenceLedger);
                 }
             }
 
@@ -932,6 +928,7 @@ public sealed class MainForm : Form
 
             // 新模式的兜底必须按本模式的原图/杰少压缩图重新请求，不能复用旧模式的裁剪云缓存。
             lastCloudOcrResults = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+            var localPrimaryCloudEvidence = new Dictionary<string, OcrEvidence>(StringComparer.OrdinalIgnoreCase);
             var cloudDeduplicators = new Dictionary<OcrProvider, CloudImageDeduplicator>();
             var providerSpacing = new Dictionary<OcrProvider, Stopwatch>();
             var providerStarted = new HashSet<OcrProvider>();
@@ -1025,13 +1022,11 @@ public sealed class MainForm : Form
                 string? cloudProvider = null;
                 string? cloudError = null;
                 if (candidate.OcrPath.Equals(candidate.SourcePath, StringComparison.OrdinalIgnoreCase) &&
-                    lastCloudOcrResults.TryGetValue(candidate.SourcePath, out IReadOnlyList<string>? cached) &&
-                    CanReuseRetryCloudLines(selectedImageDirectory!, evidenceRules, cached, issue))
+                    localPrimaryCloudEvidence.TryGetValue(candidate.SourcePath, out OcrEvidence? cachedEvidence) &&
+                    IsEvidenceCurrent(cachedEvidence))
                 {
-                    OcrEvidenceIdentity identity = OcrEvidenceIdentity.Capture(
-                        candidate.SourcePath, candidate.SourcePath, "local-primary/cloud-cache");
-                    cloudEvidence = OcrEvidence.FromLines(candidate.SourcePath, cached, "cache").Bind(identity);
-                    cloudProvider = "缓存";
+                    cloudEvidence = cachedEvidence;
+                    cloudProvider = "本次运行证据复用";
                 }
                 else
                 {
@@ -1049,21 +1044,18 @@ public sealed class MainForm : Form
                 IReadOnlyList<string> cloudLines = cloudEvidence?.Lines ?? [];
                 if (cloudEvidence is not null)
                 {
-                    foreach (OcrRule rule in evidenceRules)
-                    {
-                        string? value = RuleEngine.ExtractFinalValue(cloudEvidence, issue, rule);
-                        if (value is not null)
-                        {
-                            evidenceLedger.Observe(values, rule, value, cloudEvidence);
-                            recognizedRuleIds.Add(rule.Id);
-                        }
-                    }
+                    AddExtractedEvidenceValues(
+                        cloudEvidence, evidenceRules, issue, values, evidenceLedger);
+                    recognizedRuleIds.UnionWith(evidenceRules.Select(rule => rule.Id));
                 }
 
-                if (cloudLines.Count > 0)
+                if (cloudEvidence is not null && cloudLines.Count > 0)
                 {
                     lastCloudOcrResults[candidate.SourcePath] = cloudLines;
-                    CloudOcrCacheStore.SaveEntry(AppContext.BaseDirectory, groupName, issue, candidate.SourcePath, cloudLines, candidate.OcrPath);
+                    if (candidate.OcrPath.Equals(candidate.SourcePath, StringComparison.OrdinalIgnoreCase))
+                        localPrimaryCloudEvidence[candidate.SourcePath] = cloudEvidence;
+                    CloudOcrCacheStore.SaveEntry(
+                        AppContext.BaseDirectory, groupName, issue, cloudEvidence);
                 }
                 diagnostics.Add(new
                 {
@@ -1907,6 +1899,21 @@ public sealed class MainForm : Form
                 ledger.ObserveConflict(values, rule, evidence);
             else if (result.Status == RuleExtractionStatus.Success)
                 ledger.Observe(values, rule, result.Value!, evidence);
+        }
+    }
+
+    internal static bool IsEvidenceCurrent(OcrEvidence evidence)
+    {
+        try
+        {
+            OcrEvidenceIdentity current = OcrEvidenceIdentity.Capture(
+                evidence.SourcePath, evidence.InputPath, evidence.ViewId);
+            return current.SourceHash.Equals(evidence.SourceHash, StringComparison.OrdinalIgnoreCase)
+                && current.InputHash.Equals(evidence.InputHash, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (OcrException)
+        {
+            return false;
         }
     }
 
