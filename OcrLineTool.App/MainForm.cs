@@ -1005,10 +1005,11 @@ public sealed class MainForm : Form
             }).ToList();
             foreach (RecognitionCandidate candidate in cloudCandidates)
             {
-                OcrRule[] pendingRules = candidate.Rules
-                    .Where(rule => !values.ContainsKey(rule.Id))
-                    .ToArray();
-                if (pendingRules.Length == 0)
+                // The candidate list was frozen while these rules were missing. Do not
+                // drop a rule merely because an earlier competing candidate succeeded;
+                // compare every already-planned observation so conflicts stay visible.
+                OcrRule[] evidenceRules = candidate.Rules.ToArray();
+                if (evidenceRules.Length == 0)
                     continue;
 
                 IReadOnlyList<string> cloudLines = [];
@@ -1016,7 +1017,7 @@ public sealed class MainForm : Form
                 string? cloudError = null;
                 if (candidate.OcrPath.Equals(candidate.SourcePath, StringComparison.OrdinalIgnoreCase) &&
                     lastCloudOcrResults.TryGetValue(candidate.SourcePath, out IReadOnlyList<string>? cached) &&
-                    CanReuseRetryCloudLines(selectedImageDirectory!, pendingRules, cached, issue))
+                    CanReuseRetryCloudLines(selectedImageDirectory!, evidenceRules, cached, issue))
                 {
                     cloudLines = cached;
                     cloudProvider = "缓存";
@@ -1034,7 +1035,7 @@ public sealed class MainForm : Form
                     }
                 }
 
-                foreach (OcrRule rule in pendingRules)
+                foreach (OcrRule rule in evidenceRules)
                 {
                     string? value = RuleEngine.ExtractFinalValue(cloudLines, issue, rule);
                     if (value is not null)
@@ -1055,7 +1056,7 @@ public sealed class MainForm : Form
                     ocr_path = candidate.OcrPath.Equals(candidate.SourcePath, StringComparison.OrdinalIgnoreCase)
                         ? null
                         : Path.GetFileName(candidate.OcrPath),
-                    rules = pendingRules.Select(rule => rule.Id),
+                    rules = evidenceRules.Select(rule => rule.Id),
                     provider = cloudProvider,
                     lines = cloudLines,
                     error = cloudError
@@ -1386,7 +1387,7 @@ public sealed class MainForm : Form
                         selectedImageDirectory!, candidate.SourcePath, candidate.Rules,
                         () => RecognizeFallbackAsync(candidate, cloudIndex, error => fallbackError = error));
 
-                    foreach (OcrRule rule in missingRules.Where(_ => fallbackLines is not null))
+                    foreach (OcrRule rule in activeRules.Where(_ => fallbackLines is not null))
                     {
                         string? value = RuleEngine.ExtractFinalValue(fallbackLines!, issue, rule);
                         if (value is null)
@@ -1634,9 +1635,11 @@ public sealed class MainForm : Form
                     }
                 }
 
-                candidateMissing = candidateMissing.Where(rule => !lastValues.ContainsKey(rule.Id)).ToArray();
+                OcrRule[] fallbackMissing = candidateMissing
+                    .Where(rule => !lastValues.ContainsKey(rule.Id))
+                    .ToArray();
                 IReadOnlyList<string> fallbackLines = [];
-                if (candidateMissing.Length > 0)
+                if (fallbackMissing.Length > 0)
                 {
                     if (fallbackStarted)
                         await WaitForPacingAsync(fallbackSpacing, CloudOcrPolicy.MinimumInterval(fallbackCredential.Provider));
@@ -1646,15 +1649,15 @@ public sealed class MainForm : Form
                     {
                         statusLabel.Text = $"复抓缺失：备用 {fallbackCredential.DisplayName} {completed + 1}/{selection.Candidates.Count} · {ShortPath(candidate.SourcePath)}";
                         fallbackLines = await fallbackImageDeduplicator.RecognizeAsync(
-                            selectedImageDirectory!, candidate.SourcePath, candidateMissing,
+                            selectedImageDirectory!, candidate.SourcePath, fallbackMissing,
                             async () =>
                             {
                                 cloudRequests++;
                                 return await RecognizeRetryAsync(
                                     fallbackClient, fallbackCredential, candidate.SourcePath, completed + 1, selection.Candidates.Count,
-                                    candidateMissing, lastIssue, lastValues);
+                                    fallbackMissing, lastIssue, lastValues);
                             });
-                        AddExtractedValues(fallbackLines, candidateMissing, lastIssue, lastValues);
+                        AddExtractedValues(fallbackLines, candidate.Rules, lastIssue, lastValues);
                     }
                     catch (OcrException)
                     {
@@ -1872,10 +1875,14 @@ public sealed class MainForm : Form
                 continue;
             }
 
-            if (value.Length > 0)
+            if (value.Length > 0 && RuleEngine.IsFormattedOutputValueValid(rule, value))
             {
                 ResultValues.AddTo(lastValues, rule.Id, value);
                 lastTextRecognizedRuleIds.Add(rule.Id);
+            }
+            else if (value.Length > 0)
+            {
+                lastMissingReasons[rule.Id] = "保存结果未通过当前规则校验";
             }
         }
 
