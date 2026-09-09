@@ -1395,13 +1395,18 @@ public sealed class MainForm : Form
                 var missingRules = new List<OcrRule>();
                 foreach (OcrRule rule in activeRules)
                 {
-                    string? value = RuleEngine.ExtractFinalValue(cloudEvidence, issue, rule);
-                    if (value is not null)
+                    RuleExtractionResult result = RuleEngine.ExtractFinalResult(cloudEvidence, issue, rule);
+                    if (result.Status == RuleExtractionStatus.Conflict)
                     {
-                        evidenceLedger.Observe(values, rule, value, cloudEvidence);
-                        matchedValues.Add($"{value} {rule.OutputLabel}");
+                        evidenceLedger.ObserveConflict(values, rule, cloudEvidence);
+                        matchedValues.Add($"冲突 {rule.OutputLabel}");
                     }
-                    else if (!values.ContainsKey(rule.Id))
+                    else if (result.Status == RuleExtractionStatus.Success)
+                    {
+                        evidenceLedger.Observe(values, rule, result.Value!, cloudEvidence);
+                        matchedValues.Add($"{result.Value} {rule.OutputLabel}");
+                    }
+                    else if (!values.ContainsKey(rule.Id) && !ResultValues.IsConflict(values, rule.Id))
                     {
                         missingRules.Add(rule);
                     }
@@ -1420,11 +1425,17 @@ public sealed class MainForm : Form
                     {
                         foreach (OcrRule rule in activeRules)
                         {
-                            string? value = RuleEngine.ExtractFinalValue(fallbackEvidence, issue, rule);
-                            if (value is null)
-                                continue;
-                            evidenceLedger.Observe(values, rule, value, fallbackEvidence);
-                            matchedValues.Add($"{value} {rule.OutputLabel}");
+                            RuleExtractionResult result = RuleEngine.ExtractFinalResult(fallbackEvidence, issue, rule);
+                            if (result.Status == RuleExtractionStatus.Conflict)
+                            {
+                                evidenceLedger.ObserveConflict(values, rule, fallbackEvidence);
+                                matchedValues.Add($"冲突 {rule.OutputLabel}");
+                            }
+                            else if (result.Status == RuleExtractionStatus.Success)
+                            {
+                                evidenceLedger.Observe(values, rule, result.Value!, fallbackEvidence);
+                                matchedValues.Add($"{result.Value} {rule.OutputLabel}");
+                            }
                         }
                     }
                 }
@@ -1941,7 +1952,8 @@ public sealed class MainForm : Form
         {
             return false;
         }
-        return rules.Any(rule => RuleEngine.ExtractFinalValue(evidence, issue, rule) is not null);
+        return rules.Any(rule =>
+            RuleEngine.ExtractFinalResult(evidence, issue, rule).Status == RuleExtractionStatus.Success);
     }
 
     private static OcrRule[] RetryEvidenceRules(RecognitionCandidate candidate, IReadOnlyList<OcrRule> allRules)
@@ -2317,7 +2329,8 @@ public sealed class MainForm : Form
     private static bool CanReuseRetryCloudLines(
         string groupDirectory, IReadOnlyList<OcrRule> rules, IReadOnlyList<string> lines, int issue) =>
         lines.Any(line => !string.IsNullOrWhiteSpace(line)) &&
-        rules.All(rule => RuleEngine.ExtractFinalValue(lines, issue, rule) is not null);
+        rules.All(rule =>
+            RuleEngine.ExtractFinalResult(lines, issue, rule).Status == RuleExtractionStatus.Success);
 
     private void LogMissingDetails(
         string operation,
