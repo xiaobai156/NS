@@ -98,10 +98,17 @@ public sealed record OcrEvidence(
         Items.Where(item => !string.IsNullOrWhiteSpace(item.Text)).All(item => item.Box is not null);
 
     [JsonIgnore]
-    public double? MinimumConfidence =>
-        Items.Where(item => item.Confidence is not null).Select(item => item.Confidence!.Value).DefaultIfEmpty().Any()
-            ? Items.Where(item => item.Confidence is not null).Min(item => item.Confidence)
-            : null;
+    public double? MinimumConfidence
+    {
+        get
+        {
+            double[] confidences = Items
+                .Where(item => item.Confidence is not null)
+                .Select(item => item.Confidence!.Value)
+                .ToArray();
+            return confidences.Length == 0 ? null : confidences.Min();
+        }
+    }
 
     public static OcrEvidence FromLines(string inputPath, IReadOnlyList<string> lines, string viewId = "unpositioned")
     {
