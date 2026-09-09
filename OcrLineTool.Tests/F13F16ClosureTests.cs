@@ -14,8 +14,10 @@ public sealed class F13F16ClosureTests
             ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"))
             .Single(item => item.Id == "南国挽心");
         var values = new ResultValues(StringComparer.Ordinal);
-        MethodInfo merge = typeof(MainForm).GetMethod(
-            "AddExtractedValues", BindingFlags.Static | BindingFlags.NonPublic)!;
+        MethodInfo merge = typeof(MainForm).GetMethods(BindingFlags.Static | BindingFlags.NonPublic)
+            .Single(method => method.Name == "AddExtractedValues"
+                && method.GetParameters().Length == 4
+                && method.GetParameters()[0].ParameterType == typeof(IReadOnlyList<string>));
 
         merge.Invoke(null, new object[]
         {
