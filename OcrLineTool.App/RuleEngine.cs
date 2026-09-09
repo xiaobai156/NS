@@ -599,12 +599,10 @@ public static class RuleEngine
             .ToArray();
         for (int index = issueIndex - 1; index >= scopeStart; index--)
         {
-            if (ContainsAnyIssue(lines[index]))
-            {
-                if (ContainsIssue(lines[index], issue))
-                    continue;
+            if (ContainsIssue(lines[index], issue))
+                continue;
+            if (ContainsIssueBoundary(lines[index], issue))
                 break;
-            }
             string current = Normalize(lines[index]);
             if (current.Length == 0)
                 continue;
@@ -719,7 +717,9 @@ public static class RuleEngine
             {
                 for (int next = index + 1; next < lines.Length; next++)
                 {
-                    if (ContainsAnyIssue(lines[next]) || Regex.IsMatch(lines[next], @"(?<!\d)\d{1,2}\s*次"))
+                    if (ContainsIssue(lines[next], issue)
+                        || ContainsIssueBoundary(lines[next], issue)
+                        || Regex.IsMatch(lines[next], @"(?<!\d)\d{1,2}\s*次"))
                         break;
                     string nextValue = string.Concat(Regex.Matches(SimplifyOcrText(lines[next]), $"[{Zodiac}]")
                         .Select(item => item.Value).Distinct());
@@ -1986,12 +1986,13 @@ public static class RuleEngine
     }
 
     private static bool HasCurrentFieldStartAfterEarlierIssue(
-        string[] lines, int scopeStart, int issueIndex, OcrRule rule, int expectedCount)
+        string[] lines, int scopeStart, int issueIndex, int issue, OcrRule rule, int expectedCount)
     {
         int previousIssue = -1;
         for (int index = issueIndex - 1; index >= scopeStart; index--)
         {
-            if (!ContainsAnyIssue(lines[index]))
+            if (!ContainsIssue(lines[index], issue)
+                && !ContainsIssueBoundary(lines[index], issue))
                 continue;
             previousIssue = index;
             break;
@@ -2034,7 +2035,7 @@ public static class RuleEngine
         int previous = issueIndex - 1;
         if (previous < 0 || ContainsAnyIssue(lines[previous])
             || IsOpeningOnlySeparator(lines[previous])
-            || !HasCurrentFieldStartAfterEarlierIssue(lines, 0, issueIndex, rule, expectedCount))
+            || !HasCurrentFieldStartAfterEarlierIssue(lines, 0, issueIndex, issue, rule, expectedCount))
             return null;
 
         string immediate = ScopeNumberPayload(lines[previous], rule, expectedCount);
@@ -2118,7 +2119,7 @@ public static class RuleEngine
     private static string? ExtractReviewedSplitNumberWindow(
         string[] lines, int scopeStart, int issueIndex, int issue, int expectedCount, OcrRule rule)
     {
-        bool mayUseLeft = HasCurrentFieldStartAfterEarlierIssue(lines, scopeStart, issueIndex, rule, expectedCount);
+        bool mayUseLeft = HasCurrentFieldStartAfterEarlierIssue(lines, scopeStart, issueIndex, issue, rule, expectedCount);
         int left = issueIndex;
         if (mayUseLeft)
         {
