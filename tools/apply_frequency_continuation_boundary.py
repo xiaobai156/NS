@@ -55,5 +55,20 @@ replace_once(
         }''',
 'split-number previous issue boundary')
 
+replace_once(
+'''            if (ContainsAnyIssue(lines[index]))
+            {
+                if (ContainsIssue(lines[index], issue))
+                    continue;
+                break;
+            }
+            string current = Normalize(lines[index]);''',
+'''            if (ContainsIssue(lines[index], issue))
+                continue;
+            if (ContainsIssueBoundary(lines[index], issue))
+                break;
+            string current = Normalize(lines[index]);''',
+'section ownership issue boundary')
+
 path.write_text(text, encoding='utf-8')
 print('Applied remaining selected-issue boundary repairs')
