@@ -5,7 +5,6 @@ import json
 import os
 import shutil
 import sys
-import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -140,6 +139,64 @@ def _local_model_dir(model_name: str) -> str | None:
     return str(path) if path.is_dir() else None
 
 
+def _box_from(value) -> list[int] | None:
+    """Normalize Paddle rec_boxes/dt_polys to [x, y, width, height]."""
+    if value is None:
+        return None
+    try:
+        array = np.asarray(value, dtype=float)
+    except Exception:
+        return None
+    if array.size < 4:
+        return None
+    try:
+        if array.ndim >= 2 and array.shape[-1] == 2:
+            points = array.reshape(-1, 2)
+            left = float(points[:, 0].min())
+            top = float(points[:, 1].min())
+            right = float(points[:, 0].max())
+            bottom = float(points[:, 1].max())
+        else:
+            flat = array.reshape(-1)
+            left, top, right, bottom = map(float, flat[:4])
+        x = int(round(min(left, right)))
+        y = int(round(min(top, bottom)))
+        width = max(0, int(round(abs(right - left))))
+        height = max(0, int(round(abs(bottom - top))))
+        return [x, y, width, height]
+    except Exception:
+        return None
+
+
+def _prediction_items(first, view_id: str) -> list[dict]:
+    if not hasattr(first, "get"):
+        return []
+    raw_texts = first.get("rec_texts") or []
+    raw_scores = first.get("rec_scores") or []
+    raw_boxes = first.get("rec_boxes")
+    if raw_boxes is None:
+        raw_boxes = first.get("dt_polys") or []
+    items = []
+    for index, raw_text in enumerate(raw_texts):
+        text = str(raw_text)
+        if not text:
+            continue
+        confidence = None
+        if index < len(raw_scores):
+            try:
+                confidence = float(raw_scores[index])
+            except (TypeError, ValueError):
+                confidence = None
+        box = _box_from(raw_boxes[index]) if index < len(raw_boxes) else None
+        items.append({
+            "text": text,
+            "confidence": confidence,
+            "box": box,
+            "viewId": view_id,
+        })
+    return items
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--list", required=True)
@@ -201,32 +258,39 @@ def main() -> int:
                 for parent in Path(path).parents
             ):
                 # Dense Jieshao tables otherwise get detected as vertical columns.
-                # Keep the author header uncompressed to separate shared-folder sheets.
+                # The header and compact body are deliberately separate views;
+                # callers may compare their complete results but never concatenate
+                # their tokens as one physical field.
                 with Image.open(path) as image:
                     header = image.crop((0, 0, image.width, max(1, round(image.height * 0.28)))).convert("RGB")
                     compact = image.resize((max(1, round(image.width * 0.55)), image.height)).convert("RGB")
-                    sources = [np.asarray(part)[:, :, ::-1].copy() for part in (header, compact)]
+                    sources = [
+                        (np.asarray(header)[:, :, ::-1].copy(), "header"),
+                        (np.asarray(compact)[:, :, ::-1].copy(), "compact"),
+                    ]
             elif args.top_ratio < 1.0:
                 with Image.open(path) as image:
                     crop_height = max(1, round(image.height * args.top_ratio))
                     rgb = image.crop((0, 0, image.width, crop_height)).convert("RGB")
                     source = np.asarray(rgb)[:, :, ::-1].copy()
-                sources = [source]
+                sources = [(source, "top")]
             else:
-                sources = [path]
+                sources = [(path, "original")]
             texts = []
-            for source in sources:
+            items = []
+            for source, view_id in sources:
                 prediction = ocr.predict(source)
                 if prediction:
                     first = prediction[0]
-                    if hasattr(first, "get"):
-                        texts.extend(str(value) for value in (first.get("rec_texts") or []) if str(value))
-            results.append({"path": path, "texts": texts})
+                    view_items = _prediction_items(first, view_id)
+                    items.extend(view_items)
+                    texts.extend(item["text"] for item in view_items)
+            results.append({"path": path, "texts": texts, "items": items})
         except Exception as exc:
             if "ConvertPirAttribute2RuntimeAttribute" in str(exc):
                 _write_error(args.output, "当前 CUDA PaddlePaddle 版本与运行时不兼容，请安装与项目匹配的 3.2.2 版。")
                 return 4
-            results.append({"path": path, "texts": [], "error": str(exc)})
+            results.append({"path": path, "texts": [], "items": [], "error": str(exc)})
         finally:
             print(f"OCR_PROGRESS|{index}|{len(paths)}|{path}", flush=True)
 
