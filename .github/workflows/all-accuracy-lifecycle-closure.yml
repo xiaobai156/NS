@@ -31,6 +31,7 @@ jobs:
           python tools/apply_latest_accuracy_compat.py
           python tools/apply_latest_accuracy_compat2.py
           python tools/apply_latest_accuracy_compat3.py
+          python tools/apply_latest_accuracy_compat4.py
           python tools/apply_final_lifecycle_closure.py
           python tools/apply_final_crop_creation_pin.py
           python tools/apply_template_version_pin.py
