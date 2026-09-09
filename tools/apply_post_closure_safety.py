@@ -77,14 +77,15 @@ replacement = r'''    private static string? ExtractNearbySingleZodiac(string[] 
         int before,
         int after)
     {
-        bool hasEarlierIssue = lines.Take(issueIndex).Any(ContainsAnyIssue);
+        bool hasEarlierIssue = lines.Take(issueIndex)
+            .Any(line => ContainsIssueBoundary(line, issue));
         int start = hasEarlierIssue ? issueIndex : Math.Max(0, issueIndex - before);
         int end = Math.Min(lines.Length, issueIndex + after + 1);
 
         for (int index = start; index < end; index++)
         {
             if (index != issueIndex
-                && ContainsAnyIssue(lines[index])
+                && ContainsIssueBoundary(lines[index], issue)
                 && !ContainsIssue(lines[index], issue))
             {
                 if (index > issueIndex)
