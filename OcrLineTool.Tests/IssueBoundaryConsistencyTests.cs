@@ -74,4 +74,19 @@ public sealed class IssueBoundaryConsistencyTests
             1001,
             rule));
     }
+
+    [Fact]
+    public void SplitNumberWindowDoesNotBorrowAcrossFourDigitBareIssueBoundary()
+    {
+        var rule = new OcrRule(
+            "小马哥庄家杀12码",
+            "号码:12",
+            "小马哥",
+            StrictIssueBlock: true);
+
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["1000", "010203040506", "1001期杀070809101112开??"],
+            1001,
+            rule));
+    }
 }
