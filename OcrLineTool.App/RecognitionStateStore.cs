@@ -30,20 +30,31 @@ internal sealed class ResultEvidenceLedger
         OcrEvidence evidence)
     {
         ResultValues.AddTo(values, rule.Id, value);
-        if (ResultValues.IsConflict(values, rule.Id)
-            || !values.TryGetValue(rule.Id, out string? accepted))
+        bool conflict = ResultValues.IsConflict(values, rule.Id);
+        if (!conflict && !values.TryGetValue(rule.Id, out string? accepted))
         {
             records.Remove(rule.Id);
             return;
         }
 
-        records[rule.Id] = new(
+        records[rule.Id] = BuildRecord(
+            rule,
+            conflict ? string.Empty : accepted!,
+            conflict ? "conflict" : "success",
+            evidence);
+    }
+
+    private static ResultEvidenceRecord BuildRecord(
+        OcrRule rule,
+        string value,
+        string status,
+        OcrEvidence evidence) => new(
             rule.Id,
             rule.Type,
             rule.OutputLabel,
             RecognitionStateStore.RuleSignature(rule),
-            accepted,
-            "success",
+            value,
+            status,
             evidence.SourcePath,
             evidence.SourceHash,
             evidence.InputHash,
@@ -54,7 +65,6 @@ internal sealed class ResultEvidenceLedger
                 .Distinct(StringComparer.Ordinal)
                 .ToArray(),
             evidence.MinimumConfidence);
-    }
 
     internal void Seed(ResultEvidenceRecord record) => records[record.RuleId] = record;
     internal void Remove(string ruleId) => records.Remove(ruleId);
@@ -83,10 +93,11 @@ internal static class RecognitionStateStore
         IReadOnlyList<OcrRule> rules)
     {
         RecognitionStateLoad restored = Load(appDirectory, selectedDirectory, issue, rules);
-        if (restored.Values.Count == 0)
+        bool hasConflict = rules.Any(rule => ResultValues.IsConflict(restored.Values, rule.Id));
+        if (restored.Values.Count == 0 && !hasConflict)
             throw new OcrException("当前群结果没有可验证的来源状态，请重新识别后再手动分流。", "OCR_STATE_REQUIRED");
         var missingReasons = rules
-            .Where(rule => !restored.Values.ContainsKey(rule.Id))
+            .Where(rule => !restored.Values.ContainsKey(rule.Id) && !ResultValues.IsConflict(restored.Values, rule.Id))
             .ToDictionary(rule => rule.Id, _ => "未找到可信来源状态", StringComparer.Ordinal);
         return RuleEngine.FormatOutput(rules, restored.Values, missingReasons);
     }
@@ -113,12 +124,24 @@ internal static class RecognitionStateStore
             var byId = rules.ToDictionary(rule => rule.Id, StringComparer.Ordinal);
             foreach (ResultEvidenceRecord record in document.Results ?? [])
             {
-                if (!string.Equals(record.Status, "success", StringComparison.Ordinal) ||
-                    string.IsNullOrWhiteSpace(record.RuleId) ||
+                if (string.IsNullOrWhiteSpace(record.RuleId) ||
                     !byId.TryGetValue(record.RuleId, out OcrRule? rule) ||
                     record.RuleType != rule.Type || record.OutputLabel != rule.OutputLabel ||
-                    record.RuleSignature != RuleSignature(rule) ||
-                    !RuleEngine.IsFormattedOutputValueValid(rule, record.Value ?? string.Empty) ||
+                    record.RuleSignature != RuleSignature(rule))
+                    continue;
+
+                if (string.Equals(record.Status, "conflict", StringComparison.Ordinal))
+                {
+                    // A conflict is a safety state, not a reusable success value. Keep it
+                    // even if the original image has since been replaced so a previously
+                    // distributed owned value can still be revoked on the next manual run.
+                    values.Conflicts.Add(rule.Id);
+                    evidence.Seed(record);
+                    continue;
+                }
+
+                if (!string.Equals(record.Status, "success", StringComparison.Ordinal) ||
+                    !RuleEngine.IsCanonicalValueValid(rule, record.Value ?? string.Empty) ||
                     string.IsNullOrWhiteSpace(record.SourcePath) || string.IsNullOrWhiteSpace(record.SourceHash) ||
                     string.IsNullOrWhiteSpace(record.InputHash) || string.IsNullOrWhiteSpace(record.ViewId) ||
                     record.RegionIds is not { Length: > 0 })
@@ -157,16 +180,25 @@ internal static class RecognitionStateStore
     {
         string path = ResultFilePaths.ForRecognitionState(appDirectory, selectedDirectory, issue);
         string group = RuleCatalog.GroupNameForFolder(appDirectory, selectedDirectory);
-        var byId = rules.ToDictionary(rule => rule.Id, StringComparer.Ordinal);
         var results = new List<ResultEvidenceRecord>();
-        foreach ((string ruleId, string value) in values)
+        foreach (OcrRule rule in rules)
         {
-            if (!byId.TryGetValue(ruleId, out OcrRule? rule) ||
-                !evidence.Records.TryGetValue(ruleId, out ResultEvidenceRecord? record) ||
-                record.Status != "success" || record.Value != value ||
+            bool conflict = ResultValues.IsConflict(values, rule.Id);
+            if (!evidence.Records.TryGetValue(rule.Id, out ResultEvidenceRecord? record) ||
                 record.RuleType != rule.Type || record.OutputLabel != rule.OutputLabel ||
-                record.RuleSignature != RuleSignature(rule) ||
-                !RuleEngine.IsFormattedOutputValueValid(rule, value))
+                record.RuleSignature != RuleSignature(rule))
+                continue;
+
+            if (conflict)
+            {
+                if (record.Status == "conflict")
+                    results.Add(record with { Value = string.Empty, Status = "conflict" });
+                continue;
+            }
+
+            if (!values.TryGetValue(rule.Id, out string? value) ||
+                record.Status != "success" || record.Value != value ||
+                !RuleEngine.IsCanonicalValueValid(rule, value))
                 continue;
             results.Add(record);
         }
