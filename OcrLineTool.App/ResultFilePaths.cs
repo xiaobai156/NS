@@ -14,6 +14,14 @@ public static class ResultFilePaths
     public static string GroupResultsDirectory(string appDirectory) =>
         Path.Combine(ImportantResultsDirectory(appDirectory), "群结果");
 
+    public static string RecognitionStateDirectory(string appDirectory) =>
+        Path.Combine(ImportantResultsDirectory(appDirectory), "识别状态");
+
+    public static string ForRecognitionState(string appDirectory, string selectedDirectory, int issue) =>
+        Path.Combine(
+            RecognitionStateDirectory(appDirectory),
+            $"{RuleCatalog.GroupNameForFolder(appDirectory, selectedDirectory)}_{issue}期.state.json");
+
     public static string ForMissingSummary(string appDirectory) =>
         Path.Combine(GroupResultsDirectory(appDirectory), "缺失及未分流汇总.txt");
 
@@ -43,6 +51,7 @@ public static class ResultFilePaths
     public static void EnsureOutputDirectories(string outputDirectory)
     {
         Directory.CreateDirectory(GroupResultsDirectory(outputDirectory));
+        Directory.CreateDirectory(RecognitionStateDirectory(outputDirectory));
         Directory.CreateDirectory(Path.Combine(TemporaryFilesDirectory(outputDirectory), "诊断"));
     }
 }
