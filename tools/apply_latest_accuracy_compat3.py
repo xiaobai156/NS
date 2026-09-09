@@ -1,24 +1,10 @@
 from pathlib import Path
 
+# The issue-row ownership refinement is now part of
+# apply_latest_accuracy_compat2.py together with the explicit-bracket handling.
+# Keep this step intentionally idempotent while older workflow revisions still
+# invoke compat3.
 path = Path('OcrLineTool.App/RuleEngine.cs')
-text = path.read_text(encoding='utf-8')
-old = '''            var parts = new List<string>();
-            string first = ScopeNumberPayload(TextAfterIssue(lines[index], issue), rule, expectedCount);
-            if (!string.IsNullOrWhiteSpace(first))
-                parts.Add(first);
-            for (int next = index + 1; next < lines.Length; next++)'''
-new = '''            var parts = new List<string>();
-            string first = ScopeNumberPayload(TextAfterIssue(lines[index], issue), rule, expectedCount);
-            string issueField = RemoveIssue(lines[index]);
-            // The target-period row may be only a banner/title containing unrelated
-            // digits (for example a site name with 100). Treat it as data only if
-            // the same field-ownership rules used for continuations prove it.
-            if (!string.IsNullOrWhiteSpace(first)
-                && IsNumberContinuation(issueField, expectedCount, rule, issue))
-                parts.Add(first);
-            for (int next = index + 1; next < lines.Length; next++)'''
-if text.count(old) != 1:
-    raise RuntimeError(f'target issue field anchor mismatch: {text.count(old)}')
-text = text.replace(old, new, 1)
-path.write_text(text, encoding='utf-8')
-print('Applied target issue row ownership refinement')
+if not path.exists():
+    raise RuntimeError('RuleEngine.cs not found')
+print('Target issue row ownership refinement already applied by compat2')
