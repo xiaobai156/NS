@@ -88,6 +88,24 @@ public sealed class FinalLifecycleClosureTests
     }
 
     [Fact]
+    public void TemplateCropRejectsSourceThatChangedSinceTemplateMatching()
+    {
+        using var temp = new Fixture("嫣然心水");
+        string source = temp.File("template-source.png", [1, 2, 3, 4]);
+        string matchedHash = LocalOcrIdentity.Image(source);
+        var template = new VisualTemplateDefinition(
+            "template-test", ["rule-test"], "00", 0.1, 0.2);
+        var match = new VisualTemplateMatch(source, template, 0, 0, matchedHash);
+        File.WriteAllBytes(source, [4, 3, 2, 1]);
+        string destination = Path.Combine(temp.Group, "crop.png");
+
+        OcrException error = Assert.Throws<OcrException>(() =>
+            VisualTemplateMatcher.CreateCrop(match, destination));
+        Assert.Equal("OCR_IMAGE_CHANGED", error.Code);
+        Assert.False(File.Exists(destination));
+    }
+
+    [Fact]
     public async Task InvalidSuccessIsDroppedWithoutLosingAnotherRulesConflict()
     {
         using var temp = new Fixture("嫣然心水");
