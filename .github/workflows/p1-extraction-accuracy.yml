@@ -29,6 +29,8 @@ jobs:
         run: |
           python tools/apply_p1_extraction_accuracy.py
           python tools/refine_p1_extraction_accuracy.py
+          python tools/refine_p1_compatibility.py
+          python tools/update_p1_contract_tests.py
       - name: P1 extraction acceptance tests
         run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category=P1Extraction' --logger 'trx;LogFileName=p1.trx' --results-directory test-results
       - name: Windows Debug regression tests
@@ -46,11 +48,11 @@ jobs:
         with:
           name: p1-extraction-${{ github.sha }}
           path: test-results
-      - name: Commit tested P1 source to repair branch
+      - name: Commit tested P1 source and contract tests to repair branch
         if: success()
         shell: pwsh
         run: |
-          git add -- OcrLineTool.App/RuleEngine.cs OcrLineTool.App/RuleCatalog.cs
+          git add -- OcrLineTool.App/RuleEngine.cs OcrLineTool.App/RuleCatalog.cs OcrLineTool.Tests/RuleEngineTests.cs OcrLineTool.Tests/PremiumRuleHardeningTests.cs
           if (git diff --cached --quiet) { throw 'P1 patch produced no tested source change.' }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
