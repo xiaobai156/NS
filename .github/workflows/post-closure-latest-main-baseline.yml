@@ -1,0 +1,30 @@
+name: Post-closure latest-main baseline
+on:
+  push:
+    branches: [fix/post-closure-safety-main-20260910]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: post-closure-latest-main-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Python dependencies
+        run: python -m pip install numpy pillow
+      - name: Configure hosted test desktop
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/Set-TestDisplay.ps1
+      - name: Accuracy baseline
+        run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category=ReauditAccuracy'
