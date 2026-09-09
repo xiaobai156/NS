@@ -23,7 +23,9 @@ public sealed class F18EvidenceTests
         ], "legacy-cloud");
 
         Assert.Null(RuleEngine.ExtractFinalValue(evidence, 251, Rule("嫣然心水", "青苹果")));
-        Assert.Contains(evidence.Lines, OcrLayoutMarkers.IsBoundary);
+        // Without geometry we deliberately keep one opaque/unknown region;
+        // safety comes from holistic + atomic agreement, not invented row boundaries.
+        Assert.Single(evidence.Items.Select(item => item.RegionId).Distinct());
     }
 
     [Fact]
