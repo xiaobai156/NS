@@ -55,6 +55,22 @@ public sealed class PostClosureSafetyTests
     }
 
     [Fact]
+    public void StrictDragonflyRepeatedMarkerWithDifferentValuesIsConflict()
+    {
+        RuleExtractionResult result = RuleEngine.ExtractFinalResult(
+            ["246期骁腾杀一肖《虎》骁腾杀一肖《兔》"], 246, XiaotengRule());
+        Assert.Equal(RuleExtractionStatus.Conflict, result.Status);
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public void StrictDragonflyRepeatedMarkerWithSameValueRemainsOneSuccess()
+    {
+        Assert.Equal("虎", RuleEngine.ExtractFinalValue(
+            ["246期骁腾杀一肖《虎》骁腾杀一肖《虎》"], 246, XiaotengRule()));
+    }
+
+    [Fact]
     public void StrictDragonflySingleValueKeepsOneFramedValue()
     {
         Assert.Equal("虎", RuleEngine.ExtractFinalValue(
