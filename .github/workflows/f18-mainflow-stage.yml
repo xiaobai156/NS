@@ -1,4 +1,4 @@
-name: F18 business evidence validation
+name: Final F13 F16 F18 closure validation
 on:
   push:
     branches: [fix/f13-f16-f18-20260909]
@@ -6,11 +6,11 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: f18-mainflow-${{ github.ref }}
+  group: f13-f16-f18-final-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   test:
-    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[f18-mainflow-applied]') }}
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[f18-final-applied]') }}
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
@@ -25,10 +25,8 @@ jobs:
         run: python -m pip install numpy pillow
       - name: Configure hosted test desktop
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/Set-TestDisplay.ps1
-      - name: Apply business evidence patch
-        run: |
-          python tools/apply_f18_mainflow.py
-          python tools/refine_f18_mainflow_compat.py
+      - name: Apply final closure patch
+        run: python tools/apply_f13_f16_f18_final_closure.py
       - name: Accuracy closure tests
         run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category=ReauditAccuracy'
       - name: Windows Debug regression tests
@@ -37,13 +35,13 @@ jobs:
         run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Release --filter 'Category!=CUDA&Category!=ModelAssets'
       - name: Python regression tests
         run: python -m unittest discover -s OcrLineTool.Tests -p '*_test.py'
-      - name: Commit tested MainForm
+      - name: Commit tested closure
         shell: pwsh
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add OcrLineTool.App/MainForm.cs
+          git add OcrLineTool.App/MainForm.cs OcrLineTool.App/RecognitionStateStore.cs
           if (-not (git diff --cached --quiet)) {
-            git commit -m "feat: enforce evidence-backed extraction and restore [f18-mainflow-applied]"
+            git commit -m "fix: close F13 F16 F18 evidence boundaries [f18-final-applied]"
             git push origin HEAD:${{ github.ref_name }}
           }
