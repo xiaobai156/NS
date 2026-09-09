@@ -26,7 +26,9 @@ jobs:
       - name: Configure hosted test desktop
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/Set-TestDisplay.ps1
       - name: Apply P2 source/downstream integrity repair
-        run: python tools/apply_p2_source_integrity.py
+        run: |
+          python tools/apply_p2_source_integrity.py
+          python tools/refine_p2_source_integrity.py
       - name: Second-pass full acceptance tests
         run: dotnet test OcrLineTool.Tests/OcrLineTool.Tests.csproj -c Debug --filter 'Category=ReauditAccuracy' --logger 'trx;LogFileName=p2.trx' --results-directory test-results
       - name: Windows Debug regression tests
