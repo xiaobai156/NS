@@ -289,15 +289,17 @@ internal static class OcrEvidenceLayout
         }
 
         // Establish body columns before considering any wide title/header. A
-        // collection of banners must not be allowed to enlarge the body
-        // envelope or merge otherwise independent columns. The envelope is
-        // measured without near-full-width banners, so a 650-wide block on a
-        // 1000-wide page is still a banner, not body.
-        RowSegment[] nonBanners = segments
-            .Where(segment => segment.Box.Width < pageWidth * 0.9)
+        // collection of banners must not enlarge the body envelope or merge
+        // otherwise independent columns. Body evidence is the narrower half of
+        // the segments, so any number of stacked headers with decreasing
+        // widths cannot inflate the envelope step by step.
+        int[] orderedWidths = segments.Select(item => item.Box.Width).OrderBy(width => width).ToArray();
+        int narrowCutoff = orderedWidths[orderedWidths.Length / 2];
+        RowSegment[] bodyEvidence = segments
+            .Where(segment => segment.Box.Width <= narrowCutoff)
             .ToArray();
-        int bodyLeft = nonBanners.Select(item => item.Box.X).DefaultIfEmpty(pageLeft).Min();
-        int bodyRight = nonBanners.Select(item => item.Box.Right).DefaultIfEmpty(pageRight).Max();
+        int bodyLeft = bodyEvidence.Select(item => item.Box.X).DefaultIfEmpty(pageLeft).Min();
+        int bodyRight = bodyEvidence.Select(item => item.Box.Right).DefaultIfEmpty(pageRight).Max();
         int bodyWidth = Math.Max(1, bodyRight - bodyLeft);
         RowSegment[] bodySeeds = segments.Length >= 3
             ? segments.Where(segment => segment.Box.Width < bodyWidth * 0.70).ToArray()

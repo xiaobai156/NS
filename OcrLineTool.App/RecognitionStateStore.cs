@@ -91,7 +91,7 @@ internal static class RecognitionStateStore
     // Extraction contract revision. Bump this whenever RuleEngine output
     // semantics change so an older Success produced by a buggy extractor is
     // never restored as a trusted value. Conflicts stay reusable.
-    internal const int ExtractorRevision = 1;
+    internal const int ExtractorRevision = 2;
     private sealed record StateDocument(int Version, string Group, int Issue, List<ResultEvidenceRecord> Results);
 
     internal static string RuleSignature(OcrRule rule)
