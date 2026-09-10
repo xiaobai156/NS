@@ -943,6 +943,9 @@ public static class RuleEngine
     private static string? ExtractStrictIssueBlock(string[] lines, int issue, OcrRule rule)
     {
         if (SplitIssueNumberRuleIds.Contains(rule.Id)
+            && lines.Any(line => IsBareIssueBoundary(line, issue)))
+            return null;
+        if (SplitIssueNumberRuleIds.Contains(rule.Id)
             && rule.Type.StartsWith("号码:", StringComparison.Ordinal)
             && int.TryParse(rule.Type.AsSpan("号码:".Length), out int reviewedExpectedCount))
         {
@@ -972,6 +975,9 @@ public static class RuleEngine
             }
             if (reviewed.Count > 0)
                 return reviewed.Count == 0 ? null : reviewed.Count == 1 ? reviewed.Single() : ConflictMarker;
+            if (lines.Any(line => Regex.IsMatch(SimplifyOcrText(line).Trim(), @"^\d{4,6}$")
+                && IsBareIssueBoundary(line, issue)))
+                return null;
         }
 
         string text = SimplifyOcrText(string.Join('\n', lines));
@@ -1807,6 +1813,22 @@ public static class RuleEngine
         }
         values.AddRange(Regex.Matches(text, @"[【\[](?<head>[0-4])\s*[】\]]\s*头")
             .Select(match => $"{match.Groups["head"].Value}头"));
+        // Brackets may wrap the value itself (【1头】【2头】 or 【1】【2】)
+        // and ordinary OCR may omit the colon. Keep every candidate in the
+        // field so the caller can report a conflict instead of taking the first.
+        values.AddRange(Regex.Matches(text, @"[【\[](?<head>[0-4])\s*头\s*[】\]]")
+            .Select(match => $"{match.Groups["head"].Value}头"));
+        values.AddRange(Regex.Matches(text, @"(?<!杀|殺|禁)[\s【\[](?<head>[0-4])\s*[】\]](?=\s*(?:头)?(?:\s|$|[【\[]))")
+            .Select(match => $"{match.Groups["head"].Value}头"));
+        Match marker = Regex.Match(text, @"(?:杀|殺)\s*[一二三四五六七八九十0-9]*\s*头");
+        if (marker.Success)
+        {
+            string field = text[(marker.Index + marker.Length)..];
+            values.AddRange(Regex.Matches(field, @"(?<!\d)(?<head>[0-4])\s*头")
+                .Select(match => $"{match.Groups["head"].Value}头"));
+            values.AddRange(Regex.Matches(field, @"[【\[](?<head>[0-4])\s*[】\]]")
+                .Select(match => $"{match.Groups["head"].Value}头"));
+        }
         values.AddRange(Regex.Matches(text, @"买\s*(?<head>[0-4零一二三四])\s*头")
             .Select(match => $"{ToArabicDigit(match.Groups["head"].Value[0])}头"));
         return values;
@@ -2138,8 +2160,7 @@ public static class RuleEngine
             bool explicitIssueField = Regex.IsMatch(firstSimplified,
                 @"^\s*(?:(?:杀|殺)(?:\s*[:：]\s*(?:杀|殺))?|(?:绝杀|絕殺)[一二三四五六七八九十0-9]*[码碼])");
             bool firstOwned = explicitIssueField
-                || IsNumberContinuation(firstText, expectedCount, rule, issue)
-                || ExtractNumbers(first, expectedCount) is not null;
+                || IsNumberContinuation(firstText, expectedCount, rule, issue);
             if (firstOwned && !string.IsNullOrWhiteSpace(first))
                 parts.Add(first);
             for (int next = index + 1; next < lines.Length; next++)
@@ -2281,10 +2302,6 @@ public static class RuleEngine
             return complete.Length == 1 ? complete[0] : null;
         }
 
-        string? resolved = ResolveComplete();
-        if (resolved is not null)
-            return resolved;
-
         bool sawRightPayload = false;
         for (int index = issueIndex + 1; index < lines.Length; index++)
         {
@@ -2297,6 +2314,11 @@ public static class RuleEngine
                 break;
             if (IsOpeningOnlySeparator(lines[index]))
                 continue;
+            if (sawRightPayload
+                && candidates.Any(candidate => ExtractNumbers(string.Join(' ', candidate), expectedCount) is not null)
+                && !Regex.IsMatch(SimplifyOcrText(lines[index]), @"\p{L}")
+                && (ParseNumbers(ScopeNumberPayload(lines[index], rule, expectedCount))?.Length ?? 0) >= 2)
+                break;
             if (IsNumberRowStart(lines[index]) && sawRightPayload)
                 break;
             if (!reviewedTrailingCompletion
@@ -2311,11 +2333,10 @@ public static class RuleEngine
             foreach (List<string> candidate in candidates)
                 candidate.Add(right);
             sawRightPayload = true;
-            resolved = ResolveComplete();
-            if (resolved is not null)
-                return resolved;
         }
-        return null;
+        // Reaching the expected count is only a candidate; the entire physical
+        // field must be consumed before accepting it.
+        return ResolveComplete();
     }
 
     private static string? ExtractReviewedSplitNumberWindow(
@@ -2348,10 +2369,6 @@ public static class RuleEngine
         string centre = ScopeNumberPayload(TextAfterIssue(lines[issueIndex], issue), rule, expectedCount);
         if (!string.IsNullOrWhiteSpace(centre))
             parts.Add(centre);
-        string? alreadyComplete = ExtractNumbers(string.Join(' ', parts), expectedCount);
-        if (alreadyComplete is not null)
-            return alreadyComplete;
-
         bool sawRightPayload = false;
         for (int index = issueIndex + 1; index < lines.Length; index++)
         {
@@ -2365,6 +2382,11 @@ public static class RuleEngine
                 break;
             if (IsOpeningOnlySeparator(lines[index]))
                 continue;
+            if (sawRightPayload
+                && ExtractNumbers(string.Join(' ', parts), expectedCount) is not null
+                && !Regex.IsMatch(SimplifyOcrText(lines[index]), @"\p{L}")
+                && (ParseNumbers(ScopeNumberPayload(lines[index], rule, expectedCount))?.Length ?? 0) >= 2)
+                break;
             if (!reviewedTrailingCompletion
                 && !IsNumberContinuation(lines[index], expectedCount, rule, issue))
             {
@@ -2374,9 +2396,6 @@ public static class RuleEngine
             }
             parts.Add(ScopeNumberPayload(lines[index], rule, expectedCount));
             sawRightPayload = true;
-            string? complete = ExtractNumbers(string.Join(' ', parts), expectedCount);
-            if (complete is not null)
-                return complete;
         }
         return ExtractNumbers(string.Join(' ', parts), expectedCount);
     }
@@ -2433,28 +2452,14 @@ public static class RuleEngine
             @"(?<!\d)\d{1,2}\s*(?:个(?:中特码|特码)?|個(?:码中特碼|特碼)?|码|碼|计|計)",
             " ");
 
-        // If OCR left title noise (including 100/888 etc.) before a complete
-        // bracketed field, prefer the bracket only when its own cardinality is
-        // exactly the configured rule count. This does not make a foreign bracket
-        // valid: IsNumberContinuation still proves ownership before accepting it.
-        if (expectedCount > 0)
-        {
-            string[] exact = Regex.Matches(text,
-                    @"[【\[](?<payload>[^】\]]+)[】\]]")
-                .Select(match => match.Groups["payload"].Value)
-                .Where(payload =>
-                {
-                    string[]? parsed = ParseNumbers(payload);
-                    return parsed is not null && parsed.Length == expectedCount
-                        && parsed.Distinct(StringComparer.Ordinal).Count() == expectedCount;
-                })
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
-            if (exact.Length == 1)
-                return exact[0];
-            // More than one complete bracket is deliberately left intact so the
-            // normal complete-field conflict checks can reject ambiguity.
-        }
+        MatchCollection bracketPayloads = Regex.Matches(text,
+            @"[【\[](?<payload>[^】\]]+)[】\]]");
+        if (bracketPayloads.Count == 1)
+            return bracketPayloads[0].Groups["payload"].Value;
+        // Preserve all brackets when there is more than one; selecting one
+        // complete-looking bracket would hide a conflicting or incomplete peer.
+        if (bracketPayloads.Count > 1)
+            return text;
 
         Match firstNumber = Regex.Match(text, @"\d");
         if (!firstNumber.Success)
@@ -2496,11 +2501,14 @@ public static class RuleEngine
 
         string normalized = Normalize(line);
         bool ownIdentity = ContainsOwnNumberIdentity(line, rule);
+        bool zodiacOnly = Regex.Matches(ownershipText, @"\p{L}+")
+            .Cast<Match>()
+            .All(match => match.Value.All(Zodiac.Contains));
         string decoration = Regex.Replace(
             ownershipText, @"[0-9\s,，.。:：*【】\[\]()（）?？←→]+", string.Empty);
         bool structuralField = Regex.IsMatch(decoration,
-            @"^(?:(?:杀|殺){1,3}|开|開|禁|杀码|殺碼|杀特码|殺特碼|不开|不開|精选杀|精選殺|码|碼|特码|特碼|码中特码|码中特碼|计|計|包围码|包圍碼|锁三十六码|鎖三十六碼|庄家必杀|莊家必殺|绝杀[一二三四五六七八九十0-9]+码|絕殺[一二三四五六七八九十0-9]+碼|封杀|封殺)$");
-        if (!ownIdentity && !structuralField)
+            @"^(?:(?:杀|殺){1,3}|开|開|禁|杀码|殺碼|杀特码|殺特碼|不开|不開|精选杀|精選殺|码|碼|特码|特碼|码中特码|码中特碼|计|計|包围码|包圍碼|锁三十六码|鎖三十六碼|庄家必杀|莊家必殺|绝杀|絕殺|绝杀[一二三四五六七八九十0-9]+码|絕殺[一二三四五六七八九十0-9]+碼|封杀|封殺)$");
+        if (!ownIdentity && !structuralField && !zodiacOnly)
             return false;
 
         // Brackets prove grouping only after ownership has been established.
@@ -2515,15 +2523,11 @@ public static class RuleEngine
             || !int.TryParse(trimmed, out int actual)
             || actual == selectedIssue)
             return false;
-        string selected = selectedIssue.ToString();
-        if (trimmed.Length != selected.Length)
-            return false;
-
-        // A same-width bare 4-6 digit row is ambiguous: it can be another issue
-        // marker or compact two-digit lottery pairs. There is no textual proof
-        // that lets a generic field safely choose the latter. Accuracy wins over
-        // recall here, so every such row closes the selected issue block.
-        return true;
+        // Treat values in the issue-like ranges as boundaries. Four-digit OCR
+        // rows such as 4445/4546 are common compact pair continuations, so they
+        // remain eligible when their value is outside the issue range.
+        return trimmed.Length >= 6 && trimmed[0] == '1'
+            || trimmed.Length == 4 && actual is >= 1000 and <= 1999;
     }
 
     private static bool HasExactBracketPayload(string line, int expectedCount)

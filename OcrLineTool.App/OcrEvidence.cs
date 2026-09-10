@@ -288,26 +288,26 @@ internal static class OcrEvidenceLayout
             return columns;
         }
 
-        // Detect bridging banners by asking what the body columns look like when
-        // the candidate is removed. If the candidate can touch two otherwise
-        // separate body columns, it is page/header provenance and must never
-        // expand either body's horizontal envelope.
-        var spanning = new List<RowSegment>();
-        foreach (RowSegment candidate in segments.Where(segment =>
-            segments.Length >= 3 && segment.Box.Width >= pageWidth * 0.50))
+        // Establish body columns before considering any wide title/header. A
+        // collection of banners must not be allowed to enlarge the body
+        // envelope or merge otherwise independent columns.
+        RowSegment[] bodySeeds = segments.Length >= 3
+            ? segments.Where(segment => segment.Box.Width < pageWidth * 0.70).ToArray()
+            : segments;
+        List<List<RowSegment>> bodyColumns = Cluster(bodySeeds);
+        if (bodyColumns.Count < 2)
+            bodyColumns = Cluster(segments);
+
+        var spanning = new HashSet<RowSegment>();
+        foreach (RowSegment candidate in segments.Except(bodySeeds))
         {
-            List<List<RowSegment>> provisional = Cluster(
-                segments.Where(segment => !ReferenceEquals(segment, candidate)));
-            if (provisional.Count < 2)
-                continue;
-            int touchedColumns = provisional.Count(column =>
+            int touched = bodyColumns.Count(column =>
                 HorizontalGap(candidate, column) <= MergeThreshold(candidate, column));
-            if (touchedColumns >= 2)
+            if (touched >= 2)
                 spanning.Add(candidate);
         }
 
-        List<List<RowSegment>> columns = Cluster(segments.Where(segment =>
-            !spanning.Any(item => ReferenceEquals(item, segment))));
+        List<List<RowSegment>> columns = Cluster(segments.Where(segment => !spanning.Contains(segment)));
         foreach (RowSegment banner in spanning)
             columns.Add([banner]);
         return columns.OrderBy(column => column.Average(item => item.Box.CenterX)).ToList();

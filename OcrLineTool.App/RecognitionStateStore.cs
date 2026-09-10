@@ -190,6 +190,20 @@ internal static class RecognitionStateStore
         string path = ResultFilePaths.ForRecognitionState(appDirectory, selectedDirectory, issue);
         string group = RuleCatalog.GroupNameForFolder(appDirectory, selectedDirectory);
         var results = new List<ResultEvidenceRecord>();
+
+        async Task PersistStateAsync()
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            if (File.Exists(path)) File.Delete(path);
+            await AtomicFile.WriteAllTextAsync(
+                path,
+                JsonSerializer.Serialize(new StateDocument(Version, group, issue, results)),
+                new UTF8Encoding(false),
+                cancellationToken);
+        }
+
+        // Conflicts revoke prior successes before any optional evidence copy.
+        // This keeps the ledger durable when a single success snapshot is bad.
         foreach (OcrRule rule in rules)
         {
             bool conflict = ResultValues.IsConflict(values, rule.Id);
@@ -200,8 +214,7 @@ internal static class RecognitionStateStore
 
             if (conflict)
             {
-                if (record.Status == "conflict")
-                    results.Add(record with { Value = string.Empty, Status = "conflict" });
+                results.Add(record with { Value = string.Empty, Status = "conflict" });
                 continue;
             }
 
@@ -209,28 +222,49 @@ internal static class RecognitionStateStore
                 record.Status != "success" || record.Value != value ||
                 !RuleEngine.IsCanonicalValueValid(rule, value))
                 continue;
+        }
+
+        try
+        {
+            await PersistStateAsync();
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new OcrException("无法保存带来源证明的识别状态；本次结果不会作为可恢复成功值。", "OCR_STATE_WRITE_ERROR");
+        }
+
+        foreach (OcrRule rule in rules)
+        {
+            if (ResultValues.IsConflict(values, rule.Id)
+                || !evidence.Records.TryGetValue(rule.Id, out ResultEvidenceRecord? record)
+                || record.RuleType != rule.Type || record.OutputLabel != rule.OutputLabel
+                || record.RuleSignature != RuleSignature(rule)
+                || !values.TryGetValue(rule.Id, out string? value)
+                || record.Status != "success" || record.Value != value
+                || !RuleEngine.IsCanonicalValueValid(rule, value))
+                continue;
 
             // A successful OCR view may live in a temporary crop directory that
             // MainForm deletes when the run ends. Persist the exact input bytes
             // before writing trusted state, while retaining the original source
             // path/hash as the primary provenance check.
-            record = PersistInputSnapshot(appDirectory, group, issue, record);
-            evidence.Seed(record);
-            results.Add(record);
+            try
+            {
+                record = PersistInputSnapshot(appDirectory, group, issue, record);
+                evidence.Seed(record);
+                results.Add(record);
+            }
+            catch (OcrException)
+            {
+                // One invalid/uncopyable success is omitted; conflicts already
+                // persisted above and other successes remain publishable.
+            }
         }
 
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            // Missing state is safe; stale state is not. Remove the previous snapshot
-            // before publishing the new complete snapshot so a failed write cannot
-            // resurrect a value that the current run has invalidated or conflicted.
-            if (File.Exists(path)) File.Delete(path);
-            await AtomicFile.WriteAllTextAsync(
-                path,
-                JsonSerializer.Serialize(new StateDocument(Version, group, issue, results)),
-                new UTF8Encoding(false),
-                cancellationToken);
+            await PersistStateAsync();
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
