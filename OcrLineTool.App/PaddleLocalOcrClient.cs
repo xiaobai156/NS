@@ -415,7 +415,7 @@ public sealed class PaddleLocalOcrClient
 
         IReadOnlyList<OcrLineEvidence> partitioned = OcrEvidenceLayout.Partition(raw);
         string hash = LocalOcrIdentity.Image(path);
-        return new OcrEvidence(path, path, hash, hash, "paddle", partitioned);
+        return new OcrEvidence(path, path, hash, hash, "paddle", partitioned, raw);
     }
 
     private async Task<Dictionary<string, CacheEntry>> ReadCacheAsync(CancellationToken cancellationToken)

@@ -74,7 +74,8 @@ public sealed record OcrEvidence(
     string SourceHash,
     string InputHash,
     string ViewId,
-    IReadOnlyList<OcrLineEvidence> Items)
+    IReadOnlyList<OcrLineEvidence> Items,
+    [property: JsonIgnore] IReadOnlyList<OcrLineEvidence>? TokenItems = null)
 {
     [JsonIgnore]
     public IReadOnlyList<string> Lines => SafeLines(Items);
@@ -136,7 +137,7 @@ public sealed record OcrEvidence(
         // deliberately gives each opaque line its own region; existing explicit
         // boundaries remain at least as strict as before.
         IReadOnlyList<OcrLineEvidence> partitioned = OcrEvidenceLayout.Partition(items);
-        return new(inputPath, inputPath, hash, hash, viewId, partitioned);
+        return new(inputPath, inputPath, hash, hash, viewId, partitioned, items);
     }
 
     public static OcrEvidence FromCapturedBytes(
@@ -146,7 +147,7 @@ public sealed record OcrEvidence(
         IReadOnlyList<OcrLineEvidence> items)
     {
         string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(inputBytes));
-        return new(inputPath, inputPath, hash, hash, viewId, items);
+        return new(inputPath, inputPath, hash, hash, viewId, items, items);
     }
 
     public OcrEvidence Bind(OcrEvidenceIdentity identity)
@@ -160,13 +161,18 @@ public sealed record OcrEvidence(
         {
             ViewId = identity.ViewId + "/" + (string.IsNullOrWhiteSpace(item.ViewId) ? "default" : item.ViewId)
         }).ToArray();
+        OcrLineEvidence[]? boundTokens = TokenItems?.Select(item => item with
+        {
+            ViewId = identity.ViewId + "/" + (string.IsNullOrWhiteSpace(item.ViewId) ? "default" : item.ViewId)
+        }).ToArray();
         return new(
             identity.SourcePath,
             identity.InputPath,
             identity.SourceHash,
             identity.InputHash,
             identity.ViewId,
-            boundItems);
+            boundItems,
+            boundTokens);
     }
 }
 
@@ -287,12 +293,13 @@ internal static class OcrEvidenceLayout
         // Establish body columns before considering any wide title/header.
         // Width quantiles cannot prove body identity because headers may
         // outnumber body rows. Instead, drop the widest remaining segment
-        // repeatedly until the rest forms at least two stable columns (or only
-        // two segments remain). This directly separates independent body
-        // columns from the header stack, and stops as soon as the columns are
-        // distinguishable, so any number of decreasing-width headers cannot
-        // re-bridge them one layer at a time.
+        // repeatedly until the rest forms at least two stable columns. A dense
+        // data table can be wider in its body rows than in its side cells, so
+        // the removal only treats clearly dominant widths (more than half of
+        // the widest block) as banners; once the remaining pool no longer has
+        // such a block it is body evidence, not a header stack to peel away.
         RowSegment[] seedPool = segments;
+        int widestOnPage = segments.Max(item => item.Box.Width);
         List<List<RowSegment>> bodyColumns;
         while (true)
         {
@@ -300,6 +307,8 @@ internal static class OcrEvidenceLayout
             if (bodyColumns.Count >= 2 || seedPool.Length <= 2)
                 break;
             int widest = seedPool.Max(item => item.Box.Width);
+            if (widest * 2 <= widestOnPage)
+                break;
             seedPool = seedPool.Where(item => item.Box.Width < widest).ToArray();
         }
         if (bodyColumns.Count < 2)

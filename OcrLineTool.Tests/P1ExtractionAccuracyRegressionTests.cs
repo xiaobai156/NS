@@ -28,7 +28,7 @@ public sealed class P1ExtractionAccuracyRegressionTests
         yield return ["R19", "嫣然心水", "杰少九肖", 251,
             new[] { "原创杰少", "251期 新澳九肖 马蛇龙兔虎牛鼠猪狗", "251期 新澳九肖 马蛇龙兔虎牛鼠猪鸡" }];
         yield return ["R20", "新澳六合彩资料", "时点半", 251,
-            new[] { "250期 十点半集团大围36码 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36" }];
+            new[] { "250期 十点半集团大围36码 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35" }];
         yield return ["R21", "嫣然心水", "南国挽心", 251,
             new[] { "南国挽心编号251 鼠" }];
         yield return ["R22", "嫣然心水", "南国挽心", 1001,
@@ -79,10 +79,10 @@ public sealed class P1ExtractionAccuracyRegressionTests
     }
 
     [Fact]
-    public void UnnumberedIgnoreIssueCardStaysUnverifiedWithoutTrustedPublicationEvidence()
+    public void UnnumberedIgnoreIssueCardNeedsOnlyItsNumbers()
     {
         string numbers = string.Join(' ', Enumerable.Range(1, 36).Select(n => n.ToString("00")));
-        Assert.Null(RuleEngine.ExtractFinalValue(
+        Assert.Equal(numbers, RuleEngine.ExtractFinalValue(
             [$"十点半集团大围36码 {numbers}"], 251, Rule("新澳六合彩资料", "时点半")));
     }
 

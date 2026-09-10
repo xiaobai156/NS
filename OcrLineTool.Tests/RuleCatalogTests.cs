@@ -10,13 +10,13 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
 
-        Assert.Equal(101, rules.Count);
+        Assert.Equal(98, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.Contains(rules, rule => rule.Id == "钦差大臣公式一" && rule.Section == "公式一");
         Assert.Contains(rules, rule => rule.Id == "君军两尾" && rule.Type == "尾数组合");
         Assert.Contains(rules, rule => rule.Id == "恩平公式" && rule.RequiredKeyword == "杀二肖" && rule.Section == "杀二肖");
         Assert.Contains(rules, rule => rule.Id == "小灰灰一肖" && rule.Type == "单生肖");
-        Assert.Contains(rules, rule => rule.Id == "小灰灰两肖" && rule.Type == "生肖组合");
+        Assert.DoesNotContain(rules, rule => rule.Id == "小灰灰两肖");
         Assert.DoesNotContain(rules, rule => rule.Id == "小灰灰两尾");
         Assert.Contains(rules, rule => rule.Id == "小骚货" && rule.Type == "九肖" && rule.RequiredKeyword == "快乐的骚货");
         Assert.Contains(rules, rule => rule.Id == "小黄人五行" && rule.Type == "五行");
@@ -44,9 +44,7 @@ public sealed class RuleCatalogTests
         Assert.Contains(rules, rule => rule.Id == "阿莲杀尾尾" && rule.Type == "尾"
             && rule.Folder == "阿莲" && rule.Section == "9月份"
             && rule.RequiredKeyword == "9月份");
-        Assert.Contains(rules, rule => rule.Id == "大中华杀肖肖" && rule.Type == "生肖"
-            && rule.Folder == "大中华" && rule.Section == "杀一肖"
-            && rule.RequiredKeyword == "杀一肖");
+        Assert.DoesNotContain(rules, rule => rule.Id == "大中华杀肖肖");
         Assert.Contains(rules, rule => rule.Id == "借花献佛" && rule.Type == "统计生肖"
             && rule.Folder == "六扇门" && rule.RequiredKeyword == "借花献佛");
         Assert.Contains(rules, rule => rule.Id == "品鉴" && rule.Type == "统计生肖"
@@ -59,18 +57,14 @@ public sealed class RuleCatalogTests
             && rule.Folder == "火狼女" && rule.Section == "禁" && rule.RequiredKeyword == "禁");
         Assert.Contains(rules, rule => rule.Id == "火狼女两尾" && rule.Type == "尾数组合"
             && rule.Folder == "火狼女" && rule.Section == "二尾" && rule.RequiredKeyword == "二尾");
-        Assert.Contains(rules, rule =>
-            rule.Id == "冷酷女王" &&
-            rule.Section == "①肖" &&
-            rule.RequiredKeyword == "①肖" &&
-            rule.Folder == "冷酷女王");
+        Assert.DoesNotContain(rules, rule => rule.Id == "冷酷女王");
         string[] newNames =
         [
             "缘来如此杀一肖", "钦差大臣公式一", "钦差大臣公式二", "君军两肖",
             "小黄人两肖", "辣椒炒肉头", "小黄人头", "紫燕儿尾", "缘来如此尾",
             "君军两尾", "辣椒炒肉尾", "小黄人两尾", "君军合", "小黄人五行",
             "柳叶刀", "长安之星", "雁塔题名半波", "雁塔题名杀头", "雁塔题名杀合",
-            "华林肖", "华林尾", "华林半波", "傻丫头二肖", "小雨婷", "冷酷女王",
+            "华林肖", "华林尾", "华林半波", "傻丫头二肖", "小雨婷",
             "简单爱", "月来月好", "欧阳肖", "欧阳半波", "永卟弃杀头", "陈思思",
             "潮汕陈龙杀三码", "玉亚半波", "Alice两码", "恩平杀头", "恩平杀一尾",
             "白少华半头", "白少华五码"
@@ -381,8 +375,8 @@ public sealed class RuleCatalogTests
     }
 
     [Theory]
-    [InlineData("黄大仙新澳.json", "黄大仙新澳", 35)]
-    [InlineData("新澳高手.json", "新澳高手", 24)]
+    [InlineData("黄大仙新澳.json", "黄大仙新澳", 22)]
+    [InlineData("新澳高手.json", "新澳高手", 19)]
     public void LoadsTheNewGroupRules(string fileName, string groupName, int expectedCount)
     {
         string configuration = ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory);

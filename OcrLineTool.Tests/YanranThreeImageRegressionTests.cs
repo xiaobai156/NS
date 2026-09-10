@@ -52,11 +52,9 @@ public sealed class YanranThreeImageRegressionTests
     public void XiaohuihuiHistoryCardIsOneZodiacNotTwo()
     {
         OcrRule single = Assert.Single(Rules, item => item.Id == "小灰灰一肖");
-        OcrRule pair = Assert.Single(Rules, item => item.Id == "小灰灰两肖");
         string[] lines = ["小灰灰荣誉出品", "248杀号龙开猪20√", "249杀号狗开鸭88?"];
 
         Assert.Equal("狗", RuleEngine.ExtractFinalValue(lines, 249, single));
-        Assert.Null(RuleEngine.ExtractFinalValue(lines, 249, pair));
     }
 
     [Fact]

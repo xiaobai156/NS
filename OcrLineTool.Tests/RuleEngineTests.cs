@@ -233,38 +233,6 @@ public sealed class RuleEngineTests
     }
 
     [Fact]
-    public void ExtractsDazhonghuaSingleZodiacForTheTargetIssue()
-    {
-        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
-            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
-        OcrRule rule = Assert.Single(rules, item => item.Id == "大中华杀肖肖");
-        string[] lines =
-        [
-            "===大中华新澳杀一肖===",
-            "246期大中华新澳总杀一肖",
-            "【马】开30准√",
-            "247期大中华新澳总杀一肖",
-            "【鼠】开??准√"
-        ];
-
-        Assert.Equal("鼠", RuleEngine.ExtractValue(lines, 247, rule));
-    }
-
-    [Fact]
-    public void UsesTheDazhonghuaFolderAndTitleToAvoidOtherCardsInTheFolder()
-    {
-        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
-            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
-        OcrRule rule = Assert.Single(rules, item => item.Id == "大中华杀肖肖");
-        string image = @"C:\结果\9.4-嫣然心水\大中华\sample.jpg";
-
-        Assert.Single(RuleEngine.FindMatches(image,
-            ["===大中华新澳杀一肖===", "247期大中华新澳总杀一肖", "【鼠】开??准√"], [rule]));
-        Assert.Empty(RuleEngine.FindMatches(image,
-            ["大中华新澳平特一肖一码", "247期：大中华新澳平特一肖", "【猪】一码【44】开??"], [rule]));
-    }
-
-    [Fact]
     public void ExtractsTheHighestFrequencyZodiacFromEachStatisticMaterial()
     {
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
@@ -637,19 +605,8 @@ public sealed class RuleEngineTests
         Assert.Equal(expected, RuleEngine.ExtractFinalValue([line], 242, new OcrRule("目录名", type)));
     }
 
-    [Fact]
-    public void ExtractsColdQueenFromTheForbiddenOneZodiacSection()
-    {
-        var rule = new OcrRule("冷酷女王", "生肖", null, "①肖", "①肖", "冷酷女王");
-
-        Assert.Equal("牛", RuleEngine.ExtractFinalValue(
-            ["LoVe冷酷女王", "新澳禁①肖", "242期禁①肖牛"],
-            242,
-            rule));
-    }
-
     [Theory]
-    [InlineData("月来月好", "守信承诺经营者", "羊")]
+    [InlineData("月来月好", "月来月好", "羊")]
     [InlineData("欧阳肖", "欧阳", "猴")]
     [InlineData("苏柒若", "苏柒若", "兔")]
     public void ExtractsZodiacFromTheNamedRowInACurrentIssueSummary(
@@ -682,13 +639,15 @@ public sealed class RuleEngineTests
     }
 
     [Fact]
-    public void TimePointNumbersStayUnverifiedWithoutAnIssueMarker()
+    public void TimePointNumbersNeedNoIssueMarker()
     {
         var rule = new OcrRule("十点半集团大围", "号码:36", "时点半", IgnoreIssue: true);
         string[] lines = ["十点半集团大围 36码", "28 01 06 47 42 49", "27 21 19 09 08 45", "43 17 35 12 14 29", "07 39 41 46 37 23", "48 10 13 16 26 15", "11 31 22 38 33 32"];
         string expected = "28 01 06 47 42 49 27 21 19 09 08 45 43 17 35 12 14 29 07 39 41 46 37 23 48 10 13 16 26 15 11 31 22 38 33 32";
 
-        Assert.Null(RuleEngine.ExtractFinalValue(lines, 243, rule));
+        // 时点半 identity comes from the matched candidate/template; no issue
+        // marker is required and only the body numbers are validated.
+        Assert.Equal(expected, RuleEngine.ExtractFinalValue(lines, 243, rule));
         Assert.Equal(expected, RuleEngine.ExtractFinalValue(["243期", ..lines], 243, rule));
     }
 

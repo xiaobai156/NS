@@ -5,7 +5,7 @@ namespace OcrLineTool.Tests;
 public sealed class LocalCandidatePlannerTests
 {
     [Fact]
-    public void LiangWeiweiLockedFolderIsPrimaryAndTheSummaryIsOnlyAFallback()
+    public void LiangWeiweiLockedFolderUsesOnlyThePrimaryImage()
     {
         var rule = new OcrRule("梁微微", "生肖", Folder: "梁薇薇");
         string dataImage = @"C:\结果\9.2-嫣然心水\梁薇薇\原图.jpg";
@@ -18,10 +18,10 @@ public sealed class LocalCandidatePlannerTests
 
         IReadOnlyList<LocalCandidatePlan> plans = LocalCandidatePlanner.Build([dataImage, summaryImage], results, [rule]);
 
-        LocalCandidatePlan primary = Assert.Single(plans, plan => plan.IsPrimary);
+        LocalCandidatePlan primary = Assert.Single(plans);
+        Assert.True(primary.IsPrimary);
         Assert.Equal(dataImage, primary.Path);
         Assert.Equal(rule, Assert.Single(primary.Rules));
-        Assert.Equal(summaryImage, Assert.Single(plans, plan => !plan.IsPrimary).Path);
     }
 
     [Fact]
@@ -38,8 +38,9 @@ public sealed class LocalCandidatePlannerTests
 
         IReadOnlyList<LocalCandidatePlan> plans = LocalCandidatePlanner.Build([dataImage, summaryImage], results, [rule]);
 
-        Assert.Equal(dataImage, Assert.Single(plans, plan => plan.IsPrimary).Path);
-        Assert.Equal(summaryImage, Assert.Single(plans, plan => !plan.IsPrimary).Path);
+        LocalCandidatePlan plan = Assert.Single(plans);
+        Assert.True(plan.IsPrimary);
+        Assert.Equal(dataImage, plan.Path);
     }
 
     [Fact]

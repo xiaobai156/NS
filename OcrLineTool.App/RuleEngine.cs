@@ -14,7 +14,14 @@ public sealed record OcrRule(
     bool AllowValueWithoutKeyword = false,
     bool StrictIssueBlock = false,
     bool SingleValuePerIssue = false,
-    IReadOnlyList<string>? PeerKeywords = null)
+    IReadOnlyList<string>? PeerKeywords = null,
+    IReadOnlyList<string>? RequiredKeywordsAny = null,
+    bool AllowFolderIdentity = false,
+    bool SkipConflictingRows = false,
+    bool AllowIssueLessSummary = false,
+    bool StopAtPlus = false,
+    bool TenZodiacCombo = false,
+    bool PrimaryOnly = false)
 {
     public string Id => Label ?? Keyword;
     public string OutputLabel => Label ?? Keyword;
@@ -41,6 +48,12 @@ public static class RuleEngine
     private static readonly Regex BareIssueRegex = new(
         @"^\s*[【\[（({]?\s*(?<issue>\d{3,6})(?!\d)(?!\s*\*)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    // OCR may merge a one-digit row index into the period column of a
+    // vertical list ("5253杀4合" = row 5, 253期). A trailing space or bracket
+    // still counts as a standalone bare number and must not be split.
+    private static readonly Regex MergedRowIndexIssueRegex = new(
+        @"^\s*[【\[（({]?\s*[1-9]\s*(?<issue>\d{3})(?![\d\s])",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex YearIssueRegex = new(@"^\s*\d{4}\s*[-—/]\s*(?<issue>\d{3,6})(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private const string Zodiac = "马蛇龙兔虎牛鼠猪狗鸡猴羊";
     private const string ConflictMarker = "OCR-CONFLICT";
@@ -50,7 +63,8 @@ public static class RuleEngine
         new HashSet<string>(StringComparer.Ordinal)
         {
             "宝典", "心水", "内幕", "强哥", "锁妖", "赛马会", "龙王", "红人馆", "老人味",
-            "表弟", "祥瑞阁", "小马哥", "杀料", "金钱网", "天线宝杀"
+            "表弟", "祥瑞阁", "小马哥", "杀料", "金钱网", "天线宝杀", "翩翩公子杀十码",
+            "狗庄", "宝典杀", "聚彩", "龙王杀", "姨妈", "藏宝十二码"
         };
 
     public static IReadOnlyList<OcrRule> FindMatches(IEnumerable<string> localLines, IEnumerable<OcrRule> rules)
@@ -71,6 +85,14 @@ public static class RuleEngine
         bool hasCompleteIdentityCatalog = completeRules is not null;
         string text = Normalize(string.Concat(lines));
         string folder = Path.GetFileName(Path.GetDirectoryName(imagePath)) ?? "";
+        // 嫣然心水: the subfolder alone is not identity when the image actually
+        // shows another material's name and none of this rule's own names.
+        bool guardForeignIdentity = RuleCatalog.PathBelongsToGroup(imagePath, "嫣然心水");
+        HashSet<string> presentIdentities = guardForeignIdentity
+            ? identityRules.Select(other => Normalize(other.Keyword))
+                .Where(value => value.Length > 0 && text.Contains(value, StringComparison.Ordinal))
+                .ToHashSet(StringComparer.Ordinal)
+            : [];
         return requestedRules.Where(rule =>
         {
             string expectedFolder = rule.Folder ?? rule.Keyword;
@@ -79,11 +101,28 @@ public static class RuleEngine
                     item.Equals(expectedFolder, StringComparison.OrdinalIgnoreCase));
             if (!folderMatches)
                 return string.IsNullOrWhiteSpace(rule.Folder) && MatchesText(text, rule);
-            if (!string.IsNullOrWhiteSpace(rule.RequiredKeyword)
-                && !RuleCatalog.NormalizeGroupName(rule.RequiredKeyword)
-                    .Equals(RuleCatalog.NormalizeGroupName(expectedFolder), StringComparison.OrdinalIgnoreCase)
-                && !ContainsKeyword(text, Normalize(rule.RequiredKeyword)))
+            bool requiredRepeatsFolder = !string.IsNullOrWhiteSpace(rule.RequiredKeyword)
+                && RuleCatalog.NormalizeGroupName(rule.RequiredKeyword)
+                    .Equals(RuleCatalog.NormalizeGroupName(expectedFolder), StringComparison.OrdinalIgnoreCase);
+            string requiredKeyword = rule.RequiredKeyword ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(requiredKeyword)
+                && !(guardForeignIdentity && rule.AllowFolderIdentity)
+                && (guardForeignIdentity || !requiredRepeatsFolder)
+                && !ContainsKeyword(text, Normalize(requiredKeyword)))
                 return false;
+            if (rule.RequiredKeywordsAny is { Count: > 0 }
+                && !rule.RequiredKeywordsAny.Any(value => ContainsKeyword(text, Normalize(value))))
+                return false;
+            if (guardForeignIdentity && rule.AllowFolderIdentity)
+            {
+                // Cards in this dedicated folder print no material name; the
+                // folder plus the rule type is the identity. A card showing a
+                // different material's name is not this rule's image.
+                string ownFolderKeyword = Normalize(rule.Keyword);
+                if (presentIdentities.Any(value => !value.Equals(ownFolderKeyword, StringComparison.Ordinal)))
+                    return false;
+                return true;
+            }
             bool explicitIdentity = MatchesText(text, rule)
                 && (string.IsNullOrWhiteSpace(rule.Section)
                     || text.Contains(Normalize(rule.Section), StringComparison.Ordinal));
@@ -205,7 +244,9 @@ public static class RuleEngine
 
         return identityMatched
             && (string.IsNullOrWhiteSpace(rule.RequiredKeyword)
-                || ContainsKeyword(text, Normalize(rule.RequiredKeyword)));
+                || ContainsKeyword(text, Normalize(rule.RequiredKeyword)))
+            && (rule.RequiredKeywordsAny is not { Count: > 0 }
+                || rule.RequiredKeywordsAny.Any(value => ContainsKeyword(text, Normalize(value))));
     }
 
     public static bool IsZodiacSummary(IEnumerable<string> lines) =>
@@ -218,6 +259,15 @@ public static class RuleEngine
     private static bool ContainsKeyword(string text, string keyword)
     {
         if (text.Contains(keyword, StringComparison.Ordinal))
+            return true;
+        // Common OCR look-alikes may not match even at one edit either
+        // (e.g. 小惠慧/小慧慧, 新奥/新澳). Identity matching only; business
+        // values never pass through this normalization.
+        string confusedText = ApplyIdentityOcrConfusions(text);
+        string confusedKeyword = ApplyIdentityOcrConfusions(keyword);
+        if ((!string.Equals(confusedText, text, StringComparison.Ordinal)
+                || !string.Equals(confusedKeyword, keyword, StringComparison.Ordinal))
+            && confusedText.Contains(confusedKeyword, StringComparison.Ordinal))
             return true;
         if (keyword.Length < 4)
             return false;
@@ -234,6 +284,10 @@ public static class RuleEngine
         }
         return false;
     }
+
+    private static string ApplyIdentityOcrConfusions(string text) => text
+        .Replace('惠', '慧')
+        .Replace('奥', '澳');
 
     private static bool WithinOneEdit(ReadOnlySpan<char> left, ReadOnlySpan<char> right)
     {
@@ -281,17 +335,14 @@ public static class RuleEngine
         if (!rule.IgnoreIssue)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(issue);
         string[] lines = cloudLines.Select(line => rule.StrictIssueBlock ? SimplifyFixedCardText(line) : line).ToArray();
-        if (rule.IgnoreIssue)
-        {
-            int[] explicitIssues = FindIssues(lines).Distinct().ToArray();
-            // IgnoreIssue means the card may omit a printed issue in legacy data,
-            // not that the selected issue is evidence. Until a trusted publication
-            // identity exists, an unnumbered card stays unverified; mixed/other
-            // explicit issues are also rejected.
-            if (explicitIssues.Length == 0 || explicitIssues.Any(actual => actual != issue))
-                return null;
-        }
+        // IgnoreIssue (时点半): the card carries no verifiable issue; identity
+        // comes from the matched candidate/template and only the body numbers
+        // are validated, so no issue marker is required. The rule's own title
+        // must still be present so a mismatched candidate cannot be extracted.
         // A requested issue is a query, never evidence for repairing OCR.
+        if (rule.IgnoreIssue
+            && !ContainsKeyword(Normalize(string.Concat(lines)), Normalize(rule.Keyword)))
+            return null;
         if (!rule.StrictIssueBlock)
             lines = SplitInlineIssueRows(lines);
         string keyword = Normalize(rule.Keyword);
@@ -302,7 +353,15 @@ public static class RuleEngine
             .ToArray();
 
         if (rule.Type == "生肖" && IsZodiacSummary(lines))
-            return ExtractZodiacSummaryValue(lines, issue, rule);
+        {
+            string? summaryValue = ExtractZodiacSummaryValue(lines, issue, rule);
+            if (summaryValue is not null || !rule.AllowIssueLessSummary)
+                return summaryValue;
+            // GG团队-style sheets may print an earlier period in the title; the
+            // named row is still this material's latest forbidden zodiac.
+            int printedIssue = FindIssues(lines).DefaultIfEmpty(0).Max();
+            return printedIssue > 0 ? ExtractZodiacSummaryValue(lines, printedIssue, rule) : null;
+        }
 
         // 半波卡片只能由目标期行本身的完整资料名确认身份。
         // 这样即使上一期标题仍留在图里，也绝不能把本期“杀半波”通用字段归给旧资料。
@@ -405,16 +464,31 @@ public static class RuleEngine
         }
 
         var observed = new HashSet<string>(StringComparer.Ordinal);
-        IEnumerable<string> relevant = keywordInTarget
-            ? candidates.Where(line => aliases.Any(alias => Normalize(line).Contains(alias, StringComparison.Ordinal)))
-            : candidates;
-        if (rule.Type is "生肖" or "单生肖" or "生肖组合" or "九肖")
-            relevant = MaximalCandidates(relevant);
-        foreach (string line in relevant)
+        bool zodiacTypes = rule.Type is "生肖" or "单生肖" or "生肖组合" or "九肖";
+        void CollectCandidates(IEnumerable<string> source, bool maximalOnly)
         {
-            string? value = ExtractTypedForRule(line, rule);
-            if (value is not null)
-                observed.Add(value);
+            IEnumerable<string> relevant = maximalOnly && zodiacTypes
+                ? MaximalCandidates(source)
+                : source;
+            foreach (string line in relevant)
+            {
+                string? value = ExtractTypedForRule(line, rule);
+                if (value is not null)
+                    observed.Add(value);
+            }
+        }
+        IEnumerable<string> keywordCandidates = candidates.Where(
+            line => aliases.Any(alias => Normalize(line).Contains(alias, StringComparison.Ordinal))).ToArray();
+        IEnumerable<string>[] passes = keywordInTarget
+            ? [keywordCandidates, candidates]
+            : [candidates];
+        foreach (IEnumerable<string> pass in passes)
+        {
+            CollectCandidates(pass, maximalOnly: true);
+            if (observed.Count == 0)
+                CollectCandidates(pass, maximalOnly: false);
+            if (observed.Count > 0)
+                break;
         }
         // Never let an earlier copy of the selected issue silently win.
         if (observed.Count > 0)
@@ -431,7 +505,7 @@ public static class RuleEngine
                 string nearby = rule.Type == "九肖"
                     ? string.Join(' ', lines.Skip(heading).Take(2))
                     : string.Join(' ', lines.Skip(Math.Max(0, heading - 1)).Take(6));
-                string? value = ExtractTyped(nearby, rule.Type);
+                string? value = ExtractTyped(nearby, rule.Type, rule);
                 if (value is not null)
                     return value;
             }
@@ -442,7 +516,7 @@ public static class RuleEngine
                          .Where(index => ContainsIssue(lines[index], issue)))
             {
                 string nearby = string.Join(' ', lines.Skip(Math.Max(0, issueIndex - 2)).Take(5));
-                string? value = ExtractTyped(nearby, rule.Type);
+                string? value = ExtractTyped(nearby, rule.Type, rule);
                 if (value is not null)
                     return value;
             }
@@ -597,6 +671,11 @@ public static class RuleEngine
         return output.ToArray();
     }
 
+    private static bool IsSectionHeadingLike(string normalized) =>
+        normalized.IndexOfAny(
+            ['杀', '殺', '禁', '肖', '尾', '合', '波', '头', '段', '码', '計', '计',
+             '一', '二', '三', '四', '五', '六', '七', '八', '九', '十']) >= 0;
+
     private static bool HasExplicitHalfWaveIdentity(string text, OcrRule rule)
     {
         if (!rule.StrictIssueBlock || rule.Type != "半波")
@@ -632,19 +711,45 @@ public static class RuleEngine
         {
             if (ContainsIssue(lines[index], issue))
                 continue;
-            if (ContainsIssueBoundary(lines[index], issue))
+            // Other-period rows of the same section are data, not a section
+            // boundary. Only an ambiguous standalone number (or a real heading
+            // without this section) closes the scope; a historical year label
+            // inside the section is skipped.
+            if (ContainsAnyIssue(lines[index]))
+                continue;
+            if (IsBareIssueBoundary(lines[index], issue))
+            {
+                if (IsYearMarker(lines[index]))
+                    continue;
                 break;
+            }
             string current = Normalize(lines[index]);
             if (current.Length == 0)
                 continue;
             if (current.Contains(section, StringComparison.Ordinal))
                 return true;
+            // A sibling section heading of the same folder is a boundary even
+            // when it also repeats the shared author name.
+            if (ContainsPeerIdentity(lines[index], rule))
+                return false;
             if (identity.Any(item => current.Contains(item, StringComparison.Ordinal)))
+                continue;
+            // Short neutral labels ("记录：") between a heading and its rows are
+            // part of the block; only a heading-like sibling title closes it.
+            if (!IsSectionHeadingLike(current))
                 continue;
             // The nearest non-identity heading is a sibling section boundary.
             return false;
         }
         return false;
+    }
+
+    private static bool IsYearMarker(string line)
+    {
+        string trimmed = SimplifyOcrText(line).Trim();
+        return trimmed.Length == 4
+            && trimmed[0] == '2' && trimmed[1] == '0'
+            && trimmed.All(char.IsDigit);
     }
 
     private static string[] SummaryRowsForIssue(IEnumerable<string> source, int issue)
@@ -767,10 +872,22 @@ public static class RuleEngine
         if (rows.Count == 0)
             return null;
 
-        int maximum = rows.Max(row => row.Count);
-        (int Count, string Value)[] maximumRows = rows.Where(row => row.Count == maximum).ToArray();
-        if (maximumRows.Any(row => row.Value.Length == 0))
+        // Empty frequency buckets are normal on these sheets (no zodiac reached
+        // that count). Only buckets that actually list zodiacs compete for the
+        // maximum; however an empty bucket that sits above the valued maximum
+        // and before the table's last valued row means the top row was not read
+        // and the whole table stays missing.
+        (int Count, string Value)[] valuedRows = rows.Where(row => row.Value.Length > 0).ToArray();
+        if (valuedRows.Length == 0)
             return null;
+        int maximum = valuedRows.Max(row => row.Count);
+        int lastValuedIndex = rows.FindLastIndex(row => row.Value.Length > 0);
+        for (int index = 0; index < lastValuedIndex; index++)
+        {
+            if (rows[index].Value.Length == 0 && rows[index].Count > maximum)
+                return null;
+        }
+        (int Count, string Value)[] maximumRows = valuedRows.Where(row => row.Count == maximum).ToArray();
         string result = string.Concat(maximumRows
             .Select(row => row.Value)
             .SelectMany(item => item)
@@ -888,11 +1005,118 @@ public static class RuleEngine
             else if (regional.Status == RuleExtractionStatus.Success)
                 observed.Add(regional.Value!);
         }
+        // Column partitioning is required to stop cross-column joins, but a
+        // dense card table can split one physical field into many cell
+        // columns. Fully positioned evidence therefore also gets one row-major
+        // reading with explicit boundaries across wide horizontal gaps, which
+        // restores the issue row and its wrapped data as a single block
+        // without ever joining across an empty span.
+        OcrLineEvidence[] positioned = (evidence.TokenItems ?? evidence.Items)
+            .Where(item => !string.IsNullOrWhiteSpace(item.Text))
+            .ToArray();
+        if (positioned.Length > 0 && positioned.All(item => item.Box is not null))
+        {
+            RuleExtractionResult rowMajor = ExtractFinalResult(
+                BuildRowMajorReading(positioned), issue, rule);
+            if (rowMajor.Status == RuleExtractionStatus.Conflict)
+                conflict = true;
+            else if (rowMajor.Status == RuleExtractionStatus.Success)
+                observed.Add(rowMajor.Value!);
+        }
         if (conflict || observed.Count > 1)
             return RuleExtractionResult.Conflict;
         return observed.Count == 1
             ? RuleExtractionResult.Success(observed.Single())
             : RuleExtractionResult.Missing;
+    }
+
+    // Row-major reading order with the same row tolerance the layout builder
+    // uses. Cells of one visual row are joined into one physical line and only
+    // split where the horizontal gap is wide or the rendered view changes, so
+    // a wrapped field and the next card's leading row stay whole lines. A
+    // region boundary is inserted between different views, across a wide empty
+    // span, and when a row starts beyond the previous row's right edge. A wrap
+    // back to the left edge gets no boundary.
+    private static IEnumerable<string> BuildRowMajorReading(IReadOnlyList<OcrLineEvidence> items)
+    {
+        OcrLineEvidence[] ordered = items
+            .Where(item => !string.IsNullOrWhiteSpace(item.Text) && item.Box is not null)
+            .OrderBy(item => item.Box!.CenterY)
+            .ThenBy(item => item.Box!.X)
+            .ToArray();
+        var rows = new List<List<OcrLineEvidence>>();
+        foreach (OcrLineEvidence item in ordered)
+        {
+            List<OcrLineEvidence>? row = rows.FirstOrDefault(candidate =>
+            {
+                double center = candidate.Average(value => value.Box!.CenterY);
+                double height = candidate.Average(value => Math.Max(1, value.Box!.Height));
+                return Math.Abs(center - item.Box!.CenterY)
+                    <= Math.Max(3, Math.Min(height, Math.Max(1, item.Box.Height)) * 0.45);
+            });
+            if (row is null)
+                rows.Add([item]);
+            else
+                row.Add(item);
+        }
+
+        var lines = new List<string>(ordered.Length);
+        int previousRowRight = int.MinValue;
+        string? previousView = null;
+        foreach (List<OcrLineEvidence> row in rows)
+        {
+            List<(string Text, int Left, int Right, string View)> segments = RowSegments(row).ToList();
+            for (int index = 0; index < segments.Count; index++)
+            {
+                (string text, int left, int right, string view) = segments[index];
+                int gapThreshold = Math.Max(48, (int)Math.Round(
+                    row.Where(cell => cell.Box is not null).Average(cell => Math.Max(1, cell.Box!.Height)) * 4));
+                bool viewChanged = previousView is not null
+                    && !previousView.Equals(view, StringComparison.Ordinal);
+                bool crossesRow = index == 0 && previousRowRight != int.MinValue
+                    && left - previousRowRight > gapThreshold;
+                if (viewChanged || crossesRow || index > 0)
+                    lines.Add(OcrLayoutMarkers.RegionBoundary);
+                lines.Add(text);
+                previousRowRight = right;
+                previousView = view;
+            }
+        }
+        return lines;
+    }
+
+    // Splits one visual row into segments at wide gaps or view changes, and
+    // joins each segment's cells with a space so digit runs keep their pairs.
+    // The split gap is capped so a huge decorative glyph cannot swallow
+    // unrelated watermark strips on the same baseline.
+    private static IEnumerable<(string Text, int Left, int Right, string View)> RowSegments(
+        List<OcrLineEvidence> row)
+    {
+        List<OcrLineEvidence> cells = row.OrderBy(item => item.Box!.X).ToList();
+        var current = new List<OcrLineEvidence>();
+        int currentRight = int.MinValue;
+        foreach (OcrLineEvidence cell in cells)
+        {
+            int gapThreshold = Math.Max(48, Math.Min(Math.Max(1, cell.Box!.Height), 50) * 4);
+            bool split = current.Count > 0
+                && (cell.Box!.X - currentRight > gapThreshold
+                    || !current[0].ViewId.Equals(cell.ViewId, StringComparison.Ordinal));
+            if (split)
+            {
+                yield return Materialize(current);
+                current.Clear();
+            }
+            current.Add(cell);
+            currentRight = Math.Max(currentRight, cell.Box!.Right);
+        }
+        if (current.Count > 0)
+            yield return Materialize(current);
+
+        static (string, int, int, string) Materialize(List<OcrLineEvidence> cells) => (
+            string.Join(' ', cells.Select(cell => cell.Text)),
+            cells.Min(cell => cell.Box!.X),
+            cells.Max(cell => cell.Box!.Right),
+            cells[0].ViewId);
     }
 
     public static string? ExtractFinalValue(OcrEvidence evidence, int issue, OcrRule rule) =>
@@ -928,9 +1152,7 @@ public static class RuleEngine
         string[] lines = cloudLines.Where(line => !string.IsNullOrWhiteSpace(line)).ToArray();
         if (lines.Length == 0)
             return "云 OCR 未返回有效文字";
-        if (rule.IgnoreIssue && !FindIssues(lines).Any())
-            return "已找到资料，但资料本身没有可核验期数";
-        if (!FindIssues(lines).Contains(issue))
+        if (!FindIssues(lines).Contains(issue) && !rule.IgnoreIssue)
             return $"已找到图片和文字，但未识别到第{issue}期";
         if (rule.Type.StartsWith("号码:", StringComparison.Ordinal)
             && int.TryParse(rule.Type.AsSpan("号码:".Length), out int count))
@@ -971,6 +1193,24 @@ public static class RuleEngine
                 if (previous < 0 || ContainsAnyIssue(lines[previous])
                     || IsOpeningOnlySeparator(lines[previous])
                     || !IsNumberContinuation(lines[previous], reviewedExpectedCount, rule, issue))
+                {
+                    // Some reviewed cards print the whole field after the issue
+                    // cell. This window never borrows anything above the issue
+                    // row, so it cannot reintroduce the previous-period bug; a
+                    // failed attempt also does not suppress the ordinary parser.
+                    string? trailing = ExtractStrictTrailingNumberWindow(
+                        lines, index, issue, reviewedExpectedCount, rule);
+                    if (trailing is not null)
+                        reviewed.Add(trailing);
+                    continue;
+                }
+                // The adapter applies only when the field genuinely starts after
+                // any earlier issue. A result/opening banner from the previous
+                // row must not mark the rule as physically reviewed, otherwise
+                // the ordinary strict parser would be suppressed for a field
+                // that never straddled the issue cell.
+                if (!HasCurrentFieldStartAfterEarlierIssue(
+                        lines, 0, index, issue, rule, reviewedExpectedCount))
                     continue;
 
                 reviewedLeftCellProven = true;
@@ -1351,9 +1591,9 @@ public static class RuleEngine
         }
         if (rule.Id == "藏宝头" && rule.Type == "头")
         {
-            if (!block.Contains("无错四头", StringComparison.Ordinal))
-                return null;
-            Match heads = Regex.Match(block, @"今晚买\s*[【\[]?(?<values>[0-4\s]{7,})[】\]]?\s*头\s*$");
+            // The card title may live in a different strict block than the
+            // selected issue, so the field pattern itself is the identity here.
+            Match heads = Regex.Match(block, @"今晚买\s*[【\[]?(?<values>[0-4\s]{4,})[】\]]?\s*头\s*$");
             if (!heads.Success)
                 return null;
             char[] rawDigits = heads.Groups["values"].Value
@@ -1776,6 +2016,23 @@ public static class RuleEngine
 
     private static string? ExtractTypedForRule(string tail, OcrRule rule)
     {
+        if (rule.StopAtPlus)
+        {
+            Match plus = Regex.Match(tail, @"[+＋]");
+            if (plus.Success)
+                tail = tail[..plus.Index];
+        }
+        // A ten-zodiac combo card lists 10 of the 12 zodiacs; the answer is the
+        // pair that is missing.
+        if (rule.TenZodiacCombo && rule.Type == "生肖组合")
+        {
+            string tenText = BeforeOpeningResult(SimplifyOcrText(tail));
+            string tenZodiacs = string.Concat(Regex.Matches(tenText, $"[{Zodiac}]")
+                .Select(match => match.Value).Distinct());
+            return tenZodiacs.Length == 10
+                ? string.Concat(Zodiac.Where(zodiac => !tenZodiacs.Contains(zodiac)))
+                : null;
+        }
         if (rule.Id == "翩翩公子肖" && rule.Type == "生肖")
         {
             string beforeOpening = BeforeOpeningResult(SimplifyOcrText(tail));
@@ -1785,8 +2042,42 @@ public static class RuleEngine
                 : matches.Count > 0 && distinct.Length == 1 ? distinct[0] : null;
         }
         if (HasConflictingSingleValues(tail, rule.Type))
-            return ConflictMarker;
-        return ExtractTyped(tail, rule.Type);
+            return rule.SkipConflictingRows ? null : ConflictMarker;
+        return ExtractTyped(tail, rule.Type, rule);
+    }
+
+    private static bool MatchesFamilyIdentity(string tail, OcrRule? rule, params string[] phrases) =>
+        phrases.Any(phrase => tail.Contains(phrase, StringComparison.Ordinal)
+            || rule is not null
+            && (Normalize(rule.Keyword).Equals(Normalize(phrase), StringComparison.Ordinal)
+                || Normalize(rule.RequiredKeyword ?? string.Empty).Equals(Normalize(phrase), StringComparison.Ordinal)));
+
+    private static readonly char[] FamilyStatusMarks =
+        ['√', '✓', '×', 'x', 'X', '?', '？', '准', '準', '对', '對', '错', '錯', '!', '！', '.', '。'];
+
+    // Payload for the 四头/八尾/四行/十肖 cards: either the text after the
+    // field marker, or the last bracketed payload when the title sits on its
+    // own row and the value row carries only 【...】 + a status mark.
+    private static string? FamilyPayload(string text, params string[] markers)
+    {
+        string? raw = ExactSemanticField(text, markers);
+        if (raw is null)
+        {
+            MatchCollection brackets = Regex.Matches(text, @"[【\[](?<payload>[^】\]]+)[】\]]");
+            if (brackets.Count > 0)
+                raw = brackets[^1].Groups["payload"].Value;
+        }
+        if (raw is null)
+            return null;
+        raw = raw.Trim();
+        while (true)
+        {
+            string next = raw.TrimEnd(FamilyStatusMarks).TrimEnd('尾');
+            if (next.Length == raw.Length)
+                break;
+            raw = next;
+        }
+        return raw.Length == 0 ? null : raw;
     }
 
     private static string? ExactSemanticField(string text, params string[] markers)
@@ -1904,14 +2195,14 @@ public static class RuleEngine
         return values;
     }
 
-    private static string? ExtractTyped(string tail, string type)
+    private static string? ExtractTyped(string tail, string type, OcrRule? rule = null)
     {
         tail = SimplifyOcrText(tail);
         string beforeOpening = BeforeOpeningResult(tail);
         string withoutIssueBeforeOpening = RemoveIssue(beforeOpening);
-        if (type == "尾" && (tail.Contains("亚太地区八尾", StringComparison.Ordinal) || tail.Contains("团队八尾", StringComparison.Ordinal)))
+        if (type == "尾" && MatchesFamilyIdentity(tail, rule, "亚太地区八尾", "团队八尾"))
         {
-            string? raw = ExactSemanticField(withoutIssueBeforeOpening, "亚太地区八尾", "团队八尾");
+            string? raw = FamilyPayload(withoutIssueBeforeOpening, "亚太地区八尾", "团队八尾");
             if (raw is null || !Regex.IsMatch(raw, @"^[0-9](?:\s*[0-9]){7}$"))
                 return null;
             string digits = string.Concat(raw.Where(char.IsDigit));
@@ -1923,9 +2214,9 @@ public static class RuleEngine
                 ? string.Join(' ', missing.Select(n => $"{n}尾"))
                 : null;
         }
-        if (type == "五行" && (tail.Contains("亚太地区四行", StringComparison.Ordinal) || tail.Contains("团队四行", StringComparison.Ordinal)))
+        if (type == "五行" && MatchesFamilyIdentity(tail, rule, "亚太地区四行", "团队四行"))
         {
-            string? raw = ExactSemanticField(withoutIssueBeforeOpening, "亚太地区四行", "团队四行");
+            string? raw = FamilyPayload(withoutIssueBeforeOpening, "亚太地区四行", "团队四行");
             if (raw is null || !Regex.IsMatch(raw, @"^[金木水火土](?:\s*[金木水火土]){3}$"))
                 return null;
             string elements = string.Concat(raw.Where("金木水火土".Contains));
@@ -1933,9 +2224,9 @@ public static class RuleEngine
                 ? string.Concat("金木水火土".Where(e => !elements.Contains(e)))
                 : null;
         }
-        if (type == "生肖组合" && (tail.Contains("亚太地区十肖", StringComparison.Ordinal) || tail.Contains("团队十肖", StringComparison.Ordinal)))
+        if (type == "生肖组合" && MatchesFamilyIdentity(tail, rule, "亚太地区十肖", "团队十肖"))
         {
-            string? raw = ExactSemanticField(withoutIssueBeforeOpening, "亚太地区十肖", "团队十肖");
+            string? raw = FamilyPayload(withoutIssueBeforeOpening, "亚太地区十肖", "团队十肖");
             if (raw is null || !Regex.IsMatch(raw, $@"^[{Zodiac}](?:\s*[{Zodiac}]){{9}}$"))
                 return null;
             string zodiacs = string.Concat(raw.Where(Zodiac.Contains));
@@ -1943,9 +2234,9 @@ public static class RuleEngine
                 ? string.Concat(Zodiac.Where(z => !zodiacs.Contains(z)))
                 : null;
         }
-        if (type == "头" && (tail.Contains("亚太地区四头", StringComparison.Ordinal) || tail.Contains("团队四头", StringComparison.Ordinal)))
+        if (type == "头" && MatchesFamilyIdentity(tail, rule, "亚太地区四头", "团队四头"))
         {
-            string? raw = ExactSemanticField(withoutIssueBeforeOpening, "亚太地区四头", "团队四头");
+            string? raw = FamilyPayload(withoutIssueBeforeOpening, "亚太地区四头", "团队四头");
             if (raw is null || !Regex.IsMatch(raw, @"^[0-4](?:\s*[0-4]){3}$"))
                 return null;
             string heads = string.Concat(raw.Where(c => c is >= '0' and <= '4'));
@@ -1982,6 +2273,15 @@ public static class RuleEngine
             return matches.Count == 1 ? matches[0].Value : null;
         }
 
+        if (type == "缺肖")
+        {
+            string zodiacs = string.Concat(Regex.Matches(beforeOpening, $"[{Zodiac}]")
+                .Select(match => match.Value).Distinct());
+            return zodiacs.Length == 11
+                ? string.Concat(Zodiac.Where(zodiac => !zodiacs.Contains(zodiac)))
+                : null;
+        }
+
         if (type is "生肖组合" or "九肖")
         {
             int nineMarker = beforeOpening.LastIndexOf("解九肖", StringComparison.Ordinal);
@@ -1991,7 +2291,20 @@ public static class RuleEngine
             MatchCollection matches = Regex.Matches(zodiacText, $"[{Zodiac}]");
             int expected = type == "九肖" ? 9 : 2;
             if (matches.Count != expected)
+            {
+                // Some 九肖 cards print the issue + result header on one row and
+                // the nine zodiacs on the next row, so the opening cut removes
+                // the list. Retry on the full candidate text, still requiring
+                // exactly nine distinct zodiacs.
+                if (type == "九肖")
+                {
+                    MatchCollection wider = Regex.Matches(tail, $"[{Zodiac}]");
+                    string widerValue = string.Concat(wider.Select(match => match.Value));
+                    if (wider.Count == 9 && widerValue.Distinct().Count() == 9)
+                        return widerValue;
+                }
                 return null;
+            }
             string value = string.Concat(matches.Select(match => match.Value));
             return value.Distinct().Count() == expected ? value : null;
         }
@@ -2223,14 +2536,41 @@ public static class RuleEngine
                 }
                 if (SplitIssueNumberRuleIds.Contains(rule.Id) && IsOpeningOnlySeparator(lines[next]))
                     continue;
+                // Row-major readings insert a region boundary between the
+                // period cell and its opening cell; a 36-number围 field only
+                // crosses that boundary before it has started.
+                if (OcrLayoutMarkers.IsBoundary(lines[next]))
+                {
+                    if (parts.Count == 0 && expectedCount >= 35)
+                        continue;
+                    break;
+                }
+                // A 36-number围 card prints the period header row as
+                // "253期" + "开00准" and the numbers below the opening cell.
+                // Only before the field starts may that opening-only cell be
+                // stepped over, and only for full 36-number tables.
+                if (parts.Count == 0 && expectedCount >= 35 && IsOpeningResultOnly(lines[next]))
+                    continue;
                 if (!IsNumberContinuation(lines[next], expectedCount, rule, issue))
                     break;
-                parts.Add(firstOwned
+                parts.Add(firstOwned && !IsPureNumericBracketRow(lines[next])
                     ? ScopedContinuationPayload(lines[next], rule)
                     : ScopeNumberPayload(lines[next], rule, expectedCount));
             }
 
             string? value = ExtractNumbers(string.Join(' ', parts), expectedCount);
+            if (value is null
+                && ContainsOwnNumberIdentity(lines[index], rule)
+                && HasUnclosedBracket(lines[index])
+                && index + 1 < lines.Length
+                && !ContainsIssueBoundary(lines[index + 1], issue)
+                && !ContainsPeerIdentity(lines[index + 1], rule))
+            {
+                // The author banner wrapped mid-line and the payload sits on
+                // the next row ("正253期正【长安之星***100新澳" + "门六合彩100***杀码】【47,19】开").
+                value = ExtractNumbers(
+                    ScopeNumberPayload(lines[index + 1], rule, expectedCount), expectedCount);
+            }
             if (value is not null)
                 observed.Add(value);
         }
@@ -2279,6 +2619,12 @@ public static class RuleEngine
             .Select(Normalize)
             .Distinct(StringComparer.Ordinal)
             .Any(alias => normalized.Contains(alias, StringComparison.Ordinal));
+    }
+
+    private static bool HasUnclosedBracket(string line)
+    {
+        int opening = line.IndexOfAny(['【', '[']);
+        return opening >= 0 && line[(opening + 1)..].IndexOfAny(['】', ']']) < 0;
     }
 
     private static bool IsReviewedCompactTrailingCompletion(
@@ -2382,7 +2728,11 @@ public static class RuleEngine
             if (IsNumberRowStart(lines[index]))
                 foundFieldStart = true;
         }
-        if (foundFieldStart && expanded.Count > 1)
+        // Any contiguous numeric run directly above the issue cell is a valid
+        // left candidate once the scan stopped at a real boundary (issue line,
+        // opening separator or a non-number row); it does not need a labeled
+        // row start of its own.
+        if (expanded.Count > 1)
             leftCandidates.Add(expanded);
 
         string centreText = SimplifyOcrText(TextAfterIssue(lines[issueIndex], issue));
@@ -2393,7 +2743,41 @@ public static class RuleEngine
         var candidates = leftCandidates
             .Select(left => new List<string>(left) { centre })
             .ToArray();
+        return ScanStrictNumberWindowRight(lines, issueIndex, issue, expectedCount, rule, candidates);
+    }
 
+    // Reviewed wrapped cards may print the whole field after the issue cell
+    // instead of a left cell (the issue cell sits at the left edge of its row).
+    // This variant never borrows any preceding row: candidates start from the
+    // issue row itself and only forward rows can complete the field.
+    private static string? ExtractStrictTrailingNumberWindow(
+        string[] lines, int issueIndex, int issue, int expectedCount, OcrRule rule)
+    {
+        string centreText = SimplifyOcrText(TextAfterIssue(lines[issueIndex], issue));
+        centreText = Regex.Split(centreText,
+            $@"(?<!不会)(?<!不)开|准|準|[{Zodiac}]\s*\d{{1,2}}\s*[中错錯赢贏]")[0];
+        string centre = ScopeNumberPayload(centreText, rule, expectedCount);
+        // Only a field that genuinely continues after the issue row needs this
+        // window. If the issue row alone already holds the complete answer the
+        // ordinary strict block parser adjudicates it (including foreign
+        // content between the field and its opening marker).
+        if (ExtractNumbers(centre, expectedCount) is not null)
+            return null;
+        return ScanStrictNumberWindowRight(
+            lines, issueIndex, issue, expectedCount, rule, [new List<string> { centre }]);
+    }
+
+    // Right-side scan shared by the left-borrow and trailing windows. The
+    // count never authorizes ownership; only the next issue marker or a proven
+    // next-card leading row ends the field.
+    private static string? ScanStrictNumberWindowRight(
+        string[] lines,
+        int issueIndex,
+        int issue,
+        int expectedCount,
+        OcrRule rule,
+        List<string>[] candidates)
+    {
         string? ResolveComplete()
         {
             string[] complete = candidates
@@ -2437,9 +2821,7 @@ public static class RuleEngine
             if (completeNow
                 && !Regex.IsMatch(SimplifyOcrText(lines[index]), @"\p{L}")
                 && (ParseNumbers(ScopeNumberPayload(lines[index], rule, expectedCount))?.Length ?? 0) >= 2
-                && index + 1 < lines.Length
-                && ContainsIssueBoundary(lines[index + 1], issue)
-                && !ContainsIssue(lines[index + 1], issue))
+                && LeadingRunClosesAtNextIssue(lines, index, issue, rule))
             {
                 if (sawOpeningSeparator && !completedAfterOpening)
                     return null;
@@ -2464,6 +2846,26 @@ public static class RuleEngine
         // Reaching the expected count is only a candidate; the entire physical
         // field must be consumed before accepting it.
         return ResolveComplete();
+    }
+
+    // A completed field may stop at the next card's leading row(s): a run of
+    // numeric rows that closes at a non-target issue marker before reaching any
+    // other field content. The run may span several physical rows (a 36-code
+    // grid prints its leading cells on multiple lines), so look ahead over
+    // pure numeric rows instead of checking only the immediate next line.
+    private static bool LeadingRunClosesAtNextIssue(
+        string[] lines, int index, int issue, OcrRule rule)
+    {
+        for (int next = index + 1; next < lines.Length && next <= index + 40; next++)
+        {
+            if (OcrLayoutMarkers.IsBoundary(lines[next]))
+                continue;
+            if (ContainsIssueBoundary(lines[next], issue))
+                return !ContainsIssue(lines[next], issue);
+            if ((ParseNumbers(ScopeNumberPayload(lines[next], rule))?.Length ?? 0) == 0)
+                return false;
+        }
+        return false;
     }
 
     private static string? ExtractReviewedSplitNumberWindow(
@@ -2525,9 +2927,7 @@ public static class RuleEngine
             if (completeNow
                 && !Regex.IsMatch(SimplifyOcrText(lines[index]), @"\p{L}")
                 && (ParseNumbers(ScopeNumberPayload(lines[index], rule, expectedCount))?.Length ?? 0) >= 2
-                && index + 1 < lines.Length
-                && ContainsIssueBoundary(lines[index + 1], issue)
-                && !ContainsIssue(lines[index + 1], issue))
+                && LeadingRunClosesAtNextIssue(lines, index, issue, rule))
             {
                 if (sawOpeningSeparator && !completedAfterOpening)
                     return null;
@@ -2814,9 +3214,9 @@ public static class RuleEngine
             .Cast<Match>()
             .All(match => match.Value.All(Zodiac.Contains));
         string decoration = Regex.Replace(
-            ownershipText, @"[0-9\s,，.。:：*【】\[\]()（）?？←→]+", string.Empty);
+            ownershipText, @"[0-9\s,，.。:：*【】\[\]()（）?？!！←→]+", string.Empty);
         bool structuralField = Regex.IsMatch(decoration,
-            @"^(?:(?:杀|殺){1,3}|开|開|禁|杀码|殺碼|杀特码|殺特碼|不开|不開|精选杀|精選殺|码|碼|特码|特碼|码中特码|码中特碼|计|計|包围码|包圍碼|锁三十六码|鎖三十六碼|庄家必杀|莊家必殺|绝杀|絕殺|绝杀[一二三四五六七八九十0-9]+码|絕殺[一二三四五六七八九十0-9]+碼|封杀|封殺)$");
+            @"^(?:(?:杀|殺){1,3}|开|開|禁|杀码|殺碼|杀特码|殺特碼|不开|不開|精选杀|精選殺|码|碼|特码|特碼|码中特码|码中特碼|计|計|包围码|包圍碼|锁三十六码|鎖三十六碼|庄家必杀|莊家必殺|绝杀|絕殺|绝杀[一二三四五六七八九十0-9]+码|絕殺[一二三四五六七八九十0-9]+碼|封杀|封殺|准|準)$");
         if (!ownIdentity && !structuralField && !zodiacOnly)
             return false;
 
@@ -2873,6 +3273,26 @@ public static class RuleEngine
 
     private static bool IsOpeningOnlySeparator(string line) =>
         Regex.IsMatch(SimplifyOcrText(line).Trim(), @"^开[?？中错錯对對准準]*$");
+
+    private static bool IsOpeningResultOnly(string line) =>
+        Regex.IsMatch(
+            SimplifyOcrText(line).Trim(),
+            @"^开\s*[:：]?\s*(?:[?？]?\d{1,2}|[?？])(?:\s*[中错錯对對准準])*$");
+
+    // A continuation row that is exactly one numeric bracket ("[01.04...]")
+    // is a wrapped part of the owned field, not a standalone answer container.
+    private static bool IsPureNumericBracketRow(string line)
+    {
+        string trimmed = SimplifyOcrText(line).Trim();
+        if (trimmed.Length < 3
+            || !"([【（".Contains(trimmed[0])
+            || !")]】）".Contains(trimmed[^1]))
+            return false;
+        string inner = trimmed[1..^1];
+        return inner.Length > 0
+            && inner.Any(char.IsDigit)
+            && Regex.IsMatch(inner, @"^[0-9 ,，.。\s]+$");
+    }
 
     private static bool IsNumberRowStart(string line) =>
         Regex.IsMatch(line, @"\p{L}.*\d") && !ContainsAnyIssue(line);
@@ -2960,14 +3380,21 @@ public static class RuleEngine
     }
 
     private static bool IsStructuralFieldWord(string word) => Regex.IsMatch(word,
-        @"^(?:杀|殺|开|開|禁|绝杀|絕殺|封杀|封殺|精选杀|精選殺|庄家必杀|莊家必殺|杀特码|殺特碼|特码|特碼|码中特码|码中特碼|包围码|包圍碼|锁三十六码|鎖三十六碼|金木水火土|(?:(?:杀|殺)?[0-9零一二三四五六七八九十]{1,4})?(?:码|碼|计|計))$");
+        @"^(?:杀|殺|开|開|禁|准|準|红|蓝|绿|红波|蓝波|绿波|绝杀|絕殺|封杀|封殺|精选杀|精選殺|庄家必杀|莊家必殺|杀特码|殺特碼|特码|特碼|码中特码|码中特碼|包围码|包圍碼|锁三十六码|鎖三十六碼|金木水火土|(?:(?:杀|殺)?[0-9零一二三四五六七八九十]{1,4})?(?:码|碼|计|計))$");
 
     private static string BeforeOpeningResult(string text)
     {
         string simplified = SimplifyOcrText(text);
         Match opening = Regex.Match(simplified,
-            $@"(?<!不)(?<!不会)开(?=\s*(?:[?？]+|[0-9]+|[{Zodiac}]))");
-        return opening.Success ? simplified[..opening.Index] : simplified;
+            $@"(?<!不)(?<!不会)开(?=\s*[:：]?\s*(?:[?？]+|[0-9]+|[{Zodiac}]|$))");
+        int cut = opening.Success ? opening.Index : simplified.Length;
+        // A run of two or more plus signs is a column separator on these cards
+        // ("253区杀-猪++牛"): the value field ends before it. A single '+' stays
+        // a normal data separator (e.g. 生肖组合 "杀狗+兔").
+        Match plus = Regex.Match(simplified, @"[+＋]{2,}");
+        if (plus.Success && plus.Index < cut)
+            cut = plus.Index;
+        return simplified[..cut];
     }
 
     private static string[]? ParseNumbers(string text)
@@ -3046,6 +3473,12 @@ public static class RuleEngine
             && leadingIssue == issue)
             return true;
 
+        Match merged = MergedRowIndexIssueRegex.Match(line);
+        if (merged.Success
+            && int.TryParse(merged.Groups["issue"].Value, out int mergedIssue)
+            && mergedIssue == issue)
+            return true;
+
         Match yearIssue = YearIssueRegex.Match(line);
         return yearIssue.Success
             && int.TryParse(yearIssue.Groups["issue"].Value, out int yearIssueNumber)
@@ -3076,6 +3509,7 @@ public static class RuleEngine
         .Replace('錯', '错')
         .Replace('雙', '双')
         .Replace('單', '单')
+        .Replace('開', '开')
         .Replace('兰', '蓝');
 
     public static string Normalize(string text) => Regex.Replace(SimplifyOcrText(text), @"[^\p{L}\p{N}]", "")

@@ -38,7 +38,7 @@ public sealed class ReauditDataIntegrityTests
         yield return new object[] { "R17", "嫣然心水", "沁园春", 251, new string[] { "251期 沁园春 杀二肖 鼠鼠牛" }, null! };
         yield return new object[] { "R18", "嫣然心水", "青苹果", 251, new string[] { "251期 青苹果 杀六码 01 02 03 04 05 06", "251期 青苹果 杀六码 07 08 09 10 11 12" }, null! };
         yield return new object[] { "R19", "嫣然心水", "杰少九肖", 251, new string[] { "原创杰少", "251期 新澳九肖 马蛇龙兔虎牛鼠猪狗", "251期 新澳九肖 马蛇龙兔虎牛鼠猪鸡" }, null! };
-        yield return new object[] { "R20", "新澳六合彩资料", "时点半", 251, new string[] { "250期 十点半集团大围36码 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36" }, null! };
+        yield return new object[] { "R20", "新澳六合彩资料", "时点半", 251, new string[] { "250期 十点半集团大围36码 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36" }, "01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36" };
         yield return new object[] { "R21", "嫣然心水", "南国挽心", 251, new string[] { "南国挽心编号251 鼠" }, null! };
         yield return new object[] { "R22", "嫣然心水", "南国挽心", 1001, new string[] { "1001期 南国挽心 待更新", "1002", "鸡" }, null! };
         yield return new object[] { "R23", "新澳六合彩资料", "包公肖肖", 251, new string[] { "包公图", "251期", "￥" }, null! };

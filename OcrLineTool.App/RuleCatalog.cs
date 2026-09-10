@@ -67,6 +67,25 @@ public static class RuleCatalog
     }
 
     /// <summary>
+    /// Returns true when the file sits inside the expected group directory,
+    /// allowing a dated/issued wrapper on any ancestor directory name.
+    /// </summary>
+    public static bool PathBelongsToGroup(string filePath, string expectedGroup)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || string.IsNullOrWhiteSpace(expectedGroup))
+            return false;
+
+        string? directory = Path.GetDirectoryName(Path.GetFullPath(filePath));
+        while (!string.IsNullOrWhiteSpace(directory))
+        {
+            if (IsGroupFolder(directory, expectedGroup))
+                return true;
+            directory = Path.GetDirectoryName(directory);
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Removes only a leading/trailing date or issue marker from a folder name.
     /// Arbitrary suffixes such as “备份” and “临时” are intentionally retained.
     /// </summary>
@@ -186,12 +205,30 @@ public static class RuleCatalog
                 string? label = item.TryGetProperty("label", out JsonElement labelElement) ? labelElement.GetString() : null;
                 string? section = item.TryGetProperty("section", out JsonElement sectionElement) ? sectionElement.GetString() : null;
                 string? requiredKeyword = item.TryGetProperty("required_keyword", out JsonElement requiredElement) ? requiredElement.GetString() : null;
+                IReadOnlyList<string>? requiredKeywordsAny = null;
+                if (item.TryGetProperty("required_keywords_any", out JsonElement requiredAnyElement))
+                {
+                    if (requiredAnyElement.ValueKind != JsonValueKind.Array)
+                        throw new OcrException($"{fileName} 的 required_keywords_any 必须是数组。");
+                    requiredKeywordsAny = requiredAnyElement.EnumerateArray()
+                        .Select(value => value.GetString() ?? string.Empty)
+                        .Where(value => value.Length > 0)
+                        .ToArray();
+                    if (requiredKeywordsAny.Count == 0)
+                        requiredKeywordsAny = null;
+                }
                 string? folder = item.TryGetProperty("folder", out JsonElement folderElement) ? folderElement.GetString() : null;
                 bool ignoreIssue = ReadOptionalBoolean(item, "ignoreIssue", false, fileName);
                 bool allowNearbyValue = ReadOptionalBoolean(item, "allowNearbyValue", false, fileName);
                 bool allowValueWithoutKeyword = ReadOptionalBoolean(item, "allowValueWithoutKeyword", false, fileName);
                 bool singleValuePerIssue = ReadOptionalBoolean(item, "singleValuePerIssue", false, fileName);
                 bool itemStrictIssueBlock = ReadOptionalBoolean(item, "strictIssueBlock", strictIssueBlock, fileName);
+                bool allowFolderIdentity = ReadOptionalBoolean(item, "allow_folder_identity", false, fileName);
+                bool skipConflictingRows = ReadOptionalBoolean(item, "skip_conflicting_rows", false, fileName);
+                bool allowIssueLessSummary = ReadOptionalBoolean(item, "allow_issue_less_summary", false, fileName);
+                bool stopAtPlus = ReadOptionalBoolean(item, "stop_at_plus", false, fileName);
+                bool tenZodiacCombo = ReadOptionalBoolean(item, "ten_zodiac_combo", false, fileName);
+                bool primaryOnly = ReadOptionalBoolean(item, "primary_only", false, fileName);
                 if (keyword.Length > 0 && type.Length > 0)
                     output.Add(new OcrRule(
                         keyword,
@@ -204,7 +241,15 @@ public static class RuleCatalog
                         allowNearbyValue,
                         allowValueWithoutKeyword,
                         itemStrictIssueBlock,
-                        singleValuePerIssue));
+                        singleValuePerIssue,
+                        null,
+                        requiredKeywordsAny,
+                        allowFolderIdentity,
+                        skipConflictingRows,
+                        allowIssueLessSummary,
+                        stopAtPlus,
+                        tenZodiacCombo,
+                        primaryOnly));
             }
             if (output.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count() != output.Count)
                 throw new OcrException($"{fileName} 中存在重复的输出名称。");

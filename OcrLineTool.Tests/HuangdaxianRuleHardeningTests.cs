@@ -36,10 +36,10 @@ public sealed class HuangdaxianRuleHardeningTests
     [Fact]
     public void CatalogEnablesStrictDynamicIssueValidationForEveryRule()
     {
-        Assert.Equal(35, Rules.Count);
+        Assert.Equal(22, Rules.Count);
         Assert.All(Rules, rule => Assert.True(rule.StrictIssueBlock));
         Assert.Equal("缺头", Assert.Single(Rules, rule => rule.Id == "香奈风清扬").Type);
-        Assert.Contains(Rules, rule => rule.Id == "绿格子双杀" && rule.Type == "生肖组合");
+        Assert.DoesNotContain(Rules, rule => rule.Id == "绿格子双杀");
     }
 
     [Theory]

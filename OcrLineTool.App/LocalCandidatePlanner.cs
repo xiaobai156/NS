@@ -44,12 +44,17 @@ public static class LocalCandidatePlanner
             foreach (OcrRule rule in matchedRules)
             {
                 string expectedFolder = rule.Folder ?? rule.Keyword;
+                // A folder-identity rule carries no material name on its cards,
+                // so value probing for ranking must not require the keyword.
+                OcrRule rankingRule = rule.AllowFolderIdentity
+                    ? rule with { AllowValueWithoutKeyword = true }
+                    : rule;
                 options.Add(new CandidateOption(
                     path,
                     rule,
                     titleRuleIds.Contains(rule.Id),
-                    RuleEngine.HasValueForAnyIssue(lines, rule),
-                    issue is int target && RuleEngine.ExtractFinalValue(lines, target, rule) is not null,
+                    RuleEngine.HasValueForAnyIssue(lines, rankingRule),
+                    issue is int target && RuleEngine.ExtractFinalValue(lines, target, rankingRule) is not null,
                     (Path.GetFileName(Path.GetDirectoryName(path)) ?? string.Empty)
                         .Equals(expectedFolder, StringComparison.OrdinalIgnoreCase),
                     isSummary));
@@ -74,6 +79,7 @@ public static class LocalCandidatePlanner
                 : [];
             IEnumerable<CandidateOption> preferred = lockedLiangOptions.Length > 0
                 ? lockedLiangOptions
+                : rule.AllowFolderIdentity ? ruleOptions
                 : explicitOptions.Length > 0 ? explicitOptions : ruleOptions;
             CandidateOption best = preferred
                 .OrderByDescending(option => option.HasTargetValue)
@@ -97,17 +103,23 @@ public static class LocalCandidatePlanner
                 plans.Add(new LocalCandidatePlan(path, assigned, IsPrimary: true));
         }
 
+        // 嫣然心水 uses the primary image only; no backup candidates are
+        // planned, so a mixed-in card in the same subfolder can never feed a
+        // second value for the same rule.
+        bool primaryOnly = imagePaths.Any(path => RuleCatalog.PathBelongsToGroup(path, "嫣然心水"));
+
         foreach (string path in imagePaths)
         {
             OcrRule[] alternatives = options
                 .Where(option => option.Path.Equals(path, StringComparison.OrdinalIgnoreCase)
+                    && !option.Rule.PrimaryOnly
                     && selectedPathByRule.TryGetValue(option.Rule.Id, out string? selected)
                     && !selected.Equals(path, StringComparison.OrdinalIgnoreCase))
                 .Select(option => option.Rule)
                 .DistinctBy(rule => rule.Id, StringComparer.Ordinal)
                 .OrderBy(rule => ruleOrder[rule.Id])
                 .ToArray();
-            if (alternatives.Length > 0)
+            if (alternatives.Length > 0 && !primaryOnly)
                 plans.Add(new LocalCandidatePlan(path, alternatives, IsPrimary: false));
         }
 

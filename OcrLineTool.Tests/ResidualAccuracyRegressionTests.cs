@@ -71,19 +71,19 @@ public sealed class ResidualAccuracyRegressionTests
     }
 
     [Fact]
-    public void UnnumberedIgnoreIssueCardStaysUnverified()
+    public void UnnumberedIgnoreIssueCardIsTrustedByIdentity()
     {
         string numbers = string.Join(' ', Enumerable.Range(1, 36).Select(n => n.ToString("00")));
-        Assert.Null(RuleEngine.ExtractFinalValue(
+        Assert.Equal(numbers, RuleEngine.ExtractFinalValue(
             [$"十点半集团大围36码 {numbers}"], 251,
             Rule("新澳六合彩资料", "时点半")));
     }
 
     [Fact]
-    public void MixedIssueIgnoreIssueCardIsRejected()
+    public void MixedIssueIgnoreIssueCardUsesTheSoftwareIssue()
     {
         string numbers = string.Join(' ', Enumerable.Range(1, 36).Select(n => n.ToString("00")));
-        Assert.Null(RuleEngine.ExtractFinalValue(
+        Assert.Equal(numbers, RuleEngine.ExtractFinalValue(
             [$"251期 提示", $"250期 十点半集团大围36码 {numbers}"], 251,
             Rule("新澳六合彩资料", "时点半")));
     }

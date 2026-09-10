@@ -193,6 +193,7 @@
       "keyword": "烟雨沫沫",
       "type": "生肖",
       "required_keyword": "烟雨沫沫",
+      "skip_conflicting_rows": true,
       "folder": "烟雨沫沫"
     },
     {
@@ -257,7 +258,7 @@
       "keyword": "君军",
       "type": "生肖组合",
       "label": "君军两肖",
-      "required_keyword": "君君",
+      "required_keyword": "君军",
       "section": "杀一肖",
       "folder": "君君"
     },
@@ -265,7 +266,7 @@
       "keyword": "君军",
       "type": "尾数组合",
       "label": "君军两尾",
-      "required_keyword": "君君",
+      "required_keyword": "君军",
       "section": "杀一尾",
       "folder": "君君"
     },
@@ -273,7 +274,7 @@
       "keyword": "君军",
       "type": "合",
       "label": "君军合",
-      "required_keyword": "君君",
+      "required_keyword": "君军",
       "section": "杀一合",
       "folder": "君君"
     },
@@ -313,6 +314,7 @@
       "type": "生肖",
       "label": "辣椒炒肉肖肖",
       "required_keyword": "辣椒炒肉",
+      "allow_folder_identity": true,
       "folder": "辣椒炒肉"
     },
     {
@@ -320,6 +322,7 @@
       "type": "头",
       "label": "辣椒炒肉头",
       "required_keyword": "辣椒炒肉",
+      "allow_folder_identity": true,
       "folder": "辣椒炒肉"
     },
     {
@@ -327,6 +330,7 @@
       "type": "尾",
       "label": "辣椒炒肉尾",
       "required_keyword": "辣椒炒肉",
+      "allow_folder_identity": true,
       "folder": "辣椒炒肉"
     },
     {
@@ -349,6 +353,7 @@
       "keyword": "苏柒若",
       "type": "生肖",
       "required_keyword": "苏柒若",
+      "allow_issue_less_summary": true,
       "folder": "乖乖团队"
     },
     {
@@ -361,14 +366,8 @@
       "keyword": "小灰灰",
       "type": "单生肖",
       "label": "小灰灰一肖",
-      "required_keyword": "小灰灰",
-      "folder": "小灰灰"
-    },
-    {
-      "keyword": "小灰灰",
-      "type": "生肖组合",
-      "label": "小灰灰两肖",
-      "required_keyword": "小灰灰",
+      "required_keyword": "荣誉出品",
+      "required_keywords_any": ["杀", "刹"],
       "folder": "小灰灰"
     },
     {
@@ -476,23 +475,18 @@
       "folder": "小雨婷"
     },
     {
-      "keyword": "冷酷女王",
-      "type": "生肖",
-      "section": "①肖",
-      "required_keyword": "①肖",
-      "folder": "冷酷女王"
-    },
-    {
       "keyword": "简单爱",
       "type": "生肖",
       "required_keyword": "简单爱",
+      "allow_issue_less_summary": true,
       "folder": "乖乖团队"
     },
     {
-      "keyword": "守信承诺经营者",
+      "keyword": "月来月好",
       "type": "生肖",
       "label": "月来月好",
-      "required_keyword": "守信承诺经营者",
+      "required_keyword": "月来月好",
+      "allow_issue_less_summary": true,
       "folder": "乖乖团队"
     },
     {
@@ -501,6 +495,7 @@
       "label": "欧阳肖",
       "required_keyword": "欧阳",
       "section": "欧阳",
+      "allow_issue_less_summary": true,
       "folder": "乖乖团队"
     },
     {
@@ -536,6 +531,7 @@
       "type": "色单双",
       "label": "玉亚半波",
       "required_keyword": "玉亚",
+      "stop_at_plus": true,
       "folder": "乖乖团队"
     },
     {
@@ -637,14 +633,6 @@
       "section": "9月份",
       "required_keyword": "9月份",
       "folder": "阿莲"
-    },
-    {
-      "keyword": "大中华",
-      "type": "生肖",
-      "label": "大中华杀肖肖",
-      "section": "杀一肖",
-      "required_keyword": "杀一肖",
-      "folder": "大中华"
     },
     {
       "keyword": "借花献佛",

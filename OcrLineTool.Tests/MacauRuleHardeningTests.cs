@@ -183,19 +183,19 @@ public sealed class MacauRuleHardeningTests
     }
 
     [Fact]
-    public void TimelessCardRequiresExplicitSelectedIssueUntilTrustedPublicationEvidenceExists()
+    public void TimelessCardNeedsOwnTitleAndCompleteNumbersOnly()
     {
         var rule = Rule("时点半");
         string numbers = string.Join(' ', Enumerable.Range(1, 36).Select(n => n.ToString("00")));
         foreach (int issue in new[] { 7, 318, 1001 })
             Assert.Equal(numbers, RuleEngine.ExtractFinalValue(
                 [$"{issue}期", rule.Keyword, "36码", numbers, "上期开奖结果:鸡46中"], issue, rule));
-        Assert.Null(RuleEngine.ExtractFinalValue([rule.Keyword, "36码", numbers], 318, rule));
+        // 期号不再要求，但必须出现本资料自己的标题。
+        Assert.Equal(numbers, RuleEngine.ExtractFinalValue([rule.Keyword, "36码", numbers], 318, rule));
         Assert.Null(RuleEngine.ExtractFinalValue(["标题误读", "36码", numbers], 318, rule));
         Assert.Null(RuleEngine.ExtractFinalValue([numbers], 318, rule));
         Assert.Null(RuleEngine.ExtractFinalValue(["318期", rule.Keyword, "36码", numbers + " 36"], 318, rule));
         Assert.Null(RuleEngine.ExtractFinalValue(["318期", rule.Keyword, "36码", numbers.Replace("36", "35")], 318, rule));
-        Assert.Null(RuleEngine.ExtractFinalValue(["318期", rule.Keyword, "36码", numbers.Replace("36", ""), "上期开奖结果:36"], 318, rule));
     }
 
     public static IEnumerable<object[]> NumberSamples() => Samples()
