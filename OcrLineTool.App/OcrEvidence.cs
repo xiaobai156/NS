@@ -244,10 +244,6 @@ internal static class OcrEvidenceLayout
         if (segments.Length == 0)
             return [];
 
-        int pageLeft = segments.Min(item => item.Box.X);
-        int pageRight = segments.Max(item => item.Box.Right);
-        int pageWidth = Math.Max(1, pageRight - pageLeft);
-
         static int HorizontalGap(RowSegment segment, IReadOnlyList<RowSegment> column)
         {
             int left = column.Min(item => item.Box.X);
@@ -288,26 +284,32 @@ internal static class OcrEvidenceLayout
             return columns;
         }
 
-        // Establish body columns before considering any wide title/header. A
-        // collection of banners must not enlarge the body envelope or merge
-        // otherwise independent columns. Body evidence is the narrower half of
-        // the segments, so any number of stacked headers with decreasing
-        // widths cannot inflate the envelope step by step.
-        int[] orderedWidths = segments.Select(item => item.Box.Width).OrderBy(width => width).ToArray();
-        int narrowCutoff = orderedWidths[orderedWidths.Length / 2];
-        RowSegment[] bodyEvidence = segments
-            .Where(segment => segment.Box.Width <= narrowCutoff)
-            .ToArray();
-        int bodyLeft = bodyEvidence.Select(item => item.Box.X).DefaultIfEmpty(pageLeft).Min();
-        int bodyRight = bodyEvidence.Select(item => item.Box.Right).DefaultIfEmpty(pageRight).Max();
-        int bodyWidth = Math.Max(1, bodyRight - bodyLeft);
-        RowSegment[] bodySeeds = segments.Length >= 3
-            ? segments.Where(segment => segment.Box.Width < bodyWidth * 0.70).ToArray()
-            : segments;
-        List<List<RowSegment>> bodyColumns = Cluster(bodySeeds);
+        // Establish body columns before considering any wide title/header.
+        // Width quantiles cannot prove body identity because headers may
+        // outnumber body rows. Instead, drop the widest remaining segment
+        // repeatedly until the rest forms at least two stable columns (or only
+        // two segments remain). This directly separates independent body
+        // columns from the header stack, and stops as soon as the columns are
+        // distinguishable, so any number of decreasing-width headers cannot
+        // re-bridge them one layer at a time.
+        RowSegment[] seedPool = segments;
+        List<List<RowSegment>> bodyColumns;
+        while (true)
+        {
+            bodyColumns = Cluster(seedPool);
+            if (bodyColumns.Count >= 2 || seedPool.Length <= 2)
+                break;
+            int widest = seedPool.Max(item => item.Box.Width);
+            seedPool = seedPool.Where(item => item.Box.Width < widest).ToArray();
+        }
+        if (bodyColumns.Count < 2)
+        {
+            // A single body column has no cross-column identity to establish.
+            return [segments.OrderBy(item => item.Box.CenterX).ThenBy(item => item.Box.X).ToList()];
+        }
 
         var spanning = new HashSet<RowSegment>();
-        foreach (RowSegment candidate in segments.Except(bodySeeds))
+        foreach (RowSegment candidate in segments)
         {
             int touched = bodyColumns.Count(column =>
                 HorizontalGap(candidate, column) <= MergeThreshold(candidate, column));
