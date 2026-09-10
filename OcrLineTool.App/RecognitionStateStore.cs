@@ -16,7 +16,8 @@ public sealed record ResultEvidenceRecord(
     string InputHash,
     string ViewId,
     string[] RegionIds,
-    double? MinimumConfidence);
+    double? MinimumConfidence,
+    int ExtractorRevision = 0);
 
 internal sealed class ResultEvidenceLedger
 {
@@ -66,7 +67,8 @@ internal sealed class ResultEvidenceLedger
                 .Select(item => item.ViewId + "/" + item.RegionId)
                 .Distinct(StringComparer.Ordinal)
                 .ToArray(),
-            evidence.MinimumConfidence);
+            evidence.MinimumConfidence,
+            RecognitionStateStore.ExtractorRevision);
 
     internal void ObserveConflict(ResultValues values, OcrRule rule, OcrEvidence evidence)
     {
@@ -86,6 +88,10 @@ internal sealed record RecognitionStateLoad(
 internal static class RecognitionStateStore
 {
     private const int Version = 1;
+    // Extraction contract revision. Bump this whenever RuleEngine output
+    // semantics change so an older Success produced by a buggy extractor is
+    // never restored as a trusted value. Conflicts stay reusable.
+    internal const int ExtractorRevision = 1;
     private sealed record StateDocument(int Version, string Group, int Issue, List<ResultEvidenceRecord> Results);
 
     internal static string RuleSignature(OcrRule rule)
@@ -148,7 +154,8 @@ internal static class RecognitionStateStore
                     continue;
                 }
 
-                if (!string.Equals(record.Status, "success", StringComparison.Ordinal) ||
+                if (record.ExtractorRevision != ExtractorRevision ||
+                    !string.Equals(record.Status, "success", StringComparison.Ordinal) ||
                     !RuleEngine.IsCanonicalValueValid(rule, record.Value ?? string.Empty) ||
                     string.IsNullOrWhiteSpace(record.SourcePath) || string.IsNullOrWhiteSpace(record.InputPath) ||
                     string.IsNullOrWhiteSpace(record.SourceHash) || string.IsNullOrWhiteSpace(record.InputHash) || string.IsNullOrWhiteSpace(record.ViewId) ||
@@ -178,23 +185,30 @@ internal static class RecognitionStateStore
         }
     }
 
-    internal static async Task SaveAsync(
+    internal sealed record RecognitionStateSaveOutcome(
+        IReadOnlyDictionary<string, string> FailedSuccesses);
+
+    internal static async Task<RecognitionStateSaveOutcome> SaveAsync(
         string appDirectory,
         string selectedDirectory,
         int issue,
         IReadOnlyList<OcrRule> rules,
         IReadOnlyDictionary<string, string> values,
         ResultEvidenceLedger evidence,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Action? beforeSecondPersist = null)
     {
         string path = ResultFilePaths.ForRecognitionState(appDirectory, selectedDirectory, issue);
         string group = RuleCatalog.GroupNameForFolder(appDirectory, selectedDirectory);
         var results = new List<ResultEvidenceRecord>();
+        var failedSuccesses = new Dictionary<string, string>(StringComparer.Ordinal);
 
         async Task PersistStateAsync()
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            if (File.Exists(path)) File.Delete(path);
+            // Never delete the previous checkpoint before the replacement:
+            // AtomicFile already keeps the last completed file, and a failed
+            // or cancelled second write must leave the first conflict state.
             await AtomicFile.WriteAllTextAsync(
                 path,
                 JsonSerializer.Serialize(new StateDocument(Version, group, issue, results)),
@@ -240,6 +254,7 @@ internal static class RecognitionStateStore
                 || !evidence.Records.TryGetValue(rule.Id, out ResultEvidenceRecord? record)
                 || record.RuleType != rule.Type || record.OutputLabel != rule.OutputLabel
                 || record.RuleSignature != RuleSignature(rule)
+                || record.ExtractorRevision != ExtractorRevision
                 || !values.TryGetValue(rule.Id, out string? value)
                 || record.Status != "success" || record.Value != value
                 || !RuleEngine.IsCanonicalValueValid(rule, value))
@@ -255,13 +270,20 @@ internal static class RecognitionStateStore
                 evidence.Seed(record);
                 results.Add(record);
             }
-            catch (OcrException)
+            catch (OcrException exception)
             {
-                // One invalid/uncopyable success is omitted; conflicts already
-                // persisted above and other successes remain publishable.
+                // A success that cannot be persisted is not a trusted success.
+                // Report it so the caller removes it from values, regenerates
+                // the output, and never distributes it.
+                failedSuccesses[rule.Id] = exception.Message;
+                evidence.Remove(rule.Id);
+                if (values is ResultValues mutableValues)
+                    mutableValues.Remove(rule.Id);
+                results.RemoveAll(item => item.RuleId == rule.Id);
             }
         }
 
+        beforeSecondPersist?.Invoke();
         try
         {
             await PersistStateAsync();
@@ -271,6 +293,7 @@ internal static class RecognitionStateStore
         {
             throw new OcrException("无法保存带来源证明的识别状态；本次结果不会作为可恢复成功值。", "OCR_STATE_WRITE_ERROR");
         }
+        return new RecognitionStateSaveOutcome(failedSuccesses);
     }
 
     private static ResultEvidenceRecord PersistInputSnapshot(
@@ -356,6 +379,7 @@ internal static class RecognitionStateStore
 
             if (!evidence.Records.TryGetValue(rule.Id, out ResultEvidenceRecord? record)
                 || record.Status != "success"
+                || record.ExtractorRevision != ExtractorRevision
                 || record.RuleSignature != RuleSignature(rule)
                 || string.IsNullOrWhiteSpace(record.SourcePath)
                 || string.IsNullOrWhiteSpace(record.InputPath)
@@ -414,6 +438,7 @@ internal static class RecognitionStateStore
                     continue;
                 if (!evidence.Records.TryGetValue(rule.Id, out ResultEvidenceRecord? record)
                     || record.Status != "success"
+                    || record.ExtractorRevision != ExtractorRevision
                     || record.RuleSignature != RuleSignature(rule)
                     || string.IsNullOrWhiteSpace(record.SourcePath)
                     || string.IsNullOrWhiteSpace(record.InputPath)

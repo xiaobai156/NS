@@ -465,7 +465,7 @@ public static class RuleEngine
         closed = false;
         if (rule.PeerKeywords is not { Count: > 0 })
             return line;
-        string normalized = Normalize(line);
+        (string normalized, int[] map) = NormalizeWithMap(line);
         (int Index, int Length)[] own = aliases
             .Select(alias => (Index: normalized.IndexOf(alias, StringComparison.Ordinal), Length: alias.Length))
             .Where(item => item.Index >= 0)
@@ -474,7 +474,9 @@ public static class RuleEngine
             return line;
 
         // Keep only this author's own cell. Text before the target author may
-        // belong to a sibling author just as text after it may do so.
+        // belong to a sibling author just as text after it may do so. The
+        // slice is taken from the ORIGINAL characters so brackets, spaces and
+        // instruction labels survive for both success and conflict validation.
         int ownIndex = own.Min(item => item.Index);
         int ownEnd = own.Where(item => item.Index == ownIndex).Max(item => item.Index + item.Length);
         int peerIndex = rule.PeerKeywords
@@ -488,7 +490,9 @@ public static class RuleEngine
         if (peerIndex >= 0)
             closed = true;
         int end = peerIndex >= 0 ? peerIndex : normalized.Length;
-        return normalized[ownIndex..end];
+        int rawStart = ownIndex < map.Length ? map[ownIndex] : line.Length;
+        int rawEnd = end < map.Length ? map[end] : line.Length;
+        return line[rawStart..Math.Max(rawStart, rawEnd)];
     }
 
     private static bool ContainsPeerIdentity(string line, OcrRule rule)
@@ -942,14 +946,15 @@ public static class RuleEngine
     // nearby/prefix extraction when a complete issue block fails validation.
     private static string? ExtractStrictIssueBlock(string[] lines, int issue, OcrRule rule)
     {
-        if (SplitIssueNumberRuleIds.Contains(rule.Id)
-            && lines.Any(line => IsBareIssueBoundary(line, issue)))
-            return null;
-        if (SplitIssueNumberRuleIds.Contains(rule.Id)
+        var values = new HashSet<string>(StringComparer.Ordinal);
+        int reviewedExpectedCount = 0;
+        bool reviewedSplitRule = SplitIssueNumberRuleIds.Contains(rule.Id)
             && rule.Type.StartsWith("号码:", StringComparison.Ordinal)
-            && int.TryParse(rule.Type.AsSpan("号码:".Length), out int reviewedExpectedCount))
+            && int.TryParse(rule.Type.AsSpan("号码:".Length), out reviewedExpectedCount);
+        if (reviewedSplitRule)
         {
             var reviewed = new HashSet<string>(StringComparer.Ordinal);
+            bool reviewedLeftCellProven = false;
             for (int index = 0; index < lines.Length; index++)
             {
                 if (!ContainsIssue(lines[index], issue))
@@ -968,16 +973,25 @@ public static class RuleEngine
                     || !IsNumberContinuation(lines[previous], reviewedExpectedCount, rule, issue))
                     continue;
 
+                reviewedLeftCellProven = true;
                 string? split = ExtractStrictCenteredNumberWindow(
                     lines, index, issue, reviewedExpectedCount, rule);
                 if (split is not null)
                     reviewed.Add(split);
             }
-            if (reviewed.Count > 0)
-                return reviewed.Count == 0 ? null : reviewed.Count == 1 ? reviewed.Single() : ConflictMarker;
-            if (lines.Any(line => Regex.IsMatch(SimplifyOcrText(line).Trim(), @"^\d{4,6}$")
-                && IsBareIssueBoundary(line, issue)))
+
+            // The reviewed adapter is physical-row evidence. Merge it with the
+            // ordinary strict block parser below: an incomplete sibling block
+            // must not veto it, but a complete different same-issue answer must
+            // still form a conflict instead of being masked. When the adapter
+            // proved a straddling left cell but could not resolve the whole
+            // physical field, the generic right-only parser must not revive a
+            // subset as success.
+            if (reviewed.Count == 0
+                && (reviewedLeftCellProven
+                    || lines.Any(line => IsIssueLikeBareNumber(SimplifyOcrText(line).Trim()))))
                 return null;
+            values.UnionWith(reviewed);
         }
 
         string text = SimplifyOcrText(string.Join('\n', lines));
@@ -1009,7 +1023,6 @@ public static class RuleEngine
             // parser, which has a different layout contract.
             return ExtractNearbySingleZodiac(lines, issue, rule);
         }
-        var values = new HashSet<string>(StringComparer.Ordinal);
         for (int index = 0; index < periods.Count; index++)
         {
             Match period = periods[index];
@@ -1037,7 +1050,13 @@ public static class RuleEngine
                 continue;
             string? value = ExtractStrictTableValue(block, rule);
             if (value is null)
+            {
+                // A complete reviewed candidate survives an incomplete sibling
+                // block of the same issue; the generic loop must not fabricate.
+                if (values.Count > 0)
+                    continue;
                 return null;
+            }
             values.Add(value);
         }
         return values.Count == 0 ? null : values.Count == 1 ? values.Single() : ConflictMarker;
@@ -2166,7 +2185,19 @@ public static class RuleEngine
             for (int next = index + 1; next < lines.Length; next++)
             {
                 if (ContainsIssueBoundary(lines[next], issue))
+                {
+                    // A standalone compact pair row may still be the tail of a
+                    // field whose issue row visibly wraps an opening/result
+                    // cell. That physical structure is the proof; a bare line
+                    // without it is a boundary, never a number pair.
+                    if (next == index + 1
+                        && IsWrappedCompactFieldTail(lines[index], lines[next], expectedCount, rule, parts))
+                    {
+                        parts.Add(ScopeNumberPayload(lines[next], rule, expectedCount));
+                        continue;
+                    }
                     break;
+                }
                 if (SplitIssueNumberRuleIds.Contains(rule.Id) && IsOpeningOnlySeparator(lines[next]))
                     continue;
                 if (!IsNumberContinuation(lines[next], expectedCount, rule, issue))
@@ -2232,20 +2263,50 @@ public static class RuleEngine
         int issue,
         int expectedCount,
         OcrRule rule,
-        IEnumerable<string> currentParts)
+        IEnumerable<string> currentParts,
+        bool sawRightPayload)
     {
         if (!SplitIssueNumberRuleIds.Contains(rule.Id)
             || index <= issueIndex + 1
-            || !IsOpeningOnlySeparator(lines[index - 1])
             || !ContainsIssueBoundary(lines[index], issue))
             return false;
 
         string trimmed = SimplifyOcrText(lines[index]).Trim();
-        if (!Regex.IsMatch(trimmed, @"^\d{4,6}$"))
+        if (!Regex.IsMatch(trimmed, @"^\d{4,6}$")
+            || IsIssueLikeBareNumber(trimmed))
             return false;
 
         string scoped = ScopeNumberPayload(lines[index], rule, expectedCount);
+        if (ExtractNumbers(string.Join(' ', currentParts.Append(scoped)), expectedCount) is null)
+            return false;
+
+        // An ambiguous compact row is only data when the physical field
+        // structure proves it: either the opening separator is immediately
+        // before it, or it sits between an already-consumed numeric
+        // continuation and the opening separator. Count alone is not proof.
+        return IsOpeningOnlySeparator(lines[index - 1])
+            || sawRightPayload && index + 1 < lines.Length && IsOpeningOnlySeparator(lines[index + 1]);
+    }
+
+    // Generic (non-reviewed) number rules: a compact pair row directly after
+    // the issue row is only a field tail when that issue row visibly wraps an
+    // opening/result cell. Without that structure the row is left as boundary.
+    private static bool IsWrappedCompactFieldTail(
+        string issueLine, string compactLine, int expectedCount, OcrRule rule, IEnumerable<string> currentParts)
+    {
+        if (!IsAmbiguousCompactRow(compactLine))
+            return false;
+        string simplified = SimplifyOcrText(issueLine);
+        if (BeforeOpeningResult(simplified).Length == simplified.Length)
+            return false;
+        string scoped = ScopeNumberPayload(compactLine, rule, expectedCount);
         return ExtractNumbers(string.Join(' ', currentParts.Append(scoped)), expectedCount) is not null;
+    }
+
+    private static bool IsAmbiguousCompactRow(string line)
+    {
+        string trimmed = SimplifyOcrText(line).Trim();
+        return Regex.IsMatch(trimmed, @"^\d{4,6}$") && !IsIssueLikeBareNumber(trimmed);
     }
 
     private static string? ExtractStrictCenteredNumberWindow(
@@ -2303,25 +2364,35 @@ public static class RuleEngine
         }
 
         bool sawRightPayload = false;
+        string issueTail = SimplifyOcrText(TextAfterIssue(lines[issueIndex], issue));
+        bool sawOpeningSeparator = BeforeOpeningResult(issueTail).Length != issueTail.Length;
         for (int index = issueIndex + 1; index < lines.Length; index++)
         {
             bool reviewedTrailingCompletion = candidates.Any(parts =>
                 IsReviewedCompactTrailingCompletion(
-                    lines, index, issueIndex, issue, expectedCount, rule, parts));
-            if (ContainsIssueBoundary(lines[index], issue) && !reviewedTrailingCompletion)
+                    lines, index, issueIndex, issue, expectedCount, rule, parts, sawRightPayload));
+            bool ambiguousTail = sawOpeningSeparator && sawRightPayload && IsAmbiguousCompactRow(lines[index]);
+            if (ContainsIssueBoundary(lines[index], issue) && !reviewedTrailingCompletion && !ambiguousTail)
                 break;
             if (Regex.IsMatch(SimplifyOcrText(lines[index]), @"参考|旁栏|排行|统计|说明"))
                 break;
             if (IsOpeningOnlySeparator(lines[index]))
+            {
+                sawOpeningSeparator = true;
                 continue;
-            if (sawRightPayload
+            }
+            if (IsNumberRowStart(lines[index]) && sawRightPayload)
+                break;
+            // The opening/result cell is a physical mid-row cell in reviewed
+            // wrap cards. Only there may the row after the opening cell be
+            // bounded by the completed field; without that cell the field ends
+            // only at the next issue, so extra rows invalidate the count.
+            if (sawOpeningSeparator && sawRightPayload
                 && candidates.Any(candidate => ExtractNumbers(string.Join(' ', candidate), expectedCount) is not null)
                 && !Regex.IsMatch(SimplifyOcrText(lines[index]), @"\p{L}")
                 && (ParseNumbers(ScopeNumberPayload(lines[index], rule, expectedCount))?.Length ?? 0) >= 2)
                 break;
-            if (IsNumberRowStart(lines[index]) && sawRightPayload)
-                break;
-            if (!reviewedTrailingCompletion
+            if (!reviewedTrailingCompletion && !ambiguousTail
                 && !IsNumberContinuation(lines[index], expectedCount, rule, issue))
             {
                 if (IsNumberRowStart(lines[index]))
@@ -2370,24 +2441,30 @@ public static class RuleEngine
         if (!string.IsNullOrWhiteSpace(centre))
             parts.Add(centre);
         bool sawRightPayload = false;
+        string issueTail = SimplifyOcrText(TextAfterIssue(lines[issueIndex], issue));
+        bool sawOpeningSeparator = BeforeOpeningResult(issueTail).Length != issueTail.Length;
         for (int index = issueIndex + 1; index < lines.Length; index++)
         {
             bool reviewedTrailingCompletion = IsReviewedCompactTrailingCompletion(
-                lines, index, issueIndex, issue, expectedCount, rule, parts);
-            if (ContainsIssueBoundary(lines[index], issue) && !reviewedTrailingCompletion)
+                lines, index, issueIndex, issue, expectedCount, rule, parts, sawRightPayload);
+            bool ambiguousTail = sawOpeningSeparator && sawRightPayload && IsAmbiguousCompactRow(lines[index]);
+            if (ContainsIssueBoundary(lines[index], issue) && !reviewedTrailingCompletion && !ambiguousTail)
                 break;
             if (Regex.IsMatch(SimplifyOcrText(lines[index]), @"参考|旁栏|排行|统计|说明"))
                 break;
             if (IsNumberRowStart(lines[index]) && sawRightPayload)
                 break;
             if (IsOpeningOnlySeparator(lines[index]))
+            {
+                sawOpeningSeparator = true;
                 continue;
-            if (sawRightPayload
+            }
+            if (sawOpeningSeparator && sawRightPayload
                 && ExtractNumbers(string.Join(' ', parts), expectedCount) is not null
                 && !Regex.IsMatch(SimplifyOcrText(lines[index]), @"\p{L}")
                 && (ParseNumbers(ScopeNumberPayload(lines[index], rule, expectedCount))?.Length ?? 0) >= 2)
                 break;
-            if (!reviewedTrailingCompletion
+            if (!reviewedTrailingCompletion && !ambiguousTail
                 && !IsNumberContinuation(lines[index], expectedCount, rule, issue))
             {
                 if (IsNumberRowStart(lines[index]))
@@ -2446,18 +2523,50 @@ public static class RuleEngine
     {
         string text = BeforeOpeningResult(SimplifyOcrText(RemoveIssue(line)));
 
+        // The raw field is everything in this author's own cell, including
+        // every bracket and any unbraced digits. A foreign column or a status
+        // marker after this author's identity closes the cell instead of
+        // letting a later bracket masquerade as this author's answer. This is
+        // resolved before cardinality cleanup so an own title such as
+        // “祥瑞阁主大包围36码” still matches its keyword.
+        text = CloseOwnNumberField(text, rule);
+        if (text.Length == 0)
+            return text;
+
         // Printed cardinalities are layout metadata, not lottery numbers.
         // Examples: 35码赛马会, 36计, 12码→, [12个特码].
         text = Regex.Replace(text,
             @"(?<!\d)\d{1,2}\s*(?:个(?:中特码|特码)?|個(?:码中特碼|特碼)?|码|碼|计|計)",
             " ");
 
+        // A single bracket is the field. Its payload stays authoritative, but
+        // unbraced pair runs outside it are still counter-evidence and join
+        // the same count check. A short non-numeric bracket is kept so
+        // ExtractNumbers can reject it; a multi-line one is title decoration.
         MatchCollection bracketPayloads = Regex.Matches(text,
             @"[【\[](?<payload>[^】\]]+)[】\]]");
         if (bracketPayloads.Count == 1)
-            return bracketPayloads[0].Groups["payload"].Value;
-        // Preserve all brackets when there is more than one; selecting one
-        // complete-looking bracket would hide a conflicting or incomplete peer.
+        {
+            Match bracket = bracketPayloads[0];
+            string payload = bracket.Groups["payload"].Value;
+            if (Regex.IsMatch(payload, @"^\s*[0-9 ,，.。]+\s*$"))
+            {
+                int bracketEnd = bracket.Index + bracket.Length;
+                var extras = new List<string>();
+                foreach (Match run in Regex.Matches(text, @"(?<!\d)[0-9]+(?!\d)"))
+                {
+                    if (run.Index < bracketEnd || run.Value.Length % 2 != 0)
+                        continue;
+                    if (!IsOwnFieldLeadIn(text[bracketEnd..run.Index]))
+                        continue;
+                    extras.Add(run.Value);
+                }
+                return extras.Count == 0 ? payload : payload + " " + string.Join(' ', extras);
+            }
+            return payload.Contains('\n')
+                ? text.Remove(bracket.Index, bracket.Length)
+                : text;
+        }
         if (bracketPayloads.Count > 1)
             return text;
 
@@ -2474,6 +2583,105 @@ public static class RuleEngine
             return text[..word.Index].TrimEnd();
         }
         return text;
+    }
+
+    // Restricts the payload to this author's own cell. When a foreign label or
+    // a status marker (e.g. 待更新/其他栏目) sits between this rule's identity
+    // and the first digit, the cell is closed and no later bracket may be
+    // claimed just because the author name appears somewhere in the line.
+    private static string CloseOwnNumberField(string text, OcrRule rule)
+    {
+        string[] identities = new[]
+        {
+            rule.Keyword, rule.Label ?? string.Empty,
+            rule.Section ?? string.Empty, rule.RequiredKeyword ?? string.Empty
+        }
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(Normalize)
+            .Where(value => value.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (identities.Length == 0)
+            return text;
+
+        int firstDigit = -1;
+        for (int index = 0; index < text.Length;)
+        {
+            if (!char.IsDigit(text[index]))
+            {
+                index++;
+                continue;
+            }
+            int runStart = index;
+            while (index < text.Length && char.IsDigit(text[index]))
+                index++;
+            // Printed cardinalities (“36码”, “36计”) are layout metadata and
+            // must not be mistaken for the payload that closes the author cell.
+            if (Regex.IsMatch(text[index..], @"^\s*(?:个(?:中特码|特码)?|個(?:码中特碼|特碼)?|码|碼|计|計)"))
+                continue;
+            firstDigit = runStart;
+            break;
+        }
+        if (firstDigit < 0)
+            return text;
+
+        (string normalized, int[] map) = NormalizeWithMap(text);
+        int firstDigitNormalized = Array.IndexOf(map, firstDigit);
+        if (firstDigitNormalized < 0)
+            return text;
+
+        int ownEnd = -1;
+        foreach (string identity in identities)
+        {
+            int found = normalized.LastIndexOf(identity, firstDigitNormalized, StringComparison.Ordinal);
+            if (found >= 0)
+                ownEnd = Math.Max(ownEnd, found + identity.Length);
+        }
+        if (ownEnd < 0)
+            return text;
+
+        int rawNext = ownEnd < map.Length ? map[ownEnd] : text.Length;
+        if (rawNext > firstDigit)
+            rawNext = firstDigit;
+        string leadIn = text[rawNext..firstDigit];
+        return IsOwnFieldLeadIn(leadIn) ? text : string.Empty;
+    }
+
+    private static bool IsOwnFieldLeadIn(string segment)
+    {
+        if (segment.Contains("待更新", StringComparison.Ordinal))
+            return false;
+        MatchCollection words = Regex.Matches(segment, @"\p{L}+");
+        if (words.Count == 0)
+            return true;
+        // Only a trailing field label may sit between the author identity and
+        // the payload (“新澳门六合彩杀码”, “三十六码”). A foreign column label
+        // such as “其他栏目” does not end with a field suffix and closes it.
+        string last = words[^1].Value;
+        return Regex.IsMatch(last, @"^(?:开|開|禁|.*(?:杀|殺|码|碼|计|計|围|圍))$");
+    }
+
+    // Char-aligned normalization: every kept output character maps back to its
+    // source index, so a match found on the normalized text can be sliced from
+    // the original characters (brackets, spaces and punctuation kept).
+    private static (string Text, int[] Map) NormalizeWithMap(string raw)
+    {
+        var builder = new System.Text.StringBuilder(raw.Length);
+        var map = new List<int>(raw.Length);
+        for (int index = 0; index < raw.Length; index++)
+        {
+            char value = SimplifyOcrText(raw[index].ToString())[0];
+            value = value switch
+            {
+                '①' => '1', '②' => '2', '③' => '3', '④' => '4',
+                '⑤' => '5', '⑥' => '6', '⑦' => '7', _ => value
+            };
+            if (!char.IsLetter(value) && !char.IsNumber(value))
+                continue;
+            builder.Append(value);
+            map.Add(index);
+        }
+        return (builder.ToString(), map.ToArray());
     }
 
     private static bool IsNumberContinuation(
@@ -2523,11 +2731,20 @@ public static class RuleEngine
             || !int.TryParse(trimmed, out int actual)
             || actual == selectedIssue)
             return false;
-        // Treat values in the issue-like ranges as boundaries. Four-digit OCR
-        // rows such as 4445/4546 are common compact pair continuations, so they
-        // remain eligible when their value is outside the issue range.
-        return trimmed.Length >= 6 && trimmed[0] == '1'
-            || trimmed.Length == 4 && actual is >= 1000 and <= 1999;
+        // Every standalone 4-6 digit row is an ambiguous or issue-like boundary.
+        // The old 1000-1999 / leading-1 split let 2002 or 201102 be silently
+        // split into two business numbers. Ambiguity is preserved here and only
+        // a reviewed physical field structure may consume such a row.
+        return true;
+    }
+
+    // Issue-like rows are never data, not even inside a reviewed compact field.
+    private static bool IsIssueLikeBareNumber(string trimmed)
+    {
+        if (!Regex.IsMatch(trimmed, @"^\d{4,6}$"))
+            return false;
+        return trimmed.Length >= 6
+            || trimmed.Length == 4 && int.TryParse(trimmed, out int actual) && actual is >= 1000 and <= 1999;
     }
 
     private static bool HasExactBracketPayload(string line, int expectedCount)
@@ -2550,36 +2767,24 @@ public static class RuleEngine
     private static string? ExtractNumbers(string text, int expectedCount)
     {
         string beforeOpening = BeforeOpeningResult(text);
-        Match[] numericBrackets = Regex.Matches(
-                beforeOpening, @"[【\[（(](?<value>[^】\]）)]*)[】\]）)]")
-            .Cast<Match>()
-            .Where(bracket =>
-            {
-                string payload = bracket.Groups["value"].Value;
-                if (!Regex.IsMatch(payload, @"^\s*[0-9 ,，.。]+\s*$"))
-                    return false;
-                string[]? parsed = ParseNumbers(payload);
-                return parsed is { Length: > 1 };
-            })
-            .ToArray();
-        if (numericBrackets.Length > 0)
+        // Every bracket in the raw field participates in validation. Numeric
+        // brackets are counted together with unbraced digits so a selected
+        // complete-looking bracket cannot hide a conflicting or incomplete
+        // sibling; a short non-numeric bracket is unknown content in the field.
+        // Multi-line non-numeric brackets are only title decoration and are
+        // dropped as a whole, never filtered down to the numbers around them.
+        string data = beforeOpening;
+        foreach (Match bracket in Regex.Matches(
+            beforeOpening, @"[【\[（(](?<value>[^】\]）)]*)[】\]）)]").Cast<Match>().Reverse())
         {
-            var bracketValues = new HashSet<string>(StringComparer.Ordinal);
-            foreach (Match bracket in numericBrackets)
-            {
-                string? bracketed = FormatNumbers(
-                    ParseNumbers(bracket.Groups["value"].Value), expectedCount);
-                // Once a numeric bracket establishes the field boundary, an
-                // incomplete/malformed bracket must not widen to text outside it.
-                if (bracketed is null)
-                    return null;
-                bracketValues.Add(bracketed);
-            }
-            // Multiple complete fields are evidence of ambiguity/conflict, not
-            // permission to return the first one.
-            return bracketValues.Count == 0 ? null : bracketValues.Count == 1 ? bracketValues.Single() : ConflictMarker;
+            string payload = bracket.Groups["value"].Value;
+            if (Regex.IsMatch(payload, @"^\s*[0-9 ,，.。]+\s*$"))
+                continue;
+            if (!payload.Contains('\n'))
+                return null;
+            data = data.Remove(bracket.Index, bracket.Length).Insert(bracket.Index, " ");
         }
-        return FormatNumbers(ParseNumbers(RemoveIssue(beforeOpening)), expectedCount);
+        return FormatNumbers(ParseNumbers(RemoveIssue(data)), expectedCount);
     }
 
     private static string BeforeOpeningResult(string text)

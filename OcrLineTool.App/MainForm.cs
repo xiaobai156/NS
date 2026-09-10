@@ -1101,9 +1101,19 @@ public sealed class MainForm : Form
             string groupOutputPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, selectedImageDirectory!, issue);
             string diagnosticPath = ResultFilePaths.ForDiagnostic(
                 AppContext.BaseDirectory, selectedImageDirectory!, issue);
+            RecognitionStateStore.RecognitionStateSaveOutcome saveOutcome =
+                await RecognitionStateStore.SaveAsync(
+                    AppContext.BaseDirectory, selectedImageDirectory!, issue, rules, values, evidenceLedger, ActiveToken);
+            if (saveOutcome.FailedSuccesses.Count > 0)
+            {
+                // A success whose evidence could not be persisted is no longer
+                // a trusted success: rebuild the output before writing and
+                // distributing it.
+                foreach ((string failedRuleId, string failureReason) in saveOutcome.FailedSuccesses)
+                    missingReasons[failedRuleId] = failureReason;
+                outputLines = RuleEngine.FormatOutput(rules, values, missingReasons);
+            }
             await AtomicFile.WriteAllLinesAsync(groupOutputPath, outputLines, new UTF8Encoding(true));
-            await RecognitionStateStore.SaveAsync(
-                AppContext.BaseDirectory, selectedImageDirectory!, issue, rules, values, evidenceLedger, ActiveToken);
             DistributionResult distribution = await ResultDistributor.DistributeAllAsync(selectedImageDirectory!, issue, outputLines);
             string[] groupLines = GroupResultFormatter.Format(
                 rules,
@@ -1510,9 +1520,19 @@ public sealed class MainForm : Form
             string groupOutputPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, selectedImageDirectory!, issue);
             string diagnosticPath = ResultFilePaths.ForDiagnostic(
                 AppContext.BaseDirectory, selectedImageDirectory!, issue);
+            RecognitionStateStore.RecognitionStateSaveOutcome saveOutcome =
+                await RecognitionStateStore.SaveAsync(
+                    AppContext.BaseDirectory, selectedImageDirectory!, issue, rules, values, evidenceLedger, ActiveToken);
+            if (saveOutcome.FailedSuccesses.Count > 0)
+            {
+                // A success whose evidence could not be persisted is no longer
+                // a trusted success: rebuild the output before writing and
+                // distributing it.
+                foreach ((string failedRuleId, string failureReason) in saveOutcome.FailedSuccesses)
+                    missingReasons[failedRuleId] = failureReason;
+                outputLines = RuleEngine.FormatOutput(rules, values, missingReasons);
+            }
             await AtomicFile.WriteAllLinesAsync(groupOutputPath, outputLines, new UTF8Encoding(true));
-            await RecognitionStateStore.SaveAsync(
-                AppContext.BaseDirectory, selectedImageDirectory!, issue, rules, values, evidenceLedger, ActiveToken);
             DistributionResult distribution = await ResultDistributor.DistributeAllAsync(selectedImageDirectory!, issue, outputLines);
             string[] groupLines = GroupResultFormatter.Format(
                 rules,
@@ -1793,9 +1813,16 @@ public sealed class MainForm : Form
             string[] outputLines = RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons);
             ResultFilePaths.EnsureOutputDirectories(AppContext.BaseDirectory);
             string groupOutputPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, selectedImageDirectory!, lastIssue);
+            RecognitionStateStore.RecognitionStateSaveOutcome saveOutcome =
+                await RecognitionStateStore.SaveAsync(
+                    AppContext.BaseDirectory, selectedImageDirectory!, lastIssue, lastRules, lastValues, lastEvidenceLedger, ActiveToken);
+            if (saveOutcome.FailedSuccesses.Count > 0)
+            {
+                foreach ((string failedRuleId, string failureReason) in saveOutcome.FailedSuccesses)
+                    lastMissingReasons[failedRuleId] = failureReason;
+                outputLines = RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons);
+            }
             await AtomicFile.WriteAllLinesAsync(groupOutputPath, outputLines, new UTF8Encoding(true));
-            await RecognitionStateStore.SaveAsync(
-                AppContext.BaseDirectory, selectedImageDirectory!, lastIssue, lastRules, lastValues, lastEvidenceLedger, ActiveToken);
             DistributionResult distribution = await ResultDistributor.DistributeAllAsync(selectedImageDirectory!, lastIssue, outputLines);
             string[] groupLines = GroupResultFormatter.Format(
                 lastRules,
