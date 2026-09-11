@@ -21,7 +21,8 @@ public sealed record OcrRule(
     bool AllowIssueLessSummary = false,
     bool StopAtPlus = false,
     bool TenZodiacCombo = false,
-    bool PrimaryOnly = false)
+    bool PrimaryOnly = false,
+    bool HeaderIdentity = false)
 {
     public string Id => Label ?? Keyword;
     public string OutputLabel => Label ?? Keyword;
@@ -747,9 +748,19 @@ public static class RuleEngine
     private static bool IsYearMarker(string line)
     {
         string trimmed = SimplifyOcrText(line).Trim();
-        return trimmed.Length == 4
-            && trimmed[0] == '2' && trimmed[1] == '0'
-            && trimmed.All(char.IsDigit);
+        if (trimmed.Length is < 4 or > 5)
+            return false;
+        if (!trimmed.StartsWith("20", StringComparison.Ordinal))
+            return false;
+        for (int index = 0; index < 4; index++)
+        {
+            if (!char.IsDigit(trimmed[index]))
+                return false;
+        }
+        // Cards like 独傲洒脱 interleave their vertical watermark with the
+        // year labels, so medium/cloud OCR returns 20241/20244/2026傲. The
+        // extra character is watermark noise, not a new issue marker.
+        return trimmed.Length == 4 || trimmed[4] != '期';
     }
 
     private static string[] SummaryRowsForIssue(IEnumerable<string> source, int issue)
@@ -800,7 +811,7 @@ public static class RuleEngine
                     // Between this author and its 禁 field only status marks may
                     // appear; another author or “待更新” closes this cell.
                     if (statusPrefix.Length > 0
-                        && Regex.IsMatch(statusPrefix, @"[^正准準中错錯对對0-9]"))
+                        && Regex.IsMatch(statusPrefix, @"[^正准準中错錯对對囸企0-9]"))
                         continue;
                     string? value = ExtractSingleZodiac(tail[(forbiddenIndex + 1)..]);
                     if (value is not null)
@@ -1174,7 +1185,16 @@ public static class RuleEngine
         if (rule.Type.StartsWith("号码:", StringComparison.Ordinal)
             && int.TryParse(rule.Type.AsSpan("号码:".Length), out int count))
             return $"已找到候选图片和{issue}期文字，但未通过{count}个两位数号码校验（要求01-49且不重复）";
-        if (rule.Type is "生肖" or "单生肖" or "九肖")
+        if (rule.Type == "九肖")
+        {
+            string[] zodiacs = Regex.Matches(string.Join(' ', lines), $"[{Zodiac}]")
+                .Select(match => match.Value).ToArray();
+            return zodiacs.Length == 0
+                ? $"已找到{issue}期文字，但未识别到九个生肖"
+                : $"已找到{issue}期文字，但未通过9个不同生肖校验"
+                    + $"（识别到{zodiacs.Length}个，去重后{zodiacs.Distinct().Count()}个）";
+        }
+        if (rule.Type is "生肖" or "单生肖")
             return $"已找到{issue}期文字，但未识别到唯一有效生肖";
         if (rule.Type == "统计生肖")
             return $"已找到{issue}期文字，但未提取到最高次数生肖";

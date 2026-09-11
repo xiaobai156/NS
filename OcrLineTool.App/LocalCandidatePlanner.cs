@@ -49,6 +49,14 @@ public static class LocalCandidatePlanner
                 OcrRule rankingRule = rule.AllowFolderIdentity
                     ? rule with { AllowValueWithoutKeyword = true }
                     : rule;
+                // Author cards print their name in the header (【玫瑰香】NEW心水).
+                // Shared statistics sheets mention the author only in a data row,
+                // so a header match must outrank them for primary_only rules,
+                // otherwise the sheet's cross-author rows can win by filename
+                // order and feed conflicting values for the same issue.
+                bool headerMatched = RuleEngine.FindMatches(
+                        lines.Where(line => !string.IsNullOrWhiteSpace(line)).Take(2).ToArray(), [rule])
+                    .Any(matched => matched.Id.Equals(rule.Id, StringComparison.Ordinal));
                 options.Add(new CandidateOption(
                     path,
                     rule,
@@ -57,7 +65,8 @@ public static class LocalCandidatePlanner
                     issue is int target && RuleEngine.ExtractFinalValue(lines, target, rankingRule) is not null,
                     (Path.GetFileName(Path.GetDirectoryName(path)) ?? string.Empty)
                         .Equals(expectedFolder, StringComparison.OrdinalIgnoreCase),
-                    isSummary));
+                    isSummary,
+                    headerMatched));
             }
         }
 
@@ -70,6 +79,11 @@ public static class LocalCandidatePlanner
             CandidateOption[] ruleOptions = options
                 .Where(option => option.Rule.Id.Equals(rule.Id, StringComparison.Ordinal))
                 .ToArray();
+            // header_identity rules only ever use the author's own card: the
+            // name must appear in the image header. Shared statistics sheets
+            // are ignored entirely, even when the dedicated card is missing.
+            if (rule.HeaderIdentity)
+                ruleOptions = ruleOptions.Where(option => option.HeaderMatched).ToArray();
             if (ruleOptions.Length == 0)
                 continue;
 
@@ -133,5 +147,6 @@ public static class LocalCandidatePlanner
         bool HasAnyValue,
         bool HasTargetValue,
         bool ExpectedFolder,
-        bool IsSummary);
+        bool IsSummary,
+        bool HeaderMatched);
 }

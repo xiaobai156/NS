@@ -1095,16 +1095,21 @@ public sealed class MainForm : Form
                 SetProgress(completed, cloudCandidates.Length);
             }
 
-            HashSet<string> candidateRuleIds = candidates
-                .Concat(cloudCandidates)
-                .SelectMany(candidate => candidate.Rules)
-                .Select(rule => rule.Id)
-                .ToHashSet(StringComparer.Ordinal);
             var missingReasons = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (OcrRule rule in rules.Where(rule => !values.ContainsKey(rule.Id)))
-                missingReasons[rule.Id] = RuleEngine.DescribeMissing(
-                    candidateRuleIds.Contains(rule.Id),
-                    recognizedRuleIds.Contains(rule.Id));
+            {
+                RecognitionCandidate? failedCandidate = candidates
+                    .Concat(cloudCandidates)
+                    .FirstOrDefault(item => item.Rules.Any(candidateRule => candidateRule.Id == rule.Id));
+                IReadOnlyList<string> failedLines = failedCandidate is null
+                    ? []
+                    : lastCloudOcrResults.TryGetValue(failedCandidate.SourcePath, out IReadOnlyList<string>? failedCloudLines)
+                        ? failedCloudLines
+                        : failedCandidate.LocalLines ?? [];
+                missingReasons[rule.Id] = !recognizedRuleIds.Contains(rule.Id)
+                    ? RuleEngine.DescribeMissing(failedCandidate is not null, recognizedText: false)
+                    : RuleEngine.DescribeExtractionFailure(failedLines, issue, rule);
+            }
 
             ActiveToken.ThrowIfCancellationRequested();
             using IDisposable publishGuard = RecognitionStateStore.LockValidEvidenceForPublish(
@@ -1517,9 +1522,9 @@ public sealed class MainForm : Form
                     if (values.ContainsKey(rule.Id))
                         missingReasons.Remove(rule.Id);
                     else
-                        missingReasons[rule.Id] = RuleEngine.DescribeMissing(
-                            foundImage: true,
-                            recognizedText: textRecognizedRuleIds.Contains(rule.Id));
+                        missingReasons[rule.Id] = textRecognizedRuleIds.Contains(rule.Id)
+                            ? RuleEngine.DescribeExtractionFailure(cloudLines, issue, rule)
+                            : RuleEngine.DescribeMissing(foundImage: true, recognizedText: false);
                 }
 
                 diagnostics.Add(new
@@ -1870,9 +1875,10 @@ public sealed class MainForm : Form
                     if (lastValues.ContainsKey(rule.Id))
                         lastMissingReasons.Remove(rule.Id);
                     else
-                        lastMissingReasons[rule.Id] = RuleEngine.DescribeMissing(
-                            foundImage: true,
-                            recognizedText: lastTextRecognizedRuleIds.Contains(rule.Id));
+                        lastMissingReasons[rule.Id] = lastTextRecognizedRuleIds.Contains(rule.Id)
+                            ? RuleEngine.DescribeExtractionFailure(
+                                primaryEvidence?.Lines ?? fallbackEvidence?.Lines ?? [], lastIssue, rule)
+                            : RuleEngine.DescribeMissing(foundImage: true, recognizedText: false);
                 }
 
                 completed++;

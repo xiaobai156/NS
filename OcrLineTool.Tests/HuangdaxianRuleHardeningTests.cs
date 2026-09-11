@@ -72,6 +72,18 @@ public sealed class HuangdaxianRuleHardeningTests
             RuleEngine.FormatOutput(rules, values));
     }
 
+    [Fact]
+    public void LaodadaDuplicateStaysMissingAndReportsTheRealReason()
+    {
+        OcrRule rule = Assert.Single(Rules, item => item.Id == "68老大");
+        string[] lines = ["68", "254期九肖中特", "(蛇狗马兔牛蛇鼠虎羊)开√", "公平"];
+
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 254, rule));
+        Assert.Equal(
+            "已找到254期文字，但未通过9个不同生肖校验（识别到9个，去重后8个）",
+            RuleEngine.DescribeExtractionFailure(lines, 254, rule));
+    }
+
     [Theory]
     [InlineData("68凯哥", "245期凯哥杀五码【03 19 22 39】开")]
     [InlineData("68凯哥", "245期凯哥杀五码【03 19 22 39 39】开")]

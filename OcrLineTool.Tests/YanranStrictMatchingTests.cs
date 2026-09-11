@@ -152,6 +152,23 @@ public sealed class YanranStrictMatchingTests
     }
 
     [Fact]
+    public void GgTeamSummaryAcceptsBoxyTallyMarks()
+    {
+        OcrRule[] catalog = Rules();
+        string[] lines =
+        [
+            "GG团队254期新澳禁肖统计表",
+            "简单爱囸正禁狗",
+            "欧阳囸囸正禁虎G",
+            "月来月好正正禁鼠"
+        ];
+
+        Assert.Equal("狗", RuleEngine.ExtractFinalValue(lines, 254, Assert.Single(catalog, r => r.Id == "简单爱")));
+        Assert.Equal("虎", RuleEngine.ExtractFinalValue(lines, 254, Assert.Single(catalog, r => r.Id == "欧阳肖")));
+        Assert.Equal("鼠", RuleEngine.ExtractFinalValue(lines, 254, Assert.Single(catalog, r => r.Id == "月来月好")));
+    }
+
+    [Fact]
     public void YuyahalfWaveKeepsTheValueBeforeThePlusColumn()
     {
         OcrRule rule = Rule("玉亚半波");
