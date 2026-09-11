@@ -1693,6 +1693,18 @@ public sealed class MainForm : Form
             int completed = 0;
             SetProgress(0, selection.Candidates.Count);
 
+            // 手动复抓缺失：默认先本地 medium，取不到的规则再云兜底。
+            PaddleLocalOcrClient? retryLocalClient = null;
+            try
+            {
+                retryLocalClient = new PaddleLocalOcrClient();
+                await retryLocalClient.EnsureCudaAvailableAsync(ActiveToken);
+            }
+            catch (OcrException)
+            {
+                retryLocalClient = null;
+            }
+
             foreach (RecognitionCandidate candidate in selection.Candidates)
             {
                 // Selection contains the rules missing at retry start, but an already
@@ -1702,6 +1714,48 @@ public sealed class MainForm : Form
                 if (candidateMissing.Length == 0)
                     continue;
                 OcrRule[] evidenceRules = RetryEvidenceRules(candidate, lastRules);
+
+                // 先本地 medium；取不到的规则再走下面的云路径。
+                if (retryLocalClient is not null)
+                {
+                    try
+                    {
+                        await retryLocalClient.RecognizeBatchAsync(
+                            [candidate.OcrPath],
+                            null,
+                            titleRatio: 1.0,
+                            detectionMaxSide: null,
+                            model: PaddleOcrModels.LocalPrimary,
+                            cancellationToken: ActiveToken);
+                        OcrEvidence? localEvidence = BindPaddleEvidence(
+                            retryLocalClient, candidate, "local-primary/retry");
+                        if (localEvidence is not null)
+                        {
+                            if (localEvidence.Items.Any(item => !string.IsNullOrWhiteSpace(item.Text)))
+                                lastTextRecognizedRuleIds.UnionWith(candidate.Rules.Select(rule => rule.Id));
+                            AddExtractedEvidenceValues(
+                                localEvidence, evidenceRules, lastIssue, lastValues, lastEvidenceLedger);
+                        }
+                    }
+                    catch (OcrException)
+                    {
+                        // 本地不可用：保持原有云复抓路径。
+                    }
+                    candidateMissing = candidate.Rules
+                        .Where(rule => !lastValues.ContainsKey(rule.Id)).ToArray();
+                }
+                if (candidateMissing.Length == 0)
+                {
+                    foreach (OcrRule rule in candidate.Rules)
+                        if (lastValues.ContainsKey(rule.Id))
+                            lastMissingReasons.Remove(rule.Id);
+                    completed++;
+                    SetProgress(completed, selection.Candidates.Count);
+                    resultsBox.Text = string.Join(
+                        Environment.NewLine,
+                        RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons));
+                    continue;
+                }
 
                 OcrEvidence? primaryEvidence = null;
                 bool reusedCache = retryCloudEvidence.TryGetValue(candidate.SourcePath, out OcrEvidence? cachedEvidence)
