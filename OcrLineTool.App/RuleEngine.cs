@@ -1025,9 +1025,26 @@ public static class RuleEngine
         }
         if (conflict || observed.Count > 1)
             return RuleExtractionResult.Conflict;
-        return observed.Count == 1
-            ? RuleExtractionResult.Success(observed.Single())
-            : RuleExtractionResult.Missing;
+        if (observed.Count == 1)
+            return RuleExtractionResult.Success(observed.Single());
+        // Last resort for reviewed split number tables (their physical rows may
+        // be cut by the issue/opening cells, so no single partition holds the
+        // whole field): the concatenated reading is the same input the cloud
+        // path would have used. Other materials keep the strict region rules.
+        bool reviewedNumberRule = rule.StrictIssueBlock
+            && SplitIssueNumberRuleIds.Contains(rule.Id)
+            && rule.Type.StartsWith("号码:", StringComparison.Ordinal);
+        if (!reviewedNumberRule)
+            return RuleExtractionResult.Missing;
+        RuleExtractionResult whole = ExtractFinalResult(
+            evidence.Items
+                .Where(item => !string.IsNullOrWhiteSpace(item.Text))
+                .Select(item => item.Text),
+            issue,
+            rule);
+        return whole.Status == RuleExtractionStatus.Conflict
+            ? RuleExtractionResult.Conflict
+            : whole;
     }
 
     // Row-major reading order with the same row tolerance the layout builder
