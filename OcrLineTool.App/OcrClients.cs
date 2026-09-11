@@ -87,6 +87,23 @@ public static class CloudOcrPolicy
         provider == OcrProvider.Baidu
             ? exception.Code == "18"
             : exception.Code?.StartsWith("RequestLimitExceeded", StringComparison.Ordinal) == true;
+
+    // 权限/欠费/无效凭据/无额度：可以换下一个账号重试（限流除外）。
+    public static bool IsCredentialProblem(OcrProvider provider, OcrException exception)
+    {
+        string? code = exception.Code;
+        if (string.IsNullOrWhiteSpace(code) || IsRateLimit(provider, exception))
+            return false;
+        if (provider == OcrProvider.Baidu)
+            return code is "6" or "14" or "17" or "19" or "110" or "111";
+        return code.Contains("AuthFailure", StringComparison.Ordinal)
+            || code.Contains("Unauthorized", StringComparison.Ordinal)
+            || code.Contains("NoPermission", StringComparison.Ordinal)
+            || code.Contains("Arrears", StringComparison.Ordinal)
+            || code.Contains("LimitExceeded", StringComparison.Ordinal)
+            || code.Contains("ResourcesSoldOut", StringComparison.Ordinal)
+            || code.Contains("ResourceUnavailable", StringComparison.Ordinal);
+    }
 }
 
 internal static class OcrHttp

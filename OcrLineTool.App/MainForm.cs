@@ -872,6 +872,10 @@ public sealed class MainForm : Form
 
             ApplyLocalValues(candidates);
 
+            // 模板裁剪图取不到的规则，用原图再本地识别一次（与云兜底默认用原图一致）。
+            await ApplyLocalSourceRetryAsync(
+                candidates, rules, issue, values, evidenceLedger, recognizedRuleIds, localClient);
+
             IReadOnlyList<IReadOnlyList<string>> localSamples = candidates
                 .Where(candidate => candidate.IsPrimary)
                 .Select(candidate => candidate.LocalEvidence?.Lines ?? [])
@@ -945,7 +949,11 @@ public sealed class MainForm : Form
             async Task<OcrEvidence> RequestCloudFallbackAsync(RecognitionCandidate candidate)
             {
                 OcrException? lastError = null;
-                foreach (OcrCredential credential in CredentialSchedule.RotationFrom(selectedCredential))
+                OcrCredential[] cloudFallbackRotation = CredentialSchedule.RotationFrom(selectedCredential)
+                    .Take(3).ToArray();
+                if (cloudFallbackRotation.Length == 0)
+                    cloudFallbackRotation = [selectedCredential];
+                foreach (OcrCredential credential in cloudFallbackRotation)
                 {
                     if (string.IsNullOrWhiteSpace(credential.Id) || string.IsNullOrWhiteSpace(credential.Secret))
                         continue;
@@ -992,6 +1000,11 @@ public sealed class MainForm : Form
                     {
                         lastError = exception;
                         statusLabel.Text = $"本地主识别：{credential.DisplayName} 没有额度，切换下一个账号……";
+                    }
+                    catch (OcrException exception) when (CloudOcrPolicy.IsCredentialProblem(credential.Provider, exception))
+                    {
+                        lastError = exception;
+                        statusLabel.Text = $"本地主识别：{credential.DisplayName} 无权限/无额度，切换下一个账号……";
                     }
                     catch (OcrException exception)
                     {
@@ -1216,6 +1229,11 @@ public sealed class MainForm : Form
                 ? CredentialSchedule.DescribeDate(CredentialSchedule.TodayInBeijing())
                 : CredentialSchedule.DescribeSlot(credentialSelector.SelectedIndex - 1);
             IOcrClient cloudClient = OcrClientFactory.CreateDeferred(credential);
+            // 主云遇到权限/欠费/无效凭据/无额度时，按顺序换下一个账号，最多 3 个。
+            OcrCredential[] primaryRotation = CredentialSchedule.RotationFrom(credential).Take(3).ToArray();
+            if (primaryRotation.Length == 0)
+                primaryRotation = [credential];
+            int primaryRotationIndex = 0;
             OcrCredential fallbackCredential = CredentialSchedule.DescribeFallback(credential);
             IOcrClient fallbackClient = OcrClientFactory.CreateDeferred(fallbackCredential);
             var values = new ResultValues(StringComparer.Ordinal);
@@ -1240,6 +1258,20 @@ public sealed class MainForm : Form
             TimeSpan minimumInterval = CloudOcrPolicy.MinimumInterval(credential.Provider);
             TimeSpan fallbackMinimumInterval = CloudOcrPolicy.MinimumInterval(fallbackCredential.Provider);
             int plannedCloudImages = candidates.Count(candidate => candidate.IsPrimary);
+
+            bool TryAdvancePrimaryAccount()
+            {
+                if (primaryRotationIndex + 1 >= primaryRotation.Length)
+                    return false;
+                primaryRotationIndex++;
+                credential = primaryRotation[primaryRotationIndex];
+                cloudClient = OcrClientFactory.CreateDeferred(credential);
+                minimumInterval = CloudOcrPolicy.MinimumInterval(credential.Provider);
+                fallbackCredential = CredentialSchedule.DescribeFallback(credential);
+                fallbackClient = OcrClientFactory.CreateDeferred(fallbackCredential);
+                fallbackMinimumInterval = CloudOcrPolicy.MinimumInterval(fallbackCredential.Provider);
+                return true;
+            }
 
             async Task<OcrEvidence> RecognizePrimaryAsync(
                 RecognitionCandidate candidate,
@@ -1293,6 +1325,12 @@ public sealed class MainForm : Form
                         resultsBox.Text = string.Join(Environment.NewLine, RuleEngine.FormatOutput(rules, values, missingReasons));
                         await WaitForCloudResumeAsync(displayIndex, displayTotal, candidate.SourcePath);
                         automaticRetry = 0;
+                    }
+                    catch (OcrException exception) when (CloudOcrPolicy.IsCredentialProblem(credential.Provider, exception))
+                    {
+                        if (!TryAdvancePrimaryAccount())
+                            throw;
+                        statusLabel.Text = $"{stage}：{credential.DisplayName} 无权限/无额度，切换下一个账号……";
                     }
                 }
             }
@@ -1677,12 +1715,16 @@ public sealed class MainForm : Form
                     rule.Id,
                     RuleEngine.DescribeMissing(foundImage: false, recognizedText: false));
 
-            OcrCredential credential = credentialSelector.SelectedIndex <= 0
+            OcrCredential initialCredential = credentialSelector.SelectedIndex <= 0
                 ? CredentialSchedule.DescribeDate(CredentialSchedule.TodayInBeijing())
                 : CredentialSchedule.DescribeSlot(credentialSelector.SelectedIndex - 1);
+            // 云请求遇到权限/欠费/无效凭据/无额度时，按顺序换下一个账号，最多 3 个。
+            OcrCredential[] retryRotation = CredentialSchedule.RotationFrom(initialCredential).Take(3).ToArray();
+            if (retryRotation.Length == 0)
+                retryRotation = [initialCredential];
+            int retryRotationIndex = 0;
+            OcrCredential credential = retryRotation[0];
             IOcrClient cloudClient = OcrClientFactory.CreateDeferred(credential);
-            OcrCredential fallbackCredential = CredentialSchedule.DescribeFallback(credential);
-            IOcrClient fallbackClient = OcrClientFactory.CreateDeferred(fallbackCredential);
             var primarySpacing = Stopwatch.StartNew();
             var fallbackSpacing = Stopwatch.StartNew();
             var primaryImageDeduplicator = new CloudImageDeduplicator();
@@ -1692,18 +1734,6 @@ public sealed class MainForm : Form
             int cloudRequests = 0;
             int completed = 0;
             SetProgress(0, selection.Candidates.Count);
-
-            // 手动复抓缺失：默认先本地 medium，取不到的规则再云兜底。
-            PaddleLocalOcrClient? retryLocalClient = null;
-            try
-            {
-                retryLocalClient = new PaddleLocalOcrClient();
-                await retryLocalClient.EnsureCudaAvailableAsync(ActiveToken);
-            }
-            catch (OcrException)
-            {
-                retryLocalClient = null;
-            }
 
             foreach (RecognitionCandidate candidate in selection.Candidates)
             {
@@ -1715,35 +1745,6 @@ public sealed class MainForm : Form
                     continue;
                 OcrRule[] evidenceRules = RetryEvidenceRules(candidate, lastRules);
 
-                // 先本地 medium；取不到的规则再走下面的云路径。
-                if (retryLocalClient is not null)
-                {
-                    try
-                    {
-                        await retryLocalClient.RecognizeBatchAsync(
-                            [candidate.OcrPath],
-                            null,
-                            titleRatio: 1.0,
-                            detectionMaxSide: null,
-                            model: PaddleOcrModels.LocalPrimary,
-                            cancellationToken: ActiveToken);
-                        OcrEvidence? localEvidence = BindPaddleEvidence(
-                            retryLocalClient, candidate, "local-primary/retry");
-                        if (localEvidence is not null)
-                        {
-                            if (localEvidence.Items.Any(item => !string.IsNullOrWhiteSpace(item.Text)))
-                                lastTextRecognizedRuleIds.UnionWith(candidate.Rules.Select(rule => rule.Id));
-                            AddExtractedEvidenceValues(
-                                localEvidence, evidenceRules, lastIssue, lastValues, lastEvidenceLedger);
-                        }
-                    }
-                    catch (OcrException)
-                    {
-                        // 本地不可用：保持原有云复抓路径。
-                    }
-                    candidateMissing = candidate.Rules
-                        .Where(rule => !lastValues.ContainsKey(rule.Id)).ToArray();
-                }
                 if (candidateMissing.Length == 0)
                 {
                     foreach (OcrRule rule in candidate.Rules)
@@ -1771,32 +1772,52 @@ public sealed class MainForm : Form
                         await WaitForPacingAsync(primarySpacing, CloudOcrPolicy.MinimumInterval(credential.Provider));
                     primarySpacing.Restart();
                     primaryStarted = true;
-                    try
+                    while (true)
                     {
-                        statusLabel.Text = $"复抓缺失：主云 {completed + 1}/{selection.Candidates.Count} · {ShortPath(candidate.SourcePath)}";
-                        string primaryInputPath = RetryPrimaryImage(
-                            selectedImageDirectory!, candidate.SourcePath, candidate.OcrPath, candidateMissing);
-                        primaryEvidence = await primaryImageDeduplicator.RecognizeEvidenceAsync(
-                            selectedImageDirectory!, primaryInputPath, candidateMissing,
-                            async () =>
+                        try
+                        {
+                            statusLabel.Text = $"复抓缺失：主云 {credential.DisplayName} {completed + 1}/{selection.Candidates.Count} · {ShortPath(candidate.SourcePath)}";
+                            string primaryInputPath = RetryPrimaryImage(
+                                selectedImageDirectory!, candidate.SourcePath, candidate.OcrPath, candidateMissing);
+                            primaryEvidence = await primaryImageDeduplicator.RecognizeEvidenceAsync(
+                                selectedImageDirectory!, primaryInputPath, candidateMissing,
+                                async () =>
+                                {
+                                    cloudRequests++;
+                                    OcrEvidenceIdentity retryIdentity = RequirePinnedCandidateIdentity(
+                                        candidate.PinnedIdentity,
+                                        candidate.SourcePath,
+                                        primaryInputPath,
+                                        $"retry/{credential.Provider}");
+                                    return await RecognizeRetryEvidenceAsync(
+                                        cloudClient, credential, retryIdentity,
+                                        completed + 1, selection.Candidates.Count);
+                                });
+                            AddExtractedEvidenceValues(primaryEvidence, evidenceRules, lastIssue, lastValues, lastEvidenceLedger);
+                            break;
+                        }
+                        catch (OcrException exception) when (CloudOcrPolicy.IsCredentialProblem(credential.Provider, exception))
+                        {
+                            if (retryRotationIndex + 1 >= retryRotation.Length)
                             {
-                                cloudRequests++;
-                                OcrEvidenceIdentity retryIdentity = RequirePinnedCandidateIdentity(
-                                    candidate.PinnedIdentity,
-                                    candidate.SourcePath,
-                                    primaryInputPath,
-                                    $"retry/{credential.Provider}");
-                                return await RecognizeRetryEvidenceAsync(
-                                    cloudClient, credential, retryIdentity,
-                                    completed + 1, selection.Candidates.Count);
-                            });
-                        AddExtractedEvidenceValues(primaryEvidence, evidenceRules, lastIssue, lastValues, lastEvidenceLedger);
-                    }
-                    catch (OcrException exception)
-                    {
-                        statusLabel.Text = $"复抓主云失败，改用 {fallbackCredential.DisplayName}：{exception.Message}";
+                                statusLabel.Text = $"复抓主云 {credential.DisplayName} 无权限/无额度，且已无更多账号：{exception.Message}";
+                                break;
+                            }
+                            retryRotationIndex++;
+                            credential = retryRotation[retryRotationIndex];
+                            cloudClient = OcrClientFactory.CreateDeferred(credential);
+                            statusLabel.Text = $"复抓主云 {credential.DisplayName} 无权限/无额度，切换下一个账号…";
+                        }
+                        catch (OcrException exception)
+                        {
+                            statusLabel.Text = $"复抓主云失败，改用 {CredentialSchedule.DescribeFallback(credential).DisplayName}：{exception.Message}";
+                            break;
+                        }
                     }
                 }
+
+                OcrCredential fallbackCredential = CredentialSchedule.DescribeFallback(credential);
+                IOcrClient fallbackClient = OcrClientFactory.CreateDeferred(fallbackCredential);
 
                 OcrRule[] fallbackMissing = candidateMissing
                     .Where(rule => !lastValues.ContainsKey(rule.Id))
@@ -2008,6 +2029,63 @@ public sealed class MainForm : Form
                 ResultValues.MarkConflict(values, rule.Id);
             else if (result.Status == RuleExtractionStatus.Success)
                 ResultValues.AddTo(values, rule.Id, result.Value!);
+        }
+    }
+
+    private async Task ApplyLocalSourceRetryAsync(
+        IReadOnlyList<RecognitionCandidate> candidates,
+        IReadOnlyList<OcrRule> rules,
+        int issue,
+        ResultValues values,
+        ResultEvidenceLedger ledger,
+        HashSet<string> recognizedRuleIds,
+        PaddleLocalOcrClient client)
+    {
+        OcrRule[] pending = rules
+            .Where(rule => !values.ContainsKey(rule.Id) && !ResultValues.IsConflict(values, rule.Id))
+            .ToArray();
+        if (pending.Length == 0)
+            return;
+
+        string[] sources = candidates
+            .Where(candidate => !candidate.SourcePath.Equals(candidate.OcrPath, StringComparison.OrdinalIgnoreCase))
+            .Where(candidate => candidate.Rules.Any(rule => pending.Any(item => item.Id == rule.Id)))
+            .Select(candidate => candidate.SourcePath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (sources.Length == 0)
+            return;
+
+        try
+        {
+            await client.RecognizeBatchAsync(
+                sources,
+                null,
+                titleRatio: 1.0,
+                detectionMaxSide: null,
+                model: PaddleOcrModels.LocalPrimary,
+                cancellationToken: ActiveToken);
+        }
+        catch (OcrException)
+        {
+            return;
+        }
+
+        foreach (string source in sources)
+        {
+            OcrEvidence? evidence = BindPaddleEvidence(client, source, source, "local-primary/source");
+            if (evidence is null)
+                continue;
+            OcrRule[] needed = pending
+                .Where(rule => candidates.Any(candidate =>
+                    candidate.SourcePath.Equals(source, StringComparison.OrdinalIgnoreCase)
+                    && candidate.Rules.Any(item => item.Id == rule.Id)))
+                .ToArray();
+            if (needed.Length == 0)
+                continue;
+            if (evidence.Items.Any(item => !string.IsNullOrWhiteSpace(item.Text)))
+                recognizedRuleIds.UnionWith(needed.Select(rule => rule.Id));
+            AddExtractedEvidenceValues(evidence, needed, issue, values, ledger);
         }
     }
 
