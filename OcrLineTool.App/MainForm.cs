@@ -13,16 +13,16 @@ public sealed class MainForm : Form
     private readonly Action<ProcessStartInfo> openFile;
     private const int DwmUseImmersiveDarkMode = 20;
     private const int DwmUseImmersiveDarkModeLegacy = 19;
-    private static readonly Color WindowBackground = Color.FromArgb(17, 18, 20);
-    private static readonly Color CardBackground = Color.FromArgb(30, 31, 35);
-    private static readonly Color InputBackground = Color.FromArgb(37, 39, 44);
-    private static readonly Color CanvasBackground = Color.FromArgb(20, 21, 24);
-    private static readonly Color BorderColor = Color.FromArgb(54, 56, 62);
-    private static readonly Color PrimaryText = Color.FromArgb(245, 245, 247);
-    private static readonly Color SecondaryText = Color.FromArgb(166, 166, 173);
-    private static readonly Color AccentBlue = Color.FromArgb(10, 132, 255);
+    internal static readonly Color WindowBackground = Color.FromArgb(11, 17, 30);
+    internal static readonly Color CardBackground = Color.FromArgb(18, 27, 46);
+    internal static readonly Color InputBackground = Color.FromArgb(25, 36, 59);
+    private static readonly Color CanvasBackground = Color.FromArgb(8, 13, 24);
+    internal static readonly Color BorderColor = Color.FromArgb(43, 61, 92);
+    internal static readonly Color PrimaryText = Color.FromArgb(232, 239, 250);
+    internal static readonly Color SecondaryText = Color.FromArgb(148, 165, 194);
+    internal static readonly Color AccentBlue = Color.FromArgb(56, 132, 246);
     private static readonly Color DangerRed = Color.FromArgb(255, 69, 58);
-    private static readonly Color DisabledBackground = Color.FromArgb(48, 49, 54);
+    private static readonly Color DisabledBackground = Color.FromArgb(30, 41, 63);
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr window, int attribute, ref int value, int size);
@@ -52,9 +52,10 @@ public sealed class MainForm : Form
     private readonly ListBox folderList = new()
     {
         Dock = DockStyle.Fill, IntegralHeight = false, FormattingEnabled = true,
-        BorderStyle = BorderStyle.FixedSingle, BackColor = InputBackground, ForeColor = PrimaryText
+        BorderStyle = BorderStyle.FixedSingle, BackColor = InputBackground, ForeColor = PrimaryText,
+        DrawMode = DrawMode.OwnerDrawFixed
     };
-    private readonly Button deleteButton = new DarkButton() { Text = "删除目录图片", AutoSize = true, Padding = new Padding(12, 5, 12, 5), Enabled = false };
+    private readonly HashSet<string> foldersWithCurrentIssueResult = new(StringComparer.OrdinalIgnoreCase);
     private readonly Button recognizeButton = new DarkButton() { Text = "开始识别", AutoSize = true, Padding = new Padding(12, 5, 12, 5), Enabled = false };
     private readonly Button localPrimaryButton = new DarkButton() { Text = "本地主识别", AutoSize = true, Padding = new Padding(12, 5, 12, 5), Enabled = false };
     private readonly Button retryMissingButton = new DarkButton() { Text = "手动复抓缺失", AutoSize = true, Padding = new Padding(12, 5, 12, 5), Enabled = false };
@@ -64,6 +65,7 @@ public sealed class MainForm : Form
     private readonly Button openGroupResultsButton = new DarkButton() { Text = "打开群结果", AutoSize = true, Padding = new Padding(12, 5, 12, 5) };
     private readonly Button clearResultsButton = new DarkButton() { Text = "清除", AutoSize = true, Padding = new Padding(12, 5, 12, 5) };
     private readonly Button missingSummaryButton = new DarkButton() { Text = "统计缺失" };
+    private readonly Button settingsButton = new DarkButton() { Text = "设置" };
     private readonly Label recognitionTimingLabel = new()
     {
         AutoSize = true, Visible = false, ForeColor = SecondaryText,
@@ -114,6 +116,8 @@ public sealed class MainForm : Form
     private ResultEvidenceLedger lastEvidenceLedger = new();
     private int lastIssue;
     private bool isBusy;
+    private bool showRecognizeButton;
+    private TableLayoutPanel? settingsContent;
     private bool closeWhenIdle;
     private CancellationTokenSource? activeCancellation;
     private CancellationToken ActiveToken => activeCancellation?.Token ?? CancellationToken.None;
@@ -146,6 +150,7 @@ public sealed class MainForm : Form
             if (isBusy) return;
             LoadExistingGroupResult();
             manualDistributeButton.Enabled = CanManualDistribute();
+            RefreshFolderResultMarkers();
             LogOperation("修改期号");
         };
 
@@ -159,9 +164,9 @@ public sealed class MainForm : Form
         layout.Controls.Add(BuildWorkspace(), 0, 0);
         layout.Controls.Add(BuildStatusSection(), 0, 1);
         Controls.Add(layout);
+        ApplyShowRecognizeButton(UiSettings.Load(AppContext.BaseDirectory).ShowRecognizeButton);
 
         folderList.Click += SelectFolderListItem;
-        deleteButton.Click += DeleteDirectoryImages;
         recognizeButton.Click += RecognizeImagesAsync;
         localPrimaryButton.Click += RecognizeLocalPrimaryAsync;
         retryMissingButton.Click += RetryMissingAsync;
@@ -171,6 +176,7 @@ public sealed class MainForm : Form
         openGroupResultsButton.Click += (_, _) => OpenGroupResults();
         clearResultsButton.Click += ClearOutputFiles;
         missingSummaryButton.Click += SummarizeMissingAsync;
+        settingsButton.Click += OpenSettings;
         RegisterOperationLogging();
         dateTimer.Tick += (_, _) =>
         {
@@ -179,6 +185,8 @@ public sealed class MainForm : Form
         };
         dateTimer.Start();
         OperationLog.ClearIfExpired(AppContext.BaseDirectory);
+        RecognitionStateStore.ClearStaleDays(AppContext.BaseDirectory);
+        issueDate = CredentialSchedule.TodayInBeijing();
         LogOperation("启动程序");
         RefreshCredentialLabel();
         RefreshFolderList(null, EventArgs.Empty);
@@ -195,9 +203,9 @@ public sealed class MainForm : Form
             Padding = new Padding(16, 16, 16, 10), BackColor = WindowBackground,
             Margin = Padding.Empty
         };
-        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 286));
-        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 44));
-        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 56));
+        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 322));
+        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 43));
+        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 57));
         workspace.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         Control sidebar = BuildSidebar();
@@ -239,8 +247,9 @@ public sealed class MainForm : Form
             Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 12,
             Padding = new Padding(20, 12, 20, 12), BackColor = CardBackground
         };
+        settingsContent = content;
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        foreach (float height in new[] { 28F, 17F, 34F, 17F, 34F, 17F, 34F, 6F, 38F, 38F, 6F })
+        foreach (float height in new[] { 28F, 17F, 34F, 17F, 34F, 17F, 34F, 6F, 38F, 52F, 6F })
             content.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
         content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
@@ -286,7 +295,7 @@ public sealed class MainForm : Form
             BackColor = CardBackground, Margin = Padding.Empty, Padding = Padding.Empty
         };
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        Button[] toolButtons = [deleteButton, clearResultsButton, retryMissingButton];
+        Button[] toolButtons = [clearResultsButton, retryMissingButton];
         for (int index = 0; index < toolButtons.Length; index++)
         {
             Button button = toolButtons[index];
@@ -321,7 +330,11 @@ public sealed class MainForm : Form
         continueButton.Margin = Padding.Empty;
         finalAction.Controls.Add(manualDistributeButton);
         finalAction.Controls.Add(continueButton);
-        actions.Controls.Add(finalAction, 0, 3);
+        actions.Controls.Add(finalAction, 0, toolButtons.Length);
+        actions.RowStyles.Add(new RowStyle(SizeType.Absolute, 37));
+        settingsButton.Dock = DockStyle.Fill;
+        settingsButton.Margin = new Padding(0, 0, 0, 5);
+        actions.Controls.Add(settingsButton, 0, toolButtons.Length + 1);
         content.Controls.Add(actions, 0, 1);
         card.Controls.Add(content);
         return card;
@@ -506,6 +519,8 @@ public sealed class MainForm : Form
         folderList.TabIndex = 4;
         folderList.DisplayMember = nameof(DirectoryInfo.Name);
         folderList.Font = new Font("Microsoft YaHei UI", 10F);
+        folderList.ItemHeight = folderList.Font.Height + 10;
+        folderList.DrawItem += DrawFolderItem;
 
         preview.Name = "imagePreview";
         preview.AccessibleName = "图片预览";
@@ -518,7 +533,7 @@ public sealed class MainForm : Form
 
         ConfigureButton(recognizeButton, "开始识别", AccentBlue, Color.White, AccentBlue, 3);
         ConfigureButton(localPrimaryButton, "本地主识别", CardBackground, PrimaryText, BorderColor, 4);
-        ConfigureButton(deleteButton, "删除目录图片", CardBackground, DangerRed, Color.FromArgb(112, 45, 42), 8);
+        localPrimaryButton.Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Bold);
         ConfigureButton(clearResultsButton, "清除结果", CardBackground, PrimaryText, BorderColor, 9);
         ConfigureButton(missingSummaryButton, "统计缺失", CardBackground, PrimaryText, BorderColor, 13);
         ConfigureButton(retryMissingButton, "手动复抓缺失", CardBackground, PrimaryText, BorderColor, 10);
@@ -526,6 +541,7 @@ public sealed class MainForm : Form
         ConfigureButton(continueButton, "继续云 OCR", CardBackground, AccentBlue, AccentBlue, 11);
         ConfigureButton(copyButton, "复制结果", CardBackground, PrimaryText, BorderColor, 5);
         ConfigureButton(openGroupResultsButton, "打开群结果", CardBackground, PrimaryText, BorderColor, 6);
+        ConfigureButton(settingsButton, "设置", CardBackground, PrimaryText, BorderColor, 14);
 
     }
 
@@ -547,16 +563,16 @@ public sealed class MainForm : Form
         button.UseVisualStyleBackColor = false;
         button.FlatAppearance.BorderSize = 1;
         button.FlatAppearance.MouseOverBackColor = enabledBackground == AccentBlue
-            ? Color.FromArgb(34, 148, 255)
-            : Color.FromArgb(43, 45, 50);
+            ? Color.FromArgb(86, 156, 255)
+            : Color.FromArgb(34, 47, 72);
         button.FlatAppearance.MouseDownBackColor = enabledBackground == AccentBlue
-            ? Color.FromArgb(0, 105, 220)
-            : Color.FromArgb(50, 52, 58);
+            ? Color.FromArgb(28, 100, 215)
+            : Color.FromArgb(42, 58, 88);
 
         void RefreshStyle(object? _, EventArgs __)
         {
             button.BackColor = button.Enabled ? enabledBackground : DisabledBackground;
-            button.ForeColor = button.Enabled ? enabledForeground : Color.FromArgb(119, 120, 126);
+            button.ForeColor = button.Enabled ? enabledForeground : Color.FromArgb(112, 126, 152);
             button.FlatAppearance.BorderColor = button.Enabled ? enabledBorder : BorderColor;
         }
 
@@ -619,7 +635,7 @@ public sealed class MainForm : Form
             return;
 
         bool selected = (e.State & DrawItemState.Selected) != 0;
-        Color background = selected ? Color.FromArgb(52, 54, 60) : InputBackground;
+        Color background = selected ? Color.FromArgb(36, 52, 82) : InputBackground;
         using var brush = new SolidBrush(background);
         e.Graphics.FillRectangle(brush, e.Bounds);
         if (e.Index >= 0)
@@ -636,12 +652,37 @@ public sealed class MainForm : Form
         e.DrawFocusRectangle();
     }
 
+    private void DrawFolderItem(object? sender, DrawItemEventArgs e)
+    {
+        if (e.Index < 0 || e.Index >= folderList.Items.Count)
+            return;
+
+        bool selected = (e.State & DrawItemState.Selected) != 0;
+        Color background = selected ? Color.FromArgb(36, 52, 82) : InputBackground;
+        using var brush = new SolidBrush(background);
+        e.Graphics.FillRectangle(brush, e.Bounds);
+
+        bool hasResult = folderList.Items[e.Index] is DirectoryInfo folder
+            && foldersWithCurrentIssueResult.Contains(folder.FullName);
+        TextRenderer.DrawText(
+            e.Graphics,
+            folderList.GetItemText(folderList.Items[e.Index]),
+            folderList.Font,
+            e.Bounds with { X = e.Bounds.X + 6, Width = Math.Max(0, e.Bounds.Width - 10) },
+            hasResult ? DangerRed : PrimaryText,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix |
+            TextFormatFlags.EndEllipsis);
+        if (selected)
+            e.DrawFocusRectangle();
+    }
+
     private void RefreshCredentialLabel()
     {
         CloudOcrCacheStore.ClearExpired(AppContext.BaseDirectory);
         DateOnly date = CredentialSchedule.TodayInBeijing();
         if (issueDate != date && !isBusy)
         {
+            RecognitionStateStore.ClearAll(AppContext.BaseDirectory);
             issueInput.Value = CredentialSchedule.IssueForDate(date);
             issueDate = date;
         }
@@ -670,22 +711,49 @@ public sealed class MainForm : Form
         }
         if (statusLabel.Text == "群目录暂不可用，恢复后会自动更新。")
             statusLabel.Text = "请在列表中选择群组。";
-        if (folderList.Items.Cast<DirectoryInfo>().Select(folder => folder.FullName)
+        if (!folderList.Items.Cast<DirectoryInfo>().Select(folder => folder.FullName)
             .SequenceEqual(folders, StringComparer.OrdinalIgnoreCase))
-            return;
+        {
+            int topIndex = folderList.TopIndex;
+            folderList.BeginUpdate();
+            try
+            {
+                folderList.Items.Clear();
+                folderList.Items.AddRange(folders.Select(folder => new DirectoryInfo(folder)).ToArray());
+                folderList.SelectedIndex = Array.FindIndex(folders,
+                    folder => string.Equals(folder, selectedImageDirectory, StringComparison.OrdinalIgnoreCase));
+                if (folders.Length > 0)
+                    folderList.TopIndex = Math.Clamp(topIndex, 0, folders.Length - 1);
+            }
+            finally { folderList.EndUpdate(); }
+        }
+        RefreshFolderResultMarkers();
+    }
 
-        int topIndex = folderList.TopIndex;
-        folderList.BeginUpdate();
+    private void RefreshFolderResultMarkers()
+    {
+        int issue = Decimal.ToInt32(issueInput.Value);
+        HashSet<string> updated = folderList.Items.Cast<DirectoryInfo>()
+            .Where(folder => CurrentIssueResultExists(folder.FullName, issue))
+            .Select(folder => folder.FullName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (foldersWithCurrentIssueResult.SetEquals(updated))
+            return;
+        foldersWithCurrentIssueResult.Clear();
+        foldersWithCurrentIssueResult.UnionWith(updated);
+        folderList.Invalidate();
+    }
+
+    private static bool CurrentIssueResultExists(string directory, int issue)
+    {
         try
         {
-            folderList.Items.Clear();
-            folderList.Items.AddRange(folders.Select(folder => new DirectoryInfo(folder)).ToArray());
-            folderList.SelectedIndex = Array.FindIndex(folders,
-                folder => string.Equals(folder, selectedImageDirectory, StringComparison.OrdinalIgnoreCase));
-            if (folders.Length > 0)
-                folderList.TopIndex = Math.Clamp(topIndex, 0, folders.Length - 1);
+            return File.Exists(ResultFilePaths.ForGroup(AppContext.BaseDirectory, directory, issue));
         }
-        finally { folderList.EndUpdate(); }
+        catch (Exception exception) when (exception is OcrException or IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return false;
+        }
     }
 
     private void SelectFolderListItem(object? sender, EventArgs e)
@@ -702,7 +770,6 @@ public sealed class MainForm : Form
     {
         (Button Button, string Action)[] actions =
         [
-            (deleteButton, "删除目录图片"),
             (recognizeButton, "开始识别"),
             (localPrimaryButton, "本地主识别"),
             (retryMissingButton, "手动复抓缺失"),
@@ -711,7 +778,8 @@ public sealed class MainForm : Form
             (copyButton, "复制结果"),
             (openGroupResultsButton, "打开群结果"),
             (clearResultsButton, "清除"),
-            (missingSummaryButton, "统计缺失")
+            (missingSummaryButton, "统计缺失"),
+            (settingsButton, "设置")
         ];
         foreach ((Button button, string action) in actions)
             button.Click += (_, _) => LogOperation(action);
@@ -749,7 +817,6 @@ public sealed class MainForm : Form
             : $"所选目录：{selectedImageDirectory} · 已找到 {imagePaths.Length} 张图片 · 规则：{Path.GetFileName(selectedRulePath)}";
         recognizeButton.Enabled = imagePaths.Length > 0 && hasRules;
         localPrimaryButton.Enabled = imagePaths.Length > 0 && hasRules;
-        deleteButton.Enabled = imagePaths.Length > 0;
         manualDistributeButton.Enabled = CanManualDistribute();
         if (imagePaths.Length > 0)
             ShowPreview(imagePaths[0]);
@@ -1131,11 +1198,9 @@ public sealed class MainForm : Form
                     missingReasons[failedRuleId] = failureReason;
                 outputLines = RuleEngine.FormatOutput(rules, values, missingReasons);
             }
-            await AtomicFile.WriteAllLinesAsync(groupOutputPath, outputLines, new UTF8Encoding(true));
-            DistributionResult distribution = await ResultDistributor.DistributeAllAsync(selectedImageDirectory!, issue, outputLines);
             string[] groupLines = GroupResultFormatter.Format(
                 rules,
-                ResultDistributor.MarkDistributedLines(outputLines, distribution.DistributedLines));
+                PreserveDistributedMarkers(groupOutputPath, outputLines));
             await AtomicFile.WriteAllLinesAsync(groupOutputPath, groupLines, new UTF8Encoding(true));
             await AtomicFile.WriteAllTextAsync(
                 diagnosticPath,
@@ -1163,7 +1228,7 @@ public sealed class MainForm : Form
             lastEvidenceLedger = evidenceLedger;
             lastIssue = issue;
             SetProgress(1, 1);
-            statusLabel.Text = $"本地主识别完成{(rules.Count == values.Count ? "" : "，但有缺失")}：目录 {imagePaths.Length} 张，本地优先，云 OCR 兜底 {cloudRequests} 次，提取 {values.Count} 条，缺失 {rules.Count - values.Count} 条，成功分流 {distribution.DistributedLines.Count} 条{DistributionErrorText(distribution)}。群TXT：{groupOutputPath}；诊断：{diagnosticPath}";
+            statusLabel.Text = $"本地主识别完成{(rules.Count == values.Count ? "" : "，但有缺失")}：目录 {imagePaths.Length} 张，本地优先，云 OCR 兜底 {cloudRequests} 次，提取 {values.Count} 条，缺失 {rules.Count - values.Count} 条，已写群结果（未自动分流）。群TXT：{groupOutputPath}；诊断：{diagnosticPath}";
         }
         catch (OperationCanceledException)
         {
@@ -1575,11 +1640,9 @@ public sealed class MainForm : Form
                     missingReasons[failedRuleId] = failureReason;
                 outputLines = RuleEngine.FormatOutput(rules, values, missingReasons);
             }
-            await AtomicFile.WriteAllLinesAsync(groupOutputPath, outputLines, new UTF8Encoding(true));
-            DistributionResult distribution = await ResultDistributor.DistributeAllAsync(selectedImageDirectory!, issue, outputLines);
             string[] groupLines = GroupResultFormatter.Format(
                 rules,
-                ResultDistributor.MarkDistributedLines(outputLines, distribution.DistributedLines));
+                PreserveDistributedMarkers(groupOutputPath, outputLines));
             await AtomicFile.WriteAllLinesAsync(groupOutputPath, groupLines, new UTF8Encoding(true));
             await AtomicFile.WriteAllTextAsync(
                 diagnosticPath,
@@ -1609,7 +1672,7 @@ public sealed class MainForm : Form
             lastEvidenceLedger = evidenceLedger;
             lastIssue = issue;
             SetProgress(1, 1);
-            statusLabel.Text = $"完成{(rules.Count == values.Count ? "" : "，但有缺失")}：目录 {imagePaths.Length} 张，候选 {candidateImages} 张，云 OCR 请求 {cloudRequests} 次，提取 {values.Count} 条，缺失 {rules.Count - values.Count} 条，成功分流 {distribution.DistributedLines.Count} 条{DistributionErrorText(distribution)}。群TXT：{groupOutputPath}；诊断：{diagnosticPath}";
+            statusLabel.Text = $"完成{(rules.Count == values.Count ? "" : "，但有缺失")}：目录 {imagePaths.Length} 张，候选 {candidateImages} 张，云 OCR 请求 {cloudRequests} 次，提取 {values.Count} 条，缺失 {rules.Count - values.Count} 条，已写群结果（未自动分流）。群TXT：{groupOutputPath}；诊断：{diagnosticPath}";
         }
         catch (OperationCanceledException)
         {
@@ -1650,24 +1713,25 @@ public sealed class MainForm : Form
         SetBusy(true);
         try
         {
-            IReadOnlyList<OcrRule> rules = RuleCatalog.Load(selectedRulePath
-                ?? RuleCatalog.PathForFolder(AppContext.BaseDirectory, selectedImageDirectory!));
-            RecognitionStateLoad trustedState = RecognitionStateStore.Load(
-                AppContext.BaseDirectory, selectedImageDirectory!, issue, rules);
-            using IDisposable publishGuard = RecognitionStateStore.LockCurrentEvidenceForPublish(
-                rules, trustedState.Values, trustedState.Evidence);
-            string[] outputLines = RecognitionStateStore.BuildTrustedOutputLines(
-                AppContext.BaseDirectory, selectedImageDirectory!, issue, rules);
-            DistributionResult distribution = await ResultDistributor.DistributeAllAsync(selectedImageDirectory!, issue, outputLines);
-            string[] groupLines = GroupResultFormatter.Format(
-                rules,
-                ResultDistributor.MarkDistributedLines(outputLines, distribution.DistributedLines));
             string groupOutputPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, selectedImageDirectory!, issue);
+            string[] editedLines = File.ReadAllLines(groupOutputPath, Encoding.UTF8)
+                .Select(GroupResultFormatter.RemoveLegacySourceSuffix)
+                .ToArray();
+            string[] baseLines = editedLines.Select(RemoveDistributedSuffix).ToArray();
+            DistributionResult distribution = await ResultDistributor.DistributeAllAsync(
+                selectedImageDirectory!, issue, baseLines);
+            string[] updatedLines = editedLines
+                .Select((line, index) => line.EndsWith("（已分流）", StringComparison.Ordinal)
+                    || !distribution.DistributedLines.Contains(baseLines[index])
+                        ? line
+                        : line + "（已分流）")
+                .ToArray();
             ResultFilePaths.EnsureOutputDirectories(AppContext.BaseDirectory);
-            await AtomicFile.WriteAllLinesAsync(groupOutputPath, groupLines, new UTF8Encoding(true));
-            resultsBox.Text = string.Join(Environment.NewLine, groupLines);
-            copyButton.Enabled = outputLines.Length > 0;
+            await AtomicFile.WriteAllLinesAsync(groupOutputPath, updatedLines, new UTF8Encoding(true));
+            resultsBox.Text = string.Join(Environment.NewLine, updatedLines);
+            copyButton.Enabled = updatedLines.Length > 0;
             statusLabel.Text = $"手动分流完成：成功 {distribution.DistributedLines.Count} 条{DistributionErrorText(distribution)}。群TXT：{groupOutputPath}";
+            ShowUndistributedLinesReport(distribution);
         }
         catch (OcrException exception)
         {
@@ -1682,6 +1746,62 @@ public sealed class MainForm : Form
         {
             SetBusy(false);
         }
+    }
+
+    private static string RemoveDistributedSuffix(string line) =>
+        line.EndsWith("（已分流）", StringComparison.Ordinal) ? line[..^5] : line;
+
+    internal static string[] PreserveDistributedMarkers(string groupOutputPath, IEnumerable<string> outputLines)
+    {
+        var marked = new HashSet<string>(StringComparer.Ordinal);
+        if (File.Exists(groupOutputPath))
+        {
+            try
+            {
+                foreach (string line in File.ReadAllLines(groupOutputPath, Encoding.UTF8))
+                {
+                    string cleaned = GroupResultFormatter.RemoveLegacySourceSuffix(line);
+                    if (cleaned.EndsWith("（已分流）", StringComparison.Ordinal))
+                        marked.Add(cleaned[..^5]);
+                }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // 旧结果不可读时按“无标记”处理，不阻断本次识别写盘。
+            }
+        }
+        return ResultDistributor.MarkDistributedLines(outputLines, marked);
+    }
+
+    private void ShowUndistributedLinesReport(DistributionResult distribution)
+    {
+        if (distribution.UndistributedLines.Count == 0 && distribution.Errors.Count == 0)
+            return;
+
+        var report = new List<string>();
+        if (distribution.UndistributedLines.Count > 0)
+        {
+            report.Add($"以下 {distribution.UndistributedLines.Count} 行未分发：");
+            report.Add(string.Empty);
+            foreach (DistributionLineIssue issue in distribution.UndistributedLines)
+            {
+                report.Add($"《{issue.Line}》");
+                report.Add($"  原因：{issue.Reason}");
+            }
+        }
+        if (distribution.Errors.Count > 0)
+        {
+            if (report.Count > 0)
+                report.Add(string.Empty);
+            report.Add("分发目标错误：");
+            report.AddRange(distribution.Errors.Select(error => "· " + error));
+        }
+        MessageBox.Show(
+            this,
+            string.Join(Environment.NewLine, report),
+            "手动分流：部分行未写入目标",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Warning);
     }
 
     private async void RetryMissingAsync(object? sender, EventArgs e)
@@ -1903,11 +2023,9 @@ public sealed class MainForm : Form
                     lastMissingReasons[failedRuleId] = failureReason;
                 outputLines = RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons);
             }
-            await AtomicFile.WriteAllLinesAsync(groupOutputPath, outputLines, new UTF8Encoding(true));
-            DistributionResult distribution = await ResultDistributor.DistributeAllAsync(selectedImageDirectory!, lastIssue, outputLines);
             string[] groupLines = GroupResultFormatter.Format(
                 lastRules,
-                ResultDistributor.MarkDistributedLines(outputLines, distribution.DistributedLines));
+                PreserveDistributedMarkers(groupOutputPath, outputLines));
             await AtomicFile.WriteAllLinesAsync(groupOutputPath, groupLines, new UTF8Encoding(true));
             LogMissingDetails(
                 "手动复抓缺失", groupName, lastIssue, lastRules, lastValues, selection.Candidates);
@@ -1915,8 +2033,8 @@ public sealed class MainForm : Form
             copyButton.Enabled = outputLines.Length > 0;
             int remaining = lastRules.Count(rule => !lastValues.ContainsKey(rule.Id));
             statusLabel.Text = selection.Candidates.Count == 0
-                ? $"复抓未找到 {missingRules.Length} 条缺失项对应的图片，缺失原因已更新；成功分流 {distribution.DistributedLines.Count} 条{DistributionErrorText(distribution)}。TXT：{groupOutputPath}"
-                : $"复抓完成：云 OCR 请求 {cloudRequests} 次，补回 {missingRules.Length - remaining} 条，仍缺失 {remaining} 条，成功分流 {distribution.DistributedLines.Count} 条{DistributionErrorText(distribution)}。TXT：{groupOutputPath}";
+                ? $"复抓未找到 {missingRules.Length} 条缺失项对应的图片，缺失原因已更新；已写群结果（未自动分流）。TXT：{groupOutputPath}"
+                : $"复抓完成：云 OCR 请求 {cloudRequests} 次，补回 {missingRules.Length - remaining} 条，仍缺失 {remaining} 条，已写群结果（未自动分流）。TXT：{groupOutputPath}";
         }
         catch (OperationCanceledException)
         {
@@ -2749,56 +2867,6 @@ public sealed class MainForm : Form
         string? TemporaryCropFolder,
         string DisplayName);
 
-    private void DeleteDirectoryImages(object? sender, EventArgs e)
-    {
-        if (selectedImageDirectory is null)
-            return;
-
-        string[] currentImages;
-        try
-        {
-            currentImages = ImageFolderScanner.Scan(selectedImageDirectory);
-        }
-        catch (OcrException exception)
-        {
-            MessageBox.Show(this, exception.Message, "删除失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
-        if (currentImages.Length == 0)
-        {
-            statusLabel.Text = "所选子文件夹中没有可删除的图片。";
-            return;
-        }
-
-        DialogResult answer = MessageBox.Show(
-            this,
-            $"确定将所选子文件夹中的 {currentImages.Length} 张图片移入回收站吗？\n\n{selectedImageDirectory}",
-            "确认删除目录图片",
-            MessageBoxButtons.YesNo,
-            MessageBoxIcon.Warning,
-            MessageBoxDefaultButton.Button2);
-        if (answer != DialogResult.Yes)
-            return;
-
-        DeleteImagesResult result = ImageFolderCleaner.DeleteImages(selectedImageDirectory);
-        imagePaths = [];
-        ClearRetryState();
-        Image? previous = preview.Image;
-        preview.Image = null;
-        previous?.Dispose();
-        resultsBox.Clear();
-        copyButton.Enabled = false;
-        recognizeButton.Enabled = false;
-        localPrimaryButton.Enabled = false;
-        deleteButton.Enabled = false;
-        selectionLabel.Text = $"所选目录：{selectedImageDirectory} · 当前 0 张图片";
-        statusLabel.Text = result.Failed == 0
-            ? $"已将 {result.Deleted} 张图片移入回收站。"
-            : $"已将 {result.Deleted} 张图片移入回收站，{result.Failed} 张删除失败。";
-        SetProgress(0, 0);
-    }
-
     private void SetBusy(bool busy)
     {
         isBusy = busy;
@@ -2808,7 +2876,6 @@ public sealed class MainForm : Form
             activeCancellation = new CancellationTokenSource();
         }
         folderList.Enabled = !busy;
-        deleteButton.Enabled = !busy && imagePaths.Length > 0;
         recognizeButton.Enabled = !busy && imagePaths.Length > 0 && selectedRulePath is not null && File.Exists(selectedRulePath);
         localPrimaryButton.Enabled = !busy && imagePaths.Length > 0 && selectedRulePath is not null && File.Exists(selectedRulePath);
         issueInput.Enabled = !busy;
@@ -2817,6 +2884,7 @@ public sealed class MainForm : Form
         manualDistributeButton.Enabled = !busy && CanManualDistribute();
         clearResultsButton.Enabled = !busy;
         missingSummaryButton.Enabled = !busy;
+        settingsButton.Enabled = !busy;
         UseWaitCursor = busy;
         if (!busy)
         {
@@ -2827,6 +2895,37 @@ public sealed class MainForm : Form
             activeCancellation = null;
             if (closeWhenIdle && !IsDisposed && IsHandleCreated) BeginInvoke(new Action(Close));
         }
+    }
+
+    private void OpenSettings(object? sender, EventArgs e)
+    {
+        using var dialog = new SettingsForm(new UiSettings(showRecognizeButton));
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+            return;
+
+        try
+        {
+            UiSettings.Save(AppContext.BaseDirectory, dialog.Result);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            statusLabel.Text = "设置保存失败，未应用更改。";
+            MessageBox.Show(this, exception.Message, "设置保存失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        ApplyShowRecognizeButton(dialog.Result.ShowRecognizeButton);
+        statusLabel.Text = showRecognizeButton
+            ? "已显示“开始识别”按钮。"
+            : "已隐藏“开始识别”按钮。";
+    }
+
+    internal void ApplyShowRecognizeButton(bool visible)
+    {
+        showRecognizeButton = visible;
+        recognizeButton.Visible = visible;
+        if (settingsContent is not null && settingsContent.RowStyles.Count > 8)
+            settingsContent.RowStyles[8].Height = visible ? 38F : 0F;
     }
 
     private Task WaitForCloudResumeAsync(int current, int total, string path)
@@ -3167,9 +3266,9 @@ internal sealed class DarkComboBox : ComboBox
     private const int PaintMessage = 0x000F;
     private const int PrintMessage = 0x0317;
     private const int PrintClientMessage = 0x0318;
-    private static readonly Color Surface = Color.FromArgb(37, 39, 44);
-    private static readonly Color Border = Color.FromArgb(70, 72, 78);
-    private static readonly Color Arrow = Color.FromArgb(210, 211, 215);
+    private static readonly Color Surface = Color.FromArgb(25, 36, 59);
+    private static readonly Color Border = Color.FromArgb(62, 80, 112);
+    private static readonly Color Arrow = Color.FromArgb(200, 212, 232);
 
     protected override void WndProc(ref Message message)
     {
@@ -3197,7 +3296,7 @@ internal sealed class DarkComboBox : ComboBox
         var arrowArea = new Rectangle(Width - arrowWidth, 1, arrowWidth - 1, Height - 2);
         using var surfaceBrush = new SolidBrush(Surface);
         using var borderPen = new Pen(Border);
-        using var arrowPen = new Pen(Enabled ? Arrow : Color.FromArgb(119, 120, 126), 1.5F);
+        using var arrowPen = new Pen(Enabled ? Arrow : Color.FromArgb(112, 126, 152), 1.5F);
         graphics.FillRectangle(surfaceBrush, arrowArea);
         graphics.DrawLine(borderPen, arrowArea.Left, arrowArea.Top, arrowArea.Left, arrowArea.Bottom);
         graphics.DrawRectangle(borderPen, 0, 0, Width - 1, Height - 1);
@@ -3216,9 +3315,9 @@ internal sealed class DarkComboBox : ComboBox
 
 internal sealed class DarkNumericUpDown : NumericUpDown
 {
-    private static readonly Color Surface = Color.FromArgb(37, 39, 44);
-    private static readonly Color Border = Color.FromArgb(70, 72, 78);
-    private static readonly Color Arrow = Color.FromArgb(210, 211, 215);
+    private static readonly Color Surface = Color.FromArgb(25, 36, 59);
+    private static readonly Color Border = Color.FromArgb(62, 80, 112);
+    private static readonly Color Arrow = Color.FromArgb(200, 212, 232);
     private readonly Control? buttons;
 
     public DarkNumericUpDown()
@@ -3246,7 +3345,7 @@ internal sealed class DarkNumericUpDown : NumericUpDown
         e.Graphics.Clear(Surface);
         int middle = control.Height / 2;
         using var borderPen = new Pen(Border);
-        using var arrowPen = new Pen(Enabled ? Arrow : Color.FromArgb(119, 120, 126), 1.4F);
+        using var arrowPen = new Pen(Enabled ? Arrow : Color.FromArgb(112, 126, 152), 1.4F);
         e.Graphics.DrawLine(borderPen, 0, 0, 0, control.Height);
         e.Graphics.DrawLine(borderPen, 0, middle, control.Width, middle);
 
@@ -3288,8 +3387,8 @@ internal sealed class DarkProgressBar : Control
             ControlStyles.ResizeRedraw |
             ControlStyles.UserPaint,
             true);
-        BackColor = Color.FromArgb(37, 39, 44);
-        ForeColor = Color.FromArgb(10, 132, 255);
+        BackColor = Color.FromArgb(25, 36, 59);
+        ForeColor = Color.FromArgb(56, 132, 246);
         marqueeTimer.Tick += (_, _) =>
         {
             marqueeOffset = Width <= 0 ? 0 : (marqueeOffset + 10) % Math.Max(1, Width + Math.Max(28, Width / 4));
@@ -3366,7 +3465,7 @@ internal sealed class DarkProgressBar : Control
         Rectangle track = new(0, 1, Width - 1, Math.Max(1, Height - 2));
         using GraphicsPath trackPath = RoundedRectangle(track, Math.Min(7, track.Height / 2));
         using var trackBrush = new SolidBrush(BackColor);
-        using var borderPen = new Pen(Color.FromArgb(64, 66, 72));
+        using var borderPen = new Pen(Color.FromArgb(48, 66, 98));
         e.Graphics.FillPath(trackBrush, trackPath);
         e.Graphics.DrawPath(borderPen, trackPath);
 
@@ -3443,7 +3542,7 @@ internal sealed class DarkProgressBar : Control
 internal sealed class DarkRoundedPanel : Panel
 {
     private int cornerRadius = 12;
-    private Color borderColor = Color.FromArgb(54, 56, 62);
+    private Color borderColor = Color.FromArgb(43, 61, 92);
 
     public DarkRoundedPanel()
     {

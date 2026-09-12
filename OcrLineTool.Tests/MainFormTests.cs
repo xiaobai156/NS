@@ -331,7 +331,7 @@ public sealed class MainFormTests
         using var form = new MainForm();
         Type type = typeof(MainForm);
         var issue = (NumericUpDown)type.GetField("issueInput", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
-        var delete = (Button)type.GetField("deleteButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
+        var retry = (Button)type.GetField("retryMissingButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
         var preview = (PictureBox)type.GetField("preview", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
         var results = (TextBox)type.GetField("resultsBox", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
 
@@ -339,12 +339,12 @@ public sealed class MainFormTests
             Descendants(form).OfType<TableLayoutPanel>(), candidate =>
                 candidate.ColumnCount == 3 &&
                 IsDescendant(candidate, issue) &&
-                IsDescendant(candidate, delete) &&
+                IsDescendant(candidate, retry) &&
                 IsDescendant(candidate, preview) &&
                 IsDescendant(candidate, results));
 
         Control sidebar = DirectChildOf(workspace, issue);
-        Assert.Same(sidebar, DirectChildOf(workspace, delete));
+        Assert.Same(sidebar, DirectChildOf(workspace, retry));
         Assert.Equal(0, workspace.GetColumn(sidebar));
         Assert.Equal(1, workspace.GetColumn(DirectChildOf(workspace, preview)));
         Assert.Equal(2, workspace.GetColumn(DirectChildOf(workspace, results)));
@@ -375,7 +375,6 @@ public sealed class MainFormTests
         var credential = (ComboBox)type.GetField("credentialSelector", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
         var folders = (ListBox)type.GetField("folderList", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
         var recognize = (Button)type.GetField("recognizeButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
-        var delete = (Button)type.GetField("deleteButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
         var retry = (Button)type.GetField("retryMissingButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
         var copy = (Button)type.GetField("copyButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
         var open = (Button)type.GetField("openGroupResultsButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
@@ -383,7 +382,7 @@ public sealed class MainFormTests
         var results = (TextBox)type.GetField("resultsBox", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
 
         Control settingsSection = FindNamedSection(form, "设置", issue, credential, folders, recognize);
-        Control toolsSection = FindNamedSection(form, "工具", delete, retry, clear);
+        Control toolsSection = FindNamedSection(form, "工具", retry, clear);
         Control resultsSection = FindNamedSection(form, "识别结果", copy, open, results);
 
         Assert.NotSame(settingsSection, toolsSection);
@@ -801,6 +800,157 @@ public sealed class MainFormTests
             Assert.Equal(new[] { existing, added }, paths);
         }
         finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public void MarksGroupsThatAlreadyHaveTheCurrentIssueResultAndRefreshesAutomatically()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        string root = Directory.CreateTempSubdirectory("ocr-group-marker-").FullName;
+        string? resultPath = null;
+        try
+        {
+            string folder = Directory.CreateDirectory(Path.Combine(root, "甲群")).FullName;
+            using var form = CreateUiTestForm(root, _ => { });
+            var folders = (ListBox)typeof(MainForm).GetField("folderList", flags)!.GetValue(form)!;
+            var issueInput = (NumericUpDown)typeof(MainForm).GetField("issueInput", flags)!.GetValue(form)!;
+            var markers = (HashSet<string>)typeof(MainForm)
+                .GetField("foldersWithCurrentIssueResult", flags)!.GetValue(form)!;
+
+            Assert.Equal(DrawMode.OwnerDrawFixed, folders.DrawMode);
+
+            const int issue = 999995;
+            issueInput.Value = issue;
+            resultPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, folder, issue);
+            Directory.CreateDirectory(Path.GetDirectoryName(resultPath)!);
+            File.WriteAllText(resultPath, "测试结果");
+
+            var timer = (System.Windows.Forms.Timer)typeof(MainForm).GetField("folderRefreshTimer", flags)!.GetValue(form)!;
+            typeof(System.Windows.Forms.Timer).GetMethod("OnTick", flags)!.Invoke(timer, [EventArgs.Empty]);
+            Assert.Contains(folder, markers);
+
+            File.Delete(resultPath);
+            resultPath = null;
+            typeof(System.Windows.Forms.Timer).GetMethod("OnTick", flags)!.Invoke(timer, [EventArgs.Empty]);
+            Assert.Empty(markers);
+        }
+        finally
+        {
+            if (resultPath is not null)
+                File.Delete(resultPath);
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void PreservesExistingDistributedMarkersWhenRewritingGroupResult()
+    {
+        string directory = Directory.CreateTempSubdirectory("ocr-marker-").FullName;
+        try
+        {
+            string path = Path.Combine(directory, "甲群_254期.txt");
+            File.WriteAllLines(path, ["【头】", "0头 齐天大圣（已分流）", "缺失（未找到对应图片） 王者肖肖"]);
+            string[] output = MainForm.PreserveDistributedMarkers(path,
+                ["0头 齐天大圣", "4头 辣椒炒肉", "缺失（未找到对应图片） 王者肖肖"]);
+
+            Assert.Equal(
+                ["0头 齐天大圣（已分流）", "4头 辣椒炒肉", "缺失（未找到对应图片） 王者肖肖"],
+                output);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void SettingsFileRoundTripsAndDefaultsToHidden()
+    {
+        string directory = Directory.CreateTempSubdirectory("ocr-ui-settings-").FullName;
+        try
+        {
+            Assert.False(UiSettings.Load(directory).ShowRecognizeButton);
+
+            UiSettings.Save(directory, new UiSettings(true));
+            Assert.True(UiSettings.Load(directory).ShowRecognizeButton);
+
+            UiSettings.Save(directory, new UiSettings(false));
+            Assert.False(UiSettings.Load(directory).ShowRecognizeButton);
+
+            File.WriteAllText(UiSettings.PathFor(directory), "not json");
+            Assert.False(UiSettings.Load(directory).ShowRecognizeButton);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void HidesTheRecognizeButtonUnlessTheSettingEnablesIt()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        string settingsPath = UiSettings.PathFor(AppContext.BaseDirectory);
+        bool existed = File.Exists(settingsPath);
+        string? backup = existed ? File.ReadAllText(settingsPath) : null;
+        string root = Directory.CreateTempSubdirectory("ocr-ui-visibility-").FullName;
+        try
+        {
+            File.Delete(settingsPath);
+            using (var form = CreateUiTestForm(root, _ => { }))
+            {
+                var recognize = (Button)typeof(MainForm).GetField("recognizeButton", flags)!.GetValue(form)!;
+                form.Show();
+                Assert.False(recognize.Visible);
+                form.ApplyShowRecognizeButton(true);
+                Assert.True(recognize.Visible);
+                form.ApplyShowRecognizeButton(false);
+                Assert.False(recognize.Visible);
+            }
+
+            UiSettings.Save(AppContext.BaseDirectory, new UiSettings(true));
+            using (var form = CreateUiTestForm(root, _ => { }))
+            {
+                var recognize = (Button)typeof(MainForm).GetField("recognizeButton", flags)!.GetValue(form)!;
+                form.Show();
+                Assert.True(recognize.Visible);
+            }
+        }
+        finally
+        {
+            if (existed)
+                File.WriteAllText(settingsPath, backup!);
+            else
+                File.Delete(settingsPath);
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void SettingsDialogReturnsTheChosenVisibility()
+    {
+        using var dialog = new SettingsForm(new UiSettings(false));
+        CheckBox box = Assert.Single(Descendants(dialog).OfType<CheckBox>());
+        Assert.False(box.Checked);
+
+        box.Checked = true;
+        Button save = Assert.Single(Descendants(dialog).OfType<Button>(), button => button.Text == "保存");
+        typeof(Control).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(save, [EventArgs.Empty]);
+
+        Assert.Equal(DialogResult.OK, dialog.DialogResult);
+        Assert.True(dialog.Result.ShowRecognizeButton);
+    }
+
+    [Fact]
+    public void KeepsGroupListRowsComfortablySpaced()
+    {
+        using var form = new MainForm();
+        var folders = (ListBox)typeof(MainForm).GetField("folderList", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
+
+        Assert.True(
+            folders.ItemHeight >= folders.Font.Height + 8,
+            $"Group list item height {folders.ItemHeight} should exceed font height {folders.Font.Height}.");
     }
 
     private static MainForm CreateUiTestForm(string root, Action<System.Diagnostics.ProcessStartInfo> openFile)

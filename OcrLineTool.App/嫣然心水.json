@@ -677,6 +677,20 @@
       "section": "二尾",
       "required_keyword": "二尾",
       "folder": "火狼女"
+    },
+    {
+      "keyword": "爱晚亭",
+      "type": "生肖",
+      "label": "爱晚亭杀肖",
+      "required_keyword": "杀1肖",
+      "folder": "爱晚亭"
+    },
+    {
+      "keyword": "九肖中特",
+      "type": "九肖",
+      "label": "黑不啦唧",
+      "required_keyword": "九肖中特",
+      "folder": "黑了吧唧"
     }
   ]
 }

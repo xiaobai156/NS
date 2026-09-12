@@ -43,6 +43,13 @@ public static class CredentialSchedule
     public static DateOnly TodayInBeijing() =>
         DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, Beijing));
 
+    public static DateTime NowInBeijing() =>
+        TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, Beijing);
+
+    public static DateOnly BeijingDate(DateTime utc) =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.SpecifyKind(utc, DateTimeKind.Utc), Beijing));
+
     public static OcrCredential Today() => ForDate(TodayInBeijing());
 
     public static OcrCredential DescribeSlot(int slot)

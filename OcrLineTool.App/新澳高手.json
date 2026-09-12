@@ -20,6 +20,12 @@
     { "keyword": "团队十肖", "type": "生肖组合", "label": "战澳两肖", "required_keyword": "团队十肖", "folder": "战澳团队" },
     { "keyword": "团队八尾", "type": "尾", "label": "战澳尾", "required_keyword": "团队八尾", "folder": "战澳团队" },
     { "keyword": "团队四头", "type": "头", "label": "战澳头", "required_keyword": "团队四头", "folder": "战澳团队" },
-    { "keyword": "团队四行", "type": "五行", "label": "战澳五行", "required_keyword": "团队四行", "folder": "战澳团队" }
+    { "keyword": "团队四行", "type": "五行", "label": "战澳五行", "required_keyword": "团队四行", "folder": "战澳团队" },
+    { "keyword": "期红", "type": "色单双", "label": "斩杀半波", "required_keyword": "期蓝", "folder": "斩杀系列", "strictIssueBlock": true },
+    { "keyword": "斩杀一行", "type": "单五行", "label": "斩杀一行", "required_keyword": "斩杀一行", "folder": "斩杀系列", "strictIssueBlock": true },
+    { "keyword": "斩杀两尾", "type": "尾数组合", "label": "斩杀两尾", "required_keyword": "斩杀两尾", "folder": "斩杀系列", "strictIssueBlock": true },
+    { "keyword": "斩杀两肖", "type": "生肖组合", "label": "斩杀两肖", "required_keyword": "斩杀两肖", "folder": "斩杀系列", "strictIssueBlock": true },
+    { "keyword": "斩杀一头", "type": "头", "label": "斩杀一头", "required_keyword": "斩杀一头", "folder": "斩杀系列", "strictIssueBlock": true },
+    { "keyword": "女人味杀2肖", "type": "生肖组合", "label": "女人味", "required_keyword": "澳门女人味", "folder": "老男女味" }
   ]
 }

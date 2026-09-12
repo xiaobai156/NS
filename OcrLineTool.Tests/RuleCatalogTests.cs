@@ -10,7 +10,7 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
 
-        Assert.Equal(98, rules.Count);
+        Assert.Equal(100, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.Contains(rules, rule => rule.Id == "钦差大臣公式一" && rule.Section == "公式一");
         Assert.Contains(rules, rule => rule.Id == "君军两尾" && rule.Type == "尾数组合");
@@ -236,8 +236,22 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "新澳六合彩资料.json"));
 
-        Assert.Equal(80, rules.Count);
+        Assert.Equal(102, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
+        Assert.Contains(rules, rule => rule.Id == "官方两肖" && rule.Type == "生肖组合" && rule.AllowNearbyValue);
+        Assert.Contains(rules, rule => rule.Id == "老墨两肖" && rule.Type == "生肖组合" && rule.AllowNearbyValue);
+        Assert.Contains(rules, rule => rule.Id == "帅铁两肖" && rule.Type == "缺两肖");
+        Assert.Contains(rules, rule => rule.Id == "心水两两肖" && rule.Type == "缺两肖");
+        Assert.Contains(rules, rule => rule.Id == "聚彩堂一肖" && rule.Type == "生肖"
+            && rule.Keyword == "禁一肖一尾聚彩堂");
+        Assert.Contains(rules, rule => rule.Id == "聚彩堂一尾" && rule.Type == "尾"
+            && rule.Keyword == "禁一肖一尾聚彩堂");
+        Assert.Contains(rules, rule => rule.Id == "姨妈肖杀" && rule.Type == "生肖"
+            && rule.Keyword == "姨妈封杀一肖一尾");
+        Assert.Contains(rules, rule => rule.Id == "姨妈尾杀" && rule.Type == "尾"
+            && rule.Keyword == "姨妈封杀一肖一尾");
+        Assert.Contains(rules, rule => rule.Id == "大赢家九肖" && rule.Type == "九肖"
+            && rule.Keyword == "狂赢九肖");
         Assert.Contains(rules, rule => rule.Id == "雷锋" && rule.Type == "号码:4");
         Assert.Contains(rules, rule => rule.Id == "祖师公肖" && rule.Type == "生肖");
         Assert.Contains(rules, rule => rule.Id == "祖师公尾" && rule.Type == "尾");
@@ -322,7 +336,11 @@ public sealed class RuleCatalogTests
             "姨妈", "姨妈杀头", "聚宝两肖", "大赢家", "大赢家杀头", "大赢家五行", "大赢家杀尾", "大懒趴", "铁甲小宝", "伯公绝杀", "绿杀", "摇钱树蓝杀", "通天资料双尾", "心水杀段",
             "广东两肖", "福建两肖", "广西两肖", "贵州两肖", "海南两肖", "江西两肖", "湖南两肖",
             "上海两肖", "深圳两肖", "云南两肖", "四川两肖", "特头杀", "特头必中"
-            , "水哥肖", "包公肖肖", "九宫格肖肖", "佛祖肖肖", "禁止肖肖", "三怪肖肖", "王者肖肖", "小精肖肖", "时点半", "红禁肖", "关公又来了肖"
+            , "水哥肖", "包公肖肖", "九宫格肖肖", "佛祖肖肖", "禁止肖肖", "三怪肖肖", "王者肖肖", "小精肖肖", "时点半", "红禁肖", "关公又来了肖",
+            "官方两肖", "老墨两肖", "图库禁两肖", "帅铁两肖", "心水两两肖", "金钱两肖", "王不王两肖",
+            "曾道人小杀肖", "心水杀肖肖肖", "聚彩堂一肖", "聚彩堂一尾", "姨妈肖杀", "姨妈尾杀",
+            "彩虹半波", "超级赢家半波波", "王不王一头", "神算子避头", "财神一头",
+            "近期开奖员", "毛老二", "通天九九肖", "大赢家九肖"
         ], rules.Select(rule => rule.Id));
     }
 
@@ -355,12 +373,12 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "新澳高级会员.json"));
 
-        Assert.Equal(10, rules.Count);
+        Assert.Equal(11, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(
         [
             "会员特供杀十码", "表弟", "翩翩公子尾", "翩翩公子肖", "祥瑞阁",
-            "翩翩公子半波", "翩翩公子五行", "翩翩公子杀十码", "翩翩公子头", "祥瑞阁二肖"
+            "翩翩公子半波", "翩翩公子五行", "翩翩公子杀十码", "翩翩公子头", "祥瑞阁二肖", "会员暴打"
         ], rules.Select(rule => rule.Id));
         Assert.Contains(rules, rule =>
             rule.Id == "会员特供杀十码" && rule.Keyword == "会员特供绝杀10码" && rule.Type == "号码:10");
@@ -376,7 +394,7 @@ public sealed class RuleCatalogTests
 
     [Theory]
     [InlineData("黄大仙新澳.json", "黄大仙新澳", 22)]
-    [InlineData("新澳高手.json", "新澳高手", 19)]
+    [InlineData("新澳高手.json", "新澳高手", 25)]
     public void LoadsTheNewGroupRules(string fileName, string groupName, int expectedCount)
     {
         string configuration = ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory);

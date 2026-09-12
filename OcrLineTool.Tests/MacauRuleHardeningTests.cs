@@ -164,7 +164,17 @@ public sealed class MacauRuleHardeningTests
     [Fact]
     public void AllConfiguredRulesHaveASampleAndEnableStrictValidation()
     {
-        string[] covered = Samples().Concat(Portraits()).Select(row => (string)row[0]).Append("时点半").Order().ToArray();
+        // 特殊版式卡由 NewCardsExtractionTests 用当天真实 OCR 文本单独覆盖：
+        // 期号上方取值、十肖反推、一肖一尾同卡等版式不适用通用样本脚手架。
+        string[] specialLayouts =
+        [
+            "官方两肖", "老墨两肖", "图库禁两肖", "帅铁两肖", "心水两两肖", "金钱两肖", "王不王两肖",
+            "曾道人小杀肖", "心水杀肖肖肖", "聚彩堂一肖", "聚彩堂一尾", "姨妈肖杀", "姨妈尾杀",
+            "彩虹半波", "超级赢家半波波", "王不王一头", "神算子避头", "财神一头",
+            "近期开奖员", "毛老二", "通天九九肖", "大赢家九肖"
+        ];
+        string[] covered = Samples().Concat(Portraits()).Select(row => (string)row[0])
+            .Append("时点半").Concat(specialLayouts).Order().ToArray();
         Assert.Equal(Rules().Select(rule => rule.Id).Order(), covered);
         Assert.All(Rules(), rule => Assert.True(rule.StrictIssueBlock));
     }
@@ -318,6 +328,33 @@ public sealed class MacauRuleHardeningTests
             var rule = Rule((string)portrait[0]);
             values.Add(rule.Id, RuleEngine.ExtractFinalValue([rule.Keyword, "318期", "兔"], issue, rule)!);
         }
+        var specialValues = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["官方两肖"] = "牛蛇",
+            ["老墨两肖"] = "兔猪",
+            ["图库禁两肖"] = "鼠猪",
+            ["帅铁两肖"] = "狗猴",
+            ["心水两两肖"] = "兔羊",
+            ["金钱两肖"] = "猪羊",
+            ["王不王两肖"] = "马鼠",
+            ["曾道人小杀肖"] = "蛇",
+            ["心水杀肖肖肖"] = "鼠",
+            ["聚彩堂一肖"] = "马",
+            ["聚彩堂一尾"] = "8尾",
+            ["姨妈肖杀"] = "牛",
+            ["姨妈尾杀"] = "7尾",
+            ["彩虹半波"] = "蓝单",
+            ["超级赢家半波波"] = "红单",
+            ["王不王一头"] = "3头",
+            ["神算子避头"] = "3头",
+            ["财神一头"] = "3头",
+            ["近期开奖员"] = "羊兔虎鸡蛇马龙牛鼠",
+            ["毛老二"] = "龙鼠羊虎狗兔猪猴牛",
+            ["通天九九肖"] = "虎兔鸡蛇猴牛狗猪鼠",
+            ["大赢家九肖"] = "狗羊虎猴蛇龙鼠牛兔"
+        };
+        foreach ((string id, string value) in specialValues)
+            values.Add(id, value);
         string numbers = string.Join(' ', Enumerable.Range(1, 36).Select(n => n.ToString("00")));
         values.Add("时点半", RuleEngine.ExtractFinalValue([$"{issue}期", "十点半集团大围", "36码", numbers], issue, Rule("时点半"))!);
         string[] output = RuleEngine.FormatOutput(rules, values);

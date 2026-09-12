@@ -185,6 +185,44 @@ internal static class RecognitionStateStore
         }
     }
 
+    internal static void ClearAll(string appDirectory) =>
+        ClearEntries(ResultFilePaths.RecognitionStateDirectory(appDirectory), _ => true);
+
+    internal static void ClearStaleDays(string appDirectory)
+    {
+        DateOnly today = CredentialSchedule.TodayInBeijing();
+        ClearEntries(
+            ResultFilePaths.RecognitionStateDirectory(appDirectory),
+            entry => CredentialSchedule.BeijingDate(GetLastWriteUtc(entry)) < today);
+    }
+
+    private static DateTime GetLastWriteUtc(string entry) =>
+        Directory.Exists(entry) ? Directory.GetLastWriteTimeUtc(entry) : File.GetLastWriteTimeUtc(entry);
+
+    private static void ClearEntries(string directory, Func<string, bool> shouldDelete)
+    {
+        if (!Directory.Exists(directory))
+            return;
+        foreach (string entry in Directory.EnumerateFileSystemEntries(directory))
+        {
+            try
+            {
+                if (Directory.Exists(entry))
+                {
+                    ClearEntries(entry, shouldDelete);
+                    if (!Directory.EnumerateFileSystemEntries(entry).Any())
+                        Directory.Delete(entry);
+                    continue;
+                }
+                if (shouldDelete(entry))
+                    File.Delete(entry);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
     internal sealed record RecognitionStateSaveOutcome(
         IReadOnlyDictionary<string, string> FailedSuccesses);
 

@@ -12,6 +12,7 @@
     { "keyword": "公子4行", "type": "五行", "label": "翩翩公子五行" },
     { "keyword": "公子神算杀10码", "type": "号码:10", "label": "翩翩公子杀十码" },
     { "keyword": "公子禁止1头", "type": "头", "label": "翩翩公子头" },
-    { "keyword": "祥瑞阁", "type": "生肖组合", "label": "祥瑞阁二肖", "required_keyword": "杀2肖" }
+    { "keyword": "祥瑞阁", "type": "生肖组合", "label": "祥瑞阁二肖", "required_keyword": "杀2肖" },
+    { "keyword": "暴打九肖", "type": "九肖", "label": "会员暴打" }
   ]
 }

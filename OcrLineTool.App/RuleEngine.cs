@@ -1194,6 +1194,15 @@ public static class RuleEngine
                 : $"已找到{issue}期文字，但未通过9个不同生肖校验"
                     + $"（识别到{zodiacs.Length}个，去重后{zodiacs.Distinct().Count()}个）";
         }
+        if (rule.Type == "缺两肖")
+        {
+            string[] zodiacs = Regex.Matches(string.Join(' ', lines), $"[{Zodiac}]")
+                .Select(match => match.Value).ToArray();
+            return zodiacs.Length == 0
+                ? $"已找到{issue}期文字，但未识别到十个生肖"
+                : $"已找到{issue}期文字，但未通过10个不同生肖校验"
+                    + $"（识别到{zodiacs.Length}个，去重后{zodiacs.Distinct().Count()}个）";
+        }
         if (rule.Type is "生肖" or "单生肖")
             return $"已找到{issue}期文字，但未识别到唯一有效生肖";
         if (rule.Type == "统计生肖")
@@ -1299,6 +1308,8 @@ public static class RuleEngine
             // parser, which has a different layout contract.
             return ExtractNearbySingleZodiac(lines, issue, rule);
         }
+        if (rule.AllowNearbyValue && rule.Type == "生肖组合")
+            return ExtractNearbyZodiacPair(lines, issue);
         for (int index = 0; index < periods.Count; index++)
         {
             Match period = periods[index];
@@ -1418,6 +1429,28 @@ public static class RuleEngine
             }
         }
         return values.Count == 0 ? null : values.Count == 1 ? values.Single() : ConflictMarker;
+    }
+
+    private static string? ExtractNearbyZodiacPair(string[] lines, int issue)
+    {
+        var zodiacs = new List<string>();
+        for (int issueIndex = 0; issueIndex < lines.Length; issueIndex++)
+        {
+            if (!ContainsIssue(lines[issueIndex], issue))
+                continue;
+            foreach (string line in NearbyIssueWindow(lines, issueIndex, issue, before: 4, after: 1))
+            {
+                if (Regex.IsMatch(SimplifyFixedCardText(line), @"(?:上期)?\s*开奖\s*结果"))
+                    continue;
+                foreach (char character in SimplifyOcrText(line))
+                {
+                    if (Zodiac.Contains(character))
+                        zodiacs.Add(character.ToString());
+                }
+            }
+        }
+        string distinct = string.Concat(zodiacs.Distinct());
+        return distinct.Length == 2 ? distinct : null;
     }
 
     private static IEnumerable<string> NearbyIssueWindow(
@@ -1596,7 +1629,7 @@ public static class RuleEngine
         }
         // An opening column can say "牛18中" without 开. Stop before it and
         // before 准; neither the result nor later OCR lines may fill a deficit.
-        block = Regex.Split(block, $@"(?<!不会)(?<!不)开|准|準|[{Zodiac}]\s*\d{{1,2}}\s*[中错錯赢贏]")[0];
+        block = Regex.Split(block, $@"(?<!不会)(?<!不)(?<!避)开|准|準|[{Zodiac}]\s*\d{{1,2}}\s*[中错錯赢贏]")[0];
         if (rule.Folder is "68" or "香奈儿" or "战狼" or "红人馆")
         {
             block = ExtractHuangdaxianPayload(Regex.Replace(block, @"\s+", ""), rule);
@@ -1660,6 +1693,34 @@ public static class RuleEngine
             string nineValue = string.Concat(zodiacs.Select(match => match.Value));
             return nineValue.Distinct().Count() == 9 ? nineValue : null;
         }
+        if (rule.Type == "缺两肖")
+        {
+            string zodiacs = string.Concat(Regex.Matches(block, $"[{Zodiac}]")
+                .Select(match => match.Value).Distinct());
+            return zodiacs.Length == 10
+                ? string.Concat(Zodiac.Where(zodiac => !zodiacs.Contains(zodiac)))
+                : null;
+        }
+        if (rule.Id is "曾道人小杀肖" or "心水杀肖肖肖" or "聚彩堂一肖" or "姨妈肖杀")
+        {
+            string zodiacs = string.Concat(Regex.Matches(block, $"[{Zodiac}]")
+                .Select(match => match.Value).Distinct());
+            return zodiacs.Length == 1 ? zodiacs : null;
+        }
+        if (rule.Id is "聚彩堂一尾" or "姨妈尾杀")
+        {
+            Match tail = Regex.Match(block, @"(?<tail>[0-9０-９])\s*尾");
+            if (!tail.Success)
+                return null;
+            char digit = tail.Groups["tail"].Value[0];
+            return $"{(digit is >= '０' and <= '９' ? (char)('0' + digit - '０') : digit)}尾";
+        }
+        if (rule.Id is "大赢家九肖" or "会员暴打")
+        {
+            string zodiacs = string.Concat(Regex.Matches(block, $"[{Zodiac}]")
+                .Select(match => match.Value));
+            return zodiacs.Length == 9 && zodiacs.Distinct().Count() == 9 ? zodiacs : null;
+        }
         if (rule.Id is "祖师公肖" or "祖师公尾")
         {
             Match shared = Regex.Match(block, @"^(?:①|1)\s*杀\s*(?<zodiac>.*?)\s*肖\s*(?:①|1)\s*杀\s*(?<tail>.*?)\s*尾$",
@@ -1675,18 +1736,19 @@ public static class RuleEngine
             "缺尾" => @"(?:公子送尾数|狂赢九尾)",
             "缺头" => @"(?:四头出特|必中四头)",
             "生肖" => @"(?:公子杀一肖|帅铁杀一肖)",
-            "生肖组合" => @"(?:祥瑞阁杀|绿杀|蓝杀|杀生肖|今期庄吃|(?:广东|福建|广西|贵州|海南|江西|湖南|上海|深圳|云南|四川)报)",
-            "色单双" => @"公子秒杀半波",
+            "生肖组合" => @"(?:祥瑞阁杀|绿杀|蓝杀|杀生肖|今期庄吃|(?:广东|福建|广西|贵州|海南|江西|湖南|上海|深圳|云南|四川)报|今晚杀|杀特肖)",
+            "色单双" => @"(?:公子秒杀半波|今期特码杀|赢家必杀)",
             "半波" => @"(?:(?:红红半波|粉红半波|蓝黑半波)\s*)+",
             "五行" => @"(?:公子4行|大赢家四行|必中)",
-            "头" => @"(?:公子禁止[1一]头|帅铁杀一头|今晚你买|特杀|禁|买)",
+            "头" => @"(?:公子禁止[1一]头|帅铁杀一头|今晚你买|特杀|禁|买|特码绝杀|特码避开|财神禁)",
             "尾" => @"(?:一尾绝杀|帅铁杀一尾)",
             "尾数组合" => @"(?:特码封杀|精杀)",
-            "段" => @"杀",
+            "段" => "杀",
             _ => "(?!)"
         };
         block = Regex.Replace(block.Trim(), "^" + prefix + @"\s*", "");
         block = Regex.Replace(block.Trim(), @"(?:精选杀|必输|会输很惨|不会开)$", "").Trim();
+        block = block.Trim(' ', '卜', 'ト', 'ł');
         if (rule.Id == "雷锋")
         {
             if (!Regex.IsMatch(block, $@"^(?:[{Zodiac}]\s*[0-9]+\s*){{4}}$"))
@@ -1997,6 +2059,8 @@ public static class RuleEngine
         if (rule.Type is "生肖" or "单生肖")
             return value.Length == 1 && Zodiac.Contains(value[0]);
         if (rule.Type == "生肖组合")
+            return value.Length == 2 && value.All(Zodiac.Contains) && value.Distinct().Count() == 2;
+        if (rule.Type == "缺两肖")
             return value.Length == 2 && value.All(Zodiac.Contains) && value.Distinct().Count() == 2;
         if (rule.Type == "九肖")
             return value.Length == 9 && value.All(Zodiac.Contains) && value.Distinct().Count() == 9;

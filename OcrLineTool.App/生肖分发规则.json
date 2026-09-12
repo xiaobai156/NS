@@ -3,8 +3,23 @@
   "targetFile": "{issue}期-生肖.txt",
   "sources": [
     {
+      "sourceGroup": "新澳高级会员",
+      "labels": [
+        "会员暴打"
+      ]
+    },
+    {
+      "sourceGroup": "新澳六合彩资料",
+      "labels": [
+        "近期开奖员",
+        "毛老二",
+        "通天九九肖",
+        "大赢家九肖"
+      ]
+    },
+    {
       "sourceGroup": "嫣然心水",
-      "labels": ["杰少九肖", "小骚货"]
+      "labels": ["杰少九肖", "小骚货", "黑不啦唧"]
     },
     {
       "sourceGroup": "黄大仙新澳",

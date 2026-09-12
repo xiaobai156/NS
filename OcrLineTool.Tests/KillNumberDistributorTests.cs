@@ -33,11 +33,12 @@ public sealed class ResultDistributorTests
             ["肖分发规则.json"] =
             [
                 "南国挽心", "陌上花", "一枝独秀", "输送机", "清风荷花", "追踪使者", "白梦", "可乐仔", "紫燕儿杀一肖",
-                "小苹果", "烟雨沫沫", "紫蝴蝶", "老兵惜缘", "杨丽珠", "缘来如此杀一肖", "木桃", "玩不转", "大哥6688", "大酒窝", "杰少杀一肖"
+                "小苹果", "烟雨沫沫", "紫蝴蝶", "老兵惜缘", "杨丽珠", "缘来如此杀一肖", "木桃", "玩不转", "大哥6688", "大酒窝", "杰少杀一肖",
+                "爱晚亭杀肖"
             ],
             ["肖新增分发规则.json"] =
             [
-                "傻丫头", "东南仔", "梁微微", "烟草味", "辣椒炒肉肖肖", "钦差大臣公式一", "钦差大臣公式二", "苏柒若", "爱晚亭",
+                "傻丫头", "东南仔", "梁微微", "烟草味", "辣椒炒肉肖肖", "钦差大臣公式一", "钦差大臣公式二", "苏柒若",
                 "小灰灰一肖", "阿尔法", "柳叶刀", "华林肖", "小雨婷", "简单爱", "月来月好", "欧阳肖", "陈思思",
                 "独傲洒脱杀肖肖", "阿莲杀肖肖", "借花献佛"
             ],
@@ -45,7 +46,7 @@ public sealed class ResultDistributorTests
             ["头分发规则.json"] = ["齐天大圣", "九王爷", "辣椒炒肉头", "小黄人头", "雁塔题名杀头", "永卟弃杀头", "恩平杀头"],
             ["半头分发规则.json"] = ["白少华半头"],
             ["尾分发规则.json"] = ["凌志", "紫燕儿尾", "大小姐", "缘来如此尾", "君军两尾", "辣椒炒肉尾", "小黄人两尾", "华林尾", "恩平杀一尾", "杰少杀一尾", "杰少禁一尾", "阿莲杀尾尾", "火狼女两尾"],
-            ["生肖分发规则.json"] = ["杰少九肖", "小骚货"],
+            ["生肖分发规则.json"] = ["杰少九肖", "小骚货", "黑不啦唧"],
             ["合分发规则.json"] = ["依然公主", "游牧草民", "青玉", "最亮月空", "天之涯", "雨后星星", "不决问风", "君军合", "雁塔题名杀合"],
             ["半波分发规则.json"] = ["岁月漫长", "雁塔题名半波", "华林半波", "欧阳半波", "玉亚半波"],
             ["五行分发规则.json"] = ["小黄人五行"],
@@ -177,6 +178,53 @@ public sealed class ResultDistributorTests
                 ResultDistributor.MarkDistributedLines(
                     ["虎 南国挽心", "9尾 凌志", "羊 未配置"],
                     result.DistributedLines));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+            Directory.Delete(configs, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ReportsUndistributedLinesWithReasonsButNeverMissingItems()
+    {
+        string folder = CreateTempFolder();
+        string configs = CreateTempFolder();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(folder, "242期-杀五码-诊断.txt"), string.Empty);
+            await File.WriteAllTextAsync(
+                Path.Combine(configs, "杀五码分发规则.json"),
+                JsonSerializer.Serialize(new
+                {
+                    targetFile = "{issue}期-杀五码-诊断.txt",
+                    sources = new[]
+                    {
+                        new
+                        {
+                            sourceGroup = "嫣然心水",
+                            labels = new[] { "长安之星" },
+                            numberCounts = new Dictionary<string, int> { ["长安之星"] = 2 }
+                        }
+                    }
+                }));
+
+            DistributionResult result = await ResultDistributor.DistributeAllAsync(
+                @"C:\图片\嫣然心水",
+                242,
+                ["20,45 长安之星", "20,45,49 长安之星", "羊 未配置", "缺失（未找到对应图片） 王者肖肖"],
+                folder,
+                configs);
+
+            Assert.Equal(["20,45 长安之星"], result.DistributedLines);
+            Assert.Empty(result.Errors);
+            Assert.Equal(2, result.UndistributedLines.Count);
+            Assert.Contains(result.UndistributedLines,
+                item => item.Line == "20,45,49 长安之星" && item.Reason.Contains("未通过校验", StringComparison.Ordinal));
+            Assert.Contains(result.UndistributedLines,
+                item => item.Line == "羊 未配置" && item.Reason.Contains("未找到对应的分发规则", StringComparison.Ordinal));
+            Assert.DoesNotContain(result.UndistributedLines, item => item.Line.Contains("缺失", StringComparison.Ordinal));
         }
         finally
         {
@@ -815,13 +863,17 @@ public sealed class ResultDistributorTests
             ["图库", "全网"],
             ReadSourceLabels("大围分发规则.json", "新澳高手"));
         Assert.Equal(
-            ["有点帅", "高手两肖", "男人牛", "完美两肖", "黄杀", "亚太两肖", "战澳两肖"],
+            ["有点帅", "高手两肖", "男人牛", "完美两肖", "黄杀", "亚太两肖", "战澳两肖", "斩杀两肖", "女人味"],
             ReadSourceLabels("二肖分发规则.json", "新澳高手"));
         Assert.Equal(["跑狗", "高山流水"], ReadSourceLabels("生肖分发规则.json", "新澳高手"));
+        Assert.Contains("斩杀半波", ReadSourceLabels("半波分发规则.json", "新澳高手"));
+        Assert.Contains("斩杀一行", ReadSourceLabels("五行分发规则.json", "新澳高手"));
+        Assert.Contains("斩杀两尾", ReadSourceLabels("尾分发规则.json", "新澳高手"));
+        Assert.Contains("斩杀一头", ReadSourceLabels("头分发规则.json", "新澳高手"));
         Assert.Single(ReadSourceLabels("大围分发规则.json", "新澳六合彩资料"), label => label == "时点半");
         Assert.Single(ReadSourceLabels("杀数字分发规则.json", "新澳六合彩资料"), label => label == "小马哥");
         Assert.Equal(["绿格子双杀", "公式杀两肖肖"], ReadSourceLabels("二肖分发规则.json", "蜻蜓一套骁腾"));
-        Assert.Equal(["高手头头", "亚太一头", "战澳头"], ReadSourceLabels("头分发规则.json", "新澳高手"));
+        Assert.Equal(["高手头头", "亚太一头", "战澳头", "斩杀一头"], ReadSourceLabels("头分发规则.json", "新澳高手"));
         Assert.Equal(["黑字杀头"], ReadSourceLabels("头分发规则.json", "蜻蜓一套骁腾"));
         Assert.Equal(["黑字杀行"], ReadSourceLabels("五行分发规则.json", "蜻蜓一套骁腾"));
         Assert.Equal(["黑字杀合"], ReadSourceLabels("合分发规则.json", "蜻蜓一套骁腾"));

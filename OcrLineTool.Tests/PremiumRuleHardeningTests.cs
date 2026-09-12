@@ -20,6 +20,7 @@ public sealed class PremiumRuleHardeningTests
         yield return ["翩翩公子尾", "公子送尾数：0 1 2 3 4 5 6\n7 9 准！", "8尾"];
         yield return ["翩翩公子肖", "公子杀一肖：雞 雞 雞 准！", "鸡"];
         yield return ["祥瑞阁", "01 02 03 04 05 06 07 08 10 11 12 13 14 15 16 17 19\n22 23 25 26 28 30 31 33 34 35 36 37 39 41 42 43 44\n45 47", "01 02 03 04 05 06 07 08 10 11 12 13 14 15 16 17 19 22 23 25 26 28 30 31 33 34 35 36 37 39 41 42 43 44 45 47"];
+        yield return ["会员暴打", "会员九肖:狗龍雞馬虎羊鼠猴豬", "狗龙鸡马虎羊鼠猴猪"];
     }
 
     [Theory]
@@ -130,7 +131,9 @@ public sealed class PremiumRuleHardeningTests
             foreach (OcrRule rule in RuleCatalog.Load(path))
             {
                 bool explicitYanranStrict = Path.GetFileName(path) == "嫣然心水.json" && rule.Id == "小骚货";
-                Assert.Equal(hardenedCatalog || explicitYanranStrict, rule.StrictIssueBlock);
+                bool explicitZhanShaStrict = Path.GetFileName(path) == "新澳高手.json"
+                    && rule.Id is "斩杀半波" or "斩杀一行" or "斩杀两尾" or "斩杀两肖" or "斩杀一头";
+                Assert.Equal(hardenedCatalog || explicitYanranStrict || explicitZhanShaStrict, rule.StrictIssueBlock);
             }
         }
     }

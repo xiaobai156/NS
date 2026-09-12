@@ -4,9 +4,14 @@ using System.Text.Json.Serialization;
 
 namespace OcrLineTool;
 
+public sealed record DistributionLineIssue(string Line, string Reason);
+
 public sealed record DistributionResult(
     IReadOnlySet<string> DistributedLines,
-    IReadOnlyList<string> Errors);
+    IReadOnlyList<string> Errors)
+{
+    public IReadOnlyList<DistributionLineIssue> UndistributedLines { get; init; } = [];
+}
 
 public static class ResultDistributor
 {
@@ -24,13 +29,19 @@ public static class ResultDistributor
         if (configPaths.Length == 0)
             throw new OcrException($"未找到数据分发规则：{configDirectory}");
 
+        string[] lines = outputLines.ToArray();
         var distributed = new HashSet<string>(StringComparer.Ordinal);
         var errors = new List<string>();
+        var loadedConfigs = new List<LoadedConfig>();
         foreach (string configPath in configPaths.Order(StringComparer.Ordinal))
         {
             try
             {
-                distributed.UnionWith(await DistributeAsync(selectedDirectory, issue, outputLines, targetDirectory, configPath));
+                LoadedConfig? loaded = await LoadConfigAsync(selectedDirectory, configPath);
+                if (loaded is null)
+                    continue;
+                loadedConfigs.Add(loaded);
+                distributed.UnionWith(await ApplyConfigAsync(issue, lines, targetDirectory, loaded));
             }
             catch (OcrException exception)
             {
@@ -41,7 +52,10 @@ public static class ResultDistributor
                 errors.Add($"分流配置或目标不可用：{Path.GetFileName(configPath)}。");
             }
         }
-        return new DistributionResult(distributed, errors);
+        return new DistributionResult(distributed, errors)
+        {
+            UndistributedLines = DescribeUndistributedLines(lines, distributed, loadedConfigs)
+        };
     }
 
     public static string[] MarkDistributedLines(
@@ -61,6 +75,14 @@ public static class ResultDistributor
         configPath ??= Path.Combine(
             ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory),
             "杀数字分发规则.json");
+        LoadedConfig? loaded = await LoadConfigAsync(selectedDirectory, configPath);
+        return loaded is null
+            ? EmptyResult
+            : await ApplyConfigAsync(issue, outputLines.ToArray(), targetDirectory, loaded);
+    }
+
+    private static async Task<LoadedConfig?> LoadConfigAsync(string selectedDirectory, string configPath)
+    {
         if (!File.Exists(configPath))
             throw new OcrException($"未找到数据分发规则：{configPath}");
 
@@ -77,22 +99,31 @@ public static class ResultDistributor
             : config.Sources.FirstOrDefault(item =>
                 item.SourceGroup.Equals(sourceGroup, StringComparison.Ordinal));
         if (rule is null)
-            return EmptyResult;
+            return null;
 
         var labels = new HashSet<string>(rule.Labels, StringComparer.Ordinal);
         IReadOnlyDictionary<string, OcrRule> rulesByLabel = RuleCatalog.Load(
                 RuleCatalog.PathForFolder(AppContext.BaseDirectory, selectedDirectory))
             .Where(item => labels.Contains(item.OutputLabel))
             .ToDictionary(item => item.OutputLabel, StringComparer.Ordinal);
+        return new LoadedConfig(config, rule, labels, rule.NumberCounts, rulesByLabel);
+    }
+
+    private static async Task<IReadOnlySet<string>> ApplyConfigAsync(
+        int issue,
+        string[] outputLines,
+        string? targetDirectory,
+        LoadedConfig loaded)
+    {
         string[] normalizedLines = outputLines
             .Select(line => line.EndsWith("（已分流）", StringComparison.Ordinal) ? line[..^5] : line)
             .ToArray();
         string[] configuredLines = normalizedLines
-            .Where(line => IsConfiguredLine(line, labels, rule.NumberCounts, rulesByLabel))
+            .Where(line => IsConfiguredLine(line, loaded.Labels, loaded.NumberCounts, loaded.RulesByLabel))
             .ToArray();
         HashSet<string> revokedLabels = normalizedLines
             .Where(line => line.StartsWith("缺失（同一期结果冲突", StringComparison.Ordinal))
-            .Select(line => labels.OrderByDescending(label => label.Length)
+            .Select(line => loaded.Labels.OrderByDescending(label => label.Length)
                 .FirstOrDefault(label => line.EndsWith(" " + label, StringComparison.Ordinal)))
             .Where(label => label is not null)
             .Select(label => label!)
@@ -100,21 +131,66 @@ public static class ResultDistributor
         if (configuredLines.Length == 0 && revokedLabels.Count == 0)
             return EmptyResult;
 
-        targetDirectory ??= config.TargetDirectory ?? TargetDirectory;
-        if (issue <= 0 || !config.TargetFile.Contains("{issue}", StringComparison.Ordinal))
+        targetDirectory ??= loaded.Config.TargetDirectory ?? TargetDirectory;
+        if (issue <= 0 || !loaded.Config.TargetFile.Contains("{issue}", StringComparison.Ordinal))
             throw new OcrException("分发目标必须包含动态 {issue} 期号。");
-        string targetFile = config.TargetFile.Replace("{issue}", issue.ToString(), StringComparison.Ordinal);
+        string targetFile = loaded.Config.TargetFile.Replace("{issue}", issue.ToString(), StringComparison.Ordinal);
         if (Path.GetFileName(targetFile) != targetFile || Path.IsPathRooted(targetFile))
             throw new OcrException("分发 targetFile 必须是目标目录内的文件名。");
         string targetPath = Path.Combine(targetDirectory, targetFile);
         if (!File.Exists(targetPath))
             throw new OcrException($"未找到分发目标文件：{targetPath}");
 
-        string? marker = config.Placement?.Mode == "beforeLine"
-            ? config.Placement.Marker.Replace("{issue}", issue.ToString(), StringComparison.Ordinal)
+        string? marker = loaded.Config.Placement?.Mode == "beforeLine"
+            ? loaded.Config.Placement.Marker.Replace("{issue}", issue.ToString(), StringComparison.Ordinal)
             : null;
-        return await OwnedResultWriter.ApplyAsync(targetPath, sourceGroup!, configuredLines,
-            revokedLabels, marker, config.Placement?.BlankLineBeforeMarker == true);
+        return await OwnedResultWriter.ApplyAsync(targetPath, loaded.Source.SourceGroup, configuredLines,
+            revokedLabels, marker, loaded.Config.Placement?.BlankLineBeforeMarker == true);
+    }
+
+    private static IReadOnlyList<DistributionLineIssue> DescribeUndistributedLines(
+        string[] outputLines,
+        IReadOnlySet<string> distributedLines,
+        IReadOnlyList<LoadedConfig> configs)
+    {
+        var issues = new List<DistributionLineIssue>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string rawLine in outputLines)
+        {
+            string line = rawLine.EndsWith("（已分流）", StringComparison.Ordinal) ? rawLine[..^5] : rawLine;
+            if (string.IsNullOrWhiteSpace(line)
+                || distributedLines.Contains(line)
+                || !seen.Add(line)
+                || line.StartsWith("缺失", StringComparison.Ordinal)
+                || line.StartsWith("【", StringComparison.Ordinal) && line.EndsWith("】", StringComparison.Ordinal))
+                continue;
+
+            int separator = line.LastIndexOf(' ');
+            if (separator <= 0)
+            {
+                issues.Add(new DistributionLineIssue(line, "无法解析为“值 名称”格式"));
+                continue;
+            }
+
+            string label = line[(separator + 1)..];
+            bool configured = false;
+            bool accepted = false;
+            foreach (LoadedConfig config in configs)
+            {
+                if (!config.Labels.Contains(label))
+                    continue;
+                configured = true;
+                if (IsConfiguredLine(line, config.Labels, config.NumberCounts, config.RulesByLabel))
+                    accepted = true;
+            }
+
+            issues.Add(accepted
+                ? new DistributionLineIssue(line, "未写入分发目标（目标忙、冲突或不可写）")
+                : configured
+                    ? new DistributionLineIssue(line, "值未通过校验（格式或数量不符）")
+                    : new DistributionLineIssue(line, "未找到对应的分发规则"));
+        }
+        return issues;
     }
 
     private static readonly IReadOnlySet<string> EmptyResult =
@@ -206,6 +282,13 @@ public static class ResultDistributor
                 && number.All(character => character is >= '0' and <= '9')
                 && int.TryParse(number, out int parsed) && parsed is >= 1 and <= 49);
     }
+
+    private sealed record LoadedConfig(
+        DistributionConfig Config,
+        SourceRule Source,
+        HashSet<string> Labels,
+        IReadOnlyDictionary<string, int>? NumberCounts,
+        IReadOnlyDictionary<string, OcrRule> RulesByLabel);
 
     private sealed record DistributionConfig(
         [property: JsonPropertyName("targetFile")] string TargetFile,

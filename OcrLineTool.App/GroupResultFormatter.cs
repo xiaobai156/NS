@@ -58,6 +58,8 @@ public static class GroupResultFormatter
             return "一肖";
         if (type == "生肖组合")
             return "二肖";
+        if (type == "缺两肖")
+            return "二肖";
         if (type == "九肖")
             return "九肖";
         if (type is "五行" or "单五行")

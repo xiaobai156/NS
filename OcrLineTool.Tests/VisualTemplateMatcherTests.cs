@@ -228,8 +228,8 @@ public sealed class VisualTemplateMatcherTests
             VisualTemplateMatcher.ConfigPath(AppContext.BaseDirectory));
 
         Assert.Equal("新澳六合彩资料", catalog.Folder);
-        Assert.Equal(79, catalog.Templates.Count);
-        Assert.Equal(80, catalog.Templates.SelectMany(item => item.RuleIds).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(99, catalog.Templates.Count);
+        Assert.Equal(102, catalog.Templates.SelectMany(item => item.RuleIds).Distinct(StringComparer.Ordinal).Count());
         Assert.Contains(catalog.Templates, item =>
             item.RuleIds.SequenceEqual(["祖师公肖", "祖师公尾"], StringComparer.Ordinal));
         Assert.Contains(catalog.Templates, item =>
@@ -277,7 +277,7 @@ public sealed class VisualTemplateMatcherTests
     }
 
     [Fact]
-    public void PremiumProductionCatalogCoversAllTenRulesWithDedicatedFingerprintRegions()
+    public void PremiumProductionCatalogCoversAllElevenRulesWithDedicatedFingerprintRegions()
     {
         string[] expectedRuleIds =
         [
@@ -290,14 +290,15 @@ public sealed class VisualTemplateMatcherTests
             "翩翩公子五行",
             "翩翩公子杀十码",
             "翩翩公子头",
-            "祥瑞阁二肖"
+            "祥瑞阁二肖",
+            "会员暴打"
         ];
         VisualTemplateSet catalog = VisualTemplateMatcher.Load(
             VisualTemplateMatcher.ConfigPath(
                 AppContext.BaseDirectory, @"C:\结果\新澳高级会员"));
 
         Assert.Equal("新澳高级会员", catalog.Folder);
-        Assert.Equal(10, catalog.Templates.Count);
+        Assert.Equal(11, catalog.Templates.Count);
         Assert.Equal(
             expectedRuleIds.Order(StringComparer.Ordinal),
             catalog.Templates.SelectMany(item => item.RuleIds).Order(StringComparer.Ordinal));
