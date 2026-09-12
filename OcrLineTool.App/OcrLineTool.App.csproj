@@ -9,7 +9,7 @@
     <RootNamespace>OcrLineTool</RootNamespace>
     <Product>OCR 整行提取工具 NVIDIA CUDA版</Product>
     <Description>使用 NVIDIA CUDA 从本地图片中提取指定期号的完整一行</Description>
-    <Version>1.5.113</Version>
+    <Version>1.5.114</Version>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
