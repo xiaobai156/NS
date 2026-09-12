@@ -516,7 +516,8 @@
     {
       "keyword": "陈思思",
       "type": "生肖",
-      "required_keyword": "陈思思",
+      "required_keyword": "统计表",
+      "allow_issue_less_summary": true,
       "folder": "乖乖团队"
     },
     {

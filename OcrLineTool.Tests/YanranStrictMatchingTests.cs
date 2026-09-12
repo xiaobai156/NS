@@ -1,4 +1,4 @@
-using OcrLineTool;
+﻿using OcrLineTool;
 using Xunit;
 
 namespace OcrLineTool.Tests;
@@ -149,6 +149,41 @@ public sealed class YanranStrictMatchingTests
         Assert.Equal("狗", RuleEngine.ExtractFinalValue(lines, 253, Assert.Single(catalog, r => r.Id == "苏柒若")));
         Assert.Equal("狗", RuleEngine.ExtractFinalValue(lines, 253, Assert.Single(catalog, r => r.Id == "欧阳肖")));
         Assert.Equal("兔", RuleEngine.ExtractFinalValue(lines, 253, Assert.Single(catalog, r => r.Id == "月来月好")));
+        Assert.Equal("兔", RuleEngine.ExtractFinalValue(lines, 253, Rule("陈思思")));
+    }
+
+    [Fact]
+    public void ChenSisiMatchesOnlyTheGgSummarySheetNotTheDedicatedCard()
+    {
+        OcrRule[] catalog = Rules();
+        OcrRule rule = Rule("陈思思");
+        Assert.Equal("统计表", rule.RequiredKeyword);
+        Assert.True(rule.AllowIssueLessSummary);
+
+        string summary = @"C:\结果\9.10-嫣然心水\乖乖团队\summary.jpg";
+        Assert.Single(RuleEngine.FindMatches(
+            summary,
+            ["GG团队255期新澳禁肖统计表", "陈思思正正禁马", "简单爱正禁猴"],
+            [rule], catalog));
+
+        string dedicated = @"C:\结果\9.10-嫣然心水\乖乖团队\card.jpg";
+        Assert.Empty(RuleEngine.FindMatches(
+            dedicated,
+            ["团队", "不忘初心", "新澳门六合彩", "陈思思", "254期禁羊", "255期禁马"],
+            [rule], catalog));
+    }
+
+    [Fact]
+    public void YongBuQiAcceptsTheLeafVariantOfItsName()
+    {
+        OcrRule rule = Rule("永卟弃杀头");
+        Assert.Single(RuleEngine.FindMatches(
+            @"C:\结果\9.10-嫣然心水\乖乖团队\yongbuqi.jpg",
+            ["团队", "新澳门六合彩", "永叶弃", "254期中0134头", "255期中0234头"],
+            [rule], Rules()));
+        Assert.Equal("1头", RuleEngine.ExtractFinalValue(
+            ["团队", "不忘初心", "新澳门六合彩", "永叶弃", "253期中0134头", "254期中0134头", "255期中0234头"],
+            255, rule));
     }
 
     [Fact]

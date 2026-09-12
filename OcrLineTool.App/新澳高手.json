@@ -26,6 +26,7 @@
     { "keyword": "斩杀两尾", "type": "尾数组合", "label": "斩杀两尾", "required_keyword": "斩杀两尾", "folder": "斩杀系列", "strictIssueBlock": true },
     { "keyword": "斩杀两肖", "type": "生肖组合", "label": "斩杀两肖", "required_keyword": "斩杀两肖", "folder": "斩杀系列", "strictIssueBlock": true },
     { "keyword": "斩杀一头", "type": "头", "label": "斩杀一头", "required_keyword": "斩杀一头", "folder": "斩杀系列", "strictIssueBlock": true },
-    { "keyword": "女人味杀2肖", "type": "生肖组合", "label": "女人味", "required_keyword": "澳门女人味", "folder": "老男女味" }
+    { "keyword": "女人味杀2肖", "type": "生肖组合", "label": "女人味", "required_keyword": "澳门女人味", "folder": "老男女味" },
+    { "keyword": "澳门天空", "type": "号码:10", "label": "天空杀", "required_keyword": "澳门天空", "folder": "澳门天空杀", "strictIssueBlock": true }
   ]
 }

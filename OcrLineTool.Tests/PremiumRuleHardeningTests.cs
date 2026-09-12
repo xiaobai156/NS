@@ -132,7 +132,7 @@ public sealed class PremiumRuleHardeningTests
             {
                 bool explicitYanranStrict = Path.GetFileName(path) == "嫣然心水.json" && rule.Id == "小骚货";
                 bool explicitZhanShaStrict = Path.GetFileName(path) == "新澳高手.json"
-                    && rule.Id is "斩杀半波" or "斩杀一行" or "斩杀两尾" or "斩杀两肖" or "斩杀一头";
+                    && rule.Id is "斩杀半波" or "斩杀一行" or "斩杀两尾" or "斩杀两肖" or "斩杀一头" or "天空杀";
                 Assert.Equal(hardenedCatalog || explicitYanranStrict || explicitZhanShaStrict, rule.StrictIssueBlock);
             }
         }

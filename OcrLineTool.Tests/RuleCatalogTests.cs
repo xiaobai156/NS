@@ -394,7 +394,7 @@ public sealed class RuleCatalogTests
 
     [Theory]
     [InlineData("黄大仙新澳.json", "黄大仙新澳", 22)]
-    [InlineData("新澳高手.json", "新澳高手", 25)]
+    [InlineData("新澳高手.json", "新澳高手", 26)]
     public void LoadsTheNewGroupRules(string fileName, string groupName, int expectedCount)
     {
         string configuration = ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory);

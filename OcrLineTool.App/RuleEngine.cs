@@ -288,7 +288,8 @@ public static class RuleEngine
 
     private static string ApplyIdentityOcrConfusions(string text) => text
         .Replace('惠', '慧')
-        .Replace('奥', '澳');
+        .Replace('奥', '澳')
+        .Replace('叶', '卟');
 
     private static bool WithinOneEdit(ReadOnlySpan<char> left, ReadOnlySpan<char> right)
     {

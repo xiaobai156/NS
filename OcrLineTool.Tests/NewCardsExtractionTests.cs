@@ -287,6 +287,29 @@ public sealed class NewCardsExtractionTests
     }
 
     [Fact]
+    public void AomenTianKongKillsTenNumbers()
+    {
+        string[] lines =
+        [
+            "★澳门天空★决杀十码",
+            "255期", "决杀X十码", "【03 18 21 22 23 26 34 35 37 39】", "开??准",
+            "253期", "决杀X十码", "【01 02 0306 08 18 29 39 43 45】", "开16准",
+            "252期", "决杀X十码", "【03 06 11 15 19 26 37 38 43 44】", "开22准",
+            "251期", "决杀X十码", "【03 08 10 11 22 23 32 36 42 48】", "开30准"
+        ];
+
+        IReadOnlyList<OcrRule> rules = Rules("新澳高手.json");
+        OcrRule rule = rules.Single(item => item.Id == "天空杀");
+
+        Assert.Equal("03 18 21 22 23 26 34 35 37 39", RuleEngine.ExtractFinalValue(lines, 255, rule));
+        Assert.Equal("03 08 10 11 22 23 32 36 42 48", RuleEngine.ExtractFinalValue(lines, 251, rule));
+        Assert.Contains(rule, RuleEngine.FindMatches(
+            @"C:\图片\9.12-新澳高手\澳门天空杀\a.jpg", lines, rules, rules));
+        Assert.DoesNotContain(rule, RuleEngine.FindMatches(
+            @"C:\图片\9.12-新澳高手\其他文件夹\a.jpg", lines, rules, rules));
+    }
+
+    [Fact]
     public void NewRulesMatchTheirRealCardTextAsCandidates()
     {
         IReadOnlyList<OcrRule> gaoshou = Rules("新澳高手.json");
