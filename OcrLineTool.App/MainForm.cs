@@ -186,6 +186,7 @@ public sealed class MainForm : Form
         dateTimer.Start();
         OperationLog.ClearIfExpired(AppContext.BaseDirectory);
         RecognitionStateStore.ClearStaleDays(AppContext.BaseDirectory);
+        DistributionStateCleanup.ClearStaleBefore(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory));
         issueDate = CredentialSchedule.TodayInBeijing();
         LogOperation("启动程序");
         RefreshCredentialLabel();
@@ -683,6 +684,7 @@ public sealed class MainForm : Form
         if (issueDate != date && !isBusy)
         {
             RecognitionStateStore.ClearAll(AppContext.BaseDirectory);
+            DistributionStateCleanup.ClearStaleBefore(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), date);
             issueInput.Value = CredentialSchedule.IssueForDate(date);
             issueDate = date;
         }
