@@ -22,7 +22,8 @@ public sealed record OcrRule(
     bool StopAtPlus = false,
     bool TenZodiacCombo = false,
     bool PrimaryOnly = false,
-    bool HeaderIdentity = false)
+    bool HeaderIdentity = false,
+    bool MatchByRowStructure = false)
 {
     public string Id => Label ?? Keyword;
     public string OutputLabel => Label ?? Keyword;
@@ -102,6 +103,20 @@ public static class RuleEngine
                     item.Equals(expectedFolder, StringComparison.OrdinalIgnoreCase));
             if (!folderMatches)
                 return string.IsNullOrWhiteSpace(rule.Folder) && MatchesText(text, rule);
+            // Title-less cards (the 斩杀系列 strips carry only data rows): the
+            // folder plus the rule's own row shape is the identity. Only an
+            // explicit opt-in rule may match this way, and never when a sibling
+            // material's name is actually printed on the image.
+            if (rule.MatchByRowStructure
+                && hasCompleteIdentityCatalog
+                && RowStructureMatches(lines, rule)
+                && !identityRules.Any(other =>
+                    !other.Id.Equals(rule.Id, StringComparison.Ordinal)
+                    && (other.Folder ?? other.Keyword).Equals(expectedFolder, StringComparison.OrdinalIgnoreCase)
+                    && ContainsKeywordExact(text, Normalize(other.Keyword))))
+            {
+                return true;
+            }
             bool requiredRepeatsFolder = !string.IsNullOrWhiteSpace(rule.RequiredKeyword)
                 && RuleCatalog.NormalizeGroupName(rule.RequiredKeyword)
                     .Equals(RuleCatalog.NormalizeGroupName(expectedFolder), StringComparison.OrdinalIgnoreCase);
@@ -109,10 +124,10 @@ public static class RuleEngine
             if (!string.IsNullOrWhiteSpace(requiredKeyword)
                 && !(guardForeignIdentity && rule.AllowFolderIdentity)
                 && (guardForeignIdentity || !requiredRepeatsFolder)
-                && !ContainsKeyword(text, Normalize(requiredKeyword)))
+                && !RequiredKeywordMatches(text, requiredKeyword, rule))
                 return false;
             if (rule.RequiredKeywordsAny is { Count: > 0 }
-                && !rule.RequiredKeywordsAny.Any(value => ContainsKeyword(text, Normalize(value))))
+                && !rule.RequiredKeywordsAny.Any(value => RequiredKeywordMatches(text, value, rule)))
                 return false;
             if (guardForeignIdentity && rule.AllowFolderIdentity)
             {
@@ -290,6 +305,81 @@ public static class RuleEngine
         .Replace('惠', '慧')
         .Replace('奥', '澳')
         .Replace('叶', '卟');
+
+    // Exact identity after the known OCR look-alike normalization, without the
+    // one-edit tolerance. Required identities use this so that a sibling
+    // material whose name differs by one character cannot hijack the card.
+    private static bool ContainsKeywordExact(string text, string keyword)
+    {
+        if (text.Contains(keyword, StringComparison.Ordinal))
+            return true;
+        string confusedText = ApplyIdentityOcrConfusions(text);
+        string confusedKeyword = ApplyIdentityOcrConfusions(keyword);
+        return (!string.Equals(confusedText, text, StringComparison.Ordinal)
+                || !string.Equals(confusedKeyword, keyword, StringComparison.Ordinal))
+            && confusedText.Contains(confusedKeyword, StringComparison.Ordinal);
+    }
+
+    private static bool RequiredKeywordMatches(string text, string requiredKeyword, OcrRule rule)
+    {
+        string normalized = Normalize(requiredKeyword);
+        // A required keyword that merely repeats the rule's own keyword adds no
+        // independent identity, so the fuzzy primary-keyword check governs it.
+        // A distinct required identity must appear exactly (look-alikes still
+        // normalized) so sibling materials cannot cross-match.
+        bool repeatsKeyword = normalized.Equals(Normalize(rule.Keyword), StringComparison.Ordinal);
+        return repeatsKeyword ? ContainsKeyword(text, normalized) : ContainsKeywordExact(text, normalized);
+    }
+
+    // Title-less strip cards are identified by the folder plus the shape of
+    // their rows. Each opted-in rule owns exactly one row shape, so a stray
+    // card with a different value layout can never match.
+    private static bool RowStructureMatches(string[] lines, OcrRule rule)
+    {
+        int rowCount = 0;
+        int shapeCount = 0;
+        foreach (string line in lines)
+        {
+            string simplified = SimplifyOcrText(line).Trim();
+            Match issue = Regex.Match(simplified, @"^\s*[\[【(（]?\s*(?<issue>\d{2,4})\s*期");
+            if (!issue.Success)
+                continue;
+            rowCount++;
+            string value = simplified[issue.Length..].Trim();
+            value = Regex.Replace(value, @"[√×✓✗✔✘?？!！]+$", "");
+            value = Regex.Replace(value, @"^[：:（(【\[]+", "");
+            value = Regex.Replace(value, @"[）)】\]]+$", "");
+            value = value.Replace(" ", string.Empty);
+            if (MatchesValueShape(value, rule.Type))
+                shapeCount++;
+        }
+        return rowCount >= 5 && shapeCount * 5 >= rowCount * 4;
+    }
+
+    private static bool MatchesValueShape(string value, string type)
+    {
+        switch (type)
+        {
+            case "色单双":
+                return Regex.IsMatch(value, @"^[红蓝绿兰][单双]$");
+            case "单五行":
+                return Regex.IsMatch(value, @"^[金木水火土]$");
+            case "尾数组合":
+                return Regex.IsMatch(value, @"^[0-9０-９][.．,，、][0-9０-９]尾$");
+            case "头":
+                return Regex.IsMatch(value, @"^[0-4０-４]头$");
+            case "生肖组合":
+            case "单生肖":
+                string zodiacs = new(value.Where(Zodiac.Contains).ToArray());
+                string stripped = Regex.Replace(value, $"[{Zodiac}]", string.Empty);
+                int expected = type == "单生肖" ? 1 : 2;
+                return stripped.Length == 0
+                    && zodiacs.Length == expected
+                    && zodiacs.Distinct().Count() == expected;
+            default:
+                return false;
+        }
+    }
 
     private static bool WithinOneEdit(ReadOnlySpan<char> left, ReadOnlySpan<char> right)
     {

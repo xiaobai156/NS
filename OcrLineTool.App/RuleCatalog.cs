@@ -230,6 +230,7 @@ public static class RuleCatalog
                 bool tenZodiacCombo = ReadOptionalBoolean(item, "ten_zodiac_combo", false, fileName);
                 bool primaryOnly = ReadOptionalBoolean(item, "primary_only", false, fileName);
                 bool headerIdentity = ReadOptionalBoolean(item, "header_identity", false, fileName);
+                bool matchByRowStructure = ReadOptionalBoolean(item, "match_by_row_structure", false, fileName);
                 if (keyword.Length > 0 && type.Length > 0)
                     output.Add(new OcrRule(
                         keyword,
@@ -251,7 +252,8 @@ public static class RuleCatalog
                         stopAtPlus,
                         tenZodiacCombo,
                         primaryOnly,
-                        headerIdentity));
+                        headerIdentity,
+                        matchByRowStructure));
             }
             if (output.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count() != output.Count)
                 throw new OcrException($"{fileName} 中存在重复的输出名称。");

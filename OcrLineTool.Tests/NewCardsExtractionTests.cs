@@ -268,6 +268,59 @@ public sealed class NewCardsExtractionTests
     }
 
     [Fact]
+    public void ZhanShaTitleLessStripsMatchByFolderAndRowShape()
+    {
+        IReadOnlyList<OcrRule> rules = Rules("新澳高手.json");
+        string Path(string file) => @"C:\图片\9.10-新澳高手\斩杀系列\" + file;
+
+        string[] halfWave =
+        [
+            "248期(绿双)√", "249期(绿单)√", "250期(红单)√",
+            "251期(红双)×", "252期(红单)√", "253期(蓝单)√"
+        ];
+        string[] oneLine =
+        [
+            "248期(水)√", "249期(±)√", "250期(金)√",
+            "251期(土)√", "252期(金)√", "253期(金)√"
+        ];
+        string[] twoTails =
+        [
+            "248期(4.9尾)√", "249期(1.5尾)√", "250期(3.6尾)√",
+            "251期(2.8尾)√", "252期(2.7尾)×", "253期(0.1尾)√"
+        ];
+        string[] twoZodiacs =
+        [
+            "248期(龙马)√", "249期(鼠龙)√", "250期(猪猴)√",
+            "251期(鼠牛)×", "252期(鸡牛)×", "253期(蛇虎)√"
+        ];
+        string[] oneHead =
+        [
+            "248期(3头)√", "249期(2头)×", "250期(0头)√",
+            "251期(3头)×", "252期(1头)√", "253期(0头)√"
+        ];
+
+        Assert.Equal("斩杀半波", Assert.Single(RuleEngine.FindMatches(Path("a.jpg"), halfWave, rules, rules)).Id);
+        Assert.Equal("斩杀一行", Assert.Single(RuleEngine.FindMatches(Path("b.jpg"), oneLine, rules, rules)).Id);
+        Assert.Equal("斩杀两尾", Assert.Single(RuleEngine.FindMatches(Path("c.jpg"), twoTails, rules, rules)).Id);
+        Assert.Equal("斩杀两肖", Assert.Single(RuleEngine.FindMatches(Path("d.jpg"), twoZodiacs, rules, rules)).Id);
+        Assert.Equal("斩杀一头", Assert.Single(RuleEngine.FindMatches(Path("e.jpg"), oneHead, rules, rules)).Id);
+
+        Assert.Equal("蓝单", RuleEngine.ExtractFinalValue(halfWave, 253, rules.Single(rule => rule.Id == "斩杀半波")));
+        Assert.Equal("金", RuleEngine.ExtractFinalValue(oneLine, 253, rules.Single(rule => rule.Id == "斩杀一行")));
+        Assert.Equal("0尾+1尾", RuleEngine.ExtractFinalValue(twoTails, 253, rules.Single(rule => rule.Id == "斩杀两尾")));
+        Assert.Equal("蛇虎", RuleEngine.ExtractFinalValue(twoZodiacs, 253, rules.Single(rule => rule.Id == "斩杀两肖")));
+        Assert.Equal("0头", RuleEngine.ExtractFinalValue(oneHead, 253, rules.Single(rule => rule.Id == "斩杀一头")));
+
+        string[] threeHeads =
+        [
+            "255期：三头必中【0.2.3】开？00中", "254期:三头必中【0.2.4】开鸡22中",
+            "253期：三头必中【0.2.1】开兔16中", "252期：三头必中【0.2.4】开鸡22中",
+            "251期：三头必中【0.3.4】开牛30中", "250期：三头必中【1.2.3】开蛇14中"
+        ];
+        Assert.Empty(RuleEngine.FindMatches(Path("f.jpg"), threeHeads, rules, rules));
+    }
+
+    [Fact]
     public void NvrenweiKillsTwoZodiacs()
     {
         string[] lines =
@@ -284,6 +337,79 @@ public sealed class NewCardsExtractionTests
         ];
         Assert.Equal("马兔", RuleEngine.ExtractFinalValue(lines, 254,
             Rules("新澳高手.json").Single(rule => rule.Id == "女人味")));
+    }
+
+    [Fact]
+    public void NvrenweiDoesNotCrossMatchMaleOrElderCards()
+    {
+        IReadOnlyList<OcrRule> rules = Rules("新澳高手.json");
+        OcrRule women = rules.Single(rule => rule.Id == "女人味");
+        OcrRule men = rules.Single(rule => rule.Id == "男人牛");
+
+        string[] womenCard =
+        [
+            "澳门女人味", "AOMENNVRENWEI", "2026年255期",
+            "245【女人味杀2肖】", "虎猴", "开牛18准",
+            "246【女人味杀2肖】", "猪龙", "开牛30准",
+            "247【女人味杀2肖】", "羊蛇", "开兔40准",
+            "248【女人味杀2肖】", "羊蛇", "开猪20准",
+            "249【女人味杀2肖", "龙牛", "开猴23准",
+            "250【女人味杀2肖", "鼠牛", "开蛇14准",
+            "251【女人味杀2肖", "牛鸡", "开牛30错",
+            "252【女人味杀2肖", "鸡狗", "开鸡22错",
+            "253【女人味杀2肖】", "马羊", "开兔16准",
+            "254【女人味杀2肖", "马兔", "开蛇02准",
+            "255【女人味杀2肖】", "虎狗", "开？00准",
+            "250【女人味⑥肖】", "马猪兔猴鸡龙", "开蛇14错",
+            "251【女人味⑥肖】", "兔狗鼠马龙羊", "开牛30错",
+            "252【女人味⑥肖】", "牛虎蛇兔马鼠", "开鸡22错",
+            "253【女人味⑥肖】龙猪猴蛇狗鸡", "开兔16错",
+            "254【女人味⑥肖】猪鸡羊狗龙蛇", "开蛇02准",
+            "255【女人味⑥肖】马鼠兔鸡牛蛇", "开？00准",
+            "255【女人味③肖】马鼠兔", "255【女人味①肖】马",
+            "无私奉献！敬请参考，错误勿怪"
+        ];
+        string[] menCard =
+        [
+            "澳门男人味", "R", "【原创】→男人味：",
+            "244期【男人味稳杀二肖】→兔龙开鸡46准",
+            "245期【男人味稳杀二肖】→龙蛇开牛18准",
+            "246期【男人味稳杀二肖】→蛇马开牛30准",
+            "247期【男人味稳杀二肖】→马羊开兔40准",
+            "248期【男人味稳杀二肖】→羊猴开猪20准",
+            "250期【男人味稳杀二肖】→鸡狗", "开蛇14准",
+            "251期【男人味稳杀二肖】→狗猪", "开牛30准",
+            "252期【男人味稳杀二肖】→猪鼠开鸡22准",
+            "253期【男人味稳杀二肖】→鼠牛开兔16准",
+            "254期【男人味稳杀二肖】→牛虎开蛇02准",
+            "255期【男人味稳杀二肖】→虎兔开？准",
+            "253期【男人味六肖】→鼠兔虎龙蛇马开兔16准",
+            "255期【男人味六肖】→虎蛇龙马羊猴开？准",
+            "255期【男人味三肖】→虎蛇龙"
+        ];
+        string[] elderCard =
+        [
+            "澳门老人味", "LAORENWEI", "原创者：钱多多",
+            "252期:绝杀三肖→兔龙蛇←开鸡22√",
+            "253期:绝杀三肖→羊猪鸡←开兔16√",
+            "254期:绝杀三肖→狗猴马←开蛇02√",
+            "255期:绝杀三肖→鼠羊虎←开？？√",
+            "252期：六肖《猴鼠虎鸡猪马》开鸡22中",
+            "253期：六肖《牛马猴龙蛇兔》开兔16中",
+            "254期：六肖《龙猪鸡牛虎蛇》开蛇02中",
+            "255期：六肖《鸡猴马狗牛蛇》开？？中",
+            "无私奉献！个人心水，错误勿怪！"
+        ];
+
+        Assert.Equal("虎狗", RuleEngine.ExtractFinalValue(womenCard, 255, women));
+        Assert.Contains(women, RuleEngine.FindMatches(
+            @"C:\图片\9.12-新澳高手\老男女味\women.jpg", womenCard, rules, rules));
+        Assert.DoesNotContain(women, RuleEngine.FindMatches(
+            @"C:\图片\9.12-新澳高手\老男女味\men.jpg", menCard, rules, rules));
+        Assert.DoesNotContain(women, RuleEngine.FindMatches(
+            @"C:\图片\9.12-新澳高手\老男女味\elder.jpg", elderCard, rules, rules));
+        Assert.Contains(men, RuleEngine.FindMatches(
+            @"C:\图片\9.12-新澳高手\老男女味\men.jpg", menCard, rules, rules));
     }
 
     [Fact]

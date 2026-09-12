@@ -431,6 +431,12 @@ public sealed class RuleCatalogTests
             rule.RequiredKeyword == "精选⑨肖" &&
             rule.AllowNearbyValue &&
             rule.Folder == "高山流水");
+        Assert.Contains(rules, rule =>
+            rule.Id == "斩杀两肖" &&
+            rule.Folder == "斩杀系列" &&
+            rule.StrictIssueBlock &&
+            rule.MatchByRowStructure &&
+            rule.AllowValueWithoutKeyword);
     }
 
     [Fact]
