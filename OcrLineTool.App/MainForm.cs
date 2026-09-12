@@ -1719,7 +1719,8 @@ public sealed class MainForm : Form
                 .ToArray();
             string[] baseLines = editedLines.Select(RemoveDistributedSuffix).ToArray();
             DistributionResult distribution = await ResultDistributor.DistributeAllAsync(
-                selectedImageDirectory!, issue, baseLines);
+                selectedImageDirectory!, issue, baseLines,
+                nativeOcrStorePath: NativeOcrDirectoryMirror.DefaultStorePath);
             string[] updatedLines = editedLines
                 .Select((line, index) => line.EndsWith("（已分流）", StringComparison.Ordinal)
                     || !distribution.DistributedLines.Contains(baseLines[index])
@@ -1730,7 +1731,7 @@ public sealed class MainForm : Form
             await AtomicFile.WriteAllLinesAsync(groupOutputPath, updatedLines, new UTF8Encoding(true));
             resultsBox.Text = string.Join(Environment.NewLine, updatedLines);
             copyButton.Enabled = updatedLines.Length > 0;
-            statusLabel.Text = $"手动分流完成：成功 {distribution.DistributedLines.Count} 条{DistributionErrorText(distribution)}。群TXT：{groupOutputPath}";
+            statusLabel.Text = $"手动分流完成：成功 {distribution.DistributedLines.Count} 条{DistributionErrorText(distribution)}{NativeOcrMirrorText(distribution)}。群TXT：{groupOutputPath}";
             ShowUndistributedLinesReport(distribution);
         }
         catch (OcrException exception)
@@ -3009,6 +3010,23 @@ public sealed class MainForm : Form
         result.Errors.Count == 0
             ? string.Empty
             : $"，失败 {result.Errors.Count} 类（{result.Errors[0]}）";
+
+    private static string NativeOcrMirrorText(DistributionResult result)
+    {
+        NativeOcrMirrorOutcome? mirror = result.NativeOcrMirror;
+        if (mirror is null)
+            return string.Empty;
+        var parts = new List<string>();
+        if (mirror.Written > 0)
+            parts.Add($"写入 {mirror.Written}");
+        if (mirror.SkippedExisting > 0)
+            parts.Add($"已有数据跳过 {mirror.SkippedExisting}");
+        if (mirror.SkippedMissingDirectory > 0)
+            parts.Add($"无同名目录跳过 {mirror.SkippedMissingDirectory}");
+        if (mirror.Failed > 0)
+            parts.Add($"失败 {mirror.Failed}");
+        return parts.Count == 0 ? string.Empty : $"，外部软件：{string.Join("，", parts)}";
+    }
 
     private static string ShortPath(string path)
     {

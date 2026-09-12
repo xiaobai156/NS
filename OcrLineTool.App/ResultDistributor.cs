@@ -11,6 +11,7 @@ public sealed record DistributionResult(
     IReadOnlyList<string> Errors)
 {
     public IReadOnlyList<DistributionLineIssue> UndistributedLines { get; init; } = [];
+    public NativeOcrMirrorOutcome? NativeOcrMirror { get; init; }
 }
 
 public static class ResultDistributor
@@ -22,7 +23,8 @@ public static class ResultDistributor
         int issue,
         IEnumerable<string> outputLines,
         string? targetDirectory = null,
-        string? configDirectory = null)
+        string? configDirectory = null,
+        string? nativeOcrStorePath = null)
     {
         configDirectory ??= ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory);
         string[] configPaths = Directory.GetFiles(configDirectory, "*分发规则.json");
@@ -32,6 +34,7 @@ public static class ResultDistributor
         string[] lines = outputLines.ToArray();
         var distributed = new HashSet<string>(StringComparer.Ordinal);
         var errors = new List<string>();
+        NativeOcrMirrorOutcome mirror = NativeOcrMirrorOutcome.Empty;
         var loadedConfigs = new List<LoadedConfig>();
         foreach (string configPath in configPaths.Order(StringComparer.Ordinal))
         {
@@ -41,7 +44,11 @@ public static class ResultDistributor
                 if (loaded is null)
                     continue;
                 loadedConfigs.Add(loaded);
-                distributed.UnionWith(await ApplyConfigAsync(issue, lines, targetDirectory, loaded));
+                ConfigApplication application = await ApplyConfigAsync(
+                    issue, lines, targetDirectory, loaded, nativeOcrStorePath);
+                distributed.UnionWith(application.DistributedLines);
+                mirror = mirror.Merge(application.Mirror);
+                errors.AddRange(application.Mirror.Errors);
             }
             catch (OcrException exception)
             {
@@ -54,7 +61,8 @@ public static class ResultDistributor
         }
         return new DistributionResult(distributed, errors)
         {
-            UndistributedLines = DescribeUndistributedLines(lines, distributed, loadedConfigs)
+            UndistributedLines = DescribeUndistributedLines(lines, distributed, loadedConfigs),
+            NativeOcrMirror = mirror.HasAny ? mirror : null
         };
     }
 
@@ -78,7 +86,7 @@ public static class ResultDistributor
         LoadedConfig? loaded = await LoadConfigAsync(selectedDirectory, configPath);
         return loaded is null
             ? EmptyResult
-            : await ApplyConfigAsync(issue, outputLines.ToArray(), targetDirectory, loaded);
+            : (await ApplyConfigAsync(issue, outputLines.ToArray(), targetDirectory, loaded, null)).DistributedLines;
     }
 
     private static async Task<LoadedConfig?> LoadConfigAsync(string selectedDirectory, string configPath)
@@ -109,11 +117,12 @@ public static class ResultDistributor
         return new LoadedConfig(config, rule, labels, rule.NumberCounts, rulesByLabel);
     }
 
-    private static async Task<IReadOnlySet<string>> ApplyConfigAsync(
+    private static async Task<ConfigApplication> ApplyConfigAsync(
         int issue,
         string[] outputLines,
         string? targetDirectory,
-        LoadedConfig loaded)
+        LoadedConfig loaded,
+        string? nativeOcrStorePath)
     {
         string[] normalizedLines = outputLines
             .Select(line => line.EndsWith("（已分流）", StringComparison.Ordinal) ? line[..^5] : line)
@@ -129,7 +138,7 @@ public static class ResultDistributor
             .Select(label => label!)
             .ToHashSet(StringComparer.Ordinal);
         if (configuredLines.Length == 0 && revokedLabels.Count == 0)
-            return EmptyResult;
+            return new ConfigApplication(EmptyResult, NativeOcrMirrorOutcome.Empty);
 
         targetDirectory ??= loaded.Config.TargetDirectory ?? TargetDirectory;
         if (issue <= 0 || !loaded.Config.TargetFile.Contains("{issue}", StringComparison.Ordinal))
@@ -144,9 +153,31 @@ public static class ResultDistributor
         string? marker = loaded.Config.Placement?.Mode == "beforeLine"
             ? loaded.Config.Placement.Marker.Replace("{issue}", issue.ToString(), StringComparison.Ordinal)
             : null;
-        return await OwnedResultWriter.ApplyAsync(targetPath, loaded.Source.SourceGroup, configuredLines,
+        IReadOnlySet<string> distributed = await OwnedResultWriter.ApplyAsync(
+            targetPath, loaded.Source.SourceGroup, configuredLines,
             revokedLabels, marker, loaded.Config.Placement?.BlankLineBeforeMarker == true);
+        NativeOcrMirrorOutcome mirror = string.IsNullOrWhiteSpace(nativeOcrStorePath)
+            || string.IsNullOrWhiteSpace(loaded.Config.NativeOcrKind)
+                ? NativeOcrMirrorOutcome.Empty
+                : NativeOcrDirectoryMirror.Apply(
+                    nativeOcrStorePath, loaded.Config.NativeOcrKind, RowsToMirror(configuredLines));
+        return new ConfigApplication(distributed, mirror);
     }
+
+    private static IEnumerable<(string Label, string Value)> RowsToMirror(IEnumerable<string> lines)
+    {
+        foreach (string line in lines)
+        {
+            int separator = line.LastIndexOf(' ');
+            if (separator <= 0)
+                continue;
+            yield return (line[(separator + 1)..], line[..separator].Trim());
+        }
+    }
+
+    private sealed record ConfigApplication(
+        IReadOnlySet<string> DistributedLines,
+        NativeOcrMirrorOutcome Mirror);
 
     private static IReadOnlyList<DistributionLineIssue> DescribeUndistributedLines(
         string[] outputLines,
@@ -294,7 +325,8 @@ public static class ResultDistributor
         [property: JsonPropertyName("targetFile")] string TargetFile,
         [property: JsonPropertyName("sources")] SourceRule[] Sources,
         [property: JsonPropertyName("targetDirectory")] string? TargetDirectory = null,
-        [property: JsonPropertyName("placement")] Placement? Placement = null);
+        [property: JsonPropertyName("placement")] Placement? Placement = null,
+        [property: JsonPropertyName("native_ocr_kind")] string? NativeOcrKind = null);
 
     private sealed record SourceRule(
         [property: JsonPropertyName("sourceGroup")] string SourceGroup,
