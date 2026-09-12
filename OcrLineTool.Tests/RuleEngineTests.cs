@@ -551,8 +551,8 @@ public sealed class RuleEngineTests
         [
             "03,09,21,25 小马哥",
             "1尾 4尾 妈祖两尾",
-            "土 天机阁五行",
-            "土 普通五行"
+            "土行 天机阁五行",
+            "土行 普通五行"
         ], RuleEngine.FormatOutput(rules, values));
     }
 

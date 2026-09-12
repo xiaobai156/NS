@@ -102,7 +102,7 @@ public sealed class PremiumRuleHardeningTests
         {
             string? value = RuleEngine.ExtractFinalValue(lines, issue, rule);
             Assert.NotNull(value);
-            Assert.Equal(expected + " " + rule.Id, Assert.Single(RuleEngine.FormatOutput([rule], new Dictionary<string, string> { [rule.Id] = value })));
+            Assert.Equal(expected + "行 " + rule.Id, Assert.Single(RuleEngine.FormatOutput([rule], new Dictionary<string, string> { [rule.Id] = value })));
         }
     }
 

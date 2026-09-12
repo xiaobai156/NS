@@ -68,7 +68,7 @@ public sealed class HuangdaxianRuleHardeningTests
         };
         OcrRule[] rules = Rules.Where(rule => values.ContainsKey(rule.Id)).ToArray();
         Assert.Equal(
-            ["2头 68赵高", "1头 香奈风清扬", "木 香奈老大", "4头 战狼蔷薇"],
+            ["2头 68赵高", "1头 香奈风清扬", "木行 香奈老大", "4头 战狼蔷薇"],
             RuleEngine.FormatOutput(rules, values));
     }
 

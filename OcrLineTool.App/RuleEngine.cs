@@ -2184,7 +2184,7 @@ public static class RuleEngine
         }
         if (rule.Type == "缺尾") return Regex.IsMatch(value, "^[0-9]尾$");
         if (rule.Type == "缺头") return Regex.IsMatch(value, "^[0-4]头$");
-        if (rule.Type is "五行" or "单五行") return value.Length == 1 && "金木水火土".Contains(value[0]);
+        if (rule.Type is "五行" or "单五行") return Regex.IsMatch(value, "^[金木水火土]行?$");
         if (rule.Type is "色单双" or "半波") return Regex.IsMatch(value, "^[红蓝绿][单双]$");
         if (rule.Type == "合") return Regex.IsMatch(value, "^(?:0[1-9]|1[0-3])合$");
         if (rule.Type == "段") return Regex.IsMatch(value, "^[0-7]段$");
@@ -2201,8 +2201,10 @@ public static class RuleEngine
         if (rule.Type == "五行")
         {
             string missing = string.Concat("金木水火土".Where(element => !value.Contains(element)));
-            return missing.Length == 1 ? missing : value;
+            return missing.Length == 1 ? missing + "行" : value;
         }
+        if (rule.Type == "单五行")
+            return value.EndsWith('行') ? value : value + "行";
         return value;
     }
 

@@ -257,7 +257,8 @@ public sealed class MacauRuleHardeningTests
         var rule = Rule(id);
         var value = RuleEngine.ExtractFinalValue(["318期", body], 318, rule);
         Assert.NotNull(value);
-        Assert.Equal(expected + " " + id, Assert.Single(RuleEngine.FormatOutput([rule], new Dictionary<string, string> { [id] = value })));
+        string formatted = rule.Type is "五行" or "单五行" ? expected + "行" : expected;
+        Assert.Equal(formatted + " " + id, Assert.Single(RuleEngine.FormatOutput([rule], new Dictionary<string, string> { [id] = value })));
     }
 
     [Fact]
@@ -375,7 +376,7 @@ public sealed class MacauRuleHardeningTests
             Assert.Empty(result.Errors);
             Assert.Equal(output.Order(), result.DistributedLines.Order());
             Assert.Contains("3头 特头必中", await File.ReadAllLinesAsync(Path.Combine(folder, "318期-头.txt")));
-            Assert.Contains("金 大赢家五行", await File.ReadAllLinesAsync(Path.Combine(folder, "318期-五行.txt")));
+            Assert.Contains("金行 大赢家五行", await File.ReadAllLinesAsync(Path.Combine(folder, "318期-五行.txt")));
             Assert.Contains("2尾 大赢家杀尾", await File.ReadAllLinesAsync(Path.Combine(folder, "318期-尾.txt")));
             Assert.All(Directory.EnumerateFiles(folder), file => Assert.StartsWith("318期", Path.GetFileName(file)));
             Assert.All(Directory.EnumerateFiles(folder), file => Assert.StartsWith("原有内容", File.ReadAllText(file)));

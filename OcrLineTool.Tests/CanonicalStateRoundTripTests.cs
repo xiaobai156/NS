@@ -8,7 +8,8 @@ public sealed class CanonicalStateRoundTripTests
 {
     [Theory]
     [InlineData("号码:6", "01 02 03 04 05 06", "01,02,03,04,05,06")]
-    [InlineData("五行", "金木水火", "土")]
+    [InlineData("五行", "金木水火", "土行")]
+    [InlineData("单五行", "水", "水行")]
     [InlineData("尾数组合", "1尾+2尾", "1尾 2尾")]
     public async Task CanonicalBusinessValueSurvivesSaveLoadAndFormatting(
         string type, string canonical, string formatted)

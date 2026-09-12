@@ -60,7 +60,7 @@ public sealed class ResidualLifecycleRegressionTests
 
     [Theory]
     [InlineData("嫣然心水", "青苹果", "01 02 03 04 05 06", "01,02,03,04,05,06 青苹果")]
-    [InlineData("新澳六合彩资料", "天机阁五行", "金木水火", "土 天机阁五行")]
+    [InlineData("新澳六合彩资料", "天机阁五行", "金木水火", "土行 天机阁五行")]
     [InlineData("新澳六合彩资料", "妈祖两尾", "1尾+2尾", "1尾 2尾 妈祖两尾")]
     public async Task CanonicalValuesRoundTripThroughTrustedState(
         string group, string ruleId, string canonicalValue, string expectedOutput)
