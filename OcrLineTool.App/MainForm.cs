@@ -118,6 +118,7 @@ public sealed class MainForm : Form
     private bool isBusy;
     private bool showRecognizeButton;
     private TableLayoutPanel? settingsContent;
+    private TableLayoutPanel? sidebarLayout;
     private bool closeWhenIdle;
     private CancellationTokenSource? activeCancellation;
     private CancellationToken ActiveToken => activeCancellation?.Token ?? CancellationToken.None;
@@ -223,13 +224,20 @@ public sealed class MainForm : Form
 
     private Control BuildSidebar()
     {
+        var sidebarScrollHost = new Panel
+        {
+            Name = "sidebarScrollHost", Dock = DockStyle.Fill, AutoScroll = true,
+            BackColor = WindowBackground, Padding = Padding.Empty, Margin = Padding.Empty
+        };
         var sidebar = new TableLayoutPanel
         {
-            Name = "sidebarLayout", Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
+            Name = "sidebarLayout", Dock = DockStyle.Top, AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink, ColumnCount = 1, RowCount = 2,
             BackColor = WindowBackground, Margin = Padding.Empty, Padding = Padding.Empty
         };
-        sidebar.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        sidebar.RowStyles.Add(new RowStyle(SizeType.Absolute, 208));
+        sidebarLayout = sidebar;
+        sidebar.RowStyles.Add(new RowStyle(SizeType.Absolute, 400));
+        sidebar.RowStyles.Add(new RowStyle(SizeType.Absolute, 290));
 
         Control settings = BuildSettingsSection();
         Control tools = BuildToolsSection();
@@ -237,7 +245,8 @@ public sealed class MainForm : Form
         tools.Margin = new Padding(0, 8, 0, 0);
         sidebar.Controls.Add(settings, 0, 0);
         sidebar.Controls.Add(tools, 0, 1);
-        return sidebar;
+        sidebarScrollHost.Controls.Add(sidebar);
+        return sidebarScrollHost;
     }
 
     private Control BuildSettingsSection()
@@ -250,7 +259,7 @@ public sealed class MainForm : Form
         };
         settingsContent = content;
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        foreach (float height in new[] { 28F, 17F, 34F, 17F, 34F, 17F, 34F, 6F, 38F, 52F, 6F })
+        foreach (float height in new[] { 28F, 17F, 34F, 17F, 34F, 17F, 34F, 6F, 44F, 60F, 6F })
             content.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
         content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
@@ -270,7 +279,7 @@ public sealed class MainForm : Form
         recognizeButton.Margin = Padding.Empty;
         content.Controls.Add(recognizeButton, 0, 8);
         localPrimaryButton.Dock = DockStyle.Fill;
-        localPrimaryButton.Margin = Padding.Empty;
+        localPrimaryButton.Margin = new Padding(0, 0, 0, 8);
         content.Controls.Add(localPrimaryButton, 0, 9);
         folderList.Margin = Padding.Empty;
         content.Controls.Add(folderList, 0, 11);
@@ -300,22 +309,22 @@ public sealed class MainForm : Form
         for (int index = 0; index < toolButtons.Length; index++)
         {
             Button button = toolButtons[index];
-            actions.RowStyles.Add(new RowStyle(SizeType.Absolute, 37));
+            actions.RowStyles.Add(new RowStyle(SizeType.Absolute, button == clearResultsButton ? 70 : 50));
             button.Dock = DockStyle.Fill;
-            button.Margin = new Padding(0, 0, 0, 5);
+            button.Margin = new Padding(0, 0, 0, button == clearResultsButton ? 14 : 10);
             if (button == clearResultsButton)
             {
                 var pair = new TableLayoutPanel
                 {
                     Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
-                    BackColor = CardBackground, Margin = new Padding(0, 0, 0, 5)
+                    BackColor = CardBackground, Margin = new Padding(0, 0, 0, 10)
                 };
                 pair.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
                 pair.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
                 pair.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-                button.Margin = new Padding(0, 0, 3, 0);
+                button.Margin = new Padding(0, 0, 8, 14);
                 missingSummaryButton.Dock = DockStyle.Fill;
-                missingSummaryButton.Margin = new Padding(3, 0, 0, 0);
+                missingSummaryButton.Margin = new Padding(8, 0, 0, 0);
                 pair.Controls.Add(button, 0, 0);
                 pair.Controls.Add(missingSummaryButton, 1, 0);
                 actions.Controls.Add(pair, 0, index);
@@ -323,8 +332,8 @@ public sealed class MainForm : Form
             else
                 actions.Controls.Add(button, 0, index);
         }
-        actions.RowStyles.Add(new RowStyle(SizeType.Absolute, 37));
-        var finalAction = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty, BackColor = CardBackground };
+        actions.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        var finalAction = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 10), BackColor = CardBackground };
         manualDistributeButton.Dock = DockStyle.Fill;
         manualDistributeButton.Margin = Padding.Empty;
         continueButton.Dock = DockStyle.Fill;
@@ -332,9 +341,9 @@ public sealed class MainForm : Form
         finalAction.Controls.Add(manualDistributeButton);
         finalAction.Controls.Add(continueButton);
         actions.Controls.Add(finalAction, 0, toolButtons.Length);
-        actions.RowStyles.Add(new RowStyle(SizeType.Absolute, 37));
+        actions.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
         settingsButton.Dock = DockStyle.Fill;
-        settingsButton.Margin = new Padding(0, 0, 0, 5);
+        settingsButton.Margin = Padding.Empty;
         actions.Controls.Add(settingsButton, 0, toolButtons.Length + 1);
         content.Controls.Add(actions, 0, 1);
         card.Controls.Add(content);
@@ -558,7 +567,7 @@ public sealed class MainForm : Form
         button.AccessibleName = accessibleName;
         button.TabIndex = tabIndex;
         button.AutoSize = false;
-        button.Height = 38;
+        button.Height = 44;
         button.Padding = Padding.Empty;
         button.FlatStyle = FlatStyle.Flat;
         button.UseVisualStyleBackColor = false;
@@ -2928,7 +2937,25 @@ public sealed class MainForm : Form
         showRecognizeButton = visible;
         recognizeButton.Visible = visible;
         if (settingsContent is not null && settingsContent.RowStyles.Count > 8)
-            settingsContent.RowStyles[8].Height = visible ? 38F : 0F;
+            settingsContent.RowStyles[8].Height = visible ? 44F : 0F;
+        if (sidebarLayout is not null && sidebarLayout.RowStyles.Count > 0)
+            RefreshSidebarHeight();
+    }
+
+    protected override void OnResize(EventArgs e)
+    {
+        base.OnResize(e);
+        RefreshSidebarHeight();
+    }
+
+    private void RefreshSidebarHeight()
+    {
+        if (sidebarLayout is null || sidebarLayout.RowStyles.Count == 0)
+            return;
+
+        bool largeScale = DeviceDpi >= 120 || (ClientSize.Width > 1450 && ClientSize.Height > 900);
+        float settingsHeight = largeScale ? 600F : 400F;
+        sidebarLayout.RowStyles[0].Height = settingsHeight + (showRecognizeButton ? 44F : 0F);
     }
 
     private Task WaitForCloudResumeAsync(int current, int total, string path)

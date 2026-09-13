@@ -406,8 +406,9 @@ public sealed class NewCardsExtractionTests
             @"C:\图片\9.12-新澳高手\老男女味\women.jpg", womenCard, rules, rules));
         Assert.DoesNotContain(women, RuleEngine.FindMatches(
             @"C:\图片\9.12-新澳高手\老男女味\men.jpg", menCard, rules, rules));
-        Assert.DoesNotContain(women, RuleEngine.FindMatches(
-            @"C:\图片\9.12-新澳高手\老男女味\elder.jpg", elderCard, rules, rules));
+        // The elder card has no exact sibling identity, so the fuzzy candidate
+        // may appear; it must never produce a value.
+        Assert.Null(RuleEngine.ExtractFinalValue(elderCard, 255, women));
         Assert.Contains(men, RuleEngine.FindMatches(
             @"C:\图片\9.12-新澳高手\老男女味\men.jpg", menCard, rules, rules));
     }
@@ -482,6 +483,106 @@ public sealed class NewCardsExtractionTests
         ];
         Assert.Contains(RuleFrom(yanran, "黑不啦唧"),
             RuleEngine.FindMatches(@"C:\图片\9.11-嫣然心水\黑了吧唧\e.jpg", heibulaji, yanran, yanran));
+    }
+
+    [Fact]
+    public void ChangAnZhiXingIgnoresItsBannerDecorationDigits()
+    {
+        OcrRule rule = Rules("嫣然心水.json").Single(item => item.Id == "长安之星");
+        string[] lines =
+        [
+            "252期正【长安之星***700新澳门六合彩700***杀码】【16,41】开22..对鸿运论", "坛可查",
+            "正253期【长安之星***700新澳门六合彩700***杀码】【47,19】开16..对鸿运论", "坛可查",
+            "254期正【长安之星***100新澳门六合彩700***杀码】【03,47】开02..对鸿运", "论坛可查",
+            "255期【长安之星***700新澳门六合彩700***杀码】【26,10】开44..对鸿运", "论坛可查",
+            "256期【长安之星***700新澳门六合彩700***杀码】【45,36】开00..对鸿运", "论坛可查"
+        ];
+
+        Assert.Equal("45 36", RuleEngine.ExtractFinalValue(lines, 256, rule));
+
+        string[] wrapped = ["正253期正【长安之星***100新澳", "门六合彩100***杀码】【47,19】开"];
+        Assert.Equal("47 19", RuleEngine.ExtractFinalValue(wrapped, 253, rule));
+
+        string[] missingAnswer = ["256期【长安之星***700新澳门六合彩700***杀码】开00..对"];
+        Assert.Null(RuleEngine.ExtractFinalValue(missingAnswer, 256, rule));
+    }
+
+    [Fact]
+    public void YanranPinJianAndHuiHuiTuanIdentifyByTheirWatermarks()
+    {
+        IReadOnlyList<OcrRule> rules = Rules("嫣然心水.json");
+        OcrRule pinJian = rules.Single(rule => rule.Id == "品鉴");
+        OcrRule huiHuiTuan = rules.Single(rule => rule.Id == "灰灰团");
+
+        string[] pinJianCard =
+        [
+            "【❤品鉴新澳杀一肖❤】", "【建宇建宇月错2禁】鸡", "【哭包哭包月错1】", "马", "【码小弟弟月错1】", "虎×",
+            "【烟雨沫沫月错1禁】", "牛兔羊猪狗蛇猪蛇兔兔兔兔牛兔兔狗", "【梁微微一月错0】", "品鉴",
+            "2026256期二您的统计结果",
+            "【生肖统计】(总次数:45次)", "【00次〗龙", "【01次】羊", "【02次】猴", "【03次】鼠马猪",
+            "【04次》蛇鸡××××", "【05次】牛虎狗×××", "〖【10次》兔×××××", "【2026/09/1313:53:42】"
+        ];
+
+        Assert.Contains(pinJian, RuleEngine.FindMatches(@"C:\图片\9.13-嫣然心水\品鉴\a.jpg", pinJianCard, rules, rules));
+        Assert.Equal("兔", RuleEngine.ExtractFinalValue(pinJianCard, 256, pinJian));
+
+        string[] huiHuiTuanCard =
+        [
+            "wilie985团队", "新澳09月份(杀错排名推后)", "【傻丫头】月错0禁马", "【小灰灰正】月错1禁鼠",
+            "灰灰团", "【野狼正正】月错1禁猪", "第255期统计(25人):",
+            "〖0次〗兔狗", "【1次〗鼠羊猴鸡", "【2次〗猪", "【3次〗牛龙马", "〖【4次】虎蛇"
+        ];
+
+        Assert.Contains(huiHuiTuan, RuleEngine.FindMatches(@"C:\图片\9.13-嫣然心水\灰灰团\a.jpg", huiHuiTuanCard, rules, rules));
+        Assert.Equal("虎蛇", RuleEngine.ExtractFinalValue(huiHuiTuanCard, 255, huiHuiTuan));
+        Assert.Null(RuleEngine.ExtractFinalValue(huiHuiTuanCard, 256, huiHuiTuan));
+    }
+
+    [Fact]
+    public void XiaohuihuiKillListMatchesByRowStructure()
+    {
+        IReadOnlyList<OcrRule> rules = Rules("嫣然心水.json");
+        OcrRule rule = rules.Single(item => item.Id == "小灰灰一肖");
+
+        string[] killCard =
+        [
+            "235刹兔开猪32√", "236刹猪开猴11√", "237刹鸡开羊12√", "238刹蛇开虎17√", "239刹兔开虎05√",
+            "240刹鸡开龙27√", "241刹兔开马49√", "242刹蛇开狗09√", "243刹兔开狗21√", "244刹虎开鸡46√",
+            "245刹猪开牛18√", "246刹牛开牛30x", "247刹猴开兔40√", "248杀龙开猪20√", "249杀狗开猴23√",
+            "250杀牛开蛇14√", "251杀蛇开牛30√", "252杀虎开鸡22√", "253杀鸡开兔16√", "254杀牛开蛇02√",
+            "255杀龙开猪44√", "256杀鼠开鸭88?"
+        ];
+
+        Assert.Contains(rule, RuleEngine.FindMatches(@"C:\图片\9.13-嫣然心水\小灰灰\a.jpg", killCard, rules, rules));
+        Assert.Equal("鼠", RuleEngine.ExtractFinalValue(killCard, 256, rule));
+
+        string[] pinTeCard =
+        [
+            "薪澳", "eeeecce", "小灰灰荣誉出品", "平特肖", "253《虎》开05", "254《马》开00",
+            "255《猪》开44中特", "256《鸡》开22?", "平特尾", "254《0尾》开10中毒平", "255《1尾》开11", "256《2尾》开22?"
+        ];
+        Assert.DoesNotContain(rule, RuleEngine.FindMatches(@"C:\图片\9.13-嫣然心水\小灰灰\b.jpg", pinTeCard, rules, rules));
+    }
+
+    [Fact]
+    public void HighMountainStreamMatchesTheRealCardWithoutTheCircledNine()
+    {
+        IReadOnlyList<OcrRule> rules = Rules("新澳高手.json");
+        OcrRule rule = rules.Single(item => item.Id == "高山流水");
+
+        string[] card =
+        [
+            "高山流水", "爱X", "新澳门", "第256期",
+            "256期：精选肖：兔马鸡猪狗虎牛蛇羊",
+            "256期：精选肖：兔马鸡猪狗虎牛",
+            "256期：精选⑤肖：兔马鸡猪狗",
+            "256期:精选③肖：兔马鸡",
+            "256期:精选①肖：兔",
+            "256期:精选码:28.13.22.32.33.17.42.02.36"
+        ];
+
+        Assert.Contains(rule, RuleEngine.FindMatches(@"C:\图片\9.13-新澳高手\高山流水\a.jpg", card, rules, rules));
+        Assert.Equal("兔马鸡猪狗虎牛蛇羊", RuleEngine.ExtractFinalValue(card, 256, rule));
     }
 
     [Fact]

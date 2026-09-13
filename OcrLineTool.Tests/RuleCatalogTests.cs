@@ -48,11 +48,11 @@ public sealed class RuleCatalogTests
         Assert.Contains(rules, rule => rule.Id == "借花献佛" && rule.Type == "统计生肖"
             && rule.Folder == "六扇门" && rule.RequiredKeyword == "借花献佛");
         Assert.Contains(rules, rule => rule.Id == "品鉴" && rule.Type == "统计生肖"
-            && rule.Folder == "品鉴" && rule.RequiredKeyword == "品鉴新澳一肖");
+            && rule.Folder == "品鉴" && string.IsNullOrWhiteSpace(rule.RequiredKeyword));
         Assert.Contains(rules, rule => rule.Id == "小慧慧" && rule.Type == "统计生肖"
             && rule.Folder == "小慧慧" && rule.RequiredKeyword == "小慧慧新澳杀肖团队");
         Assert.Contains(rules, rule => rule.Id == "灰灰团" && rule.Type == "统计生肖"
-            && rule.Folder == "灰灰团" && rule.RequiredKeyword == "杀错排名垫后");
+            && rule.Folder == "灰灰团" && string.IsNullOrWhiteSpace(rule.RequiredKeyword));
         Assert.Contains(rules, rule => rule.Id == "火狼女两肖" && rule.Type == "生肖组合"
             && rule.Folder == "火狼女" && rule.Section == "禁" && rule.RequiredKeyword == "禁");
         Assert.Contains(rules, rule => rule.Id == "火狼女两尾" && rule.Type == "尾数组合"

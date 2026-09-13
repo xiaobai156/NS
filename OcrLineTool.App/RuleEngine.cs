@@ -23,7 +23,8 @@ public sealed record OcrRule(
     bool TenZodiacCombo = false,
     bool PrimaryOnly = false,
     bool HeaderIdentity = false,
-    bool MatchByRowStructure = false)
+    bool MatchByRowStructure = false,
+    bool DedupeNumbers = false)
 {
     public string Id => Label ?? Keyword;
     public string OutputLabel => Label ?? Keyword;
@@ -57,7 +58,7 @@ public static class RuleEngine
         @"^\s*[【\[（({]?\s*[1-9]\s*(?<issue>\d{3})(?![\d\s])",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex YearIssueRegex = new(@"^\s*\d{4}\s*[-—/]\s*(?<issue>\d{3,6})(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    private const string Zodiac = "马蛇龙兔虎牛鼠猪狗鸡猴羊";
+    internal const string Zodiac = "马蛇龙兔虎牛鼠猪狗鸡猴羊";
     private const string ConflictMarker = "OCR-CONFLICT";
     // Only reviewed layouts may place part of one physical number row before
     // its issue cell. Generic rules must never borrow heading/previous data.
@@ -95,6 +96,10 @@ public static class RuleEngine
                 .Where(value => value.Length > 0 && text.Contains(value, StringComparison.Ordinal))
                 .ToHashSet(StringComparer.Ordinal)
             : [];
+        HashSet<string> exactIdentityIds = hasCompleteIdentityCatalog
+            ? identityRules.Where(item => HasExactIdentity(text, item))
+                .Select(item => item.Id).ToHashSet(StringComparer.Ordinal)
+            : [];
         return requestedRules.Where(rule =>
         {
             string expectedFolder = rule.Folder ?? rule.Keyword;
@@ -103,6 +108,14 @@ public static class RuleEngine
                     item.Equals(expectedFolder, StringComparison.OrdinalIgnoreCase));
             if (!folderMatches)
                 return string.IsNullOrWhiteSpace(rule.Folder) && MatchesText(text, rule);
+            // A rule that only matches fuzzily must not steal a sibling
+            // material's card when that sibling matches the image exactly.
+            if (hasCompleteIdentityCatalog
+                && !exactIdentityIds.Contains(rule.Id)
+                && HasExactSiblingIdentity(rule, expectedFolder, identityRules, exactIdentityIds))
+            {
+                return false;
+            }
             // Title-less cards (the 斩杀系列 strips carry only data rows): the
             // folder plus the rule's own row shape is the identity. Only an
             // explicit opt-in rule may match this way, and never when a sibling
@@ -320,15 +333,40 @@ public static class RuleEngine
             && confusedText.Contains(confusedKeyword, StringComparison.Ordinal);
     }
 
-    private static bool RequiredKeywordMatches(string text, string requiredKeyword, OcrRule rule)
+    private static bool RequiredKeywordMatches(string text, string requiredKeyword, OcrRule rule) =>
+        // One-edit OCR tolerance stays available to every required keyword. A
+        // rule that only matches fuzzily is kept away from a sibling's card by
+        // the exact-identity guard in FindMatches.
+        ContainsKeyword(text, Normalize(requiredKeyword));
+
+    private static bool HasExactIdentity(string text, OcrRule rule)
     {
-        string normalized = Normalize(requiredKeyword);
-        // A required keyword that merely repeats the rule's own keyword adds no
-        // independent identity, so the fuzzy primary-keyword check governs it.
-        // A distinct required identity must appear exactly (look-alikes still
-        // normalized) so sibling materials cannot cross-match.
-        bool repeatsKeyword = normalized.Equals(Normalize(rule.Keyword), StringComparison.Ordinal);
-        return repeatsKeyword ? ContainsKeyword(text, normalized) : ContainsKeywordExact(text, normalized);
+        bool identityMatched = ContainsKeywordExact(text, Normalize(rule.Keyword));
+        if (!identityMatched
+            && IsSummaryText(text)
+            && !string.IsNullOrWhiteSpace(rule.Label))
+        {
+            identityMatched = ContainsKeywordExact(text, Normalize(rule.Label));
+        }
+
+        return identityMatched
+            && (string.IsNullOrWhiteSpace(rule.RequiredKeyword)
+                || ContainsKeywordExact(text, Normalize(rule.RequiredKeyword)))
+            && (rule.RequiredKeywordsAny is not { Count: > 0 }
+                || rule.RequiredKeywordsAny.Any(value => ContainsKeywordExact(text, Normalize(value))));
+    }
+
+    private static bool HasExactSiblingIdentity(
+        OcrRule rule, string expectedFolder, OcrRule[] identityRules, HashSet<string> exactIdentityIds)
+    {
+        foreach (OcrRule other in identityRules)
+        {
+            if (other.Id.Equals(rule.Id, StringComparison.Ordinal) || !exactIdentityIds.Contains(other.Id))
+                continue;
+            if ((other.Folder ?? other.Keyword).Equals(expectedFolder, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     // Title-less strip cards are identified by the folder plus the shape of
@@ -341,14 +379,19 @@ public static class RuleEngine
         foreach (string line in lines)
         {
             string simplified = SimplifyOcrText(line).Trim();
-            Match issue = Regex.Match(simplified, @"^\s*[\[【(（]?\s*(?<issue>\d{2,4})\s*期");
+            // Kill-list strips print a bare issue ("235刹兔开猪32√"); reviewed
+            // spaced tables keep the 期 marker.
+            Match issue = Regex.Match(simplified, @"^\s*[\[【(（]?\s*(?<issue>\d{2,4})\s*期?");
             if (!issue.Success)
                 continue;
             rowCount++;
             string value = simplified[issue.Length..].Trim();
             value = Regex.Replace(value, @"[√×✓✗✔✘?？!！]+$", "");
-            value = Regex.Replace(value, @"^[：:（(【\[]+", "");
-            value = Regex.Replace(value, @"[）)】\]]+$", "");
+            // The opening result cell ("开猪32√") is not part of the field.
+            value = Regex.Split(value, @"[开開准準]")[0];
+            value = Regex.Replace(value, @"^(?:[杀殺刹禁]+)", "");
+            value = Regex.Replace(value, @"^[：:（(【\[《〈]+", "");
+            value = Regex.Replace(value, @"[）)】\]》〉]+$", "");
             value = value.Replace(" ", string.Empty);
             if (MatchesValueShape(value, rule.Type))
                 shapeCount++;
@@ -1862,7 +1905,8 @@ public static class RuleEngine
             // are validated by the shared checker: each container must be
             // complete on its own, incomplete containers are counter-evidence
             // and two different complete answers are a conflict.
-            if (rule.Id is not ("藏宝十二码" or "雷锋" or "杀料五码")
+            if (!rule.DedupeNumbers
+                && rule.Id is not ("藏宝十二码" or "雷锋" or "杀料五码")
                 && rule.Folder is not ("68" or "香奈儿" or "战狼" or "红人馆"
                     or "各种杀" or "公式杀料" or "一套组合拳" or "骁腾系列")
                 && Regex.IsMatch(rawContainerBlock, @"[【\[（(]"))
@@ -1881,6 +1925,15 @@ public static class RuleEngine
                     return null;
                 for (int offset = 0; offset < run.Length; offset += 2)
                     numbers.Add(int.Parse(run.Substring(offset, 2)));
+            }
+            if (rule.DedupeNumbers)
+            {
+                // Opt-in exception: a printed duplicate is de-duplicated in order
+                // instead of failing the whole row.
+                int[] unique = numbers.Distinct().ToArray();
+                return unique.Length >= 1 && unique.Length <= count
+                    && unique.All(number => number is >= 1 and <= 49)
+                        ? string.Join(' ', unique.Select(number => number.ToString("00"))) : null;
             }
             return numbers.Count == count && numbers.Distinct().Count() == count
                 && numbers.All(number => number is >= 1 and <= 49)
@@ -2143,6 +2196,11 @@ public static class RuleEngine
             && int.TryParse(rule.Type.AsSpan("号码:".Length), out int count))
         {
             string[] numbers = value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (rule.DedupeNumbers)
+                return numbers.Length >= 1 && numbers.Length <= count
+                    && numbers.Distinct(StringComparer.Ordinal).Count() == numbers.Length
+                    && numbers.All(number => number.Length == 2 && int.TryParse(number, out int parsed)
+                        && parsed is >= 1 and <= 49);
             return numbers.Length == count && numbers.Distinct(StringComparer.Ordinal).Count() == count
                 && numbers.All(number => number.Length == 2 && int.TryParse(number, out int parsed)
                     && parsed is >= 1 and <= 49);
@@ -3315,13 +3373,38 @@ public static class RuleEngine
         if (ownEnd < 0)
             return (false, text);
 
-        int rawNext = ownEnd - 1 >= 0 && ownEnd - 1 < map.Length
-            ? map[ownEnd - 1] + 1
-            : text.Length;
-        if (rawNext > firstDigit)
-            rawNext = firstDigit;
-        if (!IsOwnFieldLeadIn(text[rawNext..firstDigit]))
-            return (true, string.Empty);
+        int ownEndRaw = ownEnd - 1 >= 0 && ownEnd - 1 < map.Length
+            ? map[ownEnd - 1]
+            : -1;
+        int rawNext = ownEndRaw >= 0 ? ownEndRaw + 1 : text.Length;
+        // A banner may wrap the author identity in a decorated bracket
+        // (“【长安之星***700新澳门六合彩700***杀码】”). That bracket is not data:
+        // skip it whole so its decoration digits cannot enter the count.
+        bool bannerSkipped = false;
+        if (ownEndRaw >= 0)
+        {
+            foreach (Match bracket in Regex.Matches(text, @"[【\[（(][^】\]）)]*[】\]）)]"))
+            {
+                if (ownEndRaw < bracket.Index || ownEndRaw >= bracket.Index + bracket.Length)
+                    continue;
+                string payload = bracket.Value[1..^1];
+                if (Regex.IsMatch(payload, @"^[0-9 ,，.。\s]+$"))
+                    continue;
+                string tail = text[(bracket.Index + bracket.Length)..];
+                if (!Regex.IsMatch(tail, @"[【\[（(]\s*[0-9 ,，.。]+[】\]）)]"))
+                    continue;
+                rawNext = bracket.Index + bracket.Length;
+                bannerSkipped = true;
+                break;
+            }
+        }
+        if (!bannerSkipped)
+        {
+            if (rawNext > firstDigit)
+                rawNext = firstDigit;
+            if (!IsOwnFieldLeadIn(text[rawNext..firstDigit]))
+                return (true, string.Empty);
+        }
 
         string field = text[rawNext..];
         int marker = EarliestForeignMarker(field);

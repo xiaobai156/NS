@@ -18,7 +18,7 @@
     { "keyword": "一剪梅", "type": "尾", "label": "香奈尾", "required_keyword": "一剪梅", "folder": "香奈儿" },
     { "keyword": "猪八盖", "type": "生肖组合", "label": "战狼八戒", "required_keyword": "绝杀二肖", "folder": "战狼" },
     { "keyword": "小馒头", "type": "生肖", "label": "战狼小馒头", "required_keyword": "小馒头", "folder": "战狼" },
-    { "keyword": "九点半", "type": "号码:7", "label": "战狼九点", "required_keyword": "九点半", "folder": "战狼" },
+    { "keyword": "九点半", "type": "号码:7", "label": "战狼九点", "required_keyword": "九点半", "folder": "战狼", "dedupe_numbers": true },
     { "keyword": "天空之城", "type": "九肖", "label": "战狼天空", "required_keyword": "天空之城", "folder": "战狼" },
     { "keyword": "蔷薇", "type": "缺头", "label": "战狼蔷薇", "required_keyword": "蔷薇", "folder": "战狼" },
     { "keyword": "老王", "type": "半头", "label": "战狼老王", "required_keyword": "老王", "folder": "战狼" },

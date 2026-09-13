@@ -122,8 +122,8 @@ public sealed class MainFormTests
         PerformLayoutRecursively(form);
         AssertControlFitsItsParent(button);
         AssertControlFitsItsParent(clear);
-        Assert.Same(clear.Parent, button.Parent);
-        Assert.False(button.Bounds.IntersectsWith(clear.Bounds));
+        Assert.False(button.RectangleToScreen(button.ClientRectangle)
+            .IntersectsWith(clear.RectangleToScreen(clear.ClientRectangle)));
         Assert.True(button.Width >= 90 * scale);
     }
 
@@ -507,15 +507,87 @@ public sealed class MainFormTests
     }
 
     [Fact]
-    public void SizesTheToolsCardToItsContentInsteadOfStretchingIt()
+    public void SizesTheToolsCardAndKeepsTheSidebarScrollable()
     {
         using var form = new MainForm();
         var sidebar = Assert.Single(
             Descendants(form).OfType<TableLayoutPanel>(),
             candidate => candidate.Name == "sidebarLayout");
 
-        Assert.Equal(SizeType.Percent, sidebar.RowStyles[0].SizeType);
+        Assert.Equal(SizeType.Absolute, sidebar.RowStyles[0].SizeType);
         Assert.Equal(SizeType.Absolute, sidebar.RowStyles[1].SizeType);
+        var host = Assert.Single(Descendants(form), control => control.Name == "sidebarScrollHost");
+        Assert.True(host is Panel { AutoScroll: true });
+    }
+
+    [Theory]
+    [InlineData(1400, 850, 1F, false)]
+    [InlineData(1100, 700, 1F, true)]
+    [InlineData(1100, 700, 1.354167F, true)]
+    [InlineData(1100, 700, 1.5F, false)]
+    public void GivesButtonsComfortableClickTargetsAndGaps(int width, int height, float scale, bool showCloud)
+    {
+        using var form = CreateUiTestForm(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), _ => { });
+        form.ShowInTaskbar = false;
+        form.Opacity = 0;
+        form.ApplyShowRecognizeButton(showCloud);
+        form.Scale(new SizeF(scale, scale));
+        form.Size = new Size((int)Math.Ceiling(width * scale), (int)Math.Ceiling(height * scale));
+        form.CreateControl();
+        form.Show();
+        PerformLayoutRecursively(form);
+        // Exercise the settings toggle after DPI scaling, too.
+        form.ApplyShowRecognizeButton(!showCloud);
+        form.ApplyShowRecognizeButton(showCloud);
+        PerformLayoutRecursively(form);
+
+        Button[] buttons = Descendants(form).OfType<Button>().Where(button => button.Visible).ToArray();
+        foreach (Button button in buttons)
+        {
+            Assert.True(button.Height >= 40, $"{button.Text} height={button.Height}");
+            AssertControlFitsItsParent(button);
+        }
+        Button[] toolButtons = Descendants(form).OfType<Button>()
+            .Where(button => button.Visible && IsDescendant(Assert.Single(Descendants(form), control => control.Name == "toolsSection"), button))
+            .ToArray();
+        for (int first = 0; first < toolButtons.Length; first++)
+        for (int second = first + 1; second < toolButtons.Length; second++)
+        {
+            Rectangle a = toolButtons[first].RectangleToScreen(toolButtons[first].ClientRectangle);
+            Rectangle b = toolButtons[second].RectangleToScreen(toolButtons[second].ClientRectangle);
+            int gap = (int)Math.Floor(10 * scale);
+            Assert.True(a.Right + gap <= b.Left || b.Right + gap <= a.Left ||
+                a.Bottom + gap <= b.Top || b.Bottom + gap <= a.Top,
+                $"{toolButtons[first].Text} {a} and {toolButtons[second].Text} {b} are too close.");
+        }
+
+        Button clear = Assert.Single(buttons, button => button.Text == "清除");
+        Control tools = Assert.Single(Descendants(form), control => control.Name == "toolsSection");
+        Rectangle clearBounds = clear.RectangleToScreen(clear.ClientRectangle);
+        foreach (Button other in Descendants(tools).OfType<Button>()
+            .Where(button => button.Visible && button != clear &&
+                (button.Text is "手动复抓缺失" or "手动分流" or "设置")))
+            Assert.True(other.RectangleToScreen(other.ClientRectangle).Top - clearBounds.Bottom >= (int)Math.Floor(16 * scale));
+
+        var folders = Assert.Single(Descendants(form).OfType<ListBox>());
+        AssertControlFitsItsParent(folders);
+        var sidebarScroll = Assert.IsType<Panel>(Assert.Single(Descendants(form), control => control.Name == "sidebarScrollHost"));
+        Assert.True(sidebarScroll.AutoScroll);
+        sidebarScroll.ScrollControlIntoView(clear);
+        Assert.True(sidebarScroll.RectangleToScreen(sidebarScroll.ClientRectangle).Contains(clear.RectangleToScreen(clear.ClientRectangle)));
+        sidebarScroll.ScrollControlIntoView(folders);
+        Assert.True(sidebarScroll.RectangleToScreen(sidebarScroll.ClientRectangle).Contains(folders.RectangleToScreen(folders.ClientRectangle)));
+
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var resume = (Button)typeof(MainForm).GetField("continueButton", flags)!.GetValue(form)!;
+        var manual = (Button)typeof(MainForm).GetField("manualDistributeButton", flags)!.GetValue(form)!;
+        resume.Visible = true;
+        resume.BringToFront();
+        PerformLayoutRecursively(form);
+        Assert.Equal(manual.RectangleToScreen(manual.ClientRectangle), resume.RectangleToScreen(resume.ClientRectangle));
+        AssertControlFitsItsParent(resume);
+        resume.Visible = false;
+
     }
 
     [Theory]

@@ -114,7 +114,7 @@ public static class ResultDistributor
                 RuleCatalog.PathForFolder(AppContext.BaseDirectory, selectedDirectory))
             .Where(item => labels.Contains(item.OutputLabel))
             .ToDictionary(item => item.OutputLabel, StringComparer.Ordinal);
-        return new LoadedConfig(config, rule, labels, rule.NumberCounts, rulesByLabel);
+        return new LoadedConfig(config, rule, labels, rule.NumberCounts, rule.ZodiacCounts, rulesByLabel);
     }
 
     private static async Task<ConfigApplication> ApplyConfigAsync(
@@ -128,7 +128,7 @@ public static class ResultDistributor
             .Select(line => line.EndsWith("（已分流）", StringComparison.Ordinal) ? line[..^5] : line)
             .ToArray();
         string[] configuredLines = normalizedLines
-            .Where(line => IsConfiguredLine(line, loaded.Labels, loaded.NumberCounts, loaded.RulesByLabel))
+            .Where(line => IsConfiguredLine(line, loaded.Labels, loaded.NumberCounts, loaded.ZodiacCounts, loaded.RulesByLabel))
             .ToArray();
         HashSet<string> revokedLabels = normalizedLines
             .Where(line => line.StartsWith("缺失（同一期结果冲突", StringComparison.Ordinal))
@@ -211,7 +211,7 @@ public static class ResultDistributor
                 if (!config.Labels.Contains(label))
                     continue;
                 configured = true;
-                if (IsConfiguredLine(line, config.Labels, config.NumberCounts, config.RulesByLabel))
+                if (IsConfiguredLine(line, config.Labels, config.NumberCounts, config.ZodiacCounts, config.RulesByLabel))
                     accepted = true;
             }
 
@@ -281,6 +281,7 @@ public static class ResultDistributor
         string line,
         HashSet<string> labels,
         IReadOnlyDictionary<string, int>? numberCounts,
+        IReadOnlyDictionary<string, int>? zodiacCounts,
         IReadOnlyDictionary<string, OcrRule> rulesByLabel)
     {
         int separator = line.LastIndexOf(' ');
@@ -294,6 +295,12 @@ public static class ResultDistributor
 
         if (numberCounts?.TryGetValue(label, out int expectedCount) == true)
             return IsSafeNumberList(value, expectedCount);
+        // Dynamic zodiac routing: the same label may be listed by several
+        // configs, each accepting exactly its own zodiac count.
+        if (zodiacCounts?.TryGetValue(label, out int expectedZodiacs) == true)
+            return value.Length > 0
+                && value.All(RuleEngine.Zodiac.Contains)
+                && value.Distinct().Count() == expectedZodiacs;
         if (rulesByLabel.TryGetValue(label, out OcrRule? ocrRule))
             return RuleEngine.IsFormattedOutputValueValid(ocrRule, value);
 
@@ -319,6 +326,7 @@ public static class ResultDistributor
         SourceRule Source,
         HashSet<string> Labels,
         IReadOnlyDictionary<string, int>? NumberCounts,
+        IReadOnlyDictionary<string, int>? ZodiacCounts,
         IReadOnlyDictionary<string, OcrRule> RulesByLabel);
 
     private sealed record DistributionConfig(
@@ -331,7 +339,8 @@ public static class ResultDistributor
     private sealed record SourceRule(
         [property: JsonPropertyName("sourceGroup")] string SourceGroup,
         [property: JsonPropertyName("labels")] string[] Labels,
-        [property: JsonPropertyName("numberCounts")] Dictionary<string, int>? NumberCounts = null);
+        [property: JsonPropertyName("numberCounts")] Dictionary<string, int>? NumberCounts = null,
+        [property: JsonPropertyName("zodiacCounts")] Dictionary<string, int>? ZodiacCounts = null);
 
     private sealed record Placement(
         [property: JsonPropertyName("mode")] string Mode,

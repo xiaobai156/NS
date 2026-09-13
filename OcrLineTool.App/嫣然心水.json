@@ -368,7 +368,9 @@
       "label": "小灰灰一肖",
       "required_keyword": "荣誉出品",
       "required_keywords_any": ["杀", "刹"],
-      "folder": "小灰灰"
+      "folder": "小灰灰",
+      "match_by_row_structure": true,
+      "allowValueWithoutKeyword": true
     },
     {
       "keyword": "快乐的骚货",
@@ -646,7 +648,6 @@
       "keyword": "品鉴",
       "type": "统计生肖",
       "label": "品鉴",
-      "required_keyword": "品鉴新澳一肖",
       "folder": "品鉴"
     },
     {
@@ -660,7 +661,6 @@
       "keyword": "灰灰团",
       "type": "统计生肖",
       "label": "灰灰团",
-      "required_keyword": "杀错排名垫后",
       "folder": "灰灰团"
     },
     {

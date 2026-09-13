@@ -57,6 +57,29 @@ public sealed class HuangdaxianRuleHardeningTests
     }
 
     [Fact]
+    public void ZhanLangJiuDianDeduplicatesPrintedDuplicates()
+    {
+        OcrRule rule = Assert.Single(Rules, item => item.Id == "战狼九点");
+        string[] lines =
+        [
+            "战狼团队原创九點半", "新澳", "⑨點半杀码",
+            "249期:『09111423 28 3843』开23",
+            "250期:『11131617203348』开14√",
+            "251期：『05062325364549』开30√",
+            "252期：010504 07273349』开22√",
+            "253期：『04102026 273048』开16√",
+            "254期：05121718363741』开02√",
+            "255期：『0506101526 3349』开44√",
+            "256期:『03 16 16 28 3143 44』开✓"
+        ];
+
+        Assert.Equal("03 16 28 31 43 44", RuleEngine.ExtractFinalValue(lines, 256, rule));
+        Assert.True(RuleEngine.IsFormattedOutputValueValid(rule, "03,16,28,31,43,44"));
+        Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "03,16,16,28,31,43,44"));
+        Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "03,16,28,31,43,44,45,46"));
+    }
+
+    [Fact]
     public void DerivedValuesAreFormattedAsTheUniqueMissingItem()
     {
         var values = new Dictionary<string, string>

@@ -40,9 +40,9 @@ public sealed class ResultDistributorTests
             [
                 "傻丫头", "东南仔", "梁微微", "烟草味", "辣椒炒肉肖肖", "钦差大臣公式一", "钦差大臣公式二", "苏柒若",
                 "小灰灰一肖", "阿尔法", "柳叶刀", "华林肖", "小雨婷", "简单爱", "月来月好", "欧阳肖", "陈思思",
-                "独傲洒脱杀肖肖", "阿莲杀肖肖", "借花献佛"
+                "独傲洒脱杀肖肖", "阿莲杀肖肖", "借花献佛", "品鉴", "小慧慧", "灰灰团"
             ],
-            ["二肖分发规则.json"] = ["沁园春", "君军两肖", "恩平公式", "小黄人两肖", "傻丫头二肖", "独傲洒脱杀二肖", "火狼女两肖"],
+            ["二肖分发规则.json"] = ["沁园春", "君军两肖", "恩平公式", "小黄人两肖", "傻丫头二肖", "独傲洒脱杀二肖", "火狼女两肖", "品鉴", "小慧慧", "灰灰团"],
             ["头分发规则.json"] = ["齐天大圣", "九王爷", "辣椒炒肉头", "小黄人头", "雁塔题名杀头", "永卟弃杀头", "恩平杀头"],
             ["半头分发规则.json"] = ["白少华半头"],
             ["尾分发规则.json"] = ["凌志", "紫燕儿尾", "大小姐", "缘来如此尾", "君军两尾", "辣椒炒肉尾", "小黄人两尾", "华林尾", "恩平杀一尾", "杰少杀一尾", "杰少禁一尾", "阿莲杀尾尾", "火狼女两尾"],
@@ -882,6 +882,57 @@ public sealed class ResultDistributorTests
         Assert.Equal(["红蜻蜓", "骁腾"], ReadSourceLabels("生肖分发规则.json", "蜻蜓一套骁腾"));
         Assert.Equal(["神奇宇宙"], ReadSourceLabels("半波分发规则.json", "蜻蜓一套骁腾"));
         Assert.Equal(["墨羽", "骁腾杀肖"], ReadSourceLabels("肖分发规则.json", "蜻蜓一套骁腾"));
+    }
+
+    [Fact]
+    public async Task ZodiacCountRoutingSendsOneZodiacToNewAndTwoToPair()
+    {
+        string folder = CreateTempFolder();
+        try
+        {
+            string newTarget = Path.Combine(folder, "243期-肖-新增.txt");
+            string pairTarget = Path.Combine(folder, "243期-二肖.txt");
+            await File.WriteAllTextAsync(newTarget, "原有内容\r\n");
+            await File.WriteAllTextAsync(pairTarget, "原有内容\r\n");
+            await File.WriteAllTextAsync(Path.Combine(folder, "肖新增分发规则.json"), JsonSerializer.Serialize(new
+            {
+                targetFile = "{issue}期-肖-新增.txt",
+                sources = new[]
+                {
+                    new
+                    {
+                        sourceGroup = "嫣然心水",
+                        labels = new[] { "品鉴", "灰灰团" },
+                        zodiacCounts = new Dictionary<string, int> { ["品鉴"] = 1, ["灰灰团"] = 1 }
+                    }
+                }
+            }));
+            await File.WriteAllTextAsync(Path.Combine(folder, "二肖分发规则.json"), JsonSerializer.Serialize(new
+            {
+                targetFile = "{issue}期-二肖.txt",
+                sources = new[]
+                {
+                    new
+                    {
+                        sourceGroup = "嫣然心水",
+                        labels = new[] { "品鉴", "灰灰团" },
+                        zodiacCounts = new Dictionary<string, int> { ["品鉴"] = 2, ["灰灰团"] = 2 }
+                    }
+                }
+            }));
+
+            DistributionResult result = await ResultDistributor.DistributeAllAsync(
+                @"C:\图片\嫣然心水", 243,
+                ["兔 品鉴", "虎蛇 品鉴", "虎蛇 灰灰团", "鼠马猪 灰灰团"], folder, folder);
+
+            Assert.Equal(["虎蛇 灰灰团", "虎蛇 品鉴", "兔 品鉴"], result.DistributedLines.Order());
+            Assert.Equal(["原有内容", "兔 品鉴"], await File.ReadAllLinesAsync(newTarget));
+            Assert.Equal(["原有内容", "虎蛇 品鉴", "虎蛇 灰灰团"], await File.ReadAllLinesAsync(pairTarget));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
     }
 
     [Fact]
