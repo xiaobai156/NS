@@ -1189,6 +1189,10 @@ public sealed class MainForm : Form
                     : RuleEngine.DescribeExtractionFailure(failedLines, issue, rule);
             }
 
+            await RecoverSummaryRowValuesAsync(
+                rules, values, evidenceLedger, missingReasons,
+                candidates.Concat(cloudCandidates).ToArray(), ActiveToken);
+
             ActiveToken.ThrowIfCancellationRequested();
             using IDisposable publishGuard = RecognitionStateStore.LockValidEvidenceForPublish(
                 rules, values, evidenceLedger, missingReasons);
@@ -2222,6 +2226,56 @@ public sealed class MainForm : Form
             if (evidence.Items.Any(item => !string.IsNullOrWhiteSpace(item.Text)))
                 recognizedRuleIds.UnionWith(needed.Select(rule => rule.Id));
             AddExtractedEvidenceValues(evidence, needed, issue, values, ledger);
+        }
+    }
+
+    // Shared summary sheets can drop a single author cell while other authors
+    // stay readable. Recover the missing row from a strip cropped around that
+    // author's own line; the strip never contains a neighbouring row's value.
+    private async Task RecoverSummaryRowValuesAsync(
+        IReadOnlyList<OcrRule> rules,
+        ResultValues values,
+        ResultEvidenceLedger evidenceLedger,
+        IDictionary<string, string> missingReasons,
+        IReadOnlyList<RecognitionCandidate> candidates,
+        CancellationToken cancellationToken)
+    {
+        if (selectedImageDirectory is null)
+            return;
+        OcrRule[] recoverable = rules
+            .Where(rule => !values.ContainsKey(rule.Id)
+                && rule.Type == "生肖"
+                && rule.AllowIssueLessSummary)
+            .ToArray();
+        if (recoverable.Length == 0)
+            return;
+
+        var client = new PaddleLocalOcrClient();
+        double titleRatio = PaddleLocalOcrClient.TitleRatioFor(selectedImageDirectory);
+        int? detectionMaxSide = PaddleLocalOcrClient.DetectionMaxSideFor(selectedImageDirectory);
+        foreach (OcrRule rule in recoverable)
+        {
+            RecognitionCandidate? candidate = candidates.FirstOrDefault(
+                item => item.Rules.Any(candidateRule => candidateRule.Id == rule.Id));
+            if (candidate is null || !File.Exists(candidate.SourcePath))
+                continue;
+            try
+            {
+                SummaryRowRecoveryResult? recovered = await SummaryRowRecovery.TryRecoverAsync(
+                    client, candidate.SourcePath, rule, rules, titleRatio, detectionMaxSide, cancellationToken);
+                if (recovered is null)
+                    continue;
+                OcrEvidence evidence = OcrEvidence.FromLines(
+                    candidate.SourcePath, recovered.StripLines, "summary-row-strip");
+                evidenceLedger.Observe(values, rule, recovered.Value, evidence);
+                missingReasons.Remove(rule.Id);
+            }
+            catch (Exception exception) when (exception is OcrException
+                or IOException
+                or UnauthorizedAccessException)
+            {
+                // Recovery is best effort: an unreadable strip keeps the value missing.
+            }
         }
     }
 

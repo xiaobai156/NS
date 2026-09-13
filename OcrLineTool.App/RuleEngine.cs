@@ -913,6 +913,89 @@ public static class RuleEngine
         return rows.ToArray();
     }
 
+    // Row-strip recovery for shared summary sheets: the strip was cropped from
+    // the original image around exactly one author row, so it must contain a
+    // single material identity (this rule's own) and a single zodiac behind
+    // this row's own 禁 mark. Anything else stays missing.
+    public static string? ExtractSummaryRowZodiacFromStrip(
+        IEnumerable<string> stripLines, OcrRule rule, IEnumerable<OcrRule> catalog)
+    {
+        string[] lines = stripLines
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .Select(Normalize)
+            .ToArray();
+        string own = Normalize(rule.Keyword);
+        string label = string.IsNullOrWhiteSpace(rule.Label) ? string.Empty : Normalize(rule.Label);
+        OcrRule[] others = catalog
+            .Where(item => !item.Id.Equals(rule.Id, StringComparison.Ordinal)
+                && !string.IsNullOrWhiteSpace(item.Keyword))
+            .ToArray();
+
+        string[] aliases = new[] { own, label }
+            .Where(alias => alias.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        string joined = string.Join('\n', lines);
+        int ownOccurrences = aliases.Length == 0
+            ? 0
+            : aliases.Max(alias => CountOccurrences(joined, alias));
+        if (ownOccurrences != 1)
+            return null;
+        foreach (string line in lines)
+        {
+            bool isOwn = aliases.Any(alias => line.Contains(alias, StringComparison.Ordinal));
+            if (isOwn)
+                continue;
+            if (others.Any(other => line.Contains(Normalize(other.Keyword), StringComparison.Ordinal)))
+                return null;
+        }
+        // Exactly one line may carry a zodiac at all: the strip is one author
+        // row, so a second zodiac line means a neighbour leaked into the crop.
+        if (lines.Count(line => line.Any(Zodiac.Contains)) != 1)
+            return null;
+
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        for (int index = 0; index < lines.Length; index++)
+        {
+            string line = lines[index];
+            int aliasIndex = own.Length > 0 ? line.IndexOf(own, StringComparison.Ordinal) : -1;
+            if (aliasIndex < 0 && label.Length > 0)
+                aliasIndex = line.IndexOf(label, StringComparison.Ordinal);
+            if (aliasIndex >= 0)
+            {
+                int forbidden = line.IndexOf('禁', aliasIndex);
+                if (forbidden >= 0)
+                {
+                    string? value = ExtractSingleZodiac(line[(forbidden + 1)..]);
+                    if (value is not null)
+                        observed.Add(value);
+                }
+
+                if (index + 2 < lines.Length
+                    && Regex.IsMatch(lines[index + 1], "^禁+$"))
+                {
+                    string? value = ExtractSingleZodiac(lines[index + 2]);
+                    if (value is not null)
+                        observed.Add(value);
+                }
+            }
+        }
+
+        return observed.Count == 1 ? observed.Single() : null;
+    }
+
+    private static int CountOccurrences(string text, string value)
+    {
+        int count = 0;
+        int index = 0;
+        while (value.Length > 0 && (index = text.IndexOf(value, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += value.Length;
+        }
+        return count;
+    }
+
     private static string? ExtractZodiacSummaryValue(string[] lines, int issue, OcrRule rule)
     {
         if (rule.Type != "生肖"

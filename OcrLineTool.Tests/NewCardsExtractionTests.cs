@@ -535,6 +535,7 @@ public sealed class NewCardsExtractionTests
 
         Assert.Contains(huiHuiTuan, RuleEngine.FindMatches(@"C:\图片\9.13-嫣然心水\灰灰团\a.jpg", huiHuiTuanCard, rules, rules));
         Assert.Equal("虎蛇", RuleEngine.ExtractFinalValue(huiHuiTuanCard, 255, huiHuiTuan));
+        // The sheet is still a 255-period block: a 256-period run must stay missing.
         Assert.Null(RuleEngine.ExtractFinalValue(huiHuiTuanCard, 256, huiHuiTuan));
     }
 
