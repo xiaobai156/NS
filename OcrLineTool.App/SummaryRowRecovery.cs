@@ -75,13 +75,37 @@ internal static class SummaryRowRecovery
     // Recovers a single period row of a dedicated card: the full-image OCR
     // missed the target row's value while the candidate scan still carries
     // that row, so crop the row band and re-read it locally.
-    internal static async Task<SummaryRowRecoveryResult?> TryRecoverIssueRowAsync(
+    internal static Task<SummaryRowRecoveryResult?> TryRecoverIssueRowAsync(
         PaddleLocalOcrClient client,
         string imagePath,
         int issue,
         double titleRatio,
         int? detectionMaxSide,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) =>
+        TryRecoverIssueRowCoreAsync(
+            client, imagePath, issue, titleRatio, detectionMaxSide, cancellationToken,
+            stripLines => RuleEngine.ExtractIssueRowZodiacFromStrip(stripLines, issue));
+
+    internal static Task<SummaryRowRecoveryResult?> TryRecoverIssueRowNumbersAsync(
+        PaddleLocalOcrClient client,
+        string imagePath,
+        int issue,
+        OcrRule rule,
+        double titleRatio,
+        int? detectionMaxSide,
+        CancellationToken cancellationToken) =>
+        TryRecoverIssueRowCoreAsync(
+            client, imagePath, issue, titleRatio, detectionMaxSide, cancellationToken,
+            stripLines => RuleEngine.ExtractFinalValue(stripLines, issue, rule));
+
+    private static async Task<SummaryRowRecoveryResult?> TryRecoverIssueRowCoreAsync(
+        PaddleLocalOcrClient client,
+        string imagePath,
+        int issue,
+        double titleRatio,
+        int? detectionMaxSide,
+        CancellationToken cancellationToken,
+        Func<IReadOnlyList<string>, string?> parse)
     {
         try
         {
@@ -101,11 +125,20 @@ internal static class SummaryRowRecovery
 
         if (!client.LastEvidence.TryGetValue(imagePath, out OcrEvidence? located) || located is null)
             return null;
+        if (ComputeIssueRowBand(located.Items, issue) is not { } band)
+            return null;
 
-        // Period rows are the anchors: the value may sit on the next line
-        // ("257期" / "禁" / "一肖羊"), so the band spans from the target row
-        // down to just before the next period row.
-        OcrLineEvidence[] issueRows = located.Items
+        return await CropAndReadStripAsync(client, imagePath, band, cancellationToken, parse);
+    }
+
+    // Period rows are the anchors: the value may sit on the next line
+    // ("257期" / "禁" / "一肖羊"), so the band spans from the target row down
+    // to just before the next period row.
+    internal static (int Top, int Height)? ComputeIssueRowBand(
+        IReadOnlyList<OcrLineEvidence> items,
+        int issue)
+    {
+        OcrLineEvidence[] issueRows = items
             .Where(item => item.Box is not null
                 && item.Text.Contains('期', StringComparison.Ordinal))
             .OrderBy(item => item.Box!.Y)
@@ -126,19 +159,13 @@ internal static class SummaryRowRecovery
         int[] centers = issueRows
             .Select(item => (int)Math.Round(item.Box!.CenterY))
             .ToArray();
-        int? pitch = MedianPitch(centers);
-        if (pitch is null)
+        if (MedianPitch(centers) is not { } pitch)
             return null;
         int top = Math.Max(0, target.Box!.Y - 4);
         int bottom = next is not null
             ? next.Box!.Y - 4
-            : target.Box.Bottom + (int)Math.Round(pitch.Value * 0.8);
-        if (bottom - top < 12)
-            return null;
-
-        return await CropAndReadStripAsync(
-            client, imagePath, (top, bottom - top), cancellationToken,
-            stripLines => RuleEngine.ExtractIssueRowZodiacFromStrip(stripLines, issue));
+            : target.Box.Bottom + (int)Math.Round(pitch * 0.8);
+        return bottom - top < 12 ? null : (top, bottom - top);
     }
 
     private static async Task<SummaryRowRecoveryResult?> CropAndReadStripAsync(

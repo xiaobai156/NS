@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace OcrLineTool;
 
 /// <summary>界面偏好，保存在程序目录下的“界面设置.json”，升级和清除结果都不影响。</summary>
-internal sealed record UiSettings(bool ShowRecognizeButton)
+internal sealed record UiSettings(bool ShowRecognizeButton, bool RetryUsesLocalOcr = false)
 {
     internal static UiSettings Default { get; } = new(false);
 

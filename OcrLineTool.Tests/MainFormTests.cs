@@ -1053,6 +1053,53 @@ public sealed class MainFormTests
             $"Group list item height {folders.ItemHeight} should exceed font height {folders.Font.Height}.");
     }
 
+    [Fact]
+    public void SettingsDialogReturnsTheChosenRetryOcrSource()
+    {
+        using var dialog = new SettingsForm(new UiSettings(false));
+        RadioButton[] radios = Descendants(dialog).OfType<RadioButton>().ToArray();
+        Assert.Equal(2, radios.Length);
+        Assert.True(Assert.Single(radios, radio => radio.Name == "retryUsesCloudOcr").Checked);
+        Assert.False(Assert.Single(radios, radio => radio.Name == "retryUsesLocalOcr").Checked);
+
+        Assert.Single(radios, radio => radio.Name == "retryUsesLocalOcr").Checked = true;
+        Button save = Assert.Single(Descendants(dialog).OfType<Button>(), button => button.Text == "保存");
+        typeof(Control).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(save, [EventArgs.Empty]);
+
+        Assert.Equal(DialogResult.OK, dialog.DialogResult);
+        Assert.True(dialog.Result.RetryUsesLocalOcr);
+    }
+
+    [Fact]
+    public void RetryOcrSourceDefaultsToCloudAndRoundTrips()
+    {
+        string directory = Directory.CreateTempSubdirectory("ocr-retry-settings-").FullName;
+        try
+        {
+            Assert.False(UiSettings.Load(directory).RetryUsesLocalOcr);
+
+            File.WriteAllText(
+                UiSettings.PathFor(directory),
+                "{\"ShowRecognizeButton\":true}");
+            UiSettings legacy = UiSettings.Load(directory);
+            Assert.True(legacy.ShowRecognizeButton);
+            Assert.False(legacy.RetryUsesLocalOcr);
+
+            UiSettings.Save(directory, new UiSettings(true, RetryUsesLocalOcr: true));
+            UiSettings saved = UiSettings.Load(directory);
+            Assert.True(saved.ShowRecognizeButton);
+            Assert.True(saved.RetryUsesLocalOcr);
+
+            UiSettings.Save(directory, new UiSettings(false));
+            Assert.False(UiSettings.Load(directory).RetryUsesLocalOcr);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static MainForm CreateUiTestForm(string root, Action<System.Diagnostics.ProcessStartInfo> openFile)
     {
         var constructor = typeof(MainForm).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic,

@@ -120,6 +120,7 @@ public sealed class MainForm : Form
     private int lastIssue;
     private bool isBusy;
     private bool showRecognizeButton;
+    private bool retryUsesLocalOcr;
     private TableLayoutPanel? settingsContent;
     private bool closeWhenIdle;
     private CancellationTokenSource? activeCancellation;
@@ -169,7 +170,9 @@ public sealed class MainForm : Form
         layout.Controls.Add(BuildWorkspace(), 0, 1);
         layout.Controls.Add(BuildStatusSection(), 0, 2);
         Controls.Add(layout);
-        ApplyShowRecognizeButton(UiSettings.Load(AppContext.BaseDirectory).ShowRecognizeButton);
+        UiSettings initialSettings = UiSettings.Load(AppContext.BaseDirectory);
+        ApplyShowRecognizeButton(initialSettings.ShowRecognizeButton);
+        retryUsesLocalOcr = initialSettings.RetryUsesLocalOcr;
 
         folderList.Click += SelectFolderListItem;
         recognizeButton.Click += RecognizeImagesAsync;
@@ -1933,6 +1936,63 @@ public sealed class MainForm : Form
             MessageBoxIcon.Warning);
     }
 
+    // “手动复抓缺失（本地 OCR）”：不请求云端，按本地主识别同款 medium 对本轮
+    // 缺失规则的候选图片整图识别并提取；失败保持缺失，尾部与云模式共用补读和写盘。
+    private async Task RetryMissingByLocalOcrAsync(
+        IReadOnlyList<RecognitionCandidate> candidates,
+        int issue,
+        CancellationToken cancellationToken)
+    {
+        var client = new PaddleLocalOcrClient();
+        double titleRatio = PaddleLocalOcrClient.TitleRatioFor(selectedImageDirectory!);
+        int? detectionMaxSide = PaddleLocalOcrClient.DetectionMaxSideFor(selectedImageDirectory!);
+        int completed = 0;
+        SetProgress(0, candidates.Count);
+        foreach (RecognitionCandidate candidate in candidates)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            statusLabel.Text = $"复抓缺失（本地 OCR）：{completed + 1}/{candidates.Count} · {ShortPath(candidate.SourcePath)}";
+            OcrEvidence? evidence = null;
+            try
+            {
+                await client.RecognizeBatchAsync(
+                    [candidate.SourcePath],
+                    progress: null,
+                    titleRatio: titleRatio,
+                    detectionMaxSide: detectionMaxSide,
+                    useCache: true,
+                    cancellationToken: cancellationToken,
+                    model: PaddleOcrModels.LocalPrimary);
+                client.LastEvidence.TryGetValue(candidate.SourcePath, out evidence);
+            }
+            catch (OcrException)
+            {
+                // 本地识别失败保留缺失，原因在下方统一记录。
+            }
+
+            if (evidence is not null)
+                AddExtractedEvidenceValues(
+                    evidence, RetryEvidenceRules(candidate, lastRules), issue, lastValues, lastEvidenceLedger);
+            if (evidence?.Items.Any(item => !string.IsNullOrWhiteSpace(item.Text)) == true)
+                lastTextRecognizedRuleIds.UnionWith(candidate.Rules.Select(rule => rule.Id));
+            foreach (OcrRule rule in candidate.Rules)
+            {
+                if (lastValues.ContainsKey(rule.Id))
+                    lastMissingReasons.Remove(rule.Id);
+                else
+                    lastMissingReasons[rule.Id] = lastTextRecognizedRuleIds.Contains(rule.Id)
+                        ? RuleEngine.DescribeExtractionFailure(evidence?.Lines ?? [], issue, rule)
+                        : RuleEngine.DescribeMissing(foundImage: true, recognizedText: false);
+            }
+
+            completed++;
+            SetProgress(completed, candidates.Count);
+            resultsBox.Text = string.Join(
+                Environment.NewLine,
+                RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons));
+        }
+    }
+
     private async void RetryMissingAsync(object? sender, EventArgs e)
     {
         if (!CanRetryMissing())
@@ -1969,6 +2029,9 @@ public sealed class MainForm : Form
                     rule.Id,
                     RuleEngine.DescribeMissing(foundImage: false, recognizedText: false));
 
+            if (retryUsesLocalOcr)
+                await RetryMissingByLocalOcrAsync(selection.Candidates, lastIssue, ActiveToken);
+
             OcrCredential initialCredential = credentialSelector.SelectedIndex <= 0
                 ? CredentialSchedule.DescribeDate(CredentialSchedule.TodayInBeijing())
                 : CredentialSchedule.DescribeSlot(credentialSelector.SelectedIndex - 1);
@@ -1989,7 +2052,12 @@ public sealed class MainForm : Form
             int completed = 0;
             SetProgress(0, selection.Candidates.Count);
 
-            foreach (RecognitionCandidate candidate in selection.Candidates)
+            // “本地 OCR”复抓不请求云端：缺失项只由本机 medium 结果补值。
+            RecognitionCandidate[] cloudRetryCandidates = retryUsesLocalOcr
+                ? []
+                : selection.Candidates.ToArray();
+
+            foreach (RecognitionCandidate candidate in cloudRetryCandidates)
             {
                 // Selection contains the rules missing at retry start, but an already
                 // obtained whole-image response must also be compared against sibling rules
@@ -2137,6 +2205,13 @@ public sealed class MainForm : Form
                     RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons));
             }
 
+            // The retry flow works from cloud text, which can drop whole columns
+            // (for example the period column of a number card). Best-effort local
+            // row recovery runs here exactly like in the main recognition flow.
+            await RecoverSummaryRowValuesAsync(
+                lastRules, lastValues, lastEvidenceLedger, lastMissingReasons,
+                selection.Candidates, lastIssue, ActiveToken);
+
             ActiveToken.ThrowIfCancellationRequested();
             using IDisposable publishGuard = RecognitionStateStore.LockValidEvidenceForPublish(
                 lastRules, lastValues, lastEvidenceLedger, lastMissingReasons);
@@ -2162,7 +2237,9 @@ public sealed class MainForm : Form
             int remaining = lastRules.Count(rule => !lastValues.ContainsKey(rule.Id));
             statusLabel.Text = selection.Candidates.Count == 0
                 ? $"复抓未找到 {missingRules.Length} 条缺失项对应的图片，缺失原因已更新；已写群结果（未自动分流）。TXT：{groupOutputPath}"
-                : $"复抓完成：云 OCR 请求 {cloudRequests} 次，补回 {missingRules.Length - remaining} 条，仍缺失 {remaining} 条，已写群结果（未自动分流）。TXT：{groupOutputPath}";
+                : retryUsesLocalOcr
+                    ? $"复抓完成（本地 OCR）：补回 {missingRules.Length - remaining} 条，仍缺失 {remaining} 条，已写群结果（未自动分流）。TXT：{groupOutputPath}"
+                    : $"复抓完成：云 OCR 请求 {cloudRequests} 次，补回 {missingRules.Length - remaining} 条，仍缺失 {remaining} 条，已写群结果（未自动分流）。TXT：{groupOutputPath}";
         }
         catch (OperationCanceledException)
         {
@@ -2366,7 +2443,12 @@ public sealed class MainForm : Form
                 && !string.IsNullOrWhiteSpace(rule.Folder)
                 && !rule.AllowIssueLessSummary)
             .ToArray();
-        if (recoverable.Length == 0 && issueRowRules.Length == 0)
+        OcrRule[] issueRowNumberRules = rules
+            .Where(rule => !values.ContainsKey(rule.Id)
+                && rule.Type.StartsWith("号码", StringComparison.Ordinal)
+                && !string.IsNullOrWhiteSpace(rule.Folder))
+            .ToArray();
+        if (recoverable.Length == 0 && issueRowRules.Length == 0 && issueRowNumberRules.Length == 0)
             return;
 
         var client = new PaddleLocalOcrClient();
@@ -2414,6 +2496,38 @@ public sealed class MainForm : Form
             {
                 SummaryRowRecoveryResult? recovered = await SummaryRowRecovery.TryRecoverIssueRowAsync(
                     client, candidate.SourcePath, issue, titleRatio, detectionMaxSide, cancellationToken);
+                if (recovered is null)
+                    continue;
+                OcrEvidence evidence = OcrEvidence.FromLines(
+                    candidate.SourcePath, recovered.StripLines, "issue-row-strip");
+                evidenceLedger.Observe(values, rule, recovered.Value, evidence);
+                missingReasons.Remove(rule.Id);
+            }
+            catch (Exception exception) when (exception is OcrException
+                or IOException
+                or UnauthorizedAccessException)
+            {
+                // Recovery is best effort: an unreadable strip keeps the value missing.
+            }
+        }
+
+        // Dedicated number cards (for example 潮汕陈龙杀三码) whose period row
+        // was dropped by the whole-image read: crop that row and re-read it.
+        foreach (OcrRule rule in issueRowNumberRules)
+        {
+            if (values.ContainsKey(rule.Id))
+                continue;
+            RecognitionCandidate? candidate = candidates.FirstOrDefault(
+                item => item.Rules.Any(candidateRule => candidateRule.Id == rule.Id));
+            if (candidate is null || !File.Exists(candidate.SourcePath))
+                continue;
+            string? imageFolder = Path.GetFileName(Path.GetDirectoryName(candidate.SourcePath));
+            if (!string.Equals(imageFolder, rule.Folder, StringComparison.OrdinalIgnoreCase))
+                continue;
+            try
+            {
+                SummaryRowRecoveryResult? recovered = await SummaryRowRecovery.TryRecoverIssueRowNumbersAsync(
+                    client, candidate.SourcePath, issue, rule, titleRatio, detectionMaxSide, cancellationToken);
                 if (recovered is null)
                     continue;
                 OcrEvidence evidence = OcrEvidence.FromLines(
@@ -3112,7 +3226,7 @@ public sealed class MainForm : Form
 
     private void OpenSettings(object? sender, EventArgs e)
     {
-        using var dialog = new SettingsForm(new UiSettings(showRecognizeButton));
+        using var dialog = new SettingsForm(new UiSettings(showRecognizeButton, retryUsesLocalOcr));
         if (dialog.ShowDialog(this) != DialogResult.OK)
             return;
 
@@ -3128,9 +3242,10 @@ public sealed class MainForm : Form
         }
 
         ApplyShowRecognizeButton(dialog.Result.ShowRecognizeButton);
+        retryUsesLocalOcr = dialog.Result.RetryUsesLocalOcr;
         statusLabel.Text = showRecognizeButton
-            ? "已显示“开始识别”按钮。"
-            : "已隐藏“开始识别”按钮。";
+            ? $"已显示“开始识别”按钮；手动复抓使用{(retryUsesLocalOcr ? "本地 OCR" : "云 OCR")}。"
+            : $"已隐藏“开始识别”按钮；手动复抓使用{(retryUsesLocalOcr ? "本地 OCR" : "云 OCR")}。";
     }
 
     internal void ApplyShowRecognizeButton(bool visible)
