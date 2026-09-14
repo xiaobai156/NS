@@ -3440,9 +3440,25 @@ public sealed class MainForm : Form
         statusLabel.Text = result.Deleted == 0 && result.Failed == 0
             ? "两个目录中没有需要清除的文件。"
             : result.Failed == 0
-                ? $"已将 {result.Deleted} 个文件移入回收站，文件夹已保留。"
-                : $"已将 {result.Deleted} 个文件移入回收站，{result.Failed} 个文件清除失败。";
+                ? $"已清 {result.Deleted} 个文件（进回收站，目录结构已保留）。"
+                : $"已清 {result.Deleted} 个文件（进回收站），{result.Failed} 个文件清除失败。";
+        RefreshResultsAfterClear();
         manualDistributeButton.Enabled = CanManualDistribute();
+    }
+
+    // 清除后让界面与磁盘一致：群结果 TXT 已不在时不再显示旧识别结果，
+    // 并同步清空复抓状态；TXT 仍在（清除失败）时按磁盘内容重新加载。
+    internal void RefreshResultsAfterClear()
+    {
+        if (selectedImageDirectory is not null
+            && File.Exists(ResultFilePaths.ForGroup(
+                AppContext.BaseDirectory, selectedImageDirectory, Decimal.ToInt32(issueInput.Value))))
+        {
+            LoadExistingGroupResult();
+            return;
+        }
+        ClearRetryState();
+        resultsBox.Clear();
     }
 
     private void ShowPreview(string path)

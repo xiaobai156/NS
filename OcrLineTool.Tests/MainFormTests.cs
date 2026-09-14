@@ -1072,6 +1072,28 @@ public sealed class MainFormTests
     }
 
     [Fact]
+    public void ClearingResultsRefreshesTheResultBoxFromDisk()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        string root = Directory.CreateTempSubdirectory("ocr-clear-refresh-").FullName;
+        try
+        {
+            using var form = CreateUiTestForm(root, _ => { });
+            var results = (TextBox)typeof(MainForm).GetField("resultsBox", flags)!.GetValue(form)!;
+            results.Text = "【头】" + Environment.NewLine + "0头 齐天大圣";
+            typeof(MainForm).GetField("selectedImageDirectory", flags)!.SetValue(form, root);
+
+            form.RefreshResultsAfterClear();
+
+            Assert.Equal(string.Empty, results.Text);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void RetryOcrSourceDefaultsToCloudAndRoundTrips()
     {
         string directory = Directory.CreateTempSubdirectory("ocr-retry-settings-").FullName;
