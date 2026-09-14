@@ -36,7 +36,6 @@ public sealed class MainForm : Form
     private static extern int SetWindowTheme(IntPtr window, string? subAppName, string? subIdList);
 
     private readonly Label credentialLabel = new() { AutoSize = true };
-    private readonly Label selectionLabel = new() { AutoSize = true, Text = "尚未选择子文件夹" };
     private readonly Label folderNameLabel = new()
     {
         AutoEllipsis = true, Dock = DockStyle.Fill, Text = "尚未选择", TextAlign = ContentAlignment.MiddleLeft,
@@ -66,18 +65,16 @@ public sealed class MainForm : Form
     private readonly Button retryMissingButton = new DarkButton() { Text = "手动复抓缺失", AutoSize = true, Padding = new Padding(12, 5, 12, 5), Enabled = false };
     private readonly Button manualDistributeButton = new DarkButton() { Text = "手动分流", AutoSize = true, Padding = new Padding(12, 5, 12, 5), Enabled = false };
     private readonly Button continueButton = new DarkButton() { Text = "继续云 OCR", AutoSize = true, Padding = new Padding(12, 5, 12, 5), Enabled = false, Visible = false };
-    private readonly Button copyButton = new DarkButton() { Text = "复制结果", AutoSize = true, Padding = new Padding(12, 5, 12, 5), Enabled = false };
     private readonly Button openGroupResultsButton = new DarkButton() { Text = "打开群结果", AutoSize = true, Padding = new Padding(12, 5, 12, 5) };
     private readonly Button clearResultsButton = new DarkButton() { Text = "清除", AutoSize = true, Padding = new Padding(12, 5, 12, 5) };
     private readonly Button missingSummaryButton = new DarkButton() { Text = "统计缺失" };
     private readonly Button settingsButton = new DarkButton() { Text = "设置" };
     private readonly Label recognitionTimingLabel = new()
     {
-        AutoSize = false, Width = 120, Visible = false, ForeColor = SecondaryText,
+        AutoSize = false, Visible = false, ForeColor = SecondaryText,
         TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right,
-        AutoEllipsis = true,
         AccessibleName = "识别耗时和预计剩余时间",
-        Font = new Font("Microsoft YaHei UI", 9F)
+        Font = new Font("Microsoft YaHei UI", 11F, FontStyle.Bold)
     };
     private readonly PictureBox preview = new()
     {
@@ -137,7 +134,7 @@ public sealed class MainForm : Form
         Text = $"OCR 整行提取工具 NVIDIA CUDA版 v{typeof(MainForm).Assembly.GetName().Version?.ToString(3)}";
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(1100, 700);
-        Size = new Size(1400, 850);
+        Size = new Size(1440, 860);
         Font = new Font("Microsoft YaHei UI", 10F);
         BackColor = WindowBackground;
         ForeColor = PrimaryText;
@@ -180,7 +177,6 @@ public sealed class MainForm : Form
         retryMissingButton.Click += RetryMissingAsync;
         manualDistributeButton.Click += ManualDistributeAsync;
         continueButton.Click += ContinueCloudOcr;
-        copyButton.Click += (_, _) => CopyResults();
         openGroupResultsButton.Click += (_, _) => OpenGroupResults();
         clearResultsButton.Click += ClearOutputFiles;
         missingSummaryButton.Click += SummarizeMissingAsync;
@@ -475,34 +471,35 @@ public sealed class MainForm : Form
             Margin = Padding.Empty
         };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
         content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 80));
 
         var header = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1,
-            Padding = new Padding(0, 0, 0, 14), BackColor = CardBackground,
-            Margin = Padding.Empty
+            Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
+            BackColor = CardBackground, Margin = Padding.Empty
         };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        header.Controls.Add(CardHeader("识别结果"), 0, 0);
-        recognitionTimingLabel.Margin = new Padding(6, 0, 10, 0);
-        copyButton.Margin = new Padding(0, 0, 16, 0);
+        Label resultsTitle = CardHeader("识别结果");
+        resultsTitle.AutoEllipsis = true;
+        header.Controls.Add(resultsTitle, 0, 0);
+        recognitionTimingLabel.AutoSize = true;
+        recognitionTimingLabel.Anchor = AnchorStyles.Right;
+        recognitionTimingLabel.Margin = new Padding(6, 0, 22, 0);
+        openGroupResultsButton.Anchor = AnchorStyles.None;
         openGroupResultsButton.Margin = Padding.Empty;
         header.Controls.Add(recognitionTimingLabel, 1, 0);
-        header.Controls.Add(copyButton, 2, 0);
-        header.Controls.Add(openGroupResultsButton, 3, 0);
+        header.Controls.Add(openGroupResultsButton, 2, 0);
         content.Controls.Add(header, 0, 0);
 
         var resultsHost = new DarkRoundedPanel
         {
             Name = "resultsHost", Dock = DockStyle.Fill, BackColor = InputBackground,
             BorderColor = BorderColor, BorderVisible = false, CornerRadius = CardRadius,
-            Padding = new Padding(18), Margin = Padding.Empty
+            Padding = new Padding(18), Margin = new Padding(0, 12, 0, 0)
         };
         resultsHost.Controls.Add(resultsBox);
         content.Controls.Add(resultsHost, 0, 1);
@@ -533,23 +530,16 @@ public sealed class MainForm : Form
 
         var summary = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
+            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 1,
             BackColor = CardBackground, Margin = new Padding(0, 0, 18, 0)
         };
-        summary.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
-        summary.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
-        selectionLabel.AutoSize = false;
-        selectionLabel.AutoEllipsis = true;
-        selectionLabel.Dock = DockStyle.Fill;
-        selectionLabel.ForeColor = PrimaryText;
-        selectionLabel.TextAlign = ContentAlignment.BottomLeft;
+        summary.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         credentialLabel.AutoSize = false;
         credentialLabel.AutoEllipsis = true;
         credentialLabel.Dock = DockStyle.Fill;
         credentialLabel.ForeColor = SecondaryText;
-        credentialLabel.TextAlign = ContentAlignment.TopLeft;
-        summary.Controls.Add(selectionLabel, 0, 0);
-        summary.Controls.Add(credentialLabel, 0, 1);
+        credentialLabel.TextAlign = ContentAlignment.MiddleLeft;
+        summary.Controls.Add(credentialLabel, 0, 0);
         content.Controls.Add(summary, 0, 0);
 
         var progress = new TableLayoutPanel
@@ -675,19 +665,15 @@ public sealed class MainForm : Form
         ConfigureButton(retryMissingButton, "手动复抓缺失", CardBackground, PrimaryText, BorderColor, 10);
         ConfigureButton(manualDistributeButton, "手动分流", CardBackground, PrimaryText, BorderColor, 12);
         ConfigureButton(continueButton, "继续云 OCR", CardBackground, AccentAmber, AccentAmber, 11);
-        ConfigureButton(copyButton, "复制结果", CardBackground, PrimaryText, BorderColor, 5);
         ConfigureButton(openGroupResultsButton, "打开群结果", CardBackground, PrimaryText, BorderColor, 6);
         ConfigureButton(settingsButton, "设置", CardBackground, PrimaryText, BorderColor, 14);
 
-        // The two result-header buttons share an auto-sized column, so they must
-        // size to their caption instead of the default control width.
-        foreach (Button headerButton in new[] { copyButton, openGroupResultsButton })
-        {
-            headerButton.AutoSize = true;
-            headerButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            headerButton.MinimumSize = new Size(0, 48);
-            headerButton.Padding = new Padding(12, 0, 12, 0);
-        }
+        // The result-header button shares an auto-sized column, so it must size
+        // to its caption instead of the default control width.
+        openGroupResultsButton.AutoSize = true;
+        openGroupResultsButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        openGroupResultsButton.MinimumSize = new Size(0, 48);
+        openGroupResultsButton.Padding = new Padding(12, 0, 12, 0);
     }
 
     private static void ConfigureButton(
@@ -835,11 +821,11 @@ public sealed class MainForm : Form
         }
         if (credentialSelector.SelectedIndex <= 0)
         {
-            credentialLabel.Text = $"北京时间 {date:yyyy-MM-dd} · 今日使用：{CredentialSchedule.DescribeDate(date).DisplayName} · 每日 00:00 自动轮换";
+            credentialLabel.Text = $"云账号：{CredentialSchedule.DescribeDate(date).DisplayName}（每日 00:00 自动轮换）";
             return;
         }
 
-        credentialLabel.Text = $"北京时间 {date:yyyy-MM-dd} · 临时使用：{CredentialSchedule.DescribeSlot(credentialSelector.SelectedIndex - 1).DisplayName} · 不改变自动轮换";
+        credentialLabel.Text = $"云账号：{CredentialSchedule.DescribeSlot(credentialSelector.SelectedIndex - 1).DisplayName}（临时使用，不改变自动轮换）";
     }
 
     private void RefreshFolderList(object? sender, EventArgs e)
@@ -922,7 +908,6 @@ public sealed class MainForm : Form
             (retryMissingButton, "手动复抓缺失"),
             (manualDistributeButton, "手动分流"),
             (continueButton, "继续云OCR"),
-            (copyButton, "复制结果"),
             (openGroupResultsButton, "打开群结果"),
             (clearResultsButton, "清除"),
             (missingSummaryButton, "统计缺失"),
@@ -959,9 +944,6 @@ public sealed class MainForm : Form
         ClearRetryState();
         LoadExistingGroupResult();
         bool hasRules = File.Exists(selectedRulePath);
-        selectionLabel.Text = imagePaths.Length == 0
-            ? $"所选目录为空：{selectedImageDirectory}"
-            : $"所选目录：{selectedImageDirectory} · 已找到 {imagePaths.Length} 张图片 · 规则：{Path.GetFileName(selectedRulePath)}";
         recognizeButton.Enabled = imagePaths.Length > 0 && hasRules;
         localPrimaryButton.Enabled = imagePaths.Length > 0 && hasRules;
         manualDistributeButton.Enabled = CanManualDistribute();
@@ -990,7 +972,6 @@ public sealed class MainForm : Form
         SetBusy(true);
         StartRecognitionTiming();
         resultsBox.Clear();
-        copyButton.Enabled = false;
 
         try
         {
@@ -1371,7 +1352,6 @@ public sealed class MainForm : Form
                 new UTF8Encoding(true));
             LogMissingDetails("本地主识别", groupName, issue, rules, values, candidates);
             resultsBox.Text = string.Join(Environment.NewLine, groupLines);
-            copyButton.Enabled = outputLines.Length > 0;
             lastRules = rules;
             lastValues = new ResultValues(values, StringComparer.Ordinal);
             lastMissingReasons = new Dictionary<string, string>(missingReasons, StringComparer.Ordinal);
@@ -1428,7 +1408,6 @@ public sealed class MainForm : Form
         SetBusy(true);
         StartRecognitionTiming();
         resultsBox.Clear();
-        copyButton.Enabled = false;
 
         try
         {
@@ -1815,7 +1794,6 @@ public sealed class MainForm : Form
                 new UTF8Encoding(true));
             LogMissingDetails("开始识别", groupName, issue, rules, values, candidates);
             resultsBox.Text = string.Join(Environment.NewLine, groupLines);
-            copyButton.Enabled = outputLines.Length > 0;
             lastRules = rules;
             lastValues = new ResultValues(values, StringComparer.Ordinal);
             lastMissingReasons = new Dictionary<string, string>(missingReasons, StringComparer.Ordinal);
@@ -1881,7 +1859,6 @@ public sealed class MainForm : Form
             ResultFilePaths.EnsureOutputDirectories(AppContext.BaseDirectory);
             await AtomicFile.WriteAllLinesAsync(groupOutputPath, updatedLines, new UTF8Encoding(true));
             resultsBox.Text = string.Join(Environment.NewLine, updatedLines);
-            copyButton.Enabled = updatedLines.Length > 0;
             statusLabel.Text = $"手动分流完成：成功 {distribution.DistributedLines.Count} 条{DistributionErrorText(distribution)}{NativeOcrMirrorText(distribution)}。群TXT：{groupOutputPath}";
             ShowUndistributedLinesReport(distribution);
         }
@@ -2182,7 +2159,6 @@ public sealed class MainForm : Form
             LogMissingDetails(
                 "手动复抓缺失", groupName, lastIssue, lastRules, lastValues, selection.Candidates);
             resultsBox.Text = string.Join(Environment.NewLine, groupLines);
-            copyButton.Enabled = outputLines.Length > 0;
             int remaining = lastRules.Count(rule => !lastValues.ContainsKey(rule.Id));
             statusLabel.Text = selection.Candidates.Count == 0
                 ? $"复抓未找到 {missingRules.Length} 条缺失项对应的图片，缺失原因已更新；已写群结果（未自动分流）。TXT：{groupOutputPath}"
@@ -2631,7 +2607,6 @@ public sealed class MainForm : Form
         {
             ClearRetryState();
             resultsBox.Clear();
-            copyButton.Enabled = false;
             return;
         }
 
@@ -2642,7 +2617,6 @@ public sealed class MainForm : Form
             if (!File.Exists(path))
             {
                 resultsBox.Clear();
-                copyButton.Enabled = false;
                 retryMissingButton.Enabled = CanRetryMissing();
                 return;
             }
@@ -2650,14 +2624,12 @@ public sealed class MainForm : Form
             string[] lines = File.ReadAllLines(path, Encoding.UTF8)
                 .Select(GroupResultFormatter.RemoveLegacySourceSuffix).ToArray();
             resultsBox.Text = string.Join(Environment.NewLine, lines);
-            copyButton.Enabled = resultsBox.TextLength > 0;
             RestoreRetryState(lines);
         }
         catch (Exception exception) when (exception is IOException or OcrException or JsonException)
         {
             ClearRetryState();
             resultsBox.Clear();
-            copyButton.Enabled = false;
         }
     }
 
@@ -3275,14 +3247,6 @@ public sealed class MainForm : Form
         return relative.StartsWith("..", StringComparison.Ordinal) ? Path.GetFileName(path) : relative;
     }
 
-    private void CopyResults()
-    {
-        if (resultsBox.TextLength == 0)
-            return;
-        Clipboard.SetText(resultsBox.Text.TrimEnd());
-        statusLabel.Text = "结果已复制到剪贴板。";
-    }
-
     private async void SummarizeMissingAsync(object? sender, EventArgs e)
     {
         SetBusy(true);
@@ -3736,6 +3700,24 @@ internal sealed class DarkNumericUpDown : NumericUpDown
                 (IntPtr)(EcLeftMargin | EcRightMargin),
                 (IntPtr)((TextInset << 16) | TextInset));
             break;
+        }
+        CenterText();
+    }
+
+    protected override void OnSizeChanged(EventArgs e)
+    {
+        base.OnSizeChanged(e);
+        CenterText();
+    }
+
+    // The digits sit on the control's baseline otherwise, which reads as
+    // top-aligned inside the tall input.
+    private void CenterText()
+    {
+        foreach (Control child in Controls)
+        {
+            if (child is TextBox textBox)
+                textBox.Top = Math.Max(0, (ClientSize.Height - textBox.Height) / 2);
         }
     }
 

@@ -2643,7 +2643,7 @@ public static class RuleEngine
             // retry) concatenates the later tiers, so take exactly the nine
             // zodiacs that follow the first 精选肖 label and stop at the next
             // label or issue marker.
-            if (type == "九肖" && rule.Id == "高山流水")
+            if (type == "九肖" && rule?.Id == "高山流水")
             {
                 foreach (string marker in new[] { "精选⑨肖", "精选肖" })
                 {
@@ -3630,7 +3630,7 @@ public static class RuleEngine
         string decoration = Regex.Replace(
             ownershipText, @"[0-9\s,，.。:：*【】\[\]()（）?？!！←→]+", string.Empty);
         bool structuralField = Regex.IsMatch(decoration,
-            @"^(?:(?:杀|殺){1,3}|开|開|禁|杀码|殺碼|杀特码|殺特碼|不开|不開|精选杀|精選殺|码|碼|特码|特碼|码中特码|码中特碼|计|計|包围码|包圍碼|锁三十六码|鎖三十六碼|庄家必杀|莊家必殺|绝杀|絕殺|绝杀[一二三四五六七八九十0-9]+码|絕殺[一二三四五六七八九十0-9]+碼|封杀|封殺|准|準)$")
+            @"^(?:(?:杀|殺){1,3}|开|開|禁|月禁|本月禁|今期禁|杀码|殺碼|杀特码|殺特碼|不开|不開|精选杀|精選殺|码|碼|特码|特碼|码中特码|码中特碼|计|計|包围码|包圍碼|锁三十六码|鎖三十六碼|庄家必杀|莊家必殺|绝杀|絕殺|绝杀[一二三四五六七八九十0-9]+码|絕殺[一二三四五六七八九十0-9]+碼|封杀|封殺|准|準)$")
             || Regex.IsMatch(decoration, @"^\p{L}{1,6}(?:杀|殺|码|碼|计|計)$");
         if (!ownIdentity && !structuralField && !zodiacOnly)
             return false;

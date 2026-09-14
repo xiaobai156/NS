@@ -593,6 +593,32 @@ public sealed class NewCardsExtractionTests
     }
 
     [Fact]
+    public void ChaoshanChenlongReadsTheRowMergedForbiddenLabel()
+    {
+        IReadOnlyList<OcrRule> rules = Rules("嫣然心水.json");
+        OcrRule rule = rules.Single(item => item.Id == "潮汕陈龙杀三码");
+        string[] lines =
+        [
+            "RA", "不忘初心", "方得始终", "新澳门六合彩", "潮汕陈龙", "13-244×14",
+            "245期禁01.13.25", "246期禁07.19.31", "247期禁06.18.30", "248期禁23.35.47",
+            "249期禁12.24.48", "250期禁24.36.48", "251期禁09.19.31", "252期禁05.17.29",
+            "253期禁10.22.34", "254期禁12.24.48", "255期禁10.34.46", "256期禁11.23.35",
+            "257期月禁41.29.05", "澳门特别行政区"
+        ];
+
+        Assert.Equal("41 29 05", RuleEngine.ExtractFinalValue(lines, 257, rule));
+
+        var items = lines
+            .Select((text, index) => new OcrLineEvidence(
+                text, new OcrBox(20, 100 + index * 46, 300, 30), 0.99, "original", "main"))
+            .ToList();
+        var evidence = new OcrEvidence("probe.png", "probe.png", "h", "h", "original", items);
+        RuleExtractionResult result = RuleEngine.ExtractFinalResult(evidence, 257, rule);
+        Assert.Equal(RuleExtractionStatus.Success, result.Status);
+        Assert.Equal("41 29 05", result.Value);
+    }
+
+    [Fact]
     public void TobaccoStripRecoversTheIssueRowZodiac()
     {
         Assert.Equal("羊", RuleEngine.ExtractIssueRowZodiacFromStrip(["257期禁一肖羊"], 257));

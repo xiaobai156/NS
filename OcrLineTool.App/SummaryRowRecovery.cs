@@ -102,29 +102,42 @@ internal static class SummaryRowRecovery
         if (!client.LastEvidence.TryGetValue(imagePath, out OcrEvidence? located) || located is null)
             return null;
 
-        OcrLineEvidence[] rowItems = located.Items
+        // Period rows are the anchors: the value may sit on the next line
+        // ("257期" / "禁" / "一肖羊"), so the band spans from the target row
+        // down to just before the next period row.
+        OcrLineEvidence[] issueRows = located.Items
             .Where(item => item.Box is not null
-                && item.Text.Any(RuleEngine.Zodiac.Contains)
                 && item.Text.Contains('期', StringComparison.Ordinal))
+            .OrderBy(item => item.Box!.Y)
             .ToArray();
-        if (rowItems.Length < 2)
+        if (issueRows.Length < 2)
             return null;
-        OcrLineEvidence[] targets = rowItems
+        OcrLineEvidence[] targets = issueRows
             .Where(item => RuleEngine.LineContainsIssue(item.Text, issue))
             .ToArray();
         if (targets.Length != 1)
             return null;
 
-        int[] centers = rowItems
+        OcrLineEvidence target = targets[0];
+        OcrLineEvidence? next = issueRows
+            .Where(item => item.Box!.Y > target.Box!.Y)
+            .OrderBy(item => item.Box!.Y)
+            .FirstOrDefault();
+        int[] centers = issueRows
             .Select(item => (int)Math.Round(item.Box!.CenterY))
-            .Order()
             .ToArray();
-        int targetCenter = (int)Math.Round(targets[0].Box!.CenterY);
-        if (ComputeBand(centers, targetCenter) is not { } band)
+        int? pitch = MedianPitch(centers);
+        if (pitch is null)
+            return null;
+        int top = Math.Max(0, target.Box!.Y - 4);
+        int bottom = next is not null
+            ? next.Box!.Y - 4
+            : target.Box.Bottom + (int)Math.Round(pitch.Value * 0.8);
+        if (bottom - top < 12)
             return null;
 
         return await CropAndReadStripAsync(
-            client, imagePath, band, cancellationToken,
+            client, imagePath, (top, bottom - top), cancellationToken,
             stripLines => RuleEngine.ExtractIssueRowZodiacFromStrip(stripLines, issue));
     }
 
@@ -172,9 +185,7 @@ internal static class SummaryRowRecovery
         }
     }
 
-    // The band is centred on the author row and never reaches the neighbouring
-    // rows: its height stays below 80% of the measured row pitch.
-    internal static (int Top, int Height)? ComputeBand(IReadOnlyList<int> rowCenters, int targetCenter)
+    internal static int? MedianPitch(IReadOnlyList<int> rowCenters)
     {
         if (rowCenters.Count < 2)
             return null;
@@ -188,7 +199,15 @@ internal static class SummaryRowRecovery
         if (gaps.Count == 0)
             return null;
         gaps.Sort();
-        int pitch = gaps[gaps.Count / 2];
+        return gaps[gaps.Count / 2];
+    }
+
+    // The band is centred on the author row and never reaches the neighbouring
+    // rows: its height stays below 80% of the measured row pitch.
+    internal static (int Top, int Height)? ComputeBand(IReadOnlyList<int> rowCenters, int targetCenter)
+    {
+        if (MedianPitch(rowCenters) is not { } pitch)
+            return null;
         int half = Math.Max(6, (int)Math.Round(pitch * BandHalfPitch));
         int top = Math.Max(0, targetCenter - half);
         return half * 2 >= 8 ? (top, half * 2) : null;

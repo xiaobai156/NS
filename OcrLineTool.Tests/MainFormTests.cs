@@ -378,7 +378,6 @@ public sealed class MainFormTests
         var folders = (ListBox)type.GetField("folderList", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
         var recognize = (Button)type.GetField("recognizeButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
         var retry = (Button)type.GetField("retryMissingButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
-        var copy = (Button)type.GetField("copyButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
         var open = (Button)type.GetField("openGroupResultsButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
         var clear = (Button)type.GetField("clearResultsButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
         var results = (TextBox)type.GetField("resultsBox", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
@@ -392,7 +391,6 @@ public sealed class MainFormTests
         Assert.True(IsDescendant(settingsSection, credential));
         Assert.True(IsDescendant(settingsSection, recognize));
         Assert.True(IsDescendant(toolsSection, retry));
-        Assert.True(IsDescendant(resultsSection, copy));
         Assert.True(IsDescendant(resultsSection, open));
         Assert.True(IsDescendant(resultsSection, results));
         Assert.True(IsDescendant(resultsSection, clear));
@@ -402,7 +400,6 @@ public sealed class MainFormTests
         Assert.NotSame(settingsSection, toolsSection);
         Assert.NotSame(settingsSection, resultsSection);
         Assert.NotSame(toolsSection, resultsSection);
-        Assert.Equal("复制结果", copy.Text);
         Assert.Equal("打开群结果", open.Text);
         Assert.Equal("清除", clear.Text);
     }
@@ -466,13 +463,11 @@ public sealed class MainFormTests
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
         using var form = new MainForm { Size = new Size(1100, 700) };
         var timing = (Label)typeof(MainForm).GetField("recognitionTimingLabel", flags)!.GetValue(form)!;
-        var copy = (Button)typeof(MainForm).GetField("copyButton", flags)!.GetValue(form)!;
         var open = (Button)typeof(MainForm).GetField("openGroupResultsButton", flags)!.GetValue(form)!;
         var header = Assert.IsType<TableLayoutPanel>(timing.Parent);
 
-        Assert.Same(header, copy.Parent);
         Assert.Same(header, open.Parent);
-        Assert.True(header.GetColumn(timing) < header.GetColumn(copy));
+        Assert.True(header.GetColumn(timing) < header.GetColumn(open));
         Assert.Equal("识别耗时和预计剩余时间", timing.AccessibleName);
 
         form.Scale(new SizeF(scale, scale));
@@ -487,10 +482,8 @@ public sealed class MainFormTests
         Assert.Contains("已用", timing.Text);
         Assert.Contains("预计剩余", timing.Text);
         AssertControlFitsItsParent(timing);
-        AssertControlFitsItsParent(copy);
         AssertControlFitsItsParent(open);
-        Assert.False(timing.Bounds.IntersectsWith(copy.Bounds));
-        Assert.False(copy.Bounds.IntersectsWith(open.Bounds));
+        Assert.False(timing.Bounds.IntersectsWith(open.Bounds));
 
         typeof(MainForm).GetMethod("StopRecognitionTiming", flags)!.Invoke(form, null);
         Assert.StartsWith("总耗时", timing.Text);
