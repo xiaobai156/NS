@@ -566,9 +566,77 @@ public sealed class NewCardsExtractionTests
     }
 
     [Fact]
-    public void HighMountainStreamMatchesTheRealCardWithoutTheCircledNine()
+    public void ChaoshanChenlongReadsTheSplitForbiddenLabelRow()
+    {
+        IReadOnlyList<OcrRule> rules = Rules("嫣然心水.json");
+        OcrRule rule = rules.Single(item => item.Id == "潮汕陈龙杀三码");
+        string[] lines =
+        [
+            "潮汕陈龙", "245期禁01.13.25",
+            "246期", "禁", "07.19.31",
+            "247期", "禁", "06.18.30",
+            "248期", "禁", "23.35.47",
+            "249期", "禁", "12.24.48",
+            "250期", "禁", "24.36.48",
+            "251期", "禁", "09.19.31",
+            "252期", "禁", "05.17.29",
+            "253期", "禁", "10.22.34",
+            "254期", "禁", "12.24.48",
+            "255期", "禁", "10.34.46",
+            "256期", "禁", "11.23.35",
+            "257期", "月禁", "41.29.05",
+            "澳门特别行政区"
+        ];
+
+        Assert.Equal("41 29 05", RuleEngine.ExtractFinalValue(lines, 257, rule));
+        Assert.Equal("05 17 29", RuleEngine.ExtractFinalValue(lines, 252, rule));
+    }
+
+    [Fact]
+    public void TobaccoStripRecoversTheIssueRowZodiac()
+    {
+        Assert.Equal("羊", RuleEngine.ExtractIssueRowZodiacFromStrip(["257期禁一肖羊"], 257));
+        Assert.Equal("羊", RuleEngine.ExtractIssueRowZodiacFromStrip(["257期禁一肖", "羊"], 257));
+        Assert.Null(RuleEngine.ExtractIssueRowZodiacFromStrip(["257期禁一肖羊兔"], 257));
+        Assert.Null(RuleEngine.ExtractIssueRowZodiacFromStrip(["253期禁一肖牛"], 257));
+        Assert.Null(RuleEngine.ExtractIssueRowZodiacFromStrip(["257期禁一肖羊", "野马"], 257));
+    }
+
+    [Fact]
+    public void HighMountainMergedTiersTakeTheFirstNineZodiacs()
     {
         IReadOnlyList<OcrRule> rules = Rules("新澳高手.json");
+        OcrRule rule = rules.Single(item => item.Id == "高山流水");
+        string[] merged =
+        [
+            "高山流水", "第257期",
+            "257期：精选肖：狗猪马兔虎龙牛羊猴 257期：精选肖：狗猪马兔虎龙牛 257期：精选⑤肖：狗猪马兔虎"
+        ];
+
+        Assert.Equal("狗猪马兔虎龙牛羊猴", RuleEngine.ExtractFinalValue(merged, 257, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["高山流水", "第257期", "257期：精选肖：狗猪马兔虎龙牛 257期：精选⑤肖：狗猪马兔虎"], 257, rule));
+    }
+
+    [Fact]
+    public void LiangweiIdentifiesByItsDedicatedFolderWhenSmallOcrSplitsTheWatermark()
+    {
+        IReadOnlyList<OcrRule> rules = Rules("嫣然心水.json");
+        OcrRule rule = rules.Single(item => item.Id == "梁微微");
+        string[] split = ["244期杀兔开46", "梁", "微", "247期杀鼠开40", "255期杀猴开44", "256期杀狗开01", "257期杀狗开?"];
+        Assert.Contains(rule, RuleEngine.FindMatches(@"C:\图片\9.14-嫣然心水\梁薇薇\a.jpg", split, rules, rules));
+        Assert.Equal("狗", RuleEngine.ExtractFinalValue(split, 257, rule));
+
+        string[] foreign =
+        [
+            "③烟雨沫沫(3((新澳)", "禁一肖", "烟雨沫沫", "255期牛开猪44", "256期票牛开马01", "257期禁蛇"
+        ];
+        Assert.DoesNotContain(rule, RuleEngine.FindMatches(@"C:\图片\9.14-嫣然心水\梁薇薇\b.jpg", foreign, rules, rules));
+    }
+
+    [Fact]
+    public void HighMountainStreamMatchesTheRealCardWithoutTheCircledNine()
+    {        IReadOnlyList<OcrRule> rules = Rules("新澳高手.json");
         OcrRule rule = rules.Single(item => item.Id == "高山流水");
 
         string[] card =

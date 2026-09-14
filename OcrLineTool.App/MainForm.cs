@@ -13,16 +13,21 @@ public sealed class MainForm : Form
     private readonly Action<ProcessStartInfo> openFile;
     private const int DwmUseImmersiveDarkMode = 20;
     private const int DwmUseImmersiveDarkModeLegacy = 19;
-    internal static readonly Color WindowBackground = Color.FromArgb(11, 17, 30);
-    internal static readonly Color CardBackground = Color.FromArgb(18, 27, 46);
-    internal static readonly Color InputBackground = Color.FromArgb(25, 36, 59);
-    private static readonly Color CanvasBackground = Color.FromArgb(8, 13, 24);
-    internal static readonly Color BorderColor = Color.FromArgb(43, 61, 92);
-    internal static readonly Color PrimaryText = Color.FromArgb(232, 239, 250);
-    internal static readonly Color SecondaryText = Color.FromArgb(148, 165, 194);
-    internal static readonly Color AccentBlue = Color.FromArgb(56, 132, 246);
-    private static readonly Color DangerRed = Color.FromArgb(255, 69, 58);
-    private static readonly Color DisabledBackground = Color.FromArgb(30, 41, 63);
+    internal static readonly Color WindowBackground = Color.FromArgb(24, 25, 24);
+    internal static readonly Color CardBackground = Color.FromArgb(33, 35, 32);
+    internal static readonly Color InputBackground = Color.FromArgb(46, 48, 43);
+    private static readonly Color CanvasBackground = Color.FromArgb(21, 22, 21);
+    internal static readonly Color BorderColor = Color.FromArgb(81, 85, 74);
+    internal static readonly Color PrimaryText = Color.FromArgb(231, 232, 220);
+    internal static readonly Color SecondaryText = Color.FromArgb(180, 184, 166);
+    internal static readonly Color AccentAmber = Color.FromArgb(255, 171, 86);
+    internal static readonly Color OnAccent = Color.FromArgb(36, 22, 8);
+    private static readonly Color DangerRed = Color.FromArgb(242, 165, 165);
+    private static readonly Color DangerBorder = Color.FromArgb(96, 64, 68);
+    private static readonly Color DisabledBackground = Color.FromArgb(54, 56, 50);
+    internal const int CardRadius = 10;
+    internal const int DeskRadius = 18;
+    internal const string HeadingFontFamily = "SimSun";
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr window, int attribute, ref int value, int size);
@@ -68,8 +73,9 @@ public sealed class MainForm : Form
     private readonly Button settingsButton = new DarkButton() { Text = "设置" };
     private readonly Label recognitionTimingLabel = new()
     {
-        AutoSize = true, Visible = false, ForeColor = SecondaryText,
+        AutoSize = false, Width = 120, Visible = false, ForeColor = SecondaryText,
         TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right,
+        AutoEllipsis = true,
         AccessibleName = "识别耗时和预计剩余时间",
         Font = new Font("Microsoft YaHei UI", 9F)
     };
@@ -118,7 +124,6 @@ public sealed class MainForm : Form
     private bool isBusy;
     private bool showRecognizeButton;
     private TableLayoutPanel? settingsContent;
-    private TableLayoutPanel? sidebarLayout;
     private bool closeWhenIdle;
     private CancellationTokenSource? activeCancellation;
     private CancellationToken ActiveToken => activeCancellation?.Token ?? CancellationToken.None;
@@ -157,13 +162,15 @@ public sealed class MainForm : Form
 
         var layout = new TableLayoutPanel
         {
-            Name = "rootLayout", Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
+            Name = "rootLayout", Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
             BackColor = WindowBackground, Padding = Padding.Empty, Margin = Padding.Empty
         };
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 94));
-        layout.Controls.Add(BuildWorkspace(), 0, 0);
-        layout.Controls.Add(BuildStatusSection(), 0, 1);
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
+        layout.Controls.Add(BuildAppHeader(), 0, 0);
+        layout.Controls.Add(BuildWorkspace(), 0, 1);
+        layout.Controls.Add(BuildStatusSection(), 0, 2);
         Controls.Add(layout);
         ApplyShowRecognizeButton(UiSettings.Load(AppContext.BaseDirectory).ShowRecognizeButton);
 
@@ -197,94 +204,195 @@ public sealed class MainForm : Form
         recognitionTimer.Tick += (_, _) => UpdateRecognitionTiming();
     }
 
+    private static Control BuildAppHeader()
+    {
+        var header = new Panel
+        {
+            Name = "appHeader", Dock = DockStyle.Fill, BackColor = WindowBackground,
+            Margin = Padding.Empty, Padding = new Padding(24, 12, 24, 12)
+        };
+        var inner = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+            BackColor = WindowBackground, Margin = Padding.Empty, Padding = Padding.Empty
+        };
+        inner.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        inner.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        inner.Controls.Add(new Label
+        {
+            Text = "ATELIER / 本地识别工作室", Dock = DockStyle.Fill, AutoSize = false,
+            ForeColor = SecondaryText, Font = new Font("Microsoft YaHei UI", 9F), TextAlign = ContentAlignment.MiddleLeft
+        }, 0, 0);
+        inner.Controls.Add(new Label
+        {
+            Text = "NVIDIA CUDA · 本地工作区", AutoSize = true, ForeColor = AccentAmber,
+            Font = new Font("Microsoft YaHei UI", 9F),
+            TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right
+        }, 1, 0);
+        header.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = BorderColor });
+        header.Controls.Add(inner);
+        return header;
+    }
+
     private Control BuildWorkspace()
     {
+        var desk = new DarkRoundedPanel
+        {
+            Name = "workspaceDesk", Dock = DockStyle.Fill, BackColor = CardBackground,
+            BorderColor = BorderColor, CornerRadius = DeskRadius,
+            Padding = new Padding(22, 12, 22, 12), Margin = new Padding(24, 0, 24, 14)
+        };
         var workspace = new TableLayoutPanel
         {
             Name = "workspaceLayout", Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
-            Padding = new Padding(16, 16, 16, 10), BackColor = WindowBackground,
+            Padding = Padding.Empty, BackColor = CardBackground,
             Margin = Padding.Empty
         };
-        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 322));
-        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 43));
-        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 57));
+        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 340));
+        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34));
+        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 66));
         workspace.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        Control sidebar = BuildSidebar();
-        Control previewSection = BuildPreviewSection();
-        Control resultsSection = BuildResultsSection();
-        sidebar.Margin = new Padding(0, 0, 8, 0);
-        previewSection.Margin = new Padding(8, 0, 8, 0);
-        resultsSection.Margin = new Padding(8, 0, 0, 0);
-        workspace.Controls.Add(sidebar, 0, 0);
-        workspace.Controls.Add(previewSection, 1, 0);
-        workspace.Controls.Add(resultsSection, 2, 0);
-        return workspace;
+        Control laneOne = BuildLaneOne();
+        Control laneTwo = BuildLaneTwo();
+        Control laneThree = BuildLaneThree();
+        laneOne.Margin = new Padding(0, 0, 12, 0);
+        laneTwo.Margin = new Padding(12, 0, 12, 0);
+        laneThree.Margin = new Padding(12, 0, 0, 0);
+        workspace.Controls.Add(laneOne, 0, 0);
+        workspace.Controls.Add(laneTwo, 1, 0);
+        workspace.Controls.Add(laneThree, 2, 0);
+        desk.Controls.Add(workspace);
+        return desk;
     }
 
-    private Control BuildSidebar()
+    private static TableLayoutPanel BuildLane(string number, string title)
     {
-        var sidebarScrollHost = new Panel
+        var lane = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
+            BackColor = CardBackground, Margin = Padding.Empty, Padding = Padding.Empty
+        };
+        lane.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        lane.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        lane.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var header = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
+            BackColor = CardBackground, Margin = Padding.Empty, Padding = new Padding(0, 0, 0, 12)
+        };
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        header.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        header.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var heading = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+            BackColor = CardBackground, Margin = Padding.Empty, Padding = Padding.Empty
+        };
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 44));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        heading.Controls.Add(new Label
+        {
+            Text = number, Dock = DockStyle.Fill, AutoSize = false, ForeColor = AccentAmber,
+            Font = new Font(HeadingFontFamily, 14F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft
+        }, 0, 0);
+        heading.Controls.Add(new Label
+        {
+            Text = title, Dock = DockStyle.Fill, AutoSize = false, ForeColor = PrimaryText,
+            Font = new Font(HeadingFontFamily, 15F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft
+        }, 1, 0);
+        header.Controls.Add(heading, 0, 0);
+        header.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = BorderColor }, 0, 1);
+        lane.Controls.Add(header, 0, 0);
+        return lane;
+    }
+
+    private Control BuildLaneOne()
+    {
+        TableLayoutPanel lane = BuildLane("01", "选择资料");
+        var host = new DarkRoundedPanel
         {
             Name = "sidebarScrollHost", Dock = DockStyle.Fill, AutoScroll = true,
-            BackColor = WindowBackground, Padding = Padding.Empty, Margin = Padding.Empty
+            BackColor = CardBackground, BorderColor = BorderColor, BorderVisible = false,
+            CornerRadius = CardRadius,
+            Padding = new Padding(20, 8, 20, 8), Margin = Padding.Empty
         };
         var sidebar = new TableLayoutPanel
         {
-            Name = "sidebarLayout", Dock = DockStyle.Top, AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink, ColumnCount = 1, RowCount = 2,
-            BackColor = WindowBackground, Margin = Padding.Empty, Padding = Padding.Empty
+            Name = "sidebarLayout", Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
+            BackColor = CardBackground, Margin = Padding.Empty, Padding = Padding.Empty
         };
-        sidebarLayout = sidebar;
-        sidebar.RowStyles.Add(new RowStyle(SizeType.Absolute, 400));
-        sidebar.RowStyles.Add(new RowStyle(SizeType.Absolute, 290));
+        sidebar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        sidebar.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
+        sidebar.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        Control settings = BuildSettingsSection();
+        sidebar.Controls.Add(FieldLabel("资料群组"), 0, 0);
+        folderList.Dock = DockStyle.Fill;
+        folderList.Margin = Padding.Empty;
+        sidebar.Controls.Add(folderList, 0, 1);
+        host.Controls.Add(sidebar);
+
+        var laneContent = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
+            BackColor = CardBackground, Margin = Padding.Empty, Padding = Padding.Empty
+        };
+        laneContent.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        laneContent.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        laneContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 300));
         Control tools = BuildToolsSection();
-        settings.Margin = new Padding(0, 0, 0, 8);
-        tools.Margin = new Padding(0, 8, 0, 0);
-        sidebar.Controls.Add(settings, 0, 0);
-        sidebar.Controls.Add(tools, 0, 1);
-        sidebarScrollHost.Controls.Add(sidebar);
-        return sidebarScrollHost;
+        tools.Margin = new Padding(0, 12, 0, 0);
+        laneContent.Controls.Add(host, 0, 0);
+        laneContent.Controls.Add(tools, 0, 1);
+        lane.Controls.Add(laneContent, 0, 1);
+        return lane;
     }
 
-    private Control BuildSettingsSection()
+    private Control BuildLaneTwo()
     {
+        TableLayoutPanel lane = BuildLane("02", "核对与识别");
         var card = CreateCard("settingsSection");
         var content = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 12,
-            Padding = new Padding(20, 12, 20, 12), BackColor = CardBackground
+            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 13,
+            Padding = new Padding(24, 22, 24, 22), BackColor = CardBackground,
+            Margin = Padding.Empty
         };
         settingsContent = content;
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        foreach (float height in new[] { 28F, 17F, 34F, 17F, 34F, 17F, 34F, 6F, 44F, 60F, 6F })
+        foreach (float height in new[] { 22F, 48F, 18F, 22F, 48F, 18F, 22F, 48F, 20F })
             content.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
         content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 16F));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 48F));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 80F));
 
-        content.Controls.Add(SectionTitle("设置"), 0, 0);
-        content.Controls.Add(FieldLabel("提取期号"), 0, 1);
-        issueInput.Dock = DockStyle.Fill;
-        issueInput.Margin = Padding.Empty;
-        content.Controls.Add(issueInput, 0, 2);
+        content.Controls.Add(FieldLabel("提取期号"), 0, 0);
+        content.Controls.Add(WrapField(issueInput), 0, 1);
         content.Controls.Add(FieldLabel("OCR 配置"), 0, 3);
         credentialSelector.Dock = DockStyle.Fill;
         credentialSelector.Margin = Padding.Empty;
         content.Controls.Add(credentialSelector, 0, 4);
-        content.Controls.Add(FieldLabel("资料文件夹"), 0, 5);
-        folderNameLabel.Margin = Padding.Empty;
-        content.Controls.Add(folderNameLabel, 0, 6);
+        content.Controls.Add(FieldLabel("资料文件夹"), 0, 6);
+        content.Controls.Add(WrapField(folderNameLabel), 0, 7);
+
+        Control previewSection = BuildPreviewSection();
+        previewSection.Margin = Padding.Empty;
+        content.Controls.Add(previewSection, 0, 9);
+
         recognizeButton.Dock = DockStyle.Fill;
         recognizeButton.Margin = Padding.Empty;
-        content.Controls.Add(recognizeButton, 0, 8);
+        content.Controls.Add(recognizeButton, 0, 11);
         localPrimaryButton.Dock = DockStyle.Fill;
-        localPrimaryButton.Margin = new Padding(0, 0, 0, 8);
-        content.Controls.Add(localPrimaryButton, 0, 9);
-        folderList.Margin = Padding.Empty;
-        content.Controls.Add(folderList, 0, 11);
+        localPrimaryButton.Margin = new Padding(0, 16, 0, 0);
+        content.Controls.Add(localPrimaryButton, 0, 12);
+
         card.Controls.Add(content);
-        return card;
+        card.Margin = Padding.Empty;
+        lane.Controls.Add(card, 0, 1);
+        return lane;
     }
 
     private Control BuildToolsSection()
@@ -292,60 +400,43 @@ public sealed class MainForm : Form
         var card = CreateCard("toolsSection");
         var content = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
-            Padding = new Padding(20, 12, 20, 12), BackColor = CardBackground
+            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 6,
+            Padding = new Padding(18, 14, 18, 22), BackColor = CardBackground,
+            Margin = Padding.Empty
         };
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+        content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        // The spare height sits above the title so the tool column bottoms out on
+        // the same line as the middle column's primary button.
         content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        content.Controls.Add(SectionTitle("工具"), 0, 0);
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        content.Controls.Add(SectionTitle("工具"), 0, 1);
 
-        var actions = new TableLayoutPanel
+        settingsButton.Dock = DockStyle.Fill;
+        settingsButton.Margin = new Padding(0, 0, 0, 16);
+        content.Controls.Add(settingsButton, 0, 2);
+        missingSummaryButton.Dock = DockStyle.Fill;
+        missingSummaryButton.Margin = new Padding(0, 0, 0, 16);
+        content.Controls.Add(missingSummaryButton, 0, 3);
+        retryMissingButton.Dock = DockStyle.Fill;
+        retryMissingButton.Margin = new Padding(0, 0, 0, 16);
+        content.Controls.Add(retryMissingButton, 0, 4);
+
+        var distributeAction = new Panel
         {
-            Name = "toolsActionsLayout", Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4,
-            BackColor = CardBackground, Margin = Padding.Empty, Padding = Padding.Empty
+            Dock = DockStyle.Fill, Margin = Padding.Empty, BackColor = CardBackground
         };
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        Button[] toolButtons = [clearResultsButton, retryMissingButton];
-        for (int index = 0; index < toolButtons.Length; index++)
-        {
-            Button button = toolButtons[index];
-            actions.RowStyles.Add(new RowStyle(SizeType.Absolute, button == clearResultsButton ? 70 : 50));
-            button.Dock = DockStyle.Fill;
-            button.Margin = new Padding(0, 0, 0, button == clearResultsButton ? 14 : 10);
-            if (button == clearResultsButton)
-            {
-                var pair = new TableLayoutPanel
-                {
-                    Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
-                    BackColor = CardBackground, Margin = new Padding(0, 0, 0, 10)
-                };
-                pair.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-                pair.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-                pair.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-                button.Margin = new Padding(0, 0, 8, 14);
-                missingSummaryButton.Dock = DockStyle.Fill;
-                missingSummaryButton.Margin = new Padding(8, 0, 0, 0);
-                pair.Controls.Add(button, 0, 0);
-                pair.Controls.Add(missingSummaryButton, 1, 0);
-                actions.Controls.Add(pair, 0, index);
-            }
-            else
-                actions.Controls.Add(button, 0, index);
-        }
-        actions.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
-        var finalAction = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 10), BackColor = CardBackground };
         manualDistributeButton.Dock = DockStyle.Fill;
         manualDistributeButton.Margin = Padding.Empty;
         continueButton.Dock = DockStyle.Fill;
         continueButton.Margin = Padding.Empty;
-        finalAction.Controls.Add(manualDistributeButton);
-        finalAction.Controls.Add(continueButton);
-        actions.Controls.Add(finalAction, 0, toolButtons.Length);
-        actions.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
-        settingsButton.Dock = DockStyle.Fill;
-        settingsButton.Margin = Padding.Empty;
-        actions.Controls.Add(settingsButton, 0, toolButtons.Length + 1);
-        content.Controls.Add(actions, 0, 1);
+        distributeAction.Controls.Add(manualDistributeButton);
+        distributeAction.Controls.Add(continueButton);
+        content.Controls.Add(distributeAction, 0, 5);
+
         card.Controls.Add(content);
         return card;
     }
@@ -373,21 +464,25 @@ public sealed class MainForm : Form
         return card;
     }
 
-    private Control BuildResultsSection()
+    private Control BuildLaneThree()
     {
+        TableLayoutPanel lane = BuildLane("03", "结果处理");
         var card = CreateCard("resultsSection");
         var content = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
-            Padding = Padding.Empty, BackColor = CardBackground
+            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
+            Padding = new Padding(24, 22, 24, 22), BackColor = CardBackground,
+            Margin = Padding.Empty
         };
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
+        content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 80));
 
         var header = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1,
-            Padding = new Padding(20, 13, 16, 11), BackColor = CardBackground,
+            Padding = new Padding(0, 0, 0, 14), BackColor = CardBackground,
             Margin = Padding.Empty
         };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -395,9 +490,9 @@ public sealed class MainForm : Form
         header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         header.Controls.Add(CardHeader("识别结果"), 0, 0);
-        recognitionTimingLabel.Margin = new Padding(8, 0, 8, 0);
-        copyButton.Margin = new Padding(6, 0, 6, 0);
-        openGroupResultsButton.Margin = new Padding(6, 0, 0, 0);
+        recognitionTimingLabel.Margin = new Padding(6, 0, 10, 0);
+        copyButton.Margin = new Padding(0, 0, 16, 0);
+        openGroupResultsButton.Margin = Padding.Empty;
         header.Controls.Add(recognitionTimingLabel, 1, 0);
         header.Controls.Add(copyButton, 2, 0);
         header.Controls.Add(openGroupResultsButton, 3, 0);
@@ -406,13 +501,20 @@ public sealed class MainForm : Form
         var resultsHost = new DarkRoundedPanel
         {
             Name = "resultsHost", Dock = DockStyle.Fill, BackColor = InputBackground,
-            BorderColor = BorderColor, CornerRadius = 10, Padding = new Padding(18),
-            Margin = new Padding(16, 0, 16, 16)
+            BorderColor = BorderColor, BorderVisible = false, CornerRadius = CardRadius,
+            Padding = new Padding(18), Margin = Padding.Empty
         };
         resultsHost.Controls.Add(resultsBox);
         content.Controls.Add(resultsHost, 0, 1);
+
+        clearResultsButton.Dock = DockStyle.Fill;
+        clearResultsButton.Margin = new Padding(0, 16, 0, 0);
+        content.Controls.Add(clearResultsButton, 0, 2);
+
         card.Controls.Add(content);
-        return card;
+        card.Margin = Padding.Empty;
+        lane.Controls.Add(card, 0, 1);
+        return lane;
     }
 
     private Control BuildStatusSection()
@@ -470,19 +572,41 @@ public sealed class MainForm : Form
     private static DarkRoundedPanel CreateCard(string name) => new()
     {
         Name = name, Dock = DockStyle.Fill, BackColor = CardBackground,
-        BorderColor = BorderColor, CornerRadius = 12, Padding = new Padding(1)
+        BorderColor = BorderColor, BorderVisible = false, CornerRadius = CardRadius,
+        Padding = new Padding(1)
     };
+
+    // All three settings fields share one drawn frame so their borders and text
+    // insets line up instead of mixing native and custom chrome.
+    private static Control WrapField(Control field)
+    {
+        field.Dock = DockStyle.Fill;
+        field.Margin = Padding.Empty;
+        if (field is NumericUpDown upDown)
+            upDown.BorderStyle = BorderStyle.None;
+        else if (field is Label label)
+            label.BorderStyle = BorderStyle.None;
+        field.BackColor = InputBackground;
+        var frame = new DarkRoundedPanel
+        {
+            Name = field.Name + "Frame", Dock = DockStyle.Fill, BackColor = InputBackground,
+            BorderColor = BorderColor, CornerRadius = 6, Padding = new Padding(1),
+            Margin = Padding.Empty
+        };
+        frame.Controls.Add(field);
+        return frame;
+    }
 
     private static Label SectionTitle(string text) => new()
     {
         Text = text, Dock = DockStyle.Fill, AutoSize = false, ForeColor = PrimaryText,
-        Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft
+        Font = new Font(HeadingFontFamily, 13F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft
     };
 
     private static Label CardHeader(string text) => new()
     {
         Text = text, Dock = DockStyle.Fill, AutoSize = false, ForeColor = PrimaryText,
-        Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft,
+        Font = new Font(HeadingFontFamily, 13F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft,
         Padding = new Padding(18, 0, 0, 0)
     };
 
@@ -499,7 +623,7 @@ public sealed class MainForm : Form
         issueInput.TabIndex = 0;
         issueInput.BackColor = InputBackground;
         issueInput.ForeColor = PrimaryText;
-        issueInput.BorderStyle = BorderStyle.FixedSingle;
+        issueInput.BorderStyle = BorderStyle.None;
         issueInput.Font = new Font("Microsoft YaHei UI", 11F);
 
         credentialSelector.Name = "credentialSelector";
@@ -522,7 +646,8 @@ public sealed class MainForm : Form
         folderNameLabel.AccessibleName = "当前资料文件夹";
         folderNameLabel.BackColor = InputBackground;
         folderNameLabel.ForeColor = PrimaryText;
-        folderNameLabel.BorderStyle = BorderStyle.FixedSingle;
+        folderNameLabel.BorderStyle = BorderStyle.None;
+        folderNameLabel.Padding = new Padding(12, 0, 12, 0);
 
         folderList.Name = "folderList";
         folderList.AccessibleName = "可选资料群";
@@ -539,20 +664,30 @@ public sealed class MainForm : Form
         progressBar.Name = "ocrProgress";
         progressBar.AccessibleName = "OCR 处理进度";
         progressBar.BackColor = InputBackground;
-        progressBar.ForeColor = AccentBlue;
+        progressBar.ForeColor = AccentAmber;
 
-        ConfigureButton(recognizeButton, "开始识别", AccentBlue, Color.White, AccentBlue, 3);
-        ConfigureButton(localPrimaryButton, "本地主识别", CardBackground, PrimaryText, BorderColor, 4);
+        ConfigureButton(recognizeButton, "开始识别", CardBackground, AccentAmber, AccentAmber, 3);
+        ConfigureButton(localPrimaryButton, "本地主识别", AccentAmber, OnAccent, AccentAmber, 4);
         localPrimaryButton.Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Bold);
-        ConfigureButton(clearResultsButton, "清除结果", CardBackground, PrimaryText, BorderColor, 9);
+        localPrimaryButton.Height = 64;
+        ConfigureButton(clearResultsButton, "清除结果", CardBackground, DangerRed, DangerBorder, 9);
         ConfigureButton(missingSummaryButton, "统计缺失", CardBackground, PrimaryText, BorderColor, 13);
         ConfigureButton(retryMissingButton, "手动复抓缺失", CardBackground, PrimaryText, BorderColor, 10);
         ConfigureButton(manualDistributeButton, "手动分流", CardBackground, PrimaryText, BorderColor, 12);
-        ConfigureButton(continueButton, "继续云 OCR", CardBackground, AccentBlue, AccentBlue, 11);
+        ConfigureButton(continueButton, "继续云 OCR", CardBackground, AccentAmber, AccentAmber, 11);
         ConfigureButton(copyButton, "复制结果", CardBackground, PrimaryText, BorderColor, 5);
         ConfigureButton(openGroupResultsButton, "打开群结果", CardBackground, PrimaryText, BorderColor, 6);
         ConfigureButton(settingsButton, "设置", CardBackground, PrimaryText, BorderColor, 14);
 
+        // The two result-header buttons share an auto-sized column, so they must
+        // size to their caption instead of the default control width.
+        foreach (Button headerButton in new[] { copyButton, openGroupResultsButton })
+        {
+            headerButton.AutoSize = true;
+            headerButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            headerButton.MinimumSize = new Size(0, 48);
+            headerButton.Padding = new Padding(12, 0, 12, 0);
+        }
     }
 
     private static void ConfigureButton(
@@ -567,22 +702,23 @@ public sealed class MainForm : Form
         button.AccessibleName = accessibleName;
         button.TabIndex = tabIndex;
         button.AutoSize = false;
-        button.Height = 44;
+        button.Height = 48;
         button.Padding = Padding.Empty;
+        button.Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold);
         button.FlatStyle = FlatStyle.Flat;
         button.UseVisualStyleBackColor = false;
         button.FlatAppearance.BorderSize = 1;
-        button.FlatAppearance.MouseOverBackColor = enabledBackground == AccentBlue
-            ? Color.FromArgb(86, 156, 255)
-            : Color.FromArgb(34, 47, 72);
-        button.FlatAppearance.MouseDownBackColor = enabledBackground == AccentBlue
-            ? Color.FromArgb(28, 100, 215)
-            : Color.FromArgb(42, 58, 88);
+        button.FlatAppearance.MouseOverBackColor = enabledBackground == AccentAmber
+            ? Color.FromArgb(255, 191, 121)
+            : Color.FromArgb(61, 65, 57);
+        button.FlatAppearance.MouseDownBackColor = enabledBackground == AccentAmber
+            ? Color.FromArgb(216, 138, 62)
+            : Color.FromArgb(74, 79, 69);
 
         void RefreshStyle(object? _, EventArgs __)
         {
             button.BackColor = button.Enabled ? enabledBackground : DisabledBackground;
-            button.ForeColor = button.Enabled ? enabledForeground : Color.FromArgb(112, 126, 152);
+            button.ForeColor = button.Enabled ? enabledForeground : Color.FromArgb(140, 144, 132);
             button.FlatAppearance.BorderColor = button.Enabled ? enabledBorder : BorderColor;
         }
 
@@ -645,7 +781,7 @@ public sealed class MainForm : Form
             return;
 
         bool selected = (e.State & DrawItemState.Selected) != 0;
-        Color background = selected ? Color.FromArgb(36, 52, 82) : InputBackground;
+        Color background = selected ? Color.FromArgb(74, 62, 46) : InputBackground;
         using var brush = new SolidBrush(background);
         e.Graphics.FillRectangle(brush, e.Bounds);
         if (e.Index >= 0)
@@ -655,7 +791,7 @@ public sealed class MainForm : Form
                 e.Graphics,
                 text,
                 comboBox.Font,
-                e.Bounds with { X = e.Bounds.X + 8, Width = Math.Max(0, e.Bounds.Width - 12) },
+                e.Bounds with { X = e.Bounds.X + 12, Width = Math.Max(0, e.Bounds.Width - 16) },
                 PrimaryText,
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
         }
@@ -668,7 +804,7 @@ public sealed class MainForm : Form
             return;
 
         bool selected = (e.State & DrawItemState.Selected) != 0;
-        Color background = selected ? Color.FromArgb(36, 52, 82) : InputBackground;
+        Color background = selected ? Color.FromArgb(74, 62, 46) : InputBackground;
         using var brush = new SolidBrush(background);
         e.Graphics.FillRectangle(brush, e.Bounds);
 
@@ -1191,7 +1327,7 @@ public sealed class MainForm : Form
 
             await RecoverSummaryRowValuesAsync(
                 rules, values, evidenceLedger, missingReasons,
-                candidates.Concat(cloudCandidates).ToArray(), ActiveToken);
+                candidates.Concat(cloudCandidates).ToArray(), issue, ActiveToken);
 
             ActiveToken.ThrowIfCancellationRequested();
             using IDisposable publishGuard = RecognitionStateStore.LockValidEvidenceForPublish(
@@ -2238,6 +2374,7 @@ public sealed class MainForm : Form
         ResultEvidenceLedger evidenceLedger,
         IDictionary<string, string> missingReasons,
         IReadOnlyList<RecognitionCandidate> candidates,
+        int issue,
         CancellationToken cancellationToken)
     {
         if (selectedImageDirectory is null)
@@ -2247,7 +2384,13 @@ public sealed class MainForm : Form
                 && rule.Type == "生肖"
                 && rule.AllowIssueLessSummary)
             .ToArray();
-        if (recoverable.Length == 0)
+        OcrRule[] issueRowRules = rules
+            .Where(rule => !values.ContainsKey(rule.Id)
+                && rule.Type is "生肖" or "单生肖"
+                && !string.IsNullOrWhiteSpace(rule.Folder)
+                && !rule.AllowIssueLessSummary)
+            .ToArray();
+        if (recoverable.Length == 0 && issueRowRules.Length == 0)
             return;
 
         var client = new PaddleLocalOcrClient();
@@ -2267,6 +2410,38 @@ public sealed class MainForm : Form
                     continue;
                 OcrEvidence evidence = OcrEvidence.FromLines(
                     candidate.SourcePath, recovered.StripLines, "summary-row-strip");
+                evidenceLedger.Observe(values, rule, recovered.Value, evidence);
+                missingReasons.Remove(rule.Id);
+            }
+            catch (Exception exception) when (exception is OcrException
+                or IOException
+                or UnauthorizedAccessException)
+            {
+                // Recovery is best effort: an unreadable strip keeps the value missing.
+            }
+        }
+
+        // Dedicated cards whose full-image read dropped the target period row:
+        // crop that row (box from the candidate scan) and re-read it locally.
+        foreach (OcrRule rule in issueRowRules)
+        {
+            if (values.ContainsKey(rule.Id))
+                continue;
+            RecognitionCandidate? candidate = candidates.FirstOrDefault(
+                item => item.Rules.Any(candidateRule => candidateRule.Id == rule.Id));
+            if (candidate is null || !File.Exists(candidate.SourcePath))
+                continue;
+            string? imageFolder = Path.GetFileName(Path.GetDirectoryName(candidate.SourcePath));
+            if (!string.Equals(imageFolder, rule.Folder, StringComparison.OrdinalIgnoreCase))
+                continue;
+            try
+            {
+                SummaryRowRecoveryResult? recovered = await SummaryRowRecovery.TryRecoverIssueRowAsync(
+                    client, candidate.SourcePath, issue, titleRatio, detectionMaxSide, cancellationToken);
+                if (recovered is null)
+                    continue;
+                OcrEvidence evidence = OcrEvidence.FromLines(
+                    candidate.SourcePath, recovered.StripLines, "issue-row-strip");
                 evidenceLedger.Observe(values, rule, recovered.Value, evidence);
                 missingReasons.Remove(rule.Id);
             }
@@ -2990,27 +3165,10 @@ public sealed class MainForm : Form
     {
         showRecognizeButton = visible;
         recognizeButton.Visible = visible;
-        if (settingsContent is not null && settingsContent.RowStyles.Count > 8)
-            settingsContent.RowStyles[8].Height = visible ? 44F : 0F;
-        if (sidebarLayout is not null && sidebarLayout.RowStyles.Count > 0)
-            RefreshSidebarHeight();
+        if (settingsContent is not null && settingsContent.RowStyles.Count > 11)
+            settingsContent.RowStyles[11].Height = visible ? 48F : 0F;
     }
 
-    protected override void OnResize(EventArgs e)
-    {
-        base.OnResize(e);
-        RefreshSidebarHeight();
-    }
-
-    private void RefreshSidebarHeight()
-    {
-        if (sidebarLayout is null || sidebarLayout.RowStyles.Count == 0)
-            return;
-
-        bool largeScale = DeviceDpi >= 120 || (ClientSize.Width > 1450 && ClientSize.Height > 900);
-        float settingsHeight = largeScale ? 600F : 400F;
-        sidebarLayout.RowStyles[0].Height = settingsHeight + (showRecognizeButton ? 44F : 0F);
-    }
 
     private Task WaitForCloudResumeAsync(int current, int total, string path)
     {
@@ -3292,10 +3450,84 @@ internal sealed class SingleLineEllipsisLabel : Label
     }
 }
 
+internal static class RoundedGeometry
+{
+    internal static GraphicsPath RoundedRectangle(Rectangle bounds, int radius)
+    {
+        var path = new GraphicsPath();
+        int diameter = Math.Min(Math.Min(radius * 2, bounds.Width), bounds.Height);
+        if (diameter <= 1)
+        {
+            path.AddRectangle(bounds);
+            return path;
+        }
+
+        var arc = new Rectangle(bounds.X, bounds.Y, diameter, diameter);
+        path.AddArc(arc, 180, 90);
+        arc.X = bounds.Right - diameter;
+        path.AddArc(arc, 270, 90);
+        arc.Y = bounds.Bottom - diameter;
+        path.AddArc(arc, 0, 90);
+        arc.X = bounds.Left;
+        path.AddArc(arc, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+
+    internal static GraphicsPath RoundedRectangle(RectangleF bounds, float radius)
+    {
+        var path = new GraphicsPath();
+        float diameter = Math.Min(Math.Min(radius * 2F, bounds.Width), bounds.Height);
+        if (diameter <= 1F)
+        {
+            path.AddRectangle(bounds);
+            return path;
+        }
+
+        var arc = new RectangleF(bounds.X, bounds.Y, diameter, diameter);
+        path.AddArc(arc, 180, 90);
+        arc.X = bounds.Right - diameter;
+        path.AddArc(arc, 270, 90);
+        arc.Y = bounds.Bottom - diameter;
+        path.AddArc(arc, 0, 90);
+        arc.X = bounds.Left;
+        path.AddArc(arc, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+}
+
 internal sealed class DarkButton : Button
 {
     private bool hovered;
     private bool pressed;
+
+    public DarkButton()
+    {
+        SetStyle(
+            ControlStyles.AllPaintingInWmPaint |
+            ControlStyles.OptimizedDoubleBuffer |
+            ControlStyles.ResizeRedraw |
+            ControlStyles.UserPaint,
+            true);
+    }
+
+    protected override void OnResize(EventArgs e)
+    {
+        base.OnResize(e);
+        UpdateRegion();
+    }
+
+    private void UpdateRegion()
+    {
+        if (Width <= 0 || Height <= 0)
+            return;
+
+        using GraphicsPath path = RoundedGeometry.RoundedRectangle(ClientRectangle, MainForm.CardRadius);
+        Region? previous = Region;
+        Region = new Region(path);
+        previous?.Dispose();
+    }
 
     protected override void OnMouseEnter(EventArgs e)
     {
@@ -3340,25 +3572,75 @@ internal sealed class DarkButton : Button
                 ? FlatAppearance.MouseOverBackColor
                 : BackColor;
         pevent.Graphics.Clear(background);
+        if (Width <= 1 || Height <= 1)
+            return;
 
-        if (FlatAppearance.BorderSize > 0)
+        pevent.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using GraphicsPath path = RoundedGeometry.RoundedRectangle(
+            new RectangleF(0.5F, 0.5F, Width - 1F, Height - 1F), MainForm.CardRadius);
+        var gradientBounds = new Rectangle(0, 0, Width, Height);
+
+        if (Enabled)
         {
-            using var borderPen = new Pen(FlatAppearance.BorderColor, FlatAppearance.BorderSize);
-            Rectangle border = ClientRectangle;
-            border.Width -= 1;
-            border.Height -= 1;
-            pevent.Graphics.DrawRectangle(borderPen, border);
+            // Raised cap: lighter at the top, darker at the bottom, with a matching
+            // gradient edge. The pressed state inverts the shading so it reads as
+            // pushed in.
+            using var fillBrush = new LinearGradientBrush(
+                gradientBounds,
+                Shade(background, pressed ? -0.14F : 0.10F),
+                Shade(background, pressed ? 0.06F : -0.14F),
+                LinearGradientMode.Vertical);
+            pevent.Graphics.FillPath(fillBrush, path);
+
+            if (FlatAppearance.BorderSize > 0)
+            {
+                using var edgeBrush = new LinearGradientBrush(
+                    gradientBounds,
+                    Shade(FlatAppearance.BorderColor, pressed ? -0.20F : 0.30F),
+                    Shade(FlatAppearance.BorderColor, pressed ? 0.25F : -0.30F),
+                    LinearGradientMode.Vertical);
+                using var borderPen = new Pen(edgeBrush, FlatAppearance.BorderSize);
+                pevent.Graphics.DrawPath(borderPen, path);
+            }
+        }
+        else
+        {
+            using var fillBrush = new SolidBrush(background);
+            pevent.Graphics.FillPath(fillBrush, path);
+            if (FlatAppearance.BorderSize > 0)
+            {
+                using var borderPen = new Pen(FlatAppearance.BorderColor, FlatAppearance.BorderSize);
+                pevent.Graphics.DrawPath(borderPen, path);
+            }
         }
 
+        Rectangle textBounds = ClientRectangle;
+        if (pressed && Enabled)
+            textBounds.Offset(0, 1);
         TextRenderer.DrawText(
             pevent.Graphics,
             Text,
             Font,
-            ClientRectangle,
+            textBounds,
             ForeColor,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
         if (Focused && ShowFocusCues)
             ControlPaint.DrawFocusRectangle(pevent.Graphics, Rectangle.Inflate(ClientRectangle, -4, -4), ForeColor, background);
+    }
+
+    private static Color Shade(Color color, float factor)
+    {
+        if (factor >= 0F)
+            return Color.FromArgb(
+                color.A,
+                Math.Clamp(color.R + (int)((255 - color.R) * factor), 0, 255),
+                Math.Clamp(color.G + (int)((255 - color.G) * factor), 0, 255),
+                Math.Clamp(color.B + (int)((255 - color.B) * factor), 0, 255));
+        return Color.FromArgb(
+            color.A,
+            Math.Clamp((int)(color.R * (1F + factor)), 0, 255),
+            Math.Clamp((int)(color.G * (1F + factor)), 0, 255),
+            Math.Clamp((int)(color.B * (1F + factor)), 0, 255));
     }
 }
 
@@ -3367,9 +3649,9 @@ internal sealed class DarkComboBox : ComboBox
     private const int PaintMessage = 0x000F;
     private const int PrintMessage = 0x0317;
     private const int PrintClientMessage = 0x0318;
-    private static readonly Color Surface = Color.FromArgb(25, 36, 59);
-    private static readonly Color Border = Color.FromArgb(62, 80, 112);
-    private static readonly Color Arrow = Color.FromArgb(200, 212, 232);
+    private static readonly Color Surface = MainForm.InputBackground;
+    private static readonly Color Border = MainForm.BorderColor;
+    private static readonly Color Arrow = MainForm.SecondaryText;
 
     protected override void WndProc(ref Message message)
     {
@@ -3397,10 +3679,10 @@ internal sealed class DarkComboBox : ComboBox
         var arrowArea = new Rectangle(Width - arrowWidth, 1, arrowWidth - 1, Height - 2);
         using var surfaceBrush = new SolidBrush(Surface);
         using var borderPen = new Pen(Border);
-        using var arrowPen = new Pen(Enabled ? Arrow : Color.FromArgb(112, 126, 152), 1.5F);
+        using var arrowPen = new Pen(Enabled ? Arrow : Color.FromArgb(120, 122, 110), 1.5F);
         graphics.FillRectangle(surfaceBrush, arrowArea);
-        graphics.DrawLine(borderPen, arrowArea.Left, arrowArea.Top, arrowArea.Left, arrowArea.Bottom);
-        graphics.DrawRectangle(borderPen, 0, 0, Width - 1, Height - 1);
+        graphics.DrawLine(borderPen, arrowArea.Left + 0.5F, arrowArea.Top, arrowArea.Left + 0.5F, arrowArea.Bottom);
+        graphics.DrawRectangle(borderPen, 0.5F, 0.5F, Width - 1F, Height - 1F);
 
         int centerX = arrowArea.Left + arrowArea.Width / 2;
         int centerY = arrowArea.Top + arrowArea.Height / 2;
@@ -3416,10 +3698,17 @@ internal sealed class DarkComboBox : ComboBox
 
 internal sealed class DarkNumericUpDown : NumericUpDown
 {
-    private static readonly Color Surface = Color.FromArgb(25, 36, 59);
-    private static readonly Color Border = Color.FromArgb(62, 80, 112);
-    private static readonly Color Arrow = Color.FromArgb(200, 212, 232);
+    private const int EmSetMargins = 0x00D3;
+    private const int EcLeftMargin = 0x0001;
+    private const int EcRightMargin = 0x0002;
+    private const int TextInset = 12;
+    private static readonly Color Surface = MainForm.InputBackground;
+    private static readonly Color Border = MainForm.BorderColor;
+    private static readonly Color Arrow = MainForm.SecondaryText;
     private readonly Control? buttons;
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
 
     public DarkNumericUpDown()
     {
@@ -3430,6 +3719,24 @@ internal sealed class DarkNumericUpDown : NumericUpDown
         buttons.BackColor = Surface;
         buttons.ForeColor = Arrow;
         buttons.Paint += DrawButtons;
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        foreach (Control child in Controls)
+        {
+            if (child is not TextBox)
+                continue;
+
+            // Match the text inset of the sibling fields so all three line up.
+            _ = SendMessage(
+                child.Handle,
+                EmSetMargins,
+                (IntPtr)(EcLeftMargin | EcRightMargin),
+                (IntPtr)((TextInset << 16) | TextInset));
+            break;
+        }
     }
 
     protected override void OnEnabledChanged(EventArgs e)
@@ -3446,9 +3753,9 @@ internal sealed class DarkNumericUpDown : NumericUpDown
         e.Graphics.Clear(Surface);
         int middle = control.Height / 2;
         using var borderPen = new Pen(Border);
-        using var arrowPen = new Pen(Enabled ? Arrow : Color.FromArgb(112, 126, 152), 1.4F);
-        e.Graphics.DrawLine(borderPen, 0, 0, 0, control.Height);
-        e.Graphics.DrawLine(borderPen, 0, middle, control.Width, middle);
+        using var arrowPen = new Pen(Enabled ? Arrow : Color.FromArgb(120, 122, 110), 1.4F);
+        e.Graphics.DrawLine(borderPen, 0.5F, 0F, 0.5F, control.Height);
+        e.Graphics.DrawLine(borderPen, 0.5F, middle + 0.5F, control.Width, middle + 0.5F);
 
         int centerX = control.Width / 2;
         int upperCenter = Math.Max(3, middle / 2);
@@ -3488,8 +3795,8 @@ internal sealed class DarkProgressBar : Control
             ControlStyles.ResizeRedraw |
             ControlStyles.UserPaint,
             true);
-        BackColor = Color.FromArgb(25, 36, 59);
-        ForeColor = Color.FromArgb(56, 132, 246);
+        BackColor = MainForm.InputBackground;
+        ForeColor = MainForm.AccentAmber;
         marqueeTimer.Tick += (_, _) =>
         {
             marqueeOffset = Width <= 0 ? 0 : (marqueeOffset + 10) % Math.Max(1, Width + Math.Max(28, Width / 4));
@@ -3563,14 +3870,14 @@ internal sealed class DarkProgressBar : Control
             return;
 
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        Rectangle track = new(0, 1, Width - 1, Math.Max(1, Height - 2));
-        using GraphicsPath trackPath = RoundedRectangle(track, Math.Min(7, track.Height / 2));
+        RectangleF track = new(0.5F, 1.5F, Width - 2F, Math.Max(1F, Height - 3F));
+        using GraphicsPath trackPath = RoundedGeometry.RoundedRectangle(track, Math.Min(7F, track.Height / 2F));
         using var trackBrush = new SolidBrush(BackColor);
-        using var borderPen = new Pen(Color.FromArgb(48, 66, 98));
+        using var borderPen = new Pen(MainForm.BorderColor);
         e.Graphics.FillPath(trackBrush, trackPath);
         e.Graphics.DrawPath(borderPen, trackPath);
 
-        Rectangle fill = progressStyle == ProgressBarStyle.Marquee
+        RectangleF fill = progressStyle == ProgressBarStyle.Marquee
             ? MarqueeRectangle(track)
             : ValueRectangle(track);
         if (fill.Width <= 0)
@@ -3590,18 +3897,18 @@ internal sealed class DarkProgressBar : Control
         base.Dispose(disposing);
     }
 
-    private Rectangle ValueRectangle(Rectangle track)
+    private RectangleF ValueRectangle(RectangleF track)
     {
         int range = maximum - minimum;
         double ratio = range <= 0 ? 0 : (double)(currentValue - minimum) / range;
-        return new Rectangle(track.X, track.Y, (int)Math.Round(track.Width * ratio), track.Height);
+        return new RectangleF(track.X, track.Y, (float)Math.Round(track.Width * ratio), track.Height);
     }
 
-    private Rectangle MarqueeRectangle(Rectangle track)
+    private RectangleF MarqueeRectangle(RectangleF track)
     {
-        int blockWidth = Math.Max(28, track.Width / 4);
-        int x = track.X + marqueeOffset - blockWidth;
-        return Rectangle.Intersect(track, new Rectangle(x, track.Y, blockWidth, track.Height));
+        float blockWidth = Math.Max(28F, track.Width / 4F);
+        float x = track.X + marqueeOffset - blockWidth;
+        return RectangleF.Intersect(track, new RectangleF(x, track.Y, blockWidth, track.Height));
     }
 
     private void UpdateMarqueeTimer()
@@ -3616,34 +3923,13 @@ internal sealed class DarkProgressBar : Control
         marqueeTimer.Interval = Math.Clamp(marqueeAnimationSpeed, 15, 1000);
         marqueeTimer.Start();
     }
-
-    private static GraphicsPath RoundedRectangle(Rectangle bounds, int radius)
-    {
-        var path = new GraphicsPath();
-        int diameter = Math.Min(Math.Min(radius * 2, bounds.Width), bounds.Height);
-        if (diameter <= 1)
-        {
-            path.AddRectangle(bounds);
-            return path;
-        }
-
-        var arc = new Rectangle(bounds.X, bounds.Y, diameter, diameter);
-        path.AddArc(arc, 180, 90);
-        arc.X = bounds.Right - diameter;
-        path.AddArc(arc, 270, 90);
-        arc.Y = bounds.Bottom - diameter;
-        path.AddArc(arc, 0, 90);
-        arc.X = bounds.Left;
-        path.AddArc(arc, 90, 90);
-        path.CloseFigure();
-        return path;
-    }
 }
 
 internal sealed class DarkRoundedPanel : Panel
 {
     private int cornerRadius = 12;
-    private Color borderColor = Color.FromArgb(43, 61, 92);
+    private Color borderColor = MainForm.BorderColor;
+    private bool borderVisible = true;
 
     public DarkRoundedPanel()
     {
@@ -3676,6 +3962,16 @@ internal sealed class DarkRoundedPanel : Panel
         }
     }
 
+    public bool BorderVisible
+    {
+        get => borderVisible;
+        set
+        {
+            borderVisible = value;
+            Invalidate();
+        }
+    }
+
     protected override void OnResize(EventArgs eventArgs)
     {
         base.OnResize(eventArgs);
@@ -3685,11 +3981,14 @@ internal sealed class DarkRoundedPanel : Panel
     protected override void OnPaint(PaintEventArgs eventArgs)
     {
         base.OnPaint(eventArgs);
-        if (Width <= 1 || Height <= 1)
+        if (!borderVisible || Width <= 1 || Height <= 1)
             return;
 
+        // Half-pixel inset keeps the 1px stroke on a single pixel row instead of
+        // smearing it across two rows through antialiasing.
         eventArgs.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using GraphicsPath path = RoundedRectangle(new Rectangle(0, 0, Width - 1, Height - 1), cornerRadius);
+        using GraphicsPath path = RoundedGeometry.RoundedRectangle(
+            new RectangleF(0.5F, 0.5F, Width - 1F, Height - 1F), cornerRadius);
         using var pen = new Pen(borderColor);
         eventArgs.Graphics.DrawPath(pen, path);
     }
@@ -3699,31 +3998,9 @@ internal sealed class DarkRoundedPanel : Panel
         if (Width <= 0 || Height <= 0)
             return;
 
-        using GraphicsPath path = RoundedRectangle(ClientRectangle, cornerRadius);
+        using GraphicsPath path = RoundedGeometry.RoundedRectangle(ClientRectangle, cornerRadius);
         Region? previous = Region;
         Region = new Region(path);
         previous?.Dispose();
-    }
-
-    private static GraphicsPath RoundedRectangle(Rectangle bounds, int radius)
-    {
-        var path = new GraphicsPath();
-        int diameter = Math.Min(Math.Min(radius * 2, bounds.Width), bounds.Height);
-        if (diameter <= 1)
-        {
-            path.AddRectangle(bounds);
-            return path;
-        }
-
-        var arc = new Rectangle(bounds.X, bounds.Y, diameter, diameter);
-        path.AddArc(arc, 180, 90);
-        arc.X = bounds.Right - diameter;
-        path.AddArc(arc, 270, 90);
-        arc.Y = bounds.Bottom - diameter;
-        path.AddArc(arc, 0, 90);
-        arc.X = bounds.Left;
-        path.AddArc(arc, 90, 90);
-        path.CloseFigure();
-        return path;
     }
 }

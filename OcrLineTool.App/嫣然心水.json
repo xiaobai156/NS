@@ -294,7 +294,9 @@
       "keyword": "梁微微",
       "type": "生肖",
       "required_keyword": "梁微微",
-      "folder": "梁薇薇"
+      "folder": "梁薇薇",
+      "allow_folder_identity": true,
+      "allowValueWithoutKeyword": true
     },
     {
       "keyword": "烟草味",

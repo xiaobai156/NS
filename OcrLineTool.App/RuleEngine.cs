@@ -913,6 +913,26 @@ public static class RuleEngine
         return rows.ToArray();
     }
 
+    public static bool LineContainsIssue(string line, int issue) => ContainsIssue(line, issue);
+
+    // Issue-row strip recovery: the strip was cropped around exactly one
+    // period row, so it may hold a single zodiac only, and only when the
+    // target issue appears on the strip.
+    public static string? ExtractIssueRowZodiacFromStrip(IEnumerable<string> stripLines, int issue)
+    {
+        string[] lines = stripLines
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .Select(Normalize)
+            .ToArray();
+        if (!lines.Any(line => ContainsIssue(line, issue)))
+            return null;
+        if (lines.Count(line => line.Any(Zodiac.Contains)) != 1)
+            return null;
+        string row = lines.Single(line => line.Any(Zodiac.Contains));
+        int forbidden = row.IndexOf('禁');
+        return ExtractSingleZodiac(forbidden >= 0 ? row[(forbidden + 1)..] : row);
+    }
+
     // Row-strip recovery for shared summary sheets: the strip was cropped from
     // the original image around exactly one author row, so it must contain a
     // single material identity (this rule's own) and a single zodiac behind
@@ -2619,6 +2639,32 @@ public static class RuleEngine
 
         if (type is "生肖组合" or "九肖")
         {
+            // 高山流水 prints the 9-zodiac tier first; a merged OCR row (cloud
+            // retry) concatenates the later tiers, so take exactly the nine
+            // zodiacs that follow the first 精选肖 label and stop at the next
+            // label or issue marker.
+            if (type == "九肖" && rule.Id == "高山流水")
+            {
+                foreach (string marker in new[] { "精选⑨肖", "精选肖" })
+                {
+                    int label = tail.IndexOf(marker, StringComparison.Ordinal);
+                    if (label < 0)
+                        continue;
+                    string segment = tail[(label + marker.Length)..];
+                    int labelCut = segment.IndexOf("精选", StringComparison.Ordinal);
+                    if (labelCut >= 0)
+                        segment = segment[..labelCut];
+                    int issueCut = segment.IndexOf('期');
+                    if (issueCut >= 0)
+                        segment = segment[..issueCut];
+                    string[] zodiacs = Regex.Matches(segment, $"[{Zodiac}]")
+                        .Select(match => match.Value).ToArray();
+                    string nine = string.Concat(zodiacs);
+                    if (zodiacs.Length == 9 && nine.Distinct().Count() == 9)
+                        return nine;
+                    break;
+                }
+            }
             int nineMarker = beforeOpening.LastIndexOf("解九肖", StringComparison.Ordinal);
             string zodiacText = type == "九肖" && nineMarker >= 0
                 ? beforeOpening[(nineMarker + "解九肖".Length)..]
@@ -2885,6 +2931,11 @@ public static class RuleEngine
                 // Only before the field starts may that opening-only cell be
                 // stepped over, and only for full 36-number tables.
                 if (parts.Count == 0 && expectedCount >= 35 && IsOpeningResultOnly(lines[next]))
+                    continue;
+                // Split rows print the field label on its own line ("257期" /
+                // "月禁" / "41.29.05"): a pure 禁 label may be stepped over
+                // before the field starts so the numeric row below is read.
+                if (parts.Count == 0 && IsPureForbiddenLabel(lines[next]))
                     continue;
                 if (!IsNumberContinuation(lines[next], expectedCount, rule, issue))
                     break;
@@ -3544,6 +3595,9 @@ public static class RuleEngine
         }
         return (builder.ToString(), map.ToArray());
     }
+
+    private static bool IsPureForbiddenLabel(string line) =>
+        Regex.IsMatch(Normalize(line), @"^(?:月?禁(?:止)?)$");
 
     private static bool IsNumberContinuation(
         string line, int expectedCount, OcrRule rule, int selectedIssue = 0)

@@ -67,6 +67,74 @@ internal static class SummaryRowRecovery
         if (ComputeBand(centers, targetCenter) is not { } band)
             return null;
 
+        return await CropAndReadStripAsync(
+            client, imagePath, band, cancellationToken,
+            stripLines => RuleEngine.ExtractSummaryRowZodiacFromStrip(stripLines, rule, catalog));
+    }
+
+    // Recovers a single period row of a dedicated card: the full-image OCR
+    // missed the target row's value while the candidate scan still carries
+    // that row, so crop the row band and re-read it locally.
+    internal static async Task<SummaryRowRecoveryResult?> TryRecoverIssueRowAsync(
+        PaddleLocalOcrClient client,
+        string imagePath,
+        int issue,
+        double titleRatio,
+        int? detectionMaxSide,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await client.RecognizeBatchAsync(
+                [imagePath],
+                progress: null,
+                titleRatio: titleRatio,
+                detectionMaxSide: detectionMaxSide,
+                useCache: true,
+                cancellationToken: cancellationToken,
+                model: PaddleOcrModels.LocalPrimary);
+        }
+        catch (OcrException)
+        {
+            return null;
+        }
+
+        if (!client.LastEvidence.TryGetValue(imagePath, out OcrEvidence? located) || located is null)
+            return null;
+
+        OcrLineEvidence[] rowItems = located.Items
+            .Where(item => item.Box is not null
+                && item.Text.Any(RuleEngine.Zodiac.Contains)
+                && item.Text.Contains('期', StringComparison.Ordinal))
+            .ToArray();
+        if (rowItems.Length < 2)
+            return null;
+        OcrLineEvidence[] targets = rowItems
+            .Where(item => RuleEngine.LineContainsIssue(item.Text, issue))
+            .ToArray();
+        if (targets.Length != 1)
+            return null;
+
+        int[] centers = rowItems
+            .Select(item => (int)Math.Round(item.Box!.CenterY))
+            .Order()
+            .ToArray();
+        int targetCenter = (int)Math.Round(targets[0].Box!.CenterY);
+        if (ComputeBand(centers, targetCenter) is not { } band)
+            return null;
+
+        return await CropAndReadStripAsync(
+            client, imagePath, band, cancellationToken,
+            stripLines => RuleEngine.ExtractIssueRowZodiacFromStrip(stripLines, issue));
+    }
+
+    private static async Task<SummaryRowRecoveryResult?> CropAndReadStripAsync(
+        PaddleLocalOcrClient client,
+        string imagePath,
+        (int Top, int Height) band,
+        CancellationToken cancellationToken,
+        Func<IReadOnlyList<string>, string?> parse)
+    {
         string stripPath = Path.Combine(
             Path.GetTempPath(), "OcrLineTool-NVIDIA-CUDA", "strips",
             Guid.NewGuid().ToString("N") + ".png");
@@ -95,7 +163,7 @@ internal static class SummaryRowRecovery
 
             if (!stripResults.TryGetValue(stripPath, out IReadOnlyList<string>? stripLines))
                 return null;
-            string? value = RuleEngine.ExtractSummaryRowZodiacFromStrip(stripLines, rule, catalog);
+            string? value = parse(stripLines);
             return value is null ? null : new SummaryRowRecoveryResult(value, stripLines);
         }
         finally

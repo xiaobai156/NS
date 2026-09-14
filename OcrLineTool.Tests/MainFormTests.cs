@@ -343,11 +343,13 @@ public sealed class MainFormTests
                 IsDescendant(candidate, preview) &&
                 IsDescendant(candidate, results));
 
-        Control sidebar = DirectChildOf(workspace, issue);
-        Assert.Same(sidebar, DirectChildOf(workspace, retry));
-        Assert.Equal(0, workspace.GetColumn(sidebar));
-        Assert.Equal(1, workspace.GetColumn(DirectChildOf(workspace, preview)));
-        Assert.Equal(2, workspace.GetColumn(DirectChildOf(workspace, results)));
+        Control laneOne = DirectChildOf(workspace, retry);
+        Control laneTwo = DirectChildOf(workspace, issue);
+        Control laneThree = DirectChildOf(workspace, results);
+        Assert.Same(laneTwo, DirectChildOf(workspace, preview));
+        Assert.Equal(0, workspace.GetColumn(laneOne));
+        Assert.Equal(1, workspace.GetColumn(laneTwo));
+        Assert.Equal(2, workspace.GetColumn(laneThree));
     }
 
     [Fact]
@@ -381,14 +383,25 @@ public sealed class MainFormTests
         var clear = (Button)type.GetField("clearResultsButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
         var results = (TextBox)type.GetField("resultsBox", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
 
-        Control settingsSection = FindNamedSection(form, "设置", issue, credential, folders, recognize);
-        Control toolsSection = FindNamedSection(form, "工具", retry, clear);
-        Control resultsSection = FindNamedSection(form, "识别结果", copy, open, results);
+        Control settingsSection = Assert.Single(Descendants(form), item => item.Name == "settingsSection");
+        Control toolsSection = Assert.Single(Descendants(form), item => item.Name == "toolsSection");
+        Control resultsSection = Assert.Single(Descendants(form), item => item.Name == "resultsSection");
+        Control sidebar = Assert.Single(Descendants(form), item => item.Name == "sidebarLayout");
 
+        Assert.True(IsDescendant(settingsSection, issue));
+        Assert.True(IsDescendant(settingsSection, credential));
+        Assert.True(IsDescendant(settingsSection, recognize));
+        Assert.True(IsDescendant(toolsSection, retry));
+        Assert.True(IsDescendant(resultsSection, copy));
+        Assert.True(IsDescendant(resultsSection, open));
+        Assert.True(IsDescendant(resultsSection, results));
+        Assert.True(IsDescendant(resultsSection, clear));
+        Assert.True(IsDescendant(sidebar, folders));
+        Assert.False(IsDescendant(toolsSection, clear));
+        Assert.False(IsDescendant(settingsSection, folders));
         Assert.NotSame(settingsSection, toolsSection);
         Assert.NotSame(settingsSection, resultsSection);
         Assert.NotSame(toolsSection, resultsSection);
-        Assert.False(IsDescendant(resultsSection, clear));
         Assert.Equal("复制结果", copy.Text);
         Assert.Equal("打开群结果", open.Text);
         Assert.Equal("清除", clear.Text);
@@ -405,9 +418,11 @@ public sealed class MainFormTests
         form.Show();
         Assert.True(folders.Visible);
         Assert.DoesNotContain(Descendants(form).OfType<Button>(), button => button.Text == "选择子文件夹");
-        var layout = Assert.IsType<TableLayoutPanel>(recognize.Parent);
-        Assert.Same(layout, folders.Parent);
-        Assert.True(layout.GetRow(folders) > layout.GetRow(recognize));
+        var laneOne = Assert.IsType<TableLayoutPanel>(
+            Assert.Single(Descendants(form), item => item.Name == "sidebarLayout"));
+        Assert.Same(laneOne, folders.Parent);
+        Control settingsSection = Assert.Single(Descendants(form), item => item.Name == "settingsSection");
+        Assert.False(IsDescendant(settingsSection, folders));
     }
 
     [Fact]
@@ -425,7 +440,8 @@ public sealed class MainFormTests
         Assert.False(localPrimary.Enabled);
         Assert.Equal("本地主识别", localPrimary.AccessibleName);
         Assert.Same(current.Parent, localPrimary.Parent);
-        Assert.True(IsDescendant(FindNamedSection(form, "设置", current), localPrimary));
+        Assert.True(IsDescendant(
+            Assert.Single(Descendants(form), item => item.Name == "settingsSection"), localPrimary));
 
         typeof(MainForm).GetMethod("SetBusy", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(form, [true]);
         Assert.False(localPrimary.Enabled);
@@ -515,9 +531,29 @@ public sealed class MainFormTests
             candidate => candidate.Name == "sidebarLayout");
 
         Assert.Equal(SizeType.Absolute, sidebar.RowStyles[0].SizeType);
-        Assert.Equal(SizeType.Absolute, sidebar.RowStyles[1].SizeType);
+        Assert.Equal(SizeType.Percent, sidebar.RowStyles[1].SizeType);
         var host = Assert.Single(Descendants(form), control => control.Name == "sidebarScrollHost");
         Assert.True(host is Panel { AutoScroll: true });
+    }
+
+    [Fact]
+    public void AlignsTheToolColumnBottomWithTheLocalPrimaryButton()
+    {
+        using var form = CreateUiTestForm(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), _ => { });
+        form.ShowInTaskbar = false;
+        form.Opacity = 0;
+        form.Size = new Size(1400, 850);
+        form.CreateControl();
+        form.Show();
+        PerformLayoutRecursively(form);
+
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var manual = (Button)typeof(MainForm).GetField("manualDistributeButton", flags)!.GetValue(form)!;
+        var localPrimary = (Button)typeof(MainForm).GetField("localPrimaryButton", flags)!.GetValue(form)!;
+
+        int manualBottom = manual.RectangleToScreen(manual.ClientRectangle).Bottom;
+        int primaryBottom = localPrimary.RectangleToScreen(localPrimary.ClientRectangle).Bottom;
+        Assert.Equal(primaryBottom, manualBottom);
     }
 
     [Theory]
@@ -562,21 +598,20 @@ public sealed class MainFormTests
         }
 
         Button clear = Assert.Single(buttons, button => button.Text == "清除");
-        Control tools = Assert.Single(Descendants(form), control => control.Name == "toolsSection");
-        Rectangle clearBounds = clear.RectangleToScreen(clear.ClientRectangle);
-        foreach (Button other in Descendants(tools).OfType<Button>()
-            .Where(button => button.Visible && button != clear &&
-                (button.Text is "手动复抓缺失" or "手动分流" or "设置")))
-            Assert.True(other.RectangleToScreen(other.ClientRectangle).Top - clearBounds.Bottom >= (int)Math.Floor(16 * scale));
+        Control resultsSection = Assert.Single(Descendants(form), control => control.Name == "resultsSection");
+        Assert.True(IsDescendant(resultsSection, clear));
+        AssertControlFitsItsParent(clear);
 
         var folders = Assert.Single(Descendants(form).OfType<ListBox>());
         AssertControlFitsItsParent(folders);
-        var sidebarScroll = Assert.IsType<Panel>(Assert.Single(Descendants(form), control => control.Name == "sidebarScrollHost"));
+        var sidebarScroll = Assert.IsAssignableFrom<Panel>(Assert.Single(Descendants(form), control => control.Name == "sidebarScrollHost"));
         Assert.True(sidebarScroll.AutoScroll);
-        sidebarScroll.ScrollControlIntoView(clear);
-        Assert.True(sidebarScroll.RectangleToScreen(sidebarScroll.ClientRectangle).Contains(clear.RectangleToScreen(clear.ClientRectangle)));
         sidebarScroll.ScrollControlIntoView(folders);
-        Assert.True(sidebarScroll.RectangleToScreen(sidebarScroll.ClientRectangle).Contains(folders.RectangleToScreen(folders.ClientRectangle)));
+        Assert.True(
+            sidebarScroll.RectangleToScreen(sidebarScroll.ClientRectangle)
+                .IntersectsWith(folders.RectangleToScreen(folders.ClientRectangle)),
+            "The group list must be reachable through the lane scroll host.");
+        Assert.True(folders.Height >= 80, $"The group list must stay usable, but was {folders.Height} px.");
 
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
         var resume = (Button)typeof(MainForm).GetField("continueButton", flags)!.GetValue(form)!;

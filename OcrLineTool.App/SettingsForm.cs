@@ -66,7 +66,7 @@ internal sealed class SettingsForm : Form
             Dock = DockStyle.Fill,
             AutoSize = false,
             ForeColor = MainForm.PrimaryText,
-            Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Bold),
+            Font = new Font(MainForm.HeadingFontFamily, 13F, FontStyle.Bold),
             TextAlign = ContentAlignment.MiddleLeft
         };
 
@@ -122,17 +122,18 @@ internal sealed class SettingsForm : Form
         button.AutoSize = false;
         button.Size = new Size(96, 34);
         button.Margin = new Padding(8, 0, 0, 0);
+        button.Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold);
         button.FlatStyle = FlatStyle.Flat;
         button.UseVisualStyleBackColor = false;
         button.FlatAppearance.BorderSize = 1;
-        button.BackColor = accent ? MainForm.AccentBlue : MainForm.CardBackground;
-        button.ForeColor = accent ? Color.White : MainForm.PrimaryText;
-        button.FlatAppearance.BorderColor = accent ? MainForm.AccentBlue : MainForm.BorderColor;
+        button.BackColor = accent ? MainForm.AccentAmber : MainForm.CardBackground;
+        button.ForeColor = accent ? MainForm.OnAccent : MainForm.PrimaryText;
+        button.FlatAppearance.BorderColor = accent ? MainForm.AccentAmber : MainForm.BorderColor;
         button.FlatAppearance.MouseOverBackColor = accent
-            ? Color.FromArgb(86, 156, 255)
-            : Color.FromArgb(34, 47, 72);
+            ? Color.FromArgb(255, 191, 121)
+            : Color.FromArgb(61, 65, 57);
         button.FlatAppearance.MouseDownBackColor = accent
-            ? Color.FromArgb(28, 100, 215)
-            : Color.FromArgb(42, 58, 88);
+            ? Color.FromArgb(216, 138, 62)
+            : Color.FromArgb(74, 79, 69);
     }
 }
