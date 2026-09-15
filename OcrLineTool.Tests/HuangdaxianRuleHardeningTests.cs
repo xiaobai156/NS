@@ -30,16 +30,26 @@ public sealed class HuangdaxianRuleHardeningTests
         { "战狼老王", "老王杀半头{4头单}开", "4头单" },
         { "红人关公肖", "关公杀一肖【蛇】开猫", "蛇" },
         { "红人关公尾", "关公杀一尾【3尾】开00", "3尾" },
-        { "红人极点肖", "🍂极点🍂杀一肖【鸡】开猫", "鸡" }
+        { "红人极点肖", "🍂极点🍂杀一肖【鸡】开猫", "鸡" },
+        { "绿格子双杀", "绝杀2肖【龙、狗】开?00准", "龙狗" },
+        { "完美两肖", ":绝杀2肖(龙马】开？00准", "龙马" }
     };
 
     [Fact]
     public void CatalogEnablesStrictDynamicIssueValidationForEveryRule()
     {
-        Assert.Equal(22, Rules.Count);
-        Assert.All(Rules, rule => Assert.True(rule.StrictIssueBlock));
+        Assert.Equal(24, Rules.Count);
+        Assert.All(
+            Rules.Where(rule => rule.Id != "完美两肖"),
+            rule => Assert.True(rule.StrictIssueBlock));
         Assert.Equal("缺头", Assert.Single(Rules, rule => rule.Id == "香奈风清扬").Type);
-        Assert.DoesNotContain(Rules, rule => rule.Id == "绿格子双杀");
+        OcrRule green = Assert.Single(Rules, rule => rule.Id == "绿格子双杀");
+        Assert.Equal("生肖组合", green.Type);
+        Assert.Equal("综合", green.Folder);
+        OcrRule perfect = Assert.Single(Rules, rule => rule.Id == "完美两肖");
+        Assert.Equal("生肖组合", perfect.Type);
+        Assert.Equal("两版绿杀+完美杀", perfect.Folder);
+        Assert.False(perfect.StrictIssueBlock);
     }
 
     [Theory]
@@ -113,12 +123,36 @@ public sealed class HuangdaxianRuleHardeningTests
     [InlineData("68凯哥", "245期凯哥杀五码【03 19 22 39 50】开")]
     [InlineData("68老大", "245期九肖中特【蛇虎牛猪狗马鸡龙龙】开")]
     [InlineData("战狼八戒", "245期绝杀二肖【龙龙】开")]
+    [InlineData("绿格子双杀", "245期绝杀2肖【龙、龙】开?00准")]
+    [InlineData("完美两肖", "245期:绝杀2肖(龙龙】开？00准")]
     [InlineData("战狼老王", "245期老王杀半头【4头大】开")]
     [InlineData("68波波", "245期波波杀半波【紫双】开")]
     public void RejectsIncompleteDuplicateOutOfRangeOrUnknownValues(string id, string row)
     {
         OcrRule rule = Assert.Single(Rules, rule => rule.Id == id);
         Assert.Null(RuleEngine.ExtractFinalValue([rule.Keyword, row], 245, rule));
+    }
+
+    [Fact]
+    public void CompositeCardReadsOnlyTheTwoZodiacQuadrant()
+    {
+        OcrRule rule = Assert.Single(Rules, rule => rule.Id == "绿格子双杀");
+        string[] lines =
+        [
+            "245期：绝杀2肖【龙、狗】开?00准",
+            "245期：必中波色【蓝波、绿波】开?00准",
+            "245期：3行必中【土、火、水】开?00准",
+            "245期：单双中特【双数+龙虎】开?00准",
+            "258期：绝杀2肖【鼠、马】开？00准",
+            "258期：必中波色【绿波、红波】开？00准",
+            "258期：3行必中【水、土、火】开？00准",
+            "258期：单双中特【单数+蛇羊】开？00准"
+        ];
+        string composite = Path.Combine(@"C:\图片\9.15-黄大仙新澳\综合", "20260915_171316_207031.jpg");
+
+        Assert.Equal("龙狗", RuleEngine.ExtractFinalValue(lines, 245, rule));
+        Assert.Equal("鼠马", RuleEngine.ExtractFinalValue(lines, 258, rule));
+        Assert.Contains(rule.Id, RuleEngine.FindMatches(composite, lines, Rules, Rules).Select(item => item.Id));
     }
 
     [Fact]

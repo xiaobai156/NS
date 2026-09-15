@@ -9,7 +9,6 @@ public sealed class DragonflyRuleHardeningTests
 
     public static TheoryData<string, string, string> Samples => new()
     {
-        { "绿格子双杀", "绝杀2肖【龙、狗】开?00准", "龙狗" },
         { "黑字杀头", "4头 木 10合 开?00准", "4头" },
         { "黑字杀行", "4头 木 10合 开?00准", "木" },
         { "黑字杀合", "4头 木 10合 开?00准", "10合" },
@@ -25,7 +24,7 @@ public sealed class DragonflyRuleHardeningTests
     [Fact]
     public void CatalogHardensEveryConfirmedRuleAndUsesTheCurrentTitles()
     {
-        Assert.Equal(11, Rules.Count);
+        Assert.Equal(10, Rules.Count);
         Assert.All(Rules, rule => Assert.True(rule.StrictIssueBlock));
         Assert.Equal("红蜻蜓必中⑨肖", Assert.Single(Rules, rule => rule.Id == "红蜻蜓").Keyword);
         Assert.Equal("神秘宇宙绝杀半波", Assert.Single(Rules, rule => rule.Id == "神奇宇宙").Keyword);
@@ -43,20 +42,6 @@ public sealed class DragonflyRuleHardeningTests
             Assert.Equal(expected, RuleEngine.ExtractFinalValue(lines, issue, rule));
             Assert.Null(RuleEngine.ExtractFinalValue(lines, issue + 1, rule));
         }
-    }
-
-    [Fact]
-    public void GreenCardReadsOnlyTheTwoZodiacQuadrant()
-    {
-        OcrRule rule = Assert.Single(Rules, rule => rule.Id == "绿格子双杀");
-        string[] lines =
-        [
-            "245期：绝杀2肖【龙、狗】开?00准",
-            "245期：必中波色【蓝波、绿波】开?00准",
-            "245期：3行必中【土、火、水】开?00准",
-            "245期：单双中特【双数+龙虎】开?00准"
-        ];
-        Assert.Equal("龙狗", RuleEngine.ExtractFinalValue(lines, 245, rule));
     }
 
     [Fact]
@@ -93,7 +78,6 @@ public sealed class DragonflyRuleHardeningTests
     }
 
     [Theory]
-    [InlineData("绿格子双杀", "245期绝杀2肖【龙龙】开00准")]
     [InlineData("红蜻蜓", "245期红蜻蜓必中⑨肖【马龙虎鼠牛猪兔蛇蛇】开00准")]
     [InlineData("公式杀两肖肖", "245期（平1*4+特-D4）=杀狗√")]
     [InlineData("公式杀两尾尾", "245期（平4-2-D2）=杀33尾√")]

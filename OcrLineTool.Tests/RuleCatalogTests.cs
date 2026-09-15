@@ -94,11 +94,11 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "蜻蜓一套骁腾.json"));
 
-        Assert.Equal(11, rules.Count);
+        Assert.Equal(10, rules.Count);
         Assert.Equal(
-            new[] { "各种杀", "各种杀", "各种杀", "各种杀", "公式杀料", "公式杀料", "一套组合拳", "一套组合拳", "一套组合拳", "骁腾系列", "骁腾系列" },
+            new[] { "各种杀", "各种杀", "各种杀", "公式杀料", "公式杀料", "一套组合拳", "一套组合拳", "一套组合拳", "骁腾系列", "骁腾系列" },
             rules.Select(rule => rule.Folder));
-        Assert.Contains(rules, rule => rule.Id == "绿格子双杀" && rule.Type == "生肖组合");
+        Assert.DoesNotContain(rules, rule => rule.Id == "绿格子双杀");
         Assert.Contains(rules, rule => rule.Id == "红蜻蜓" && rule.Type == "九肖");
         Assert.Contains(rules, rule => rule.Id == "神奇宇宙" && rule.Type == "色单双");
         Assert.Contains(rules, rule => rule.Id == "墨羽" && rule.Type == "生肖");
@@ -393,8 +393,8 @@ public sealed class RuleCatalogTests
     }
 
     [Theory]
-    [InlineData("黄大仙新澳.json", "黄大仙新澳", 22)]
-    [InlineData("新澳高手.json", "新澳高手", 26)]
+    [InlineData("黄大仙新澳.json", "黄大仙新澳", 24)]
+    [InlineData("新澳高手.json", "新澳高手", 25)]
     public void LoadsTheNewGroupRules(string fileName, string groupName, int expectedCount)
     {
         string configuration = ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory);

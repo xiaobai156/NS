@@ -37,7 +37,7 @@ public sealed class P1ExtractionAccuracyRegressionTests
             new[] { "包公图", "251期", "￥" }];
         yield return ["R24", "新澳高级会员", "翩翩公子肖", 251,
             new[] { "251期 公子杀一肖：鸡? 准!" }];
-        yield return ["R25", "蜻蜓一套骁腾", "绿格子双杀", 251,
+        yield return ["R25", "黄大仙新澳", "绿格子双杀", 251,
             new[] { "251期 绝杀2肖【鸡狗】【鼠牛】" }];
         yield return ["R27", "嫣然心水", "借花献佛", 251,
             new[] { "借花献佛", "251期", "9次", "8次 鸡" }];

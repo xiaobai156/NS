@@ -43,7 +43,7 @@ public sealed class ReauditDataIntegrityTests
         yield return new object[] { "R22", "嫣然心水", "南国挽心", 1001, new string[] { "1001期 南国挽心 待更新", "1002", "鸡" }, null! };
         yield return new object[] { "R23", "新澳六合彩资料", "包公肖肖", 251, new string[] { "包公图", "251期", "￥" }, null! };
         yield return new object[] { "R24", "新澳高级会员", "翩翩公子肖", 251, new string[] { "251期 公子杀一肖：鸡? 准!" }, null! };
-        yield return new object[] { "R25", "蜻蜓一套骁腾", "绿格子双杀", 251, new string[] { "251期 绝杀2肖【鸡狗】【鼠牛】" }, null! };
+        yield return new object[] { "R25", "黄大仙新澳", "绿格子双杀", 251, new string[] { "251期 绝杀2肖【鸡狗】【鼠牛】" }, null! };
         yield return new object[] { "R26", "蜻蜓一套骁腾", "公式杀两肖肖", 251, new string[] { "251期 (1+1)=杀【狗猴】；最终=杀【鸡牛】" }, "鸡牛" };
         yield return new object[] { "R27", "嫣然心水", "借花献佛", 251, new string[] { "借花献佛", "251期", "9次", "8次 鸡" }, null! };
         yield return new object[] { "C01", "嫣然心水", "南国挽心", 251, new string[] { "251期 南国挽心 鸡" }, "鸡" };

@@ -2363,7 +2363,7 @@ public static class RuleEngine
             if (block.Length == 0)
                 return null;
         }
-        else if (rule.Folder is "各种杀" or "公式杀料" or "一套组合拳" or "骁腾系列")
+        else if (rule.Folder is "各种杀" or "公式杀料" or "一套组合拳" or "骁腾系列" or "综合")
         {
             block = ExtractDragonflyPayload(Regex.Replace(block, @"\s+", ""), rule);
             if (block == ConflictMarker)

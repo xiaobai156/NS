@@ -112,12 +112,14 @@ public sealed class NewAogaoShou253RulesTests
     }
 
     [Fact]
-    public void WanmeiTwoZodiacsOnlyMatchesThePerfectCard()
+    public void PerfectTwoZodiacsMovedToHuangdaxianAndMatchTheSameCard()
     {
-        OcrRule rule = Rule("完美两肖");
-        string folder = @"C:\结果\9.10-新澳高手\绿杀+完美杀";
-        string perfectCard = Path.Combine(folder, "155699.jpg");
-        string greenCard = Path.Combine(folder, "155698.jpg");
+        string configuration = ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory);
+        IReadOnlyList<OcrRule> huangdaxian = RuleCatalog.Load(Path.Combine(configuration, "黄大仙新澳.json"));
+        OcrRule rule = huangdaxian.Single(item => item.Id == "完美两肖");
+        string folder = @"C:\结果\9.15-黄大仙新澳\两版绿杀+完美杀";
+        string perfectCard = Path.Combine(folder, "20260915_175237_207161.jpg");
+        string greenCard = Path.Combine(folder, "20260915_171316_207031.jpg");
         string[] perfectLines =
         [
             "完美杀肖心水料",
@@ -132,8 +134,8 @@ public sealed class NewAogaoShou253RulesTests
             "253期：鸡-兔？"
         ];
 
-        Assert.Single(RuleEngine.FindMatches(perfectCard, perfectLines, [rule], [rule]));
-        Assert.Empty(RuleEngine.FindMatches(greenCard, greenLines, [rule], [rule]));
+        Assert.Single(RuleEngine.FindMatches(perfectCard, perfectLines, [rule], huangdaxian));
+        Assert.Empty(RuleEngine.FindMatches(greenCard, greenLines, [rule], huangdaxian));
 
         IReadOnlyList<LocalCandidatePlan> plans = LocalCandidatePlanner.Build(
             [greenCard, perfectCard],

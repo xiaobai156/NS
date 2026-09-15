@@ -24,6 +24,8 @@
     { "keyword": "老王", "type": "半头", "label": "战狼老王", "required_keyword": "老王", "folder": "战狼" },
     { "keyword": "关公", "type": "生肖", "label": "红人关公肖", "section": "杀一肖", "required_keyword": "关公", "folder": "红人馆" },
     { "keyword": "关公", "type": "尾", "label": "红人关公尾", "section": "杀一尾", "required_keyword": "关公", "folder": "红人馆" },
-    { "keyword": "极点", "type": "生肖", "label": "红人极点肖", "section": "杀一肖", "required_keyword": "极点", "folder": "红人馆" }
+    { "keyword": "极点", "type": "生肖", "label": "红人极点肖", "section": "杀一肖", "required_keyword": "极点", "folder": "红人馆" },
+    { "keyword": "绝杀2肖", "type": "生肖组合", "label": "绿格子双杀", "section": "绝杀2肖", "required_keyword": "绝杀2肖", "folder": "综合" },
+    { "keyword": "完美杀肖心水料", "type": "生肖组合", "label": "完美两肖", "required_keyword": "完美", "folder": "两版绿杀+完美杀", "strictIssueBlock": false }
   ]
 }
