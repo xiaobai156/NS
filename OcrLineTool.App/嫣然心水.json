@@ -363,6 +363,7 @@
       "type": "号码:5",
       "required_keyword": "爱晚亭",
       "match_by_row_structure": true,
+      "require_row_structure": true,
       "allow_value_without_keyword": true,
       "folder": "爱晚亭"
     },

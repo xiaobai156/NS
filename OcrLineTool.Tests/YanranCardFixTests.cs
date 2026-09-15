@@ -115,6 +115,86 @@ public sealed class YanranCardFixTests
     }
 
     [Fact]
+    public void AiWantingWatermarkStatisticsCardIsNeverACandidate()
+    {
+        OcrRule rule = Rule("爱晚亭");
+        string[] statistics =
+        [
+            "●爱晚亭③●您的计算结果：",
+            "【统计总】2026258期:",
+            "【0次】：02,04,08,12,15,16,19,20,22,",
+            "【1次】：03,06,10,11,13,14,17,18,23,25,",
+            "【2次】：05,07,09,21,37,41,42，（共7码）",
+            "【共10行 总计40码】"
+        ];
+        string inFolder = Path.Combine(@"C:\图片\9.15-嫣然心水\爱晚亭", "20260915_185228_82842.jpg");
+
+        Assert.DoesNotContain(rule.Id, RuleEngine.FindMatches(inFolder, statistics, [rule], Rules).Select(item => item.Id));
+    }
+
+    [Fact]
+    public void AiWantingOutsideItsFolderIsNeverACandidate()
+    {
+        OcrRule rule = Rule("爱晚亭");
+        string[] rows =
+        [
+            "245期：30.31.05.06.03.开牛18",
+            "246期：29.30.01.37.44.开牛30",
+            "247期：28.29.47.46.37.开兔40",
+            "248期：30.29.33.31.24.开猪20",
+            "249期：30.33.29.34.35.开猴23",
+            "258期: 34.35.12.03.01.开00"
+        ];
+        string otherFolder = Path.Combine(@"C:\图片\9.15-嫣然心水\乖乖团队", "20260915_185227_82840.jpg");
+
+        Assert.DoesNotContain(rule.Id, RuleEngine.FindMatches(otherFolder, rows, [rule], Rules).Select(item => item.Id));
+    }
+
+    [Fact]
+    public void AiWantingRowFormatIsMandatoryForTheValue()
+    {
+        OcrRule rule = Rule("爱晚亭");
+
+        // 目标期行只有 4 个号 / 有重复 / 越界 → 缺失。
+        Assert.Null(RuleEngine.ExtractFinalValue(["258期: 34.35.12.03.开00"], 258, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(["258期: 34.35.12.03.34.开00"], 258, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(["258期: 34.35.12.03.50.开00"], 258, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(["257期: 29.30.07.04.06.开鼠07"], 258, rule));
+
+        // 认卡：整表不足 5 行整行 → 不当候选；目标行残缺但其它行正常 → 候选成立但取值缺失。
+        string[] tooFewRows =
+        [
+            "255期：31.29.22.14.开猪44",
+            "256期：33.32.08.07.开马01",
+            "257期：29.30.07.04.开鼠07",
+            "258期: 34.35.12.03.开00"
+        ];
+        string inFolder = Path.Combine(@"C:\图片\9.15-嫣然心水\爱晚亭", "card.jpg");
+        Assert.DoesNotContain(rule.Id, RuleEngine.FindMatches(inFolder, tooFewRows, [rule], Rules).Select(item => item.Id));
+
+        string[] mixedRows =
+        [
+            "253期：34.35.10.11.02.开兔16",
+            "254期：32.33.28.26.25.开蛇02",
+            "255期：31.29.22.14.13.开猪44",
+            "256期：33.32.08.07.06.开马01",
+            "257期：29.30.07.04.06.开鼠07",
+            "258期: 34.35.12.03.开00"
+        ];
+        Assert.Contains(rule.Id, RuleEngine.FindMatches(inFolder, mixedRows, [rule], Rules).Select(item => item.Id));
+        Assert.Null(RuleEngine.ExtractFinalValue(mixedRows, 258, rule));
+    }
+
+    [Fact]
+    public void AiWantingAcceptsCommaAndSpaceSeparators()
+    {
+        OcrRule rule = Rule("爱晚亭");
+
+        Assert.Equal("34 35 12 03 01", RuleEngine.ExtractFinalValue(["258期：34,35,12,03,01,开00"], 258, rule));
+        Assert.Equal("34 35 12 03 01", RuleEngine.ExtractFinalValue(["258期 34 35 12 03 01"], 258, rule));
+    }
+
+    [Fact]
     public void JianDanAiStripNeedsTargetIssueAndOneZodiac()
     {
         Assert.Equal("牛", RuleEngine.ExtractRightBlockZodiacFromStrip(["258期禁牛"], 258));

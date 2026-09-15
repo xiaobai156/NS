@@ -231,6 +231,7 @@ public static class RuleCatalog
                 bool primaryOnly = ReadOptionalBoolean(item, "primary_only", false, fileName);
                 bool headerIdentity = ReadOptionalBoolean(item, "header_identity", false, fileName);
                 bool matchByRowStructure = ReadOptionalBoolean(item, "match_by_row_structure", false, fileName);
+                bool requireRowStructure = ReadOptionalBoolean(item, "require_row_structure", false, fileName);
                 bool dedupeNumbers = ReadOptionalBoolean(item, "dedupe_numbers", false, fileName);
                 if (keyword.Length > 0 && type.Length > 0)
                     output.Add(new OcrRule(
@@ -255,6 +256,7 @@ public static class RuleCatalog
                         primaryOnly,
                         headerIdentity,
                         matchByRowStructure,
+                        requireRowStructure,
                         dedupeNumbers));
             }
             if (output.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count() != output.Count)

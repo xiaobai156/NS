@@ -24,6 +24,7 @@ public sealed record OcrRule(
     bool PrimaryOnly = false,
     bool HeaderIdentity = false,
     bool MatchByRowStructure = false,
+    bool RequireRowStructure = false,
     bool DedupeNumbers = false)
 {
     public string Id => Label ?? Keyword;
@@ -166,6 +167,10 @@ public static class RuleEngine
                     item.Equals(expectedFolder, StringComparison.OrdinalIgnoreCase));
             if (!folderMatches)
                 return string.IsNullOrWhiteSpace(rule.Folder) && MatchesText(text, rule);
+            // 复核卡（require_row_structure）：第一关子文件夹已过，第二关必须是
+            // 规定行格式的图；水印/标题不再单独构成入选，杂格式的统计卡不入选。
+            if (rule.RequireRowStructure)
+                return MatchesRequiredRowFormat(lines, rule);
             // A rule that only matches fuzzily must not steal a sibling
             // material's card when that sibling matches the image exactly.
             if (hasCompleteIdentityCatalog
@@ -457,9 +462,83 @@ public static class RuleEngine
         return rowCount >= 5 && shapeCount * 5 >= rowCount * 4;
     }
 
-    private static bool MatchesValueShape(string value, string type)
+    // 复核卡的行格式：行首 3 位期号 + 期 + 可选“：/:” + 恰好 N 个两位数字，
+    // 分隔符允许 . , ， 、 空格；行尾的“开XX/√/×/中/错”等状态不参与。
+    private static bool TryParseRequiredRow(
+        string line,
+        out int issue,
+        out string[] numbers,
+        out int count)
     {
-        if (type.StartsWith("号码:", StringComparison.Ordinal)
+        issue = 0;
+        numbers = [];
+        count = 0;
+        Match head = Regex.Match(
+            SimplifyOcrText(line),
+            @"^\s*[【\[（(]?\s*(?<issue>\d{3})\s*期\s*[:：]?\s*(?<payload>.+)$");
+        if (!head.Success || !int.TryParse(head.Groups["issue"].Value, out issue))
+            return false;
+        string payload = Regex.Split(
+            head.Groups["payload"].Value,
+            @"开|開|√|×|✗|✓|准|準|中|错|錯|【|】|\[|\]")[0];
+        var values = new List<string>();
+        foreach (string token in Regex.Split(payload, @"[.,，、;；:：\s]+"))
+        {
+            if (token.Length == 0)
+                continue;
+            if (!Regex.IsMatch(token, @"^\d{2}$")
+                || !int.TryParse(token, out int value)
+                || value is < 1 or > 49)
+                return false;
+            values.Add(token);
+        }
+        if (values.Count == 0)
+            return false;
+        numbers = values.ToArray();
+        count = values.Count;
+        return true;
+    }
+
+    private static int RequiredRowCount(OcrRule rule) =>
+        rule.Type.StartsWith("号码:", StringComparison.Ordinal)
+            && int.TryParse(rule.Type.AsSpan("号码:".Length), out int count)
+            ? count
+            : 0;
+
+    // 认卡：子文件夹内必须至少有 5 行是规定数量的整行（不多不少）。
+    private static bool MatchesRequiredRowFormat(string[] lines, OcrRule rule)
+    {
+        int expected = RequiredRowCount(rule);
+        if (expected <= 0)
+            return false;
+        int rows = 0;
+        foreach (string line in lines)
+        {
+            if (TryParseRequiredRow(line, out _, out _, out int count) && count == expected)
+                rows++;
+        }
+        return rows >= 5;
+    }
+
+    // 取值：只从目标期号所在的那一行取，必须恰好 N 个（01～49、不重复）。
+    private static string? ExtractRequiredRowValue(string[] lines, int issue, OcrRule rule)
+    {
+        int expected = RequiredRowCount(rule);
+        if (expected <= 0)
+            return null;
+        foreach (string line in lines)
+        {
+            if (!TryParseRequiredRow(line, out int rowIssue, out string[] numbers, out int count)
+                || rowIssue != issue
+                || count != expected)
+                continue;
+            return FormatNumbers(numbers, expected);
+        }
+        return null;
+    }
+
+    private static bool MatchesValueShape(string value, string type)
+    {        if (type.StartsWith("号码:", StringComparison.Ordinal)
             && int.TryParse(type.AsSpan("号码:".Length), out int expectedNumbers))
         {
             // 无标题的五码表（爱晚亭）：行形如 “258期: 34.35.12.03.01.开00”。
@@ -555,6 +634,10 @@ public static class RuleEngine
             .Select(Normalize)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
+
+        // 复核卡（require_row_structure）：取值只认目标期号那一行，不拼行、不借期。
+        if (rule.RequireRowStructure)
+            return ExtractRequiredRowValue(lines, issue, rule);
 
         if (rule.Type == "生肖" && IsZodiacSummary(lines))
         {
