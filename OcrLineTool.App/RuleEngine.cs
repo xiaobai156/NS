@@ -70,6 +70,55 @@ public static class RuleEngine
             "狗庄", "宝典杀", "聚彩", "龙王杀", "姨妈", "藏宝十二码"
         };
 
+    // 值行印在期号行上方的两列卡（雁塔题名）：允许把紧邻的上一行并入候选，
+    // 只有经复核的这几条规则允许向前合并。
+    private static readonly HashSet<string> BackwardValueLineRuleIds =
+        new(StringComparer.Ordinal) { "雁塔题名杀头", "雁塔题名半波", "雁塔题名杀合" };
+
+    private static readonly HashSet<string> SingleValueScopedTypes =
+        new(StringComparer.Ordinal) { "尾" };
+
+    // 云 OCR 常把相邻两期并成一行（“257期杀，0尾07 258期杀，5尾”）。单值字段
+    // 必须只取目标期号之后的那一段，否则会把邻期的值当成本期值。
+    private static string ScopeSingleValueToTargetIssue(string line, int issue, OcrRule rule)
+    {
+        if (!SingleValueScopedTypes.Contains(rule.Type))
+            return line;
+        int at = LastIssueIndex(line, issue);
+        if (at <= 0)
+            return line;
+        string scoped = line[at..].Trim();
+        return scoped.Length >= 2 ? scoped : line;
+    }
+
+    // 期号行/行号行的判定：带“期”的期号，或以 3～6 位数字开头的行（含行号
+    // 与期号粘连的 “5253杀绿单”）。向前合并值行时必须在这类行前停下。
+    private static bool LooksLikeIssueRow(string line)
+    {
+        if (ContainsAnyIssue(line))
+            return true;
+        string trimmed = SimplifyOcrText(line).Trim();
+        return Regex.IsMatch(trimmed, @"^[【\[（(]?\s*\d{3,6}(?!\d)");
+    }
+
+    private static int LastIssueIndex(string line, int issue)
+    {        int last = -1;
+        foreach (Regex pattern in new[] { IssueRegex, CompactYearIssueRegex, YearIssueRegex })
+        {
+            foreach (Match match in pattern.Matches(line))
+            {
+                if (int.TryParse(match.Groups["issue"].Value, out int actual) && actual == issue)
+                    last = Math.Max(last, match.Index);
+            }
+        }
+        Match bare = BareIssueRegex.Match(line);
+        if (bare.Success
+            && int.TryParse(bare.Groups["issue"].Value, out int bareIssue)
+            && bareIssue == issue)
+            last = Math.Max(last, bare.Index);
+        return last;
+    }
+
     public static IReadOnlyList<OcrRule> FindMatches(IEnumerable<string> localLines, IEnumerable<OcrRule> rules)
     {
         string text = Normalize(string.Concat(localLines));
@@ -401,6 +450,17 @@ public static class RuleEngine
 
     private static bool MatchesValueShape(string value, string type)
     {
+        if (type.StartsWith("号码:", StringComparison.Ordinal)
+            && int.TryParse(type.AsSpan("号码:".Length), out int expectedNumbers))
+        {
+            // 无标题的五码表（爱晚亭）：行形如 “258期: 34.35.12.03.01.开00”。
+            string[] numbers = value
+                .Split(['.', ',', '，', '、', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return numbers.Length == expectedNumbers
+                && numbers.All(number => number.Length == 2
+                    && int.TryParse(number, out int parsed) && parsed is >= 1 and <= 49)
+                && numbers.Distinct(StringComparer.Ordinal).Count() == numbers.Length;
+        }
         switch (type)
         {
             case "色单双":
@@ -536,7 +596,27 @@ public static class RuleEngine
 
             string scopedLine = ScopeCandidateToPeerBoundary(line, rule, aliases, out bool peerClosed);
             candidates.Add(scopedLine);
+            // 值行印在期号行上方的两列卡（雁塔题名）：期号行本身只有色单双，
+            // 头/合的值在紧邻的上一行，允许向前合并有限行。
+            if (BackwardValueLineRuleIds.Contains(rule.Id))
+            {
+                string backwards = scopedLine;
+                for (int previous = index - 1; previous >= scopeStart && previous >= index - 2; previous--)
+                {
+                    if (OcrLayoutMarkers.IsBoundary(lines[previous])
+                        || LooksLikeIssueRow(lines[previous])
+                        || ContainsIssueBoundary(lines[previous], issue)
+                        || ContainsPeerIdentity(lines[previous], rule))
+                        break;
+                    backwards = lines[previous] + " " + backwards;
+                    candidates.Add(backwards);
+                }
+            }
             if (peerClosed)
+                continue;
+            // 雁塔题名两列卡的值在上方（已向前合并），向后的行属于另一列/下一
+            // 期，不能再并入，否则会把下一期的值算成本期。
+            if (BackwardValueLineRuleIds.Contains(rule.Id))
                 continue;
             string combined = scopedLine;
             for (int next = index + 1; next < lines.Length && next <= index + 4; next++)
@@ -607,7 +687,10 @@ public static class RuleEngine
                 : source;
             foreach (string line in relevant)
             {
-                string? value = ExtractTypedForRule(line, rule);
+                string scoped = ScopeSingleValueToTargetIssue(line, issue, rule);
+                string? value = ExtractTypedForRule(scoped, rule);
+                if (value is null && !ReferenceEquals(scoped, line))
+                    value = ExtractTypedForRule(line, rule);
                 if (value is not null)
                     observed.Add(value);
             }
@@ -918,9 +1001,29 @@ public static class RuleEngine
     // Issue-row strip recovery: the strip was cropped around exactly one
     // period row, so it may hold a single zodiac only, and only when the
     // target issue appears on the strip.
-    public static string? ExtractIssueRowZodiacFromStrip(IEnumerable<string> stripLines, int issue)
+    // 右侧小块条（简单爱）：目标期号所在的那一行必须带“禁/月禁”，且其“禁”
+    // 之后恰好一个生肖；该行不能出现第二个期号。带内其它行不参与取值。
+    public static string? ExtractRightBlockZodiacFromStrip(IEnumerable<string> stripLines, int issue)
     {
         string[] lines = stripLines
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .Select(Normalize)
+            .ToArray();
+        string[] rows = lines.Where(line => ContainsIssue(line, issue)).ToArray();
+        if (rows.Length != 1)
+            return null;
+        string row = rows[0];
+        int forbidden = row.IndexOf('禁');
+        if (forbidden < 0)
+            return null;
+        string tail = row[(forbidden + 1)..];
+        if (ContainsAnyIssue(tail) || IsBareIssueBoundary(tail, issue))
+            return null;
+        return ExtractSingleZodiac(tail);
+    }
+
+    public static string? ExtractIssueRowZodiacFromStrip(IEnumerable<string> stripLines, int issue)
+    {        string[] lines = stripLines
             .Where(line => !string.IsNullOrWhiteSpace(line))
             .Select(Normalize)
             .ToArray();

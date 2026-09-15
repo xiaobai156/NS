@@ -1059,16 +1059,16 @@ public sealed class MainFormTests
         using var dialog = new SettingsForm(new UiSettings(false));
         RadioButton[] radios = Descendants(dialog).OfType<RadioButton>().ToArray();
         Assert.Equal(2, radios.Length);
-        Assert.True(Assert.Single(radios, radio => radio.Name == "retryUsesCloudOcr").Checked);
-        Assert.False(Assert.Single(radios, radio => radio.Name == "retryUsesLocalOcr").Checked);
+        Assert.True(Assert.Single(radios, radio => radio.Name == "retryUsesLocalOcr").Checked);
+        Assert.False(Assert.Single(radios, radio => radio.Name == "retryUsesCloudOcr").Checked);
 
-        Assert.Single(radios, radio => radio.Name == "retryUsesLocalOcr").Checked = true;
+        Assert.Single(radios, radio => radio.Name == "retryUsesCloudOcr").Checked = true;
         Button save = Assert.Single(Descendants(dialog).OfType<Button>(), button => button.Text == "保存");
         typeof(Control).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(save, [EventArgs.Empty]);
 
         Assert.Equal(DialogResult.OK, dialog.DialogResult);
-        Assert.True(dialog.Result.RetryUsesLocalOcr);
+        Assert.False(dialog.Result.RetryUsesLocalOcr);
     }
 
     [Fact]
@@ -1094,27 +1094,27 @@ public sealed class MainFormTests
     }
 
     [Fact]
-    public void RetryOcrSourceDefaultsToCloudAndRoundTrips()
+    public void RetryOcrSourceDefaultsToLocalFirstAndRoundTrips()
     {
         string directory = Directory.CreateTempSubdirectory("ocr-retry-settings-").FullName;
         try
         {
-            Assert.False(UiSettings.Load(directory).RetryUsesLocalOcr);
+            Assert.True(UiSettings.Load(directory).RetryUsesLocalOcr);
 
             File.WriteAllText(
                 UiSettings.PathFor(directory),
                 "{\"ShowRecognizeButton\":true}");
             UiSettings legacy = UiSettings.Load(directory);
             Assert.True(legacy.ShowRecognizeButton);
-            Assert.False(legacy.RetryUsesLocalOcr);
+            Assert.True(legacy.RetryUsesLocalOcr);
 
-            UiSettings.Save(directory, new UiSettings(true, RetryUsesLocalOcr: true));
+            UiSettings.Save(directory, new UiSettings(true, RetryUsesLocalOcr: false));
             UiSettings saved = UiSettings.Load(directory);
             Assert.True(saved.ShowRecognizeButton);
-            Assert.True(saved.RetryUsesLocalOcr);
+            Assert.False(saved.RetryUsesLocalOcr);
 
             UiSettings.Save(directory, new UiSettings(false));
-            Assert.False(UiSettings.Load(directory).RetryUsesLocalOcr);
+            Assert.True(UiSettings.Load(directory).RetryUsesLocalOcr);
         }
         finally
         {

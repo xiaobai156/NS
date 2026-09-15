@@ -17,6 +17,66 @@ internal static class SummaryRowRecovery
     private const int StripScale = 2;
     private const double BandHalfPitch = 0.4;
 
+    // 右侧小块卡（简单爱）：目标期号右侧同一行印着“禁X”。
+    private static readonly HashSet<string> RightBlockRuleIds = new(StringComparer.Ordinal) { "简单爱" };
+
+    internal static bool SupportsRightBlockRecovery(OcrRule rule) => RightBlockRuleIds.Contains(rule.Id);
+
+    // 简单爱（乖乖团队）：整图把右下的 255～258 期小块读散时，按目标期号格的
+    // 坐标裁它右侧同一行的小块做二次本地识别。带内必须出现目标期号且只有一
+    // 行含生肖、恰好一个生肖（在“禁”之后），否则保持缺失。
+    internal static async Task<SummaryRowRecoveryResult?> TryRecoverRightBlockIssueRowAsync(
+        PaddleLocalOcrClient client,
+        string imagePath,
+        int issue,
+        double titleRatio,
+        int? detectionMaxSide,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await client.RecognizeBatchAsync(
+                [imagePath],
+                progress: null,
+                titleRatio: titleRatio,
+                detectionMaxSide: detectionMaxSide,
+                useCache: true,
+                cancellationToken: cancellationToken,
+                model: PaddleOcrModels.LocalPrimary);
+        }
+        catch (OcrException)
+        {
+            return null;
+        }
+
+        if (!client.LastEvidence.TryGetValue(imagePath, out OcrEvidence? located) || located is null)
+            return null;
+        IReadOnlyList<OcrLineEvidence> source =
+            located.TokenItems is { Count: > 0 } tokens ? tokens : located.Items;
+        if (ComputeRightBlockRect(source, issue) is not { } rect)
+            return null;
+
+        return await CropAndReadRectAsync(
+            client, imagePath, rect, cancellationToken,
+            stripLines => RuleEngine.ExtractRightBlockZodiacFromStrip(stripLines, issue));
+    }
+
+    internal static (int X, int Y, int Width, int Height)? ComputeRightBlockRect(
+        IReadOnlyList<OcrLineEvidence> items,
+        int issue)
+    {
+        OcrLineEvidence[] targets = items
+            .Where(item => item.Box is not null && RuleEngine.LineContainsIssue(item.Text, issue))
+            .ToArray();
+        if (targets.Length != 1)
+            return null;
+        OcrBox box = targets[0].Box!;
+        int top = Math.Max(0, box.Y - 2);
+        int x = Math.Max(0, box.X - 4);
+        return (x, top, 0, Math.Max(24, box.Height) + 4);
+    }
+
+
     internal static async Task<SummaryRowRecoveryResult?> TryRecoverAsync(
         PaddleLocalOcrClient client,
         string imagePath,
@@ -243,6 +303,84 @@ internal static class SummaryRowRecovery
     private static bool ContainsName(string normalizedText, string own, string label) =>
         own.Length > 0 && normalizedText.Contains(own, StringComparison.Ordinal)
         || label.Length > 0 && normalizedText.Contains(label, StringComparison.Ordinal);
+
+    private static async Task<SummaryRowRecoveryResult?> CropAndReadRectAsync(
+        PaddleLocalOcrClient client,
+        string imagePath,
+        (int X, int Y, int Width, int Height) rect,
+        CancellationToken cancellationToken,
+        Func<IReadOnlyList<string>, string?> parse)
+    {
+        string stripPath = Path.Combine(
+            Path.GetTempPath(), "OcrLineTool-NVIDIA-CUDA", "strips",
+            Guid.NewGuid().ToString("N") + ".png");
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(stripPath)!);
+            if (!TryCropRect(imagePath, rect.X, rect.Y, rect.Width, rect.Height, stripPath))
+                return null;
+
+            IReadOnlyDictionary<string, IReadOnlyList<string>> stripResults;
+            try
+            {
+                stripResults = await client.RecognizeBatchAsync(
+                    [stripPath],
+                    progress: null,
+                    titleRatio: 1.0,
+                    detectionMaxSide: StripDetectionMaxSide,
+                    useCache: false,
+                    cancellationToken: cancellationToken,
+                    model: PaddleOcrModels.LocalPrimary);
+            }
+            catch (OcrException)
+            {
+                return null;
+            }
+
+            if (!stripResults.TryGetValue(stripPath, out IReadOnlyList<string>? stripLines))
+                return null;
+            string? value = parse(stripLines);
+            return value is null ? null : new SummaryRowRecoveryResult(value, stripLines);
+        }
+        finally
+        {
+            try { File.Delete(stripPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    // width <= 0 表示裁到图片右边缘。
+    private static bool TryCropRect(string imagePath, int x, int y, int width, int height, string destination)
+    {
+        try
+        {
+            byte[] bytes = File.ReadAllBytes(imagePath);
+            using var stream = new MemoryStream(bytes, writable: false);
+            using var image = new Bitmap(stream);
+            int left = Math.Clamp(x, 0, Math.Max(0, image.Width - 1));
+            int top = Math.Clamp(y, 0, Math.Max(0, image.Height - 1));
+            int cropWidth = width <= 0 ? image.Width - left : Math.Min(width, image.Width - left);
+            int cropHeight = Math.Min(height, image.Height - top);
+            if (cropWidth <= 0 || cropHeight <= 0)
+                return false;
+            using var crop = image.Clone(
+                new Rectangle(left, top, cropWidth, cropHeight), PixelFormat.Format24bppRgb);
+            using var enlarged = new Bitmap(crop.Width * StripScale, crop.Height * StripScale, PixelFormat.Format24bppRgb);
+            using (Graphics graphics = Graphics.FromImage(enlarged))
+            {
+                graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                graphics.DrawImage(crop, new Rectangle(0, 0, enlarged.Width, enlarged.Height));
+            }
+            enlarged.Save(destination, ImageFormat.Png);
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException
+            or UnauthorizedAccessException
+            or ArgumentException
+            or ExternalException)
+        {
+            return false;
+        }
+    }
 
     private static bool TryCrop(string imagePath, int top, int height, string destination)
     {

@@ -21,7 +21,7 @@ internal sealed class SettingsForm : Form
         Font = new Font("Microsoft YaHei UI", 9F),
         TextAlign = ContentAlignment.TopLeft,
         Text = "隐藏后左侧只显示“本地主识别”。此设置会记住，重启软件后保持。"
-            + "手动复抓默认用云 OCR；“本地 OCR”不请求云端，用本机识别结果补值。"
+            + "手动复抓默认“本地 OCR（本机优先，读不到再云兜底）”；也可切回“云 OCR”。"
     };
 
     private readonly Label retryCaption = new()
@@ -36,7 +36,7 @@ internal sealed class SettingsForm : Form
     private readonly RadioButton retryCloudOcrRadio = new()
     {
         Name = "retryUsesCloudOcr",
-        Text = "云 OCR（默认）",
+        Text = "云 OCR",
         AutoSize = true,
         ForeColor = MainForm.PrimaryText,
         BackColor = MainForm.CardBackground,
@@ -48,13 +48,13 @@ internal sealed class SettingsForm : Form
     private readonly RadioButton retryLocalOcrRadio = new()
     {
         Name = "retryUsesLocalOcr",
-        Text = "本地 OCR",
+        Text = "本地 OCR（推荐）",
         AutoSize = true,
         ForeColor = MainForm.PrimaryText,
         BackColor = MainForm.CardBackground,
         FlatStyle = FlatStyle.Flat,
         AccessibleName = "手动复抓使用本地 OCR",
-        Location = new Point(272, 5)
+        Location = new Point(232, 5)
     };
 
     private readonly Button saveButton = new DarkButton() { Text = "保存" };

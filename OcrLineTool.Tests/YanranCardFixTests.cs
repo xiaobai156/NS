@@ -1,0 +1,152 @@
+using OcrLineTool;
+
+namespace OcrLineTool.Tests;
+
+/// <summary>
+/// 258 期真实失败的四张卡（嫣然心水）：雁塔题名两列卡（值行在期号行上方）、
+/// 恩平杀一尾（同一行并了两期）、简单爱（右下小块读散）、爱晚亭五码（无标题表
+/// 按文件夹+行形状认卡）。
+/// </summary>
+public sealed class YanranCardFixTests
+{
+    private static IReadOnlyList<OcrRule> Rules => RuleCatalog.Load(Path.Combine(
+        ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
+
+    private static OcrRule Rule(string id) => Rules.Single(rule => rule.Id == id);
+
+    [Fact]
+    public void EnpingTailTakesTheTargetIssueSegment()
+    {
+        OcrRule rule = Rule("恩平杀一尾");
+        string[] split =
+        [
+            "主题:258期，杀一尾",
+            "恩平杀一尾，252期止28期错1期",
+            "252期杀，4尾22",
+            "257期杀，0尾07",
+            "258期杀，5尾"
+        ];
+        string[] merged = ["257期杀，0尾07 258期杀，5尾"];
+
+        Assert.Equal("5尾", RuleEngine.ExtractFinalValue(split, 258, rule));
+        Assert.Equal("5尾", RuleEngine.ExtractFinalValue(merged, 258, rule));
+        Assert.Equal("0尾", RuleEngine.ExtractFinalValue(split, 257, rule));
+    }
+
+    [Fact]
+    public void YantaHeadReadsTheValueLineAboveTheIssueLine()
+    {
+        OcrRule rule = Rule("雁塔题名杀头");
+        string[] lines =
+        [
+            "雁塔题名新澳门版", "10", "杀2头", "258杀红双", "9", "杀0头", "257杀红双",
+            "8", "杀3头", "256杀蓝双"
+        ];
+
+        Assert.Equal("2头", RuleEngine.ExtractFinalValue(lines, 258, rule));
+        Assert.Equal("0头", RuleEngine.ExtractFinalValue(lines, 257, rule));
+    }
+
+    [Fact]
+    public void YantaHalfWaveAndHeReadTheirOwnCells()
+    {
+        OcrRule half = Rule("雁塔题名半波");
+        OcrRule he = Rule("雁塔题名杀合");
+        string[] halfLines =
+        [
+            "雁塔题名新澳门版", "10", "杀2头", "258杀红双", "9", "杀0头", "257杀红双"
+        ];
+        string[] heLines =
+        [
+            "雁塔题名新澳门版", "10", "杀牛", "258杀7合", "9", "杀兔", "257杀1合"
+        ];
+
+        Assert.Equal("红双", RuleEngine.ExtractFinalValue(halfLines, 258, half));
+        Assert.Equal("07合", RuleEngine.ExtractFinalValue(heLines, 258, he));
+    }
+
+    [Fact]
+    public void AiWantingFiveNumbersMatchByFolderAndRowShape()
+    {
+        OcrRule rule = Rule("爱晚亭");
+        string[] lines =
+        [
+            "242期：32.33.24.23.15.开狗09",
+            "243期：30.31.36.20.16.开狗21",
+            "244期:00开鸡46",
+            "245期：30.31.05.06.03.开牛18",
+            "246期：29.30.01.37.44.开牛30",
+            "247期：28.29.47.46.37.开兔40",
+            "248期：30.29.33.31.24.开猪20",
+            "249期：30.33.29.34.35.开猴23",
+            "250期：31.32.08.07.48.开蛇14",
+            "251期：33.34.32.31.11.开牛30",
+            "252期：35.34.02.03.49.开鸡22",
+            "253期：34.35.10.11.02.开兔16",
+            "254期：32.33.28.26.25.开蛇02",
+            "255期：31.29.22.14.13.开猪44",
+            "256期：33.32.08.07.06.开马01",
+            "257期：29.30.07.04.06.开鼠07",
+            "258期: 34.35.12.03.01.开00"
+        ];
+        string imagePath = Path.Combine(@"C:\图片\9.15-嫣然心水\爱晚亭", "20260915_185227_82840.jpg");
+
+        Assert.Contains(rule.Id, RuleEngine.FindMatches(imagePath, lines, Rules, Rules).Select(item => item.Id));
+        Assert.Equal("34 35 12 03 01", RuleEngine.ExtractFinalValue(lines, 258, rule));
+    }
+
+    [Fact]
+    public void AiWantingStatisticsCardYieldsNoFiveNumbers()
+    {
+        OcrRule rule = Rule("爱晚亭");
+        string[] statistics =
+        [
+            "●爱晚亭③●您的计算结果：",
+            "【统计总】2026258期:",
+            "【0次】：02,04,08,12,15,16,19,20,22,",
+            "【1次】：03,06,10,11,13,14,17,18,23,25,",
+            "【2次】：05,07,09,21,37,41,42，（共7码）",
+            "【4次】：01，（共1码）×",
+            "【共10行 总计40码】",
+            "【新澳门彩票@万能猫】"
+        ];
+
+        Assert.Null(RuleEngine.ExtractFinalValue(statistics, 258, rule));
+    }
+
+    [Fact]
+    public void JianDanAiStripNeedsTargetIssueAndOneZodiac()
+    {
+        Assert.Equal("牛", RuleEngine.ExtractRightBlockZodiacFromStrip(["258期禁牛"], 258));
+        Assert.Equal("羊", RuleEngine.ExtractRightBlockZodiacFromStrip(["258期 禁 羊"], 258));
+        Assert.Null(RuleEngine.ExtractRightBlockZodiacFromStrip(["257期禁羊"], 258));
+        Assert.Null(RuleEngine.ExtractRightBlockZodiacFromStrip(["258期禁牛羊"], 258));
+        Assert.Null(RuleEngine.ExtractRightBlockZodiacFromStrip(["257期禁羊 258期禁牛"], 258));
+        Assert.Equal("牛", RuleEngine.ExtractRightBlockZodiacFromStrip(["258期258期禁牛"], 258));
+        Assert.Null(RuleEngine.ExtractRightBlockZodiacFromStrip(["258期"], 258));
+    }
+
+    [Fact]
+    public void RightBlockRectUsesTheTargetIssueCell()
+    {
+        var items = new List<OcrLineEvidence>
+        {
+            new("254期", new OcrBox(20, 900, 60, 30), 0.9, "paddle/original", "main"),
+            new("255期", new OcrBox(420, 600, 60, 30), 0.9, "paddle/original", "main"),
+            new("256期", new OcrBox(420, 640, 60, 30), 0.9, "paddle/original", "main"),
+            new("257期", new OcrBox(420, 680, 60, 30), 0.9, "paddle/original", "main"),
+            new("258期", new OcrBox(420, 720, 60, 30), 0.9, "paddle/original", "main")
+        };
+
+        (int X, int Y, int Width, int Height)? rect = SummaryRowRecovery.ComputeRightBlockRect(items, 258);
+
+        Assert.NotNull(rect);
+        Assert.Equal(416, rect!.Value.X);
+        Assert.Equal(718, rect.Value.Y);
+        Assert.Equal(0, rect.Value.Width);
+        Assert.Equal(34, rect.Value.Height);
+
+        items.Add(new OcrLineEvidence("258期", new OcrBox(20, 760, 60, 30), 0.9, "paddle/original", "main"));
+        Assert.Null(SummaryRowRecovery.ComputeRightBlockRect(items, 258));
+    }
+}

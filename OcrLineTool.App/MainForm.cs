@@ -1951,8 +1951,9 @@ public sealed class MainForm : Form
             MessageBoxIcon.Warning);
     }
 
-    // “手动复抓缺失（本地 OCR）”：不请求云端，按本地主识别同款 medium 对本轮
-    // 缺失规则的候选图片整图识别并提取；失败保持缺失，尾部与云模式共用补读和写盘。
+    // “手动复抓缺失（本机优先）”：与本地主识别同序——先读候选识别图（模板群=
+    // 裁剪图），仍缺失的规则再用原图复读一次；这两轮都取不到的规则才由调用方
+    // 走云兜底。失败保持缺失，尾部与云模式共用补读和写盘。
     private async Task RetryMissingByLocalOcrAsync(
         IReadOnlyList<RecognitionCandidate> candidates,
         int issue,
@@ -1961,25 +1962,27 @@ public sealed class MainForm : Form
         var client = new PaddleLocalOcrClient();
         double titleRatio = PaddleLocalOcrClient.TitleRatioFor(selectedImageDirectory!);
         int? detectionMaxSide = PaddleLocalOcrClient.DetectionMaxSideFor(selectedImageDirectory!);
+        int total = Math.Max(1, candidates.Count * 2);
         int completed = 0;
-        SetProgress(0, candidates.Count);
-        foreach (RecognitionCandidate candidate in candidates)
+        SetProgress(0, total);
+
+        async Task PassAsync(RecognitionCandidate candidate, string inputPath)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            statusLabel.Text = $"复抓缺失（本地 OCR）：{completed + 1}/{candidates.Count} · {ShortPath(candidate.SourcePath)}";
+            statusLabel.Text = $"复抓缺失（本机 OCR）{completed + 1}/{total} · {ShortPath(candidate.SourcePath)}";
             OcrEvidence? evidence = null;
             IReadOnlyDictionary<string, string>? gapFillNotes = null;
             try
             {
                 await client.RecognizeBatchAsync(
-                    [candidate.SourcePath],
+                    [inputPath],
                     progress: null,
                     titleRatio: titleRatio,
                     detectionMaxSide: detectionMaxSide,
                     useCache: true,
                     cancellationToken: cancellationToken,
                     model: PaddleOcrModels.LocalPrimary);
-                client.LastEvidence.TryGetValue(candidate.SourcePath, out evidence);
+                client.LastEvidence.TryGetValue(inputPath, out evidence);
             }
             catch (OcrException)
             {
@@ -1987,10 +1990,9 @@ public sealed class MainForm : Form
             }
 
             if (evidence is not null)
+            {
                 AddExtractedEvidenceValues(
                     evidence, RetryEvidenceRules(candidate, lastRules), issue, lastValues, lastEvidenceLedger);
-            if (evidence is not null)
-            {
                 // 本地复抓同样走统一规则：候选扫描视图 + 本次 medium 视图。
                 gapFillNotes = TryFillSingleMissingNumberCells(
                     lastRules, issue, lastValues, lastEvidenceLedger, candidate.LocalEvidence, evidence);
@@ -2010,10 +2012,21 @@ public sealed class MainForm : Form
                 ApplyGapFillNotes(gapFillNotes, lastMissingReasons);
 
             completed++;
-            SetProgress(completed, candidates.Count);
+            SetProgress(completed, total);
             resultsBox.Text = string.Join(
                 Environment.NewLine,
                 RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons));
+        }
+
+        foreach (RecognitionCandidate candidate in candidates)
+            await PassAsync(candidate, candidate.OcrPath);
+        foreach (RecognitionCandidate candidate in candidates)
+        {
+            if (candidate.OcrPath.Equals(candidate.SourcePath, StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (candidate.Rules.All(rule => lastValues.ContainsKey(rule.Id)))
+                continue;
+            await PassAsync(candidate, candidate.SourcePath);
         }
     }
 
@@ -2053,6 +2066,8 @@ public sealed class MainForm : Form
                     rule.Id,
                     RuleEngine.DescribeMissing(foundImage: false, recognizedText: false));
 
+            // 复抓默认“本机优先”：先按本地主识别的顺序用本机 medium 出值
+            //（裁剪图 → 原图），仍缺失的规则再走云兜底。
             if (retryUsesLocalOcr)
                 await RetryMissingByLocalOcrAsync(selection.Candidates, lastIssue, ActiveToken);
 
@@ -2076,10 +2091,16 @@ public sealed class MainForm : Form
             int completed = 0;
             SetProgress(0, selection.Candidates.Count);
 
-            // “本地 OCR”复抓不请求云端：缺失项只由本机 medium 结果补值。
-            RecognitionCandidate[] cloudRetryCandidates = retryUsesLocalOcr
-                ? []
-                : selection.Candidates.ToArray();
+            // 只对本机仍未取到值的规则请求云（本机优先的统一顺序）。
+            RecognitionCandidate[] cloudRetryCandidates = selection.Candidates
+                .Select(candidate => candidate with
+                {
+                    Rules = candidate.Rules
+                        .Where(rule => !lastValues.ContainsKey(rule.Id))
+                        .ToArray()
+                })
+                .Where(candidate => candidate.Rules.Count > 0)
+                .ToArray();
 
             foreach (RecognitionCandidate candidate in cloudRetryCandidates)
             {
@@ -2123,8 +2144,10 @@ public sealed class MainForm : Form
                         try
                         {
                             statusLabel.Text = $"复抓缺失：主云 {credential.DisplayName} {completed + 1}/{selection.Candidates.Count} · {ShortPath(candidate.SourcePath)}";
-                            string primaryInputPath = RetryPrimaryImage(
-                                selectedImageDirectory!, candidate.SourcePath, candidate.OcrPath, candidateMissing);
+                            string primaryInputPath = retryUsesLocalOcr
+                                ? candidate.OcrPath
+                                : RetryPrimaryImage(
+                                    selectedImageDirectory!, candidate.SourcePath, candidate.OcrPath, candidateMissing);
                             primaryEvidence = await primaryImageDeduplicator.RecognizeEvidenceAsync(
                                 selectedImageDirectory!, primaryInputPath, candidateMissing,
                                 async () =>
@@ -2479,7 +2502,13 @@ public sealed class MainForm : Form
                 && rule.Type.StartsWith("号码", StringComparison.Ordinal)
                 && !string.IsNullOrWhiteSpace(rule.Folder))
             .ToArray();
-        if (recoverable.Length == 0 && issueRowRules.Length == 0 && issueRowNumberRules.Length == 0)
+        OcrRule[] rightBlockRules = rules
+            .Where(rule => !values.ContainsKey(rule.Id)
+                && rule.Type == "生肖"
+                && SummaryRowRecovery.SupportsRightBlockRecovery(rule))
+            .ToArray();
+        if (recoverable.Length == 0 && issueRowRules.Length == 0
+            && issueRowNumberRules.Length == 0 && rightBlockRules.Length == 0)
             return;
 
         var client = new PaddleLocalOcrClient();
@@ -2563,6 +2592,35 @@ public sealed class MainForm : Form
                     continue;
                 OcrEvidence evidence = OcrEvidence.FromLines(
                     candidate.SourcePath, recovered.StripLines, "issue-row-strip");
+                evidenceLedger.Observe(values, rule, recovered.Value, evidence);
+                missingReasons.Remove(rule.Id);
+            }
+            catch (Exception exception) when (exception is OcrException
+                or IOException
+                or UnauthorizedAccessException)
+            {
+                // Recovery is best effort: an unreadable strip keeps the value missing.
+            }
+        }
+
+        // 右侧小块卡（简单爱）：整图把右下小块读散时按目标期号格的坐标裁右侧
+        // 同一行做二次识别。
+        foreach (OcrRule rule in rightBlockRules)
+        {
+            if (values.ContainsKey(rule.Id))
+                continue;
+            RecognitionCandidate? candidate = candidates.FirstOrDefault(
+                item => item.Rules.Any(candidateRule => candidateRule.Id == rule.Id));
+            if (candidate is null || !File.Exists(candidate.SourcePath))
+                continue;
+            try
+            {
+                SummaryRowRecoveryResult? recovered = await SummaryRowRecovery.TryRecoverRightBlockIssueRowAsync(
+                    client, candidate.SourcePath, issue, titleRatio, detectionMaxSide, cancellationToken);
+                if (recovered is null)
+                    continue;
+                OcrEvidence evidence = OcrEvidence.FromLines(
+                    candidate.SourcePath, recovered.StripLines, "right-block-strip");
                 evidenceLedger.Observe(values, rule, recovered.Value, evidence);
                 missingReasons.Remove(rule.Id);
             }
