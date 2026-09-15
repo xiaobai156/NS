@@ -9,6 +9,35 @@ public sealed class NewCardsExtractionTests
     private static OcrRule Rule(string id) => Rules("新澳六合彩资料.json").Single(rule => rule.Id == id);
 
     [Fact]
+    public void JiuwangyeDerivesTheMissingHeadFromTheFourHeadRow()
+    {
+        OcrRule rule = Rules("嫣然心水.json").Single(item => item.Id == "九王爷");
+        string[] lines =
+        [
+            "【256期新澳门区天机阁九王爷中特四头】★0头,2头,3头,4头,",
+            "【257期新澳门区天机阁九王爷中特四头】0头,1头,3头,4头,"
+        ];
+
+        Assert.Equal("2头", RuleEngine.ExtractFinalValue(lines, 257, rule));
+        Assert.Equal("1头", RuleEngine.ExtractFinalValue(lines, 256, rule));
+    }
+
+    [Fact]
+    public void JiuwangyeStaysMissingWhenTheFourHeadsAreNotClean()
+    {
+        OcrRule rule = Rules("嫣然心水.json").Single(item => item.Id == "九王爷");
+
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["【257期新澳门区天机阁九王爷中特四头】0头,1头,3头,"], 257, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["【257期新澳门区天机阁九王爷中特四头】0头,1头,1头,3头,"], 257, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["【257期新澳门区天机阁九王爷中特四头】0头,1头,2头,3头,4头,"], 257, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["【256期新澳门区天机阁九王爷中特四头】0头,2头,3头,4头,"], 257, rule));
+    }
+
+    [Fact]
     public void OfficialTwoZodiacsUsesThePairAboveTheIssue()
     {
         string[] lines =

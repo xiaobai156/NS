@@ -1295,6 +1295,283 @@ public static class RuleEngine
             : whole;
     }
 
+    // “宝典”（新澳六合彩资料·特围36码固定海报）专用：每个期区块固定 5 行，
+    // 行内号码数固定 7/9/9/9/2；整表只缺一格时，用另一识别视图的同一行序列
+    // 补回该格。只有“宝典”在白名单里，其他号码资料一律不走此路径。
+    internal static readonly int[] FixedNumberBlockRowShape = [7, 9, 9, 9, 2];
+    internal const int FixedNumberBlockTotal = 36;
+    private static readonly HashSet<string> SingleMissingNumberCellRuleIds =
+        new(StringComparer.Ordinal) { "宝典" };
+
+    internal static (string Value, OcrEvidence Evidence)? TryFillSingleMissingNumberCell(
+        IReadOnlyList<OcrEvidence> views,
+        int issue,
+        OcrRule rule) =>
+        TryFillSingleMissingNumberCell(views, issue, rule, out _);
+
+    internal static (string Value, OcrEvidence Evidence)? TryFillSingleMissingNumberCell(
+        IReadOnlyList<OcrEvidence> views,
+        int issue,
+        OcrRule rule,
+        out string? reason)
+    {
+        reason = null;
+        if (!SingleMissingNumberCellRuleIds.Contains(rule.Id)
+            || !rule.StrictIssueBlock
+            || rule.Type is not { } ruleType
+            || !ruleType.StartsWith("号码:", StringComparison.Ordinal)
+            || !int.TryParse(ruleType.AsSpan("号码:".Length), out int expectedCount)
+            || expectedCount != FixedNumberBlockTotal)
+            return null;
+
+        OcrEvidence[] distinctViews = views
+            .Where(view => view.Items.Any(item => !string.IsNullOrWhiteSpace(item.Text)))
+            .GroupBy(view => view.ViewId, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToArray();
+        if (distinctViews.Length < 2)
+        {
+            reason = $"两路不同视图不足（{distinctViews.Length} 路）";
+            return null;
+        }
+        reason = "固定形状或缺格定位不成立";
+        foreach (OcrEvidence primary in distinctViews)
+        {
+            if (!TryReadFixedNumberBlock(primary, issue, out List<List<(string Value, double CenterX)>> rows))
+                continue;
+            if (!TryFindSingleMissingCell(rows, out int gapRow, out int gapIndex, out string left, out string right))
+                continue;
+            var current = rows
+                .SelectMany(row => row.Select(cell => cell.Value))
+                .ToHashSet(StringComparer.Ordinal);
+            string[] rowValues = rows[gapRow].Select(cell => cell.Value).ToArray();
+            var candidates = new HashSet<string>(StringComparer.Ordinal);
+            OcrEvidence? witness = null;
+            foreach (OcrEvidence other in distinctViews)
+            {
+                if (other.ViewId.Equals(primary.ViewId, StringComparison.Ordinal))
+                    continue;
+                foreach (string sequence in CorroborationSequences(other).Distinct(StringComparer.Ordinal))
+                {
+                    if (!TryMatchGapWitness(sequence, rowValues, gapIndex, left, right, current, out string? value)
+                        || value is null)
+                        continue;
+                    candidates.Add(value);
+                    witness ??= other;
+                }
+            }
+            if (candidates.Count == 0)
+            {
+                reason = $"缺格 {left}(第{issue}期行) → {right} 之间无另一视图佐证";
+                continue;
+            }
+            if (candidates.Count > 1)
+            {
+                reason = $"缺格佐证候选不唯一（{candidates.Count} 个）";
+                continue;
+            }
+
+            string fill = candidates.Single();
+            var numbers = new List<string>();
+            for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
+            {
+                for (int cellIndex = 0; cellIndex < rows[rowIndex].Count; cellIndex++)
+                {
+                    numbers.Add(rows[rowIndex][cellIndex].Value);
+                    if (rowIndex == gapRow && cellIndex == gapIndex)
+                        numbers.Add(fill);
+                }
+            }
+            string? formatted = FormatNumbers(numbers.ToArray(), expectedCount);
+            if (formatted is null)
+            {
+                reason = "补后仍不满足 36 个唯一 01～49";
+                continue;
+            }
+            reason = null;
+            return (formatted, witness!);
+        }
+        return null;
+    }
+
+    private static bool TryReadFixedNumberBlock(
+        OcrEvidence evidence,
+        int issue,
+        out List<List<(string Value, double CenterX)>> rows)
+    {
+        rows = [];
+        // Partition 会把同一行的单元格合并成行列段，固定海报必须按原始
+        // token（TokenItems）逐格解析，否则行形状无法还原。
+        IReadOnlyList<OcrLineEvidence> source =
+            evidence.TokenItems is { Count: > 0 } tokens ? tokens : evidence.Items;
+        OcrLineEvidence[] positioned = source
+            .Where(item => !string.IsNullOrWhiteSpace(item.Text) && item.Box is not null)
+            .ToArray();
+        if (positioned.Length < FixedNumberBlockRowShape.Length)
+            return false;
+
+        List<List<OcrLineEvidence>> grouped = GroupVisualRows(positioned);
+        int targetRow = -1;
+        for (int index = 0; index < grouped.Count; index++)
+        {
+            if (!grouped[index].Any(item => LineContainsIssue(item.Text, issue)))
+                continue;
+            if (targetRow >= 0)
+                return false;
+            targetRow = index;
+        }
+        int halfRows = FixedNumberBlockRowShape.Length / 2;
+        if (targetRow < halfRows || targetRow + halfRows >= grouped.Count)
+            return false;
+
+        var parsed = new List<List<(string Value, double CenterX)>>(FixedNumberBlockRowShape.Length);
+        for (int offset = 0; offset < FixedNumberBlockRowShape.Length; offset++)
+        {
+            var cells = new List<(string Value, double CenterX)>();
+            foreach (OcrLineEvidence item in grouped[targetRow - halfRows + offset]
+                .OrderBy(entry => entry.Box!.X))
+            {
+                string cleaned = Regex.Replace(
+                    RemoveIssue(item.Text), $@"[{Zodiac}]\s*\d{{1,2}}\s*[中错錯赢贏]", string.Empty);
+                string[]? values = ParseNumbers(cleaned);
+                if (values is null)
+                    return false;
+                for (int index = 0; index < values.Length; index++)
+                    cells.Add((
+                        values[index],
+                        item.Box!.X + item.Box.Width * (index + 0.5) / values.Length));
+            }
+            parsed.Add(cells);
+        }
+
+        int shortRows = 0;
+        int total = 0;
+        for (int offset = 0; offset < parsed.Count; offset++)
+        {
+            total += parsed[offset].Count;
+            if (parsed[offset].Count == FixedNumberBlockRowShape[offset] - 1)
+                shortRows++;
+            else if (parsed[offset].Count != FixedNumberBlockRowShape[offset])
+                return false;
+        }
+        if (shortRows != 1 || total != FixedNumberBlockTotal - 1)
+            return false;
+        string[] all = parsed.SelectMany(row => row.Select(cell => cell.Value)).ToArray();
+        if (all.Distinct(StringComparer.Ordinal).Count() != all.Length)
+            return false;
+        rows = parsed;
+        return true;
+    }
+
+    private static bool TryFindSingleMissingCell(
+        List<List<(string Value, double CenterX)>> rows,
+        out int gapRow,
+        out int gapIndex,
+        out string left,
+        out string right)
+    {
+        gapRow = -1;
+        gapIndex = -1;
+        left = string.Empty;
+        right = string.Empty;
+        for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
+        {
+            if (rows[rowIndex].Count >= FixedNumberBlockRowShape[rowIndex])
+                continue;
+            if (rows[rowIndex].Count < 5)
+                return false;
+            double[] deltas = new double[rows[rowIndex].Count - 1];
+            for (int index = 0; index < deltas.Length; index++)
+                deltas[index] = rows[rowIndex][index + 1].CenterX - rows[rowIndex][index].CenterX;
+            double median = deltas.Order().ElementAt(deltas.Length / 2);
+            if (median <= 0)
+                return false;
+            double widest = deltas.Max();
+            int widestIndex = Array.IndexOf(deltas, widest);
+            if (widest < median * 1.5 || widestIndex < 2 || widestIndex + 3 >= rows[rowIndex].Count)
+                return false;
+            gapRow = rowIndex;
+            gapIndex = widestIndex;
+            left = rows[rowIndex][widestIndex].Value;
+            right = rows[rowIndex][widestIndex + 1].Value;
+            return true;
+        }
+        return false;
+    }
+
+    private static IEnumerable<string> CorroborationSequences(OcrEvidence view)
+    {
+        IReadOnlyList<OcrLineEvidence> source = view.TokenItems is { Count: > 0 } tokens ? tokens : view.Items;
+        foreach (OcrLineEvidence item in source.Where(entry => !string.IsNullOrWhiteSpace(entry.Text)))
+            yield return item.Text;
+        if (source.Any(item => !string.IsNullOrWhiteSpace(item.Text) && item.Box is not null))
+        {
+            foreach (string line in BuildRowMajorReading(source))
+            {
+                if (!OcrLayoutMarkers.IsBoundary(line))
+                    yield return line;
+            }
+        }
+    }
+
+    private static bool TryMatchGapWitness(
+        string sequence,
+        string[] rowValues,
+        int gapIndex,
+        string left,
+        string right,
+        IReadOnlySet<string> current,
+        out string? value)
+    {
+        value = null;
+        string cleaned = Regex.Replace(
+            RemoveIssue(sequence), $@"[{Zodiac}]\s*\d{{1,2}}\s*[中错錯赢贏]", string.Empty);
+        string[]? tokens = ParseNumbers(cleaned);
+        if (tokens is null)
+            return false;
+        for (int index = 0; index + 2 < tokens.Length; index++)
+        {
+            if (index < 2 || index + 4 >= tokens.Length)
+                continue;
+            if (!tokens[index].Equals(left, StringComparison.Ordinal)
+                || !tokens[index + 2].Equals(right, StringComparison.Ordinal))
+                continue;
+            string candidate = tokens[index + 1];
+            if (current.Contains(candidate))
+                continue;
+            if (!tokens[index - 2].Equals(rowValues[gapIndex - 2], StringComparison.Ordinal)
+                || !tokens[index - 1].Equals(rowValues[gapIndex - 1], StringComparison.Ordinal)
+                || !tokens[index + 3].Equals(rowValues[gapIndex + 2], StringComparison.Ordinal)
+                || !tokens[index + 4].Equals(rowValues[gapIndex + 3], StringComparison.Ordinal))
+                continue;
+            value = candidate;
+            return true;
+        }
+        return false;
+    }
+
+    private static List<List<OcrLineEvidence>> GroupVisualRows(IEnumerable<OcrLineEvidence> items)
+    {
+        var rows = new List<List<OcrLineEvidence>>();
+        foreach (OcrLineEvidence item in items
+            .OrderBy(entry => entry.Box!.CenterY)
+            .ThenBy(entry => entry.Box!.X))
+        {
+            List<OcrLineEvidence>? row = rows.FirstOrDefault(candidate =>
+            {
+                double center = candidate.Average(entry => entry.Box!.CenterY);
+                double height = candidate.Average(entry => Math.Max(1, entry.Box!.Height));
+                return Math.Abs(center - item.Box!.CenterY)
+                    <= Math.Max(3, Math.Min(height, Math.Max(1, item.Box.Height)) * 0.45);
+            });
+            if (row is null)
+                rows.Add([item]);
+            else
+                row.Add(item);
+        }
+        return rows;
+    }
+
     // Row-major reading order with the same row tolerance the layout builder
     // uses. Cells of one visual row are joined into one physical line and only
     // split where the horizontal gap is wide or the rendered view changes, so

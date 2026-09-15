@@ -1225,6 +1225,7 @@ public sealed class MainForm : Form
                 lines = candidate.LocalLines,
                 error = localClient.LastImageErrors.GetValueOrDefault(candidate.OcrPath)
             }).ToList();
+            var cloudEvidenceByCandidate = new Dictionary<string, OcrEvidence>(StringComparer.OrdinalIgnoreCase);
             foreach (RecognitionCandidate candidate in cloudCandidates)
             {
                 // The candidate list was frozen while these rules were missing. Do not
@@ -1263,6 +1264,7 @@ public sealed class MainForm : Form
                     AddExtractedEvidenceValues(
                         cloudEvidence, evidenceRules, issue, values, evidenceLedger);
                     recognizedRuleIds.UnionWith(evidenceRules.Select(rule => rule.Id));
+                    cloudEvidenceByCandidate[candidate.SourcePath] = cloudEvidence;
                 }
 
                 if (cloudEvidence is not null && cloudLines.Count > 0)
@@ -1293,6 +1295,18 @@ public sealed class MainForm : Form
                 SetProgress(completed, cloudCandidates.Length);
             }
 
+            // 本机 medium 与云兜底两路都跑完后，对仍缺失的固定海报规则做单缺格
+            // 邻位补读（本机视图 + 云视图同时在手）。
+            var gapFillNotes = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (RecognitionCandidate candidate in candidates)
+            {
+                if (!cloudEvidenceByCandidate.TryGetValue(candidate.SourcePath, out OcrEvidence? cloudView))
+                    continue;
+                foreach ((string ruleId, string note) in TryFillSingleMissingNumberCells(
+                    rules, issue, values, evidenceLedger, candidate.LocalEvidence, cloudView))
+                    gapFillNotes.TryAdd(ruleId, note);
+            }
+
             var missingReasons = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (OcrRule rule in rules.Where(rule => !values.ContainsKey(rule.Id)))
             {
@@ -1308,6 +1322,7 @@ public sealed class MainForm : Form
                     ? RuleEngine.DescribeMissing(failedCandidate is not null, recognizedText: false)
                     : RuleEngine.DescribeExtractionFailure(failedLines, issue, rule);
             }
+            ApplyGapFillNotes(gapFillNotes, missingReasons);
 
             await RecoverSummaryRowValuesAsync(
                 rules, values, evidenceLedger, missingReasons,
@@ -1953,6 +1968,7 @@ public sealed class MainForm : Form
             cancellationToken.ThrowIfCancellationRequested();
             statusLabel.Text = $"复抓缺失（本地 OCR）：{completed + 1}/{candidates.Count} · {ShortPath(candidate.SourcePath)}";
             OcrEvidence? evidence = null;
+            IReadOnlyDictionary<string, string>? gapFillNotes = null;
             try
             {
                 await client.RecognizeBatchAsync(
@@ -1973,6 +1989,12 @@ public sealed class MainForm : Form
             if (evidence is not null)
                 AddExtractedEvidenceValues(
                     evidence, RetryEvidenceRules(candidate, lastRules), issue, lastValues, lastEvidenceLedger);
+            if (evidence is not null)
+            {
+                // 本地复抓同样走统一规则：候选扫描视图 + 本次 medium 视图。
+                gapFillNotes = TryFillSingleMissingNumberCells(
+                    lastRules, issue, lastValues, lastEvidenceLedger, candidate.LocalEvidence, evidence);
+            }
             if (evidence?.Items.Any(item => !string.IsNullOrWhiteSpace(item.Text)) == true)
                 lastTextRecognizedRuleIds.UnionWith(candidate.Rules.Select(rule => rule.Id));
             foreach (OcrRule rule in candidate.Rules)
@@ -1984,6 +2006,8 @@ public sealed class MainForm : Form
                         ? RuleEngine.DescribeExtractionFailure(evidence?.Lines ?? [], issue, rule)
                         : RuleEngine.DescribeMissing(foundImage: true, recognizedText: false);
             }
+            if (gapFillNotes is not null)
+                ApplyGapFillNotes(gapFillNotes, lastMissingReasons);
 
             completed++;
             SetProgress(completed, candidates.Count);
@@ -2183,6 +2207,12 @@ public sealed class MainForm : Form
                         AppContext.BaseDirectory, groupName, lastIssue, primaryEvidence);
                 }
 
+                // 复抓的规则也统一：候选扫描视图 + 云视图齐了就对仍缺失的宝典
+                // 尝试单缺格邻位补读。
+                IReadOnlyDictionary<string, string> gapFillNotes = TryFillSingleMissingNumberCells(
+                    lastRules, lastIssue, lastValues, lastEvidenceLedger, candidate.LocalEvidence,
+                    primaryEvidence, fallbackEvidence);
+
                 bool recognizedText = primaryEvidence?.Items.Any(item => !string.IsNullOrWhiteSpace(item.Text)) == true
                     || fallbackEvidence?.Items.Any(item => !string.IsNullOrWhiteSpace(item.Text)) == true;
                 if (recognizedText)
@@ -2197,6 +2227,7 @@ public sealed class MainForm : Form
                                 primaryEvidence?.Lines ?? fallbackEvidence?.Lines ?? [], lastIssue, rule)
                             : RuleEngine.DescribeMissing(foundImage: true, recognizedText: false);
                 }
+                ApplyGapFillNotes(gapFillNotes, lastMissingReasons);
 
                 completed++;
                 SetProgress(completed, selection.Candidates.Count);
@@ -2558,6 +2589,51 @@ public sealed class MainForm : Form
                 ledger.ObserveConflict(values, rule, evidence);
             else if (result.Status == RuleExtractionStatus.Success)
                 ledger.Observe(values, rule, result.Value!, evidence);
+        }
+    }
+
+    // “宝典”固定海报的单缺格补读：候选图已有本机读数，再用同一候选的另一视图
+    //（云兜底或另一模型）做邻位佐证。规则统一，任何流程只要两路证据齐全都走这里。
+    // 返回仍未补回时的真实原因，供缺失原因记录使用。
+    internal static IReadOnlyDictionary<string, string> TryFillSingleMissingNumberCells(
+        IReadOnlyList<OcrRule> rules,
+        int issue,
+        ResultValues values,
+        ResultEvidenceLedger ledger,
+        OcrEvidence? localEvidence,
+        params OcrEvidence?[] extraViews)
+    {
+        var notes = new Dictionary<string, string>(StringComparer.Ordinal);
+        OcrEvidence[] views = new[] { localEvidence }
+            .Concat(extraViews ?? [])
+            .Where(view => view is not null)
+            .Select(view => view!)
+            .ToArray();
+        if (views.Length < 2)
+            return notes;
+        foreach (OcrRule rule in rules)
+        {
+            if (values.ContainsKey(rule.Id))
+                continue;
+            if (RuleEngine.TryFillSingleMissingNumberCell(views, issue, rule, out string? reason) is { } filled)
+                ledger.Observe(values, rule, filled.Value, filled.Evidence);
+            else if (reason is not null)
+                notes[rule.Id] = reason;
+        }
+        return notes;
+    }
+
+    private static void ApplyGapFillNotes(
+        IReadOnlyDictionary<string, string> notes,
+        IDictionary<string, string> missingReasons)
+    {
+        foreach ((string ruleId, string note) in notes)
+        {
+            if (!missingReasons.TryGetValue(ruleId, out string? existing))
+                continue;
+            missingReasons[ruleId] = existing.Contains("补读", StringComparison.Ordinal)
+                ? existing
+                : existing + "；补读未成立：" + note;
         }
     }
 
