@@ -194,6 +194,7 @@ public sealed class MainForm : Form
         OperationLog.ClearIfExpired(AppContext.BaseDirectory);
         RecognitionStateStore.ClearStaleDays(AppContext.BaseDirectory);
         DistributionStateCleanup.ClearStaleBefore(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory));
+        FailureLog.CleanupBefore(AppContext.BaseDirectory, CredentialSchedule.TodayInBeijing());
         issueDate = CredentialSchedule.TodayInBeijing();
         LogOperation("启动程序");
         RefreshCredentialLabel();
@@ -819,6 +820,7 @@ public sealed class MainForm : Form
         {
             RecognitionStateStore.ClearAll(AppContext.BaseDirectory);
             DistributionStateCleanup.ClearStaleBefore(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), date);
+            FailureLog.CleanupBefore(AppContext.BaseDirectory, date);
             issueInput.Value = CredentialSchedule.IssueForDate(date);
             issueDate = date;
         }
@@ -1368,7 +1370,7 @@ public sealed class MainForm : Form
                     images = diagnostics
                 }, new JsonSerializerOptions { WriteIndented = true }),
                 new UTF8Encoding(true));
-            LogMissingDetails("本地主识别", groupName, issue, rules, values, candidates);
+            LogMissingDetails("本地主识别", groupName, issue, rules, values, candidates, missingReasons);
             resultsBox.Text = string.Join(Environment.NewLine, groupLines);
             lastRules = rules;
             lastValues = new ResultValues(values, StringComparer.Ordinal);
@@ -1810,7 +1812,7 @@ public sealed class MainForm : Form
                     images = diagnostics
                 }, new JsonSerializerOptions { WriteIndented = true }),
                 new UTF8Encoding(true));
-            LogMissingDetails("开始识别", groupName, issue, rules, values, candidates);
+            LogMissingDetails("开始识别", groupName, issue, rules, values, candidates, missingReasons);
             resultsBox.Text = string.Join(Environment.NewLine, groupLines);
             lastRules = rules;
             lastValues = new ResultValues(values, StringComparer.Ordinal);
@@ -2286,7 +2288,7 @@ public sealed class MainForm : Form
                 PreserveDistributedMarkers(groupOutputPath, outputLines));
             await AtomicFile.WriteAllLinesAsync(groupOutputPath, groupLines, new UTF8Encoding(true));
             LogMissingDetails(
-                "手动复抓缺失", groupName, lastIssue, lastRules, lastValues, selection.Candidates);
+                "手动复抓缺失", groupName, lastIssue, lastRules, lastValues, selection.Candidates, lastMissingReasons);
             resultsBox.Text = string.Join(Environment.NewLine, groupLines);
             int remaining = lastRules.Count(rule => !lastValues.ContainsKey(rule.Id));
             statusLabel.Text = selection.Candidates.Count == 0
@@ -3229,8 +3231,10 @@ public sealed class MainForm : Form
         int issue,
         IReadOnlyList<OcrRule> rules,
         IReadOnlyDictionary<string, string> values,
-        IReadOnlyList<RecognitionCandidate> candidates)
+        IReadOnlyList<RecognitionCandidate> candidates,
+        IReadOnlyDictionary<string, string>? missingReasons = null)
     {
+        var logEntries = new List<(string Label, string? ImageName, string Reason)>();
         foreach (OcrRule rule in rules.Where(rule => !values.ContainsKey(rule.Id)))
         {
             RecognitionCandidate? candidate = candidates.FirstOrDefault(item =>
@@ -3240,16 +3244,30 @@ public sealed class MainForm : Form
                 : lastCloudOcrResults.TryGetValue(candidate.SourcePath, out IReadOnlyList<string>? cloudLines)
                     ? cloudLines
                     : candidate.LocalLines ?? [];
-            string reason = candidate is null
-                ? "未找到对应图片"
-                : RuleEngine.DescribeExtractionFailure(lines, issue, rule);
+            string reason = missingReasons is not null && missingReasons.TryGetValue(rule.Id, out string? recorded)
+                ? recorded
+                : candidate is null
+                    ? "未找到对应图片"
+                    : RuleEngine.DescribeExtractionFailure(lines, issue, rule);
             string file = candidate is null ? "-" : Path.GetFileName(candidate.SourcePath);
             OperationLog.Append(
                 AppContext.BaseDirectory,
                 $"{operation}缺失：{rule.OutputLabel}；图片={file}；原因={reason}",
                 groupName,
                 issue);
+            logEntries.Add((
+                rule.OutputLabel,
+                candidate is null || reason.Contains("未找到对应图片", StringComparison.Ordinal) ? null : file,
+                reason));
         }
+        // 当天失败日志：一个群一份，按期号分段；本次跑的那个群/期被刷新。
+        FailureLog.WriteGroup(
+            AppContext.BaseDirectory,
+            CredentialSchedule.TodayInBeijing(),
+            groupName,
+            issue,
+            DateTime.Now,
+            logEntries);
     }
 
     private static string PrepareLocalCloudImage(
