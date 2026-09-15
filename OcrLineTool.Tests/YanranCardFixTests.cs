@@ -127,8 +127,81 @@ public sealed class YanranCardFixTests
     }
 
     [Fact]
-    public void RightBlockRectUsesTheTargetIssueCell()
+    public void YantaHeadReadsThroughPartitionedEvidence()
     {
+        OcrRule rule = Rule("雁塔题名杀头");
+        // 运行时证据：Items 是分区后的列块，TokenItems 才是逐格原始项。
+        var tokens = new List<OcrLineEvidence>
+        {
+            new("雁塔题名新澳门版", new OcrBox(20, 20, 300, 40), 0.99, "paddle/original", "main"),
+            new("10", new OcrBox(20, 100, 40, 30), 0.99, "paddle/original", "main"),
+            new("杀2头", new OcrBox(20, 140, 90, 30), 0.99, "paddle/original", "main"),
+            new("258杀红双", new OcrBox(20, 180, 160, 30), 0.99, "paddle/original", "main"),
+            new("9", new OcrBox(20, 220, 40, 30), 0.99, "paddle/original", "main"),
+            new("杀0头", new OcrBox(20, 260, 90, 30), 0.99, "paddle/original", "main"),
+            new("257杀红双", new OcrBox(20, 300, 160, 30), 0.99, "paddle/original", "main")
+        };
+        var partitioned = tokens
+            .Select(item => item with { RegionId = "column-" + item.Box!.Y })
+            .ToList();
+        var evidence = new OcrEvidence(
+            "crop.png", "crop.png", "H", "H", "local-primary/medium", partitioned, tokens);
+
+        RuleExtractionResult result = RuleEngine.ExtractFinalResult(evidence, 258, rule);
+
+        Assert.Equal(RuleExtractionStatus.Success, result.Status);
+        Assert.Equal("2头", result.Value);
+    }
+
+    [Fact]
+    public void EnpingTailIgnoresFooterDigits()
+    {
+        OcrRule rule = Rule("恩平杀一尾");
+        string[] lines =
+        [
+            "主题:258期，杀一尾",
+            "作者:恩平公式",
+            "恩平杀一尾，252期止28期错1期",
+            "257期杀，0尾07",
+            "258期杀，5尾",
+            "→→→",
+            "2026-09-15 08:29:30编辑本贴",
+            "最后修改:1分钟前[日志]",
+            "签名:人生最好的境界就是：健康的活着，合理的忙着"
+        ];
+
+        Assert.Equal("5尾", RuleEngine.ExtractFinalValue(lines, 258, rule));
+    }
+
+    [Fact]
+    public void AiWantingExtractsThroughEvidence()
+    {
+        OcrRule rule = Rule("爱晚亭");
+        string[] rows =
+        [
+            "242期：32.33.24.23.15.开狗09",
+            "243期：30.31.36.20.16.开狗21",
+            "245期：30.31.05.06.03.开牛18",
+            "246期：29.30.01.37.44.开牛30",
+            "247期：28.29.47.46.37.开兔40",
+            "248期：30.29.33.31.24.开猪20",
+            "258期: 34.35.12.03.01.开00"
+        ];
+        List<OcrLineEvidence> tokens = rows
+            .Select((row, index) => new OcrLineEvidence(
+                row, new OcrBox(20, 100 + index * 40, 500, 30), 0.99, "paddle/original", "main"))
+            .ToList();
+        var evidence = new OcrEvidence(
+            "crop.png", "crop.png", "H", "H", "local-primary/medium", tokens, tokens);
+
+        RuleExtractionResult result = RuleEngine.ExtractFinalResult(evidence, 258, rule);
+
+        Assert.Equal(RuleExtractionStatus.Success, result.Status);
+        Assert.Equal("34 35 12 03 01", result.Value);
+    }
+
+    [Fact]
+    public void RightBlockRectUsesTheTargetIssueCell()    {
         var items = new List<OcrLineEvidence>
         {
             new("254期", new OcrBox(20, 900, 60, 30), 0.9, "paddle/original", "main"),

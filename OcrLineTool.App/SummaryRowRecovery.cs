@@ -33,6 +33,23 @@ internal static class SummaryRowRecovery
         int? detectionMaxSide,
         CancellationToken cancellationToken)
     {
+        SummaryRowRecoveryResult? recovered =
+            await TryRightBlockOnceAsync(client, imagePath, issue, titleRatio, detectionMaxSide, cancellationToken);
+        if (recovered is not null || detectionMaxSide is null)
+            return recovered;
+        // 群参数（如 嫣然心水 det-max=960）会把整行并成一个单元格、右侧小块
+        // 读不出来：用标准 medium 参数（本机主识别同款）再试一次。
+        return await TryRightBlockOnceAsync(client, imagePath, issue, titleRatio, null, cancellationToken);
+    }
+
+    private static async Task<SummaryRowRecoveryResult?> TryRightBlockOnceAsync(
+        PaddleLocalOcrClient client,
+        string imagePath,
+        int issue,
+        double titleRatio,
+        int? detectionMaxSide,
+        CancellationToken cancellationToken)
+    {
         try
         {
             await client.RecognizeBatchAsync(

@@ -75,6 +75,15 @@ public static class RuleEngine
     private static readonly HashSet<string> BackwardValueLineRuleIds =
         new(StringComparer.Ordinal) { "雁塔题名杀头", "雁塔题名半波", "雁塔题名杀合" };
 
+    // 经复核的多区卡：分区与带边界的行读会把同一物理行/同一字段切进互不相连
+    // 的区域，需要再按几何顺序整页顺读一次。
+    private static readonly HashSet<string> ReviewedWholeReadingRuleIds =
+        new(StringComparer.Ordinal)
+        {
+            "雁塔题名杀头", "雁塔题名半波", "雁塔题名杀合",
+            "恩平杀一尾", "简单爱", "爱晚亭"
+        };
+
     private static readonly HashSet<string> SingleValueScopedTypes =
         new(StringComparer.Ordinal) { "尾" };
 
@@ -1373,6 +1382,24 @@ public static class RuleEngine
                 conflict = true;
             else if (rowMajor.Status == RuleExtractionStatus.Success)
                 observed.Add(rowMajor.Value!);
+        }
+        // 经复核的多区卡（雁塔题名/恩平杀一尾/简单爱/爱晚亭）：分区与带边界的
+        // 行读会把同一物理行切进互不相连的区域，按几何顺序整页顺读再试一次。
+        if (ReviewedWholeReadingRuleIds.Contains(rule.Id)
+            && positioned.Length > 0
+            && positioned.All(item => item.Box is not null))
+        {
+            RuleExtractionResult wholeReading = ExtractFinalResult(
+                positioned
+                    .OrderBy(item => item.Box!.Y)
+                    .ThenBy(item => item.Box!.X)
+                    .Select(item => item.Text),
+                issue,
+                rule);
+            if (wholeReading.Status == RuleExtractionStatus.Conflict)
+                conflict = true;
+            else if (wholeReading.Status == RuleExtractionStatus.Success)
+                observed.Add(wholeReading.Value!);
         }
         if (conflict || observed.Count > 1)
             return RuleExtractionResult.Conflict;
@@ -2903,10 +2930,18 @@ public static class RuleEngine
         int marker = text.LastIndexOf('尾');
         if (marker < 0)
             return values;
+        // 尾标记之后的无尾数字只有在值位上才算值：后面必须是结尾、另一个数字
+        // 值或状态/结构词。否则“最后修改:1分钟前[日志]”这类页脚数字会被误当
+        // 第二个尾值。
+        const string valueSuffixes = "尾开開期准準中错錯√×○✗0123456789";
         foreach (Match run in Regex.Matches(text[(marker + 1)..], @"(?<!\d)[0-9]+(?!\d)"))
         {
-            if (run.Value.Distinct().Count() == 1)
-                values.Add($"{run.Value[0]}尾");
+            if (run.Value.Distinct().Count() != 1)
+                continue;
+            string after = text[(marker + 1 + run.Index + run.Length)..].TrimStart(' ', '，', ',', '。', '、', ':');
+            if (after.Length > 0 && !valueSuffixes.Contains(after[0]))
+                continue;
+            values.Add($"{run.Value[0]}尾");
         }
         return values;
     }
