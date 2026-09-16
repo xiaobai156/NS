@@ -2951,8 +2951,8 @@ public static class RuleEngine
         string text = BeforeOpeningResult(SimplifyOcrText(tail));
         IEnumerable<string> values = type switch
         {
-            "合" => Regex.Matches(text, @"(?<!\d)(?:0?[1-9]|1[0-3])合")
-                .Select(match => $"{int.Parse(match.Value[..^1]):00}合"),
+            "合" => Regex.Matches(text, @"(?<!\d)(?:0?[1-9]|1[0-3])\s*合")
+                .Select(match => $"{int.Parse(Regex.Replace(match.Value[..^1], @"\s+", "")):00}合"),
             "段" => Regex.Matches(text, @"(?<!\d)[0-7]\s*段")
                 .Select(match => Regex.Replace(match.Value, @"\s+", "")),
             "尾" => TailValueCandidates(text),
@@ -3294,7 +3294,7 @@ public static class RuleEngine
         Match match = type switch
         {
             "生肖" => Match.Empty,
-            "合" => Regex.Match(beforeOpening, @"(?<!\d)(0?[1-9]|1[0-3])合"),
+            "合" => Regex.Match(beforeOpening, @"(?<!\d)(0?[1-9]|1[0-3])\s*合"),
             "段" => Regex.Match(beforeOpening, @"(?<!\d)[0-7]段"),
             "尾" => Regex.Match(beforeOpening, @"(?<!\d)[0-9]尾"),
             "头" => Regex.Match(beforeOpening, @"(?<!\d)[0-4]头"),

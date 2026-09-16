@@ -280,6 +280,42 @@ public sealed class YanranCardFixTests
         Assert.Equal("34 35 12 03 01", result.Value);
     }
 
+        [Fact]
+    public void HeValueSurvivesAnOcrLineBreakBetweenNumberAndMark()
+    {
+        OcrRule zuiLiang = Rule("最亮月空");
+        OcrRule yuHou = Rule("雨后星星");
+        string[] zuiLiangLines =
+        [
+            "258期：新澳门【天机阁论坛●最亮月空正正杀一合】04",
+            "合开46对",
+            "259期：新澳门【天机阁论坛●最亮月空企杀一合】07",
+            "合开00对"
+        ];
+        string[] yuHouLines =
+        [
+            "天机阁雨后星星正绝杀合→→01",
+            "合开23准",
+            "259期：天机阁雨后星星正绝杀合→→02",
+            "合开00准"
+        ];
+
+        Assert.Equal("04合", RuleEngine.ExtractFinalValue(zuiLiangLines, 258, zuiLiang));
+        Assert.Equal("07合", RuleEngine.ExtractFinalValue(zuiLiangLines, 259, zuiLiang));
+        Assert.Equal("02合", RuleEngine.ExtractFinalValue(yuHouLines, 259, yuHou));
+    }
+
+    [Fact]
+    public void HeValueAcceptsMergedAndAdjacentFormsButKeepsItsLimits()
+    {
+        OcrRule rule = Rule("最亮月空");
+
+        Assert.Equal("07合", RuleEngine.ExtractFinalValue(["259期：最亮月空杀一合】07合开00对"], 259, rule));
+        Assert.Equal("07合", RuleEngine.ExtractFinalValue(["259期：最亮月空杀一合】07 合开00对"], 259, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(["259期：最亮月空杀一合】14合开00对"], 259, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(["259期：最亮月空杀一合】07合 08合开00对"], 259, rule));
+    }
+
     [Fact]
     public void RightBlockRectUsesTheTargetIssueCell()    {
         var items = new List<OcrLineEvidence>
