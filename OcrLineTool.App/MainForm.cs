@@ -1956,6 +1956,8 @@ public sealed class MainForm : Form
     // “手动复抓缺失（本机优先）”：与本地主识别同序——先读候选识别图（模板群=
     // 裁剪图），仍缺失的规则再用原图复读一次；这两轮都取不到的规则才由调用方
     // 走云兜底。失败保持缺失，尾部与云模式共用补读和写盘。
+    // 每轮各自只调用一次本机 OCR：每起一次进程都要重新加载模型（实测固定约 4 秒），
+    // 逐张调用会把这笔开销乘以张数；识别视图、参数与校验完全不变。
     private async Task RetryMissingByLocalOcrAsync(
         IReadOnlyList<RecognitionCandidate> candidates,
         int issue,
@@ -1969,33 +1971,46 @@ public sealed class MainForm : Form
             .ToArray();
         double titleRatio = PaddleLocalOcrClient.TitleRatioFor(selectedImageDirectory!, retryRuleIds);
         int? detectionMaxSide = PaddleLocalOcrClient.DetectionMaxSideFor(selectedImageDirectory!);
-        int total = Math.Max(1, candidates.Count * 2);
+        int total = Math.Max(1, candidates.Count);
         int completed = 0;
         SetProgress(0, total);
 
-        async Task PassAsync(RecognitionCandidate candidate, string inputPath)
+        var batchProgress = new Progress<LocalOcrProgress>(item =>
         {
+            int step = Math.Min(completed + 1, total);
+            statusLabel.Text = string.IsNullOrEmpty(item.Path)
+                ? $"复抓缺失（本机 OCR）{step}/{total} · {item.Stage}"
+                : $"复抓缺失（本机 OCR）{step}/{total} · {ShortPath(item.Path)}";
+        });
+
+        async Task RecognizeRetryBatchAsync(IReadOnlyList<string> inputs)
+        {
+            if (inputs.Count == 0)
+                return;
             cancellationToken.ThrowIfCancellationRequested();
-            statusLabel.Text = $"复抓缺失（本机 OCR）{completed + 1}/{total} · {ShortPath(candidate.SourcePath)}";
-            OcrEvidence? evidence = null;
-            IReadOnlyDictionary<string, string>? gapFillNotes = null;
             try
             {
                 await client.RecognizeBatchAsync(
-                    [inputPath],
-                    progress: null,
+                    inputs,
+                    batchProgress,
                     titleRatio: titleRatio,
                     detectionMaxSide: detectionMaxSide,
                     useCache: true,
                     cancellationToken: cancellationToken,
                     model: PaddleOcrModels.LocalPrimary);
-                client.LastEvidence.TryGetValue(inputPath, out evidence);
             }
             catch (OcrException)
             {
                 // 本地识别失败保留缺失，原因在下方统一记录。
             }
+        }
 
+        void ApplyRetryEvidence(RecognitionCandidate candidate, string inputPath)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            statusLabel.Text = $"复抓缺失（本机 OCR）{completed + 1}/{total} · {ShortPath(candidate.SourcePath)}";
+            client.LastEvidence.TryGetValue(inputPath, out OcrEvidence? evidence);
+            IReadOnlyDictionary<string, string>? gapFillNotes = null;
             if (evidence is not null)
             {
                 AddExtractedEvidenceValues(
@@ -2025,17 +2040,41 @@ public sealed class MainForm : Form
                 RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons));
         }
 
+        await RecognizeRetryBatchAsync(
+            RetryBatchInputs(candidates.Select(candidate => candidate.OcrPath)));
         foreach (RecognitionCandidate candidate in candidates)
-            await PassAsync(candidate, candidate.OcrPath);
-        foreach (RecognitionCandidate candidate in candidates)
+            ApplyRetryEvidence(candidate, candidate.OcrPath);
+
+        RecognitionCandidate[] secondary = candidates
+            .Where(candidate => NeedsSourceRetry(
+                candidate.OcrPath,
+                candidate.SourcePath,
+                candidate.Rules.Select(rule => !lastValues.ContainsKey(rule.Id))))
+            .ToArray();
+        if (secondary.Length > 0)
         {
-            if (candidate.OcrPath.Equals(candidate.SourcePath, StringComparison.OrdinalIgnoreCase))
-                continue;
-            if (candidate.Rules.All(rule => lastValues.ContainsKey(rule.Id)))
-                continue;
-            await PassAsync(candidate, candidate.SourcePath);
+            total = candidates.Count + secondary.Length;
+            SetProgress(completed, total);
+            await RecognizeRetryBatchAsync(
+                RetryBatchInputs(secondary.Select(candidate => candidate.SourcePath)));
+            foreach (RecognitionCandidate candidate in secondary)
+                ApplyRetryEvidence(candidate, candidate.SourcePath);
         }
     }
+
+    // 一轮复抓只把去重后的图片路径交给本机 OCR 一次（空路径与重复路径直接去掉）。
+    internal static string[] RetryBatchInputs(IEnumerable<string> paths) => paths
+        .Where(path => !string.IsNullOrWhiteSpace(path))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    // 第二轮（原图复读）只在“原图与候选识别图不是同一张”且“该候选确实还有缺失规则”时才跑。
+    internal static bool NeedsSourceRetry(
+        string ocrPath,
+        string sourcePath,
+        IEnumerable<bool> ruleStillMissing) =>
+        !ocrPath.Equals(sourcePath, StringComparison.OrdinalIgnoreCase)
+        && ruleStillMissing.Any(missing => missing);
 
     private async void RetryMissingAsync(object? sender, EventArgs e)
     {
