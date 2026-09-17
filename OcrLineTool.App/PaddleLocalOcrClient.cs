@@ -466,8 +466,12 @@ public sealed class PaddleLocalOcrClient
             ? CudaUnavailableCode
             : null;
 
-    public static double TitleRatioFor(string selectedFolder) =>
-        VisualTemplateMatcher.Supports(selectedFolder) ? 0.4 : 1.0;
+    public static double TitleRatioFor(string selectedFolder, IEnumerable<string>? ruleIds = null) =>
+        ruleIds is not null && ruleIds.Contains("亮剑九肖", StringComparer.Ordinal)
+            // 亮剑九肖 是无期号海报，九个生肖印在画面下半部；模板群默认只读顶部 40%
+            // 会把三行生肖整段截掉，所以这一条必须整图读，其余模板群规则仍按顶部 40% 提速。
+            ? 1.0
+            : VisualTemplateMatcher.Supports(selectedFolder) ? 0.4 : 1.0;
 
     public static int? DetectionMaxSideFor(string selectedFolder) =>
         RuleCatalog.IsGroupFolder(selectedFolder, "嫣然心水")

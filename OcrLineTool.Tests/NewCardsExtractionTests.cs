@@ -280,6 +280,26 @@ public sealed class NewCardsExtractionTests
     }
 
     [Fact]
+    public void LiangjianUsesTheWholeCardBecauseTheZodiacRowsSitBelowTheTopBand()
+    {
+        OcrRule rule = Rule("亮剑九肖");
+
+        // 现场本机 medium 识别结果（整图视图）：标题+印章+副标题+三行生肖+开奖页脚。
+        string[] wholeCard =
+        [
+            "亮剑团队", "心原", "水创", "9肖中特", "牛龍虎", "羊猴豬", "蛇兔鼠",
+            "上期开奖结果：43 33 49 36 19 30 T22"
+        ];
+        Assert.Equal("牛龙虎羊猴猪蛇兔鼠", RuleEngine.ExtractFinalValue(wholeCard, 260, rule));
+
+        // 模板群默认的顶部 40% 视图只剩第一行残字，必须判缺失（不能猜、不能补）。
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["亮剑田队", "心原", "水创", "9肖中特", "生龍虑"], 260, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["亮剑团队", "心原", "水创", "9肖中特", "生与卡"], 260, rule));
+    }
+
+    [Fact]
     public void ZhanShaSeriesReadsTheTargetIssueRow()
     {
         IReadOnlyList<OcrRule> rules = Rules("新澳高手.json");

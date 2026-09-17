@@ -1962,7 +1962,12 @@ public sealed class MainForm : Form
         CancellationToken cancellationToken)
     {
         var client = new PaddleLocalOcrClient();
-        double titleRatio = PaddleLocalOcrClient.TitleRatioFor(selectedImageDirectory!);
+        string[] retryRuleIds = candidates
+            .SelectMany(candidate => candidate.Rules)
+            .Select(rule => rule.Id)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        double titleRatio = PaddleLocalOcrClient.TitleRatioFor(selectedImageDirectory!, retryRuleIds);
         int? detectionMaxSide = PaddleLocalOcrClient.DetectionMaxSideFor(selectedImageDirectory!);
         int total = Math.Max(1, candidates.Count * 2);
         int completed = 0;
@@ -3322,7 +3327,7 @@ public sealed class MainForm : Form
             RuleCatalog.IsGroupFolder(selectedImageDirectory, "新澳六合彩资料"))
             return 1.0;
 
-        return PaddleLocalOcrClient.TitleRatioFor(selectedImageDirectory!);
+        return PaddleLocalOcrClient.TitleRatioFor(selectedImageDirectory!, localLimitedRuleIds);
     }
 
     private sealed record RecognitionCandidate(
