@@ -55,4 +55,21 @@ public sealed class EnpingYantaRegressionTests
         Assert.Equal("龙", RuleEngine.ExtractFinalResult(lines, 259, rule).Value);
         Assert.Equal("牛", RuleEngine.ExtractFinalResult(lines, 258, rule).Value);
     }
+
+    [Fact]
+    public void YantaZodiacHandlesTheVerticalViewWhoseRowNumberIsGluedToTheIssue()
+    {
+        OcrRule rule = Rule("雁塔题名杀肖肖");
+
+        // 同一张卡的第二个识别视图：序号与期号粘连（"12260杀4合杀龙" 即 12 行 + 260 期）。
+        string[] vertical =
+        [
+            "1雁塔题名新澳门版", "2 250错13250错15", "3251杀5合杀猴", "4252杀3合杀鼠",
+            "5253杀4合杀龙", "6254杀7合杀狗", "7255杀2合杀猴", "8256杀8合杀虎",
+            "9257杀1合杀羊", "10258杀7合杀牛", "11259杀10合杀龙", "12260杀4合杀龙", "13"
+        ];
+
+        Assert.Equal("龙", RuleEngine.ExtractFinalResult(vertical, 260, rule).Value);
+        Assert.Equal("龙", RuleEngine.ExtractFinalResult(vertical, 259, rule).Value);
+    }
 }

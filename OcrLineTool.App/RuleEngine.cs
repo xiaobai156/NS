@@ -56,7 +56,7 @@ public static class RuleEngine
     // vertical list ("5253杀4合" = row 5, 253期). A trailing space or bracket
     // still counts as a standalone bare number and must not be split.
     private static readonly Regex MergedRowIndexIssueRegex = new(
-        @"^\s*[【\[（({]?\s*[1-9]\s*(?<issue>\d{3})(?![\d\s])",
+        @"^\s*[【\[（({]?\s*(?<row>[1-9]|1[0-3])\s*(?<issue>\d{3})(?![\d\s])",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex YearIssueRegex = new(@"^\s*\d{4}\s*[-—/]\s*(?<issue>\d{3,6})(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     internal const string Zodiac = "马蛇龙兔虎牛鼠猪狗鸡猴羊";
