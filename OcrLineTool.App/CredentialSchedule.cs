@@ -25,8 +25,6 @@ public static class CredentialSchedule
         new(OcrProvider.Tencent, "B"),
         new(OcrProvider.Tencent, "C"),
         new(OcrProvider.Baidu, "A"),
-        new(OcrProvider.Baidu, "B"),
-        new(OcrProvider.Baidu, "C"),
         new(OcrProvider.Baidu, "D"),
         new(OcrProvider.Tencent, "D")
     ];

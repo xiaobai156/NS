@@ -142,7 +142,7 @@ public sealed class MainForm : Form
         AutoScaleMode = AutoScaleMode.Dpi;
         DoubleBuffered = true;
         ConfigureControls();
-        credentialSelector.Items.AddRange(["自动轮换", "腾讯 A", "腾讯 B", "腾讯 C", "百度 A", "百度 B", "百度 C", "百度 D", "腾讯 D"]);
+        credentialSelector.Items.AddRange(["自动轮换", "腾讯 A", "腾讯 B", "腾讯 C", "百度 A", "百度 D", "腾讯 D"]);
         credentialSelector.SelectedIndex = 0;
         credentialSelector.SelectedIndexChanged += (_, _) =>
         {

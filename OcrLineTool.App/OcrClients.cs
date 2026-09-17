@@ -9,7 +9,19 @@ namespace OcrLineTool;
 internal static class OcrLayoutMarkers
 {
     internal const string RegionBoundary = "\u001e";
-    internal static bool IsBoundary(string line) => line == RegionBoundary;
+
+    // 页脚/论坛铬（编辑时间戳、最后修改、[日志] 标记）不是资料行：字段不能跨过
+    // 它继续向后合并，否则时间戳里的数字会被当成同一期的第二个值。
+    // 恩平杀一尾 曾因为把 "2026-09-17 09:00:00编辑本帖" 并进 260 期候选，判成同期冲突。
+    private static readonly System.Text.RegularExpressions.Regex PageChrome = new(
+        @"(编辑本帖|最后修改|\[日志\]|\d{4}\s*[-/—]\s*\d{1,2}\s*[-/—]\s*\d{1,2})",
+        System.Text.RegularExpressions.RegexOptions.Compiled |
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    internal static bool IsPageChrome(string line) => PageChrome.IsMatch(line);
+
+    internal static bool IsBoundary(string line) =>
+        line == RegionBoundary || IsPageChrome(line);
 }
 
 public sealed class OcrException(string message, string? code = null) : Exception(message)

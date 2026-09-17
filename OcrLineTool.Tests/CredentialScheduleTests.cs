@@ -30,11 +30,11 @@ public sealed class CredentialScheduleTests : IDisposable
     [InlineData(2026, 8, 30, OcrProvider.Tencent, "B")]
     [InlineData(2026, 8, 31, OcrProvider.Tencent, "C")]
     [InlineData(2026, 9, 1, OcrProvider.Baidu, "A")]
-    [InlineData(2026, 9, 2, OcrProvider.Baidu, "B")]
-    [InlineData(2026, 9, 3, OcrProvider.Baidu, "C")]
-    [InlineData(2026, 9, 4, OcrProvider.Baidu, "D")]
-    [InlineData(2026, 9, 5, OcrProvider.Tencent, "D")]
-    [InlineData(2026, 9, 6, OcrProvider.Tencent, "A")]
+    [InlineData(2026, 9, 2, OcrProvider.Baidu, "D")]
+    [InlineData(2026, 9, 3, OcrProvider.Tencent, "D")]
+    [InlineData(2026, 9, 4, OcrProvider.Tencent, "A")]
+    [InlineData(2026, 9, 5, OcrProvider.Tencent, "B")]
+    [InlineData(2026, 9, 6, OcrProvider.Tencent, "C")]
     public void SelectsOneCredentialPerBeijingCalendarDay(
         int year, int month, int day, OcrProvider provider, string slot)
     {
@@ -70,10 +70,8 @@ public sealed class CredentialScheduleTests : IDisposable
     [InlineData(1, OcrProvider.Tencent, "B")]
     [InlineData(2, OcrProvider.Tencent, "C")]
     [InlineData(3, OcrProvider.Baidu, "A")]
-    [InlineData(4, OcrProvider.Baidu, "B")]
-    [InlineData(5, OcrProvider.Baidu, "C")]
-    [InlineData(6, OcrProvider.Baidu, "D")]
-    [InlineData(7, OcrProvider.Tencent, "D")]
+    [InlineData(4, OcrProvider.Baidu, "D")]
+    [InlineData(5, OcrProvider.Tencent, "D")]
     public void SupportsTemporaryCredentialSelection(int slot, OcrProvider provider, string name)
     {
         OcrCredential actual = CredentialSchedule.ForSlot(slot);
@@ -88,7 +86,7 @@ public sealed class CredentialScheduleTests : IDisposable
         string[] expectedIds =
         [
             "tencent-a-id", "tencent-b-id", "tencent-c-id", "baidu-a-key",
-            "baidu-b-key", "baidu-c-key", "baidu-d-key", "tencent-d-id"
+            "baidu-d-key", "tencent-d-id"
         ];
 
         for (int i = 0; i < expectedIds.Length; i++)
@@ -100,7 +98,7 @@ public sealed class CredentialScheduleTests : IDisposable
     {
         IReadOnlyList<OcrCredential> credentials = CredentialSchedule.RotationFrom(CredentialSchedule.ForSlot(2));
 
-        Assert.Equal(8, credentials.Count);
+        Assert.Equal(6, credentials.Count);
         Assert.Equal("腾讯云 C", credentials[0].DisplayName);
         Assert.Equal("腾讯云 B", credentials[^1].DisplayName);
         Assert.Equal(credentials.Select(item => item.DisplayName).Distinct().Count(), credentials.Count);
@@ -115,13 +113,11 @@ public sealed class CredentialScheduleTests : IDisposable
 
     [Theory]
     [InlineData(0, OcrProvider.Baidu, "A")]
-    [InlineData(1, OcrProvider.Baidu, "B")]
-    [InlineData(2, OcrProvider.Baidu, "C")]
+    [InlineData(1, OcrProvider.Baidu, "A")]
+    [InlineData(2, OcrProvider.Baidu, "A")]
     [InlineData(3, OcrProvider.Tencent, "A")]
-    [InlineData(4, OcrProvider.Tencent, "B")]
-    [InlineData(5, OcrProvider.Tencent, "C")]
-    [InlineData(6, OcrProvider.Tencent, "D")]
-    [InlineData(7, OcrProvider.Baidu, "D")]
+    [InlineData(4, OcrProvider.Tencent, "D")]
+    [InlineData(5, OcrProvider.Baidu, "D")]
     public void SelectsTheOtherProviderWithTheSameSlotAsFallback(
         int slot, OcrProvider expectedProvider, string expectedName)
     {
