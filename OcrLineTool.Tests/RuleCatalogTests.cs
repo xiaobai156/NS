@@ -10,7 +10,7 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
 
-        Assert.Equal(100, rules.Count);
+        Assert.Equal(101, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.Contains(rules, rule => rule.Id == "钦差大臣公式一" && rule.Section == "公式一");
         Assert.Contains(rules, rule => rule.Id == "君军两尾" && rule.Type == "尾数组合");
@@ -64,6 +64,7 @@ public sealed class RuleCatalogTests
             "小黄人两肖", "辣椒炒肉头", "小黄人头", "紫燕儿尾", "缘来如此尾",
             "君军两尾", "辣椒炒肉尾", "小黄人两尾", "君军合", "小黄人五行",
             "柳叶刀", "长安之星", "雁塔题名半波", "雁塔题名杀头", "雁塔题名杀合",
+            "雁塔题名杀肖肖",
             "华林肖", "华林尾", "华林半波", "傻丫头二肖", "小雨婷",
             "简单爱", "月来月好", "欧阳肖", "欧阳半波", "永卟弃杀头", "陈思思",
             "潮汕陈龙杀三码", "玉亚半波", "Alice两码", "恩平杀头", "恩平杀一尾",

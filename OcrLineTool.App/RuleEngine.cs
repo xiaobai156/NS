@@ -81,7 +81,7 @@ public static class RuleEngine
     private static readonly HashSet<string> ReviewedWholeReadingRuleIds =
         new(StringComparer.Ordinal)
         {
-            "雁塔题名杀头", "雁塔题名半波", "雁塔题名杀合",
+            "雁塔题名杀头", "雁塔题名半波", "雁塔题名杀合", "雁塔题名杀肖肖",
             "恩平杀一尾", "简单爱", "爱晚亭"
         };
 

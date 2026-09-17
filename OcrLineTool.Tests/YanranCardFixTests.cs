@@ -66,6 +66,40 @@ public sealed class YanranCardFixTests
     }
 
     [Fact]
+    public void YantaZodiacReadsItsOwnCell()
+    {
+        OcrRule rule = Rule("雁塔题名杀肖肖");
+        string[] lines =
+        [
+            "雁塔题名新澳门版", "1", "250错13", "250错15", "2", "251杀5合", "杀猴",
+            "3", "252杀3合", "杀鼠", "4", "253杀4合", "杀龙", "5", "254杀7合", "杀狗",
+            "6", "255杀2合", "杀猴", "256杀8合", "杀虎", "8", "257杀1合", "杀羊",
+            "9", "258杀7合", "杀牛", "10", "259杀10合", "杀龙", "11", "12"
+        ];
+
+        Assert.Equal("龙", RuleEngine.ExtractFinalValue(lines, 259, rule));
+        Assert.Equal("牛", RuleEngine.ExtractFinalValue(lines, 258, rule));
+        Assert.Equal("虎", RuleEngine.ExtractFinalValue(lines, 256, rule));
+    }
+
+    [Fact]
+    public void YantaZodiacKeepsStrictCellBoundaries()
+    {
+        OcrRule rule = Rule("雁塔题名杀肖肖");
+        string[] twoZodiacs =
+        [
+            "雁塔题名新澳门版", "259杀10合", "杀龙牛", "258杀7合", "杀牛"
+        ];
+        string[] missingRightCell =
+        [
+            "雁塔题名新澳门版", "258杀7合", "杀牛", "259杀10合", "11", "12"
+        ];
+
+        Assert.Null(RuleEngine.ExtractFinalValue(twoZodiacs, 259, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(missingRightCell, 259, rule));
+    }
+
+    [Fact]
     public void AiWantingFiveNumbersMatchByFolderAndRowShape()
     {
         OcrRule rule = Rule("爱晚亭");

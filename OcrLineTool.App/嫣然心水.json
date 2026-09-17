@@ -447,6 +447,13 @@
       "folder": "雁塔题名"
     },
     {
+      "keyword": "雁塔题名",
+      "type": "生肖",
+      "label": "雁塔题名杀肖肖",
+      "required_keyword": "雁塔题名",
+      "folder": "雁塔题名"
+    },
+    {
       "keyword": "华林",
       "type": "生肖",
       "label": "华林肖",
