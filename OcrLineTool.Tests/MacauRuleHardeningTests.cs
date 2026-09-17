@@ -171,7 +171,7 @@ public sealed class MacauRuleHardeningTests
             "官方两肖", "老墨两肖", "图库禁两肖", "帅铁两肖", "心水两两肖", "金钱两肖", "王不王两肖",
             "曾道人小杀肖", "心水杀肖肖肖", "聚彩堂一肖", "聚彩堂一尾", "姨妈肖杀", "姨妈尾杀",
             "彩虹半波", "超级赢家半波波", "王不王一头", "神算子避头", "财神一头",
-            "近期开奖员", "毛老二", "通天九九肖", "大赢家九肖"
+            "近期开奖员", "毛老二", "通天九九肖", "大赢家九肖", "亮剑九肖"
         ];
         string[] covered = Samples().Concat(Portraits()).Select(row => (string)row[0])
             .Append("时点半").Concat(specialLayouts).Order().ToArray();
@@ -352,7 +352,8 @@ public sealed class MacauRuleHardeningTests
             ["近期开奖员"] = "羊兔虎鸡蛇马龙牛鼠",
             ["毛老二"] = "龙鼠羊虎狗兔猪猴牛",
             ["通天九九肖"] = "虎兔鸡蛇猴牛狗猪鼠",
-            ["大赢家九肖"] = "狗羊虎猴蛇龙鼠牛兔"
+            ["大赢家九肖"] = "狗羊虎猴蛇龙鼠牛兔",
+            ["亮剑九肖"] = "牛龙虎羊猴猪蛇兔鼠"
         };
         foreach ((string id, string value) in specialValues)
             values.Add(id, value);

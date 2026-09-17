@@ -2401,6 +2401,19 @@ public static class RuleEngine
             string digits = new(rawDigits);
             return $"{Enumerable.Range(0, 5).Single(n => !digits.Contains((char)('0' + n)))}头";
         }
+        if (rule.Id == "亮剑九肖" && rule.Type == "九肖")
+        {
+            // 亮剑团队「9肖中特」海报没有期号：标题下面就是 3×3 九个生肖。
+            // 只认「肖中特」标记之后的九个不同生肖，多一个、少一个或重复都判缺失。
+            string field = SimplifyOcrText(block);
+            int marker = field.IndexOf("肖中特", StringComparison.Ordinal);
+            if (marker < 0)
+                return null;
+            MatchCollection zodiacs = Regex.Matches(
+                field[(marker + "肖中特".Length)..], $"[{Zodiac}]");
+            string nine = string.Concat(zodiacs.Select(match => match.Value));
+            return zodiacs.Count == 9 && nine.Distinct().Count() == 9 ? nine : null;
+        }
         if (rule.Id == "小骚货" && rule.Type == "九肖")
         {
             string field = SimplifyOcrText(block);

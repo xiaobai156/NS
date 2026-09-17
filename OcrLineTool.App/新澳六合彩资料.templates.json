@@ -1094,6 +1094,17 @@
       "CropBottomWidthRatio": 0.6,
       "FingerprintTopWidthRatio": 0.12,
       "FingerprintBottomWidthRatio": 0.22
+    },
+    {
+      "Id": "\u4EAE\u5251\u4E5D\u8096",
+      "RuleIds": [
+        "\u4EAE\u5251\u4E5D\u8096"
+      ],
+      "Fingerprint": "CFFFFFFFFFFFFFFCCFFFFFFFFFFFFFFCCFFFFFACE37FFFFCCFFFFFA4E67FFFFCCFFFFFA4E47FFFFCCFFFFFAC647FFFFCCFFFFFA9547FFFFCCFFFFFAC447FFFFCCFFFFFA6D47FFFFCCFFFFF86D43FFFFCCFFFFFA6D63FFFFCCFFFFFA6D17FFFFCCFFFFFE6F7FFFFFCCFFFFFFFFFFFFFFCCFFFFFFFFFFFFFFCCFFFFFFFFFFFFFFC",
+      "CropTopWidthRatio": 0.03,
+      "CropBottomWidthRatio": 1.25,
+      "FingerprintTopWidthRatio": 0.26,
+      "FingerprintBottomWidthRatio": 0.36
     }
   ],
   "FingerprintTopWidthRatio": null,

@@ -228,8 +228,8 @@ public sealed class VisualTemplateMatcherTests
             VisualTemplateMatcher.ConfigPath(AppContext.BaseDirectory));
 
         Assert.Equal("新澳六合彩资料", catalog.Folder);
-        Assert.Equal(99, catalog.Templates.Count);
-        Assert.Equal(102, catalog.Templates.SelectMany(item => item.RuleIds).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(100, catalog.Templates.Count);
+        Assert.Equal(103, catalog.Templates.SelectMany(item => item.RuleIds).Distinct(StringComparer.Ordinal).Count());
         Assert.Contains(catalog.Templates, item =>
             item.RuleIds.SequenceEqual(["祖师公肖", "祖师公尾"], StringComparer.Ordinal));
         Assert.Contains(catalog.Templates, item =>

@@ -256,6 +256,30 @@ public sealed class NewCardsExtractionTests
     }
 
     [Fact]
+    public void LiangjianNineZodiacPosterHasNoIssueAndReadsTheNineZodiacs()
+    {
+        OcrRule rule = Rule("亮剑九肖");
+        Assert.True(rule.IgnoreIssue);
+        Assert.True(rule.StrictIssueBlock);
+
+        string[] poster =
+        [
+            "心水原创", "亮剑团队", "9肖中特", "牛 龍 虎", "羊 猴 豬", "蛇 兔 鼠",
+            "上期开奖结果: 43 33 49 36 19 30 T22"
+        ];
+
+        Assert.Equal("牛龙虎羊猴猪蛇兔鼠", RuleEngine.ExtractFinalValue(poster, 318, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["亮剑团队", "9肖中特", "牛 龍 虎", "羊 猴 豬", "蛇 兔"], 318, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["亮剑团队", "9肖中特", "牛 龍 虎", "羊 猴 豬", "蛇 兔 兔"], 318, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["亮剑团队", "9肖中特", "牛 龍 虎", "羊 猴 豬", "蛇 兔 鼠 狗"], 318, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["其他团队", "9肖中特", "牛 龍 虎", "羊 猴 豬", "蛇 兔 鼠"], 318, rule));
+    }
+
+    [Fact]
     public void ZhanShaSeriesReadsTheTargetIssueRow()
     {
         IReadOnlyList<OcrRule> rules = Rules("新澳高手.json");
