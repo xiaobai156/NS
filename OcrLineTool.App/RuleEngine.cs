@@ -215,7 +215,12 @@ public static class RuleEngine
                 string ownFolderKeyword = Normalize(rule.Keyword);
                 if (presentIdentities.Any(value => !value.Equals(ownFolderKeyword, StringComparison.Ordinal)))
                     return false;
-                return true;
+                // 无标题卡（爱晚亭杀肖）：卡面没有"杀1肖"字样时，文件夹 + 每期一行
+                // 的单肖统计表形状才算命中；同夹的号码表/万能猫统计表不能顶替。
+                // 老卡面（标题印了"杀1肖"）按原身份判定放行，不回退。
+                return !rule.MatchByRowStructure
+                    || LooksLikePerIssueZodiacTable(lines)
+                    || text.Contains("杀1肖", StringComparison.Ordinal);
             }
             bool explicitIdentity = MatchesText(text, rule)
                 && (string.IsNullOrWhiteSpace(rule.Section)
@@ -462,6 +467,28 @@ public static class RuleEngine
                 shapeCount++;
         }
         return rowCount >= 5 && shapeCount * 5 >= rowCount * 4;
+    }
+
+    // “每期一行”历史统计表（爱晚亭杀肖卡）：行形如 "NNN期：X开YY"，
+    // X 是本资料的单个生肖；顶部"N1-N2期错N"区间统计行不算数据行。
+    private static bool LooksLikePerIssueZodiacTable(string[] lines)
+    {
+        int rows = 0;
+        int shapes = 0;
+        foreach (string line in lines)
+        {
+            Match row = Regex.Match(
+                SimplifyOcrText(line).Trim(),
+                @"^\s*[\[【(（]?\s*(?<issue>\d{2,4})\s*期\s*[:：]?(?<payload>[^\r\n]*)");
+            if (!row.Success)
+                continue;
+            rows++;
+            string payload = Regex.Split(row.Groups["payload"].Value, @"开|開|√|×|✗|✓|准|準|中|错|錯")[0];
+            payload = Regex.Replace(payload, @"[\s：:（(【\[《〈）)】\]》〉]", string.Empty);
+            if (payload.Length == 1 && Zodiac.Contains(payload[0]))
+                shapes++;
+        }
+        return rows >= 5 && shapes * 5 >= rows * 4;
     }
 
     // 复核卡的行格式：行首 3 位期号 + 期 + 可选“：/:” + 恰好 N 个两位数字，

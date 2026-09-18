@@ -693,10 +693,13 @@
     },
     {
       "keyword": "爱晚亭",
-      "type": "生肖",
+      "type": "单生肖",
       "label": "爱晚亭杀肖",
       "required_keyword": "杀1肖",
-      "folder": "爱晚亭"
+      "folder": "爱晚亭",
+      "match_by_row_structure": true,
+      "allowValueWithoutKeyword": true,
+      "allow_folder_identity": true
     },
     {
       "keyword": "九肖中特",

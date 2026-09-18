@@ -65,6 +65,57 @@ public sealed class YanranCardFixTests
         Assert.Equal("07合", RuleEngine.ExtractFinalValue(heLines, 258, he));
     }
 
+    // 261 期真实失败卡（爱晚亭子文件夹 20260918_204252_84058.jpg）：无标题的
+    // 每期一行统计表（"NNN期：X开YY"），按子文件夹+行形状认卡，261 期取值"蛇"。
+    // 卡上没有任何资料名，且顶部有 8 行区间统计（"001-030期错3"）不允许破坏行形状判定。
+    [Fact]
+    public void AiwantingKillZodiacReadsTheTargetRowWithoutAnyTitleOnTheCard()
+    {
+        OcrRule rule = Rule("爱晚亭杀肖");
+        string[] lines =
+        [
+            "001-030期错3", "031-060期错3", "061-090期错2", "091-120期错2",
+            "121-150期错3", "151-180期错5", "181-210期错3", "211-240期错4",
+            "241期：猴开马49", "242期：鸡开狗09", "243期：马开狗21", "244期：00开鸡46",
+            "245期：龙开牛18", "246期：鼠开牛30", "247期：马开兔40", "248期：龙开猪20",
+            "249期：马开猴23", "250期：狗开蛇14", "251期：龙开牛30", "252期：牛开鸡22",
+            "253期：鼠开兔16", "254期：马开蛇02", "255期：狗开猪44", "256期：羊开马01",
+            "257期：鼠开鼠07", "258期：猪开鸡46", "259期:鸡开鸡22×", "260期：猴开猪20",
+            "261期：蛇开00"
+        ];
+
+        Assert.Equal("蛇", RuleEngine.ExtractFinalValue(lines, 261, rule));
+        Assert.Contains(rule, RuleEngine.FindMatches(
+            @"C:\图片\9.18-嫣然心水\爱晚亭\20260918_204252_84058.jpg", lines, [rule], [rule]));
+    }
+
+    [Fact]
+    public void AiwantingKillZodiacDoesNotTakeTheNumberTablesOfTheSameFolder()
+    {
+        OcrRule rule = Rule("爱晚亭杀肖");
+        string[] shareTable =
+        [
+            "261期新澳门：", "01,02,03,05,06,07,08,10,11,14,15,17,18,19,20,22,23,25,26,27,37,",
+            "39,41,42,43,44,46,49,（共28码）", "爱晚亭分享，连错4，建议反买"
+        ];
+        string[] universalCatTable =
+        [
+            "【爱晚亭万能猫新澳门数据②】", "167期起1.1.4.1", "●爱晚亭③●您的计算结果：",
+            "【统计总】2026261期:", "【0次】：43,49,(共2码)", "【1次】：02,08,12",
+            "【5次】：29,31,32,36,(共4码)", "【新澳门彩票@万能猫】"
+        ];
+
+        Assert.DoesNotContain(rule, RuleEngine.FindMatches(
+            @"C:\图片\9.18-嫣然心水\爱晚亭\20260918_204253_84060.jpg", shareTable, [rule], [rule]));
+        Assert.DoesNotContain(rule, RuleEngine.FindMatches(
+            @"C:\图片\9.18-嫣然心水\爱晚亭\20260918_204254_84062.jpg", universalCatTable, [rule], [rule]));
+        // 子文件夹不对时同样不能顶替。
+        Assert.DoesNotContain(rule, RuleEngine.FindMatches(
+            @"C:\图片\9.18-嫣然心水\小灰灰\20260918_204252_84058.jpg",
+            ["261期：蛇开00", "241期：猴开马49", "242期：鸡开狗09", "243期：马开狗21",
+             "244期：00开鸡46", "245期：龙开牛18"], [rule], [rule]));
+    }
+
     // 261 期真实卡（雁塔题名子文件夹 20260918_183918_83966.jpg）：左列"261杀蓝单"
     // 不带"期"字，右列"杀0头"被 OCR 读成下一行。期号识别与同行取值都必须兼容。
     [Fact]
