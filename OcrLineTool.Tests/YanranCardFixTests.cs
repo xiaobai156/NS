@@ -65,6 +65,35 @@ public sealed class YanranCardFixTests
         Assert.Equal("07合", RuleEngine.ExtractFinalValue(heLines, 258, he));
     }
 
+    // 261 期真实卡（雁塔题名子文件夹 20260918_183918_83966.jpg）：左列"261杀蓝单"
+    // 不带"期"字，右列"杀0头"被 OCR 读成下一行。期号识别与同行取值都必须兼容。
+    [Fact]
+    public void YantaHeadReadsTheValueCellWhenOcrReadsTheTwoColumnsAsTwoLines()
+    {
+        OcrRule rule = Rule("雁塔题名杀头");
+        string[] lines =
+        [
+            "雁塔题名新澳门版", "1", "260错33", "260错44", "2", "261杀蓝单", "杀0头",
+            "3", "4", "5", "6"
+        ];
+
+        Assert.Equal("0头", RuleEngine.ExtractFinalValue(lines, 261, rule));
+        Assert.Equal("蓝单", RuleEngine.ExtractFinalValue(lines, 261, Rule("雁塔题名半波")));
+    }
+
+    [Fact]
+    public void YantaHeadStaysMissingWhenTheTargetRowHasNoValueCell()
+    {
+        OcrRule rule = Rule("雁塔题名杀头");
+        string[] lines =
+        [
+            "雁塔题名新澳门版", "260错44", "260错33", "261杀蓝单",
+            "1杀蓝单", "杀0头", "260错44", "260错33"
+        ];
+
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 261, rule));
+    }
+
     [Fact]
     public void YantaZodiacReadsItsOwnCell()
     {

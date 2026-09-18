@@ -93,4 +93,33 @@ public sealed class P1ExtractionAccuracyRegressionTests
             ["借花献佛", "251期", "9次 鸡", "8次 牛"], 251,
             Rule("嫣然心水", "借花献佛")));
     }
+
+    // 真实 261 期卡（阿尔法天狼星 20260918_160532_83948.jpg）把「九肖」拆到两行，
+    // 区段标记和取值标记都必须容忍这种拆行，否则整条资料永远缺失。
+    [Fact]
+    public void SplitNineZodiacMarkerCardStillSucceeds()
+    {
+        string[] evidence =
+        [
+            "【259期】新澳门六合【快乐的骚货九",
+            "肖】【兔鸡羊猪鼠蛇马狗猴〗开22对",
+            "【260期】新澳门六合【快乐的骚货九",
+            "肖】【马蛇牛鼠虎兔羊猪狗〗开20对",
+            "【261期】新澳门六合【快乐的骚货九",
+            "肖】【马蛇猴龙兔虎鸡猪鼠〗开00对",
+            "261期★【正天生我财正实战七尾正】",
+            "0456789尾【特开00】中",
+        ];
+        Assert.Equal("马蛇猴龙兔虎鸡猪鼠", RuleEngine.ExtractFinalValue(evidence, 261, Rule("嫣然心水", "小骚货")));
+    }
+
+    [Fact]
+    public void SplitNineZodiacMarkerStillRequiresTheTargetIssue()
+    {
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            [
+                "【260期】新澳门六合【快乐的骚货九",
+                "肖】【马蛇牛鼠虎兔羊猪狗〗开20对",
+            ], 261, Rule("嫣然心水", "小骚货")));
+    }
 }

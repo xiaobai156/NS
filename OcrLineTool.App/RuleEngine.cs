@@ -55,8 +55,10 @@ public static class RuleEngine
     // OCR may merge a one-digit row index into the period column of a
     // vertical list ("5253杀4合" = row 5, 253期). A trailing space or bracket
     // still counts as a standalone bare number and must not be split.
+    // 两列卡的左列也可能是"期号+字段"（"261杀蓝单" = 261期），期号后直接跟汉字，
+    // 所以只禁止后面紧跟数字，仍不允许把更长数字拆成期号。
     private static readonly Regex MergedRowIndexIssueRegex = new(
-        @"^\s*[【\[（({]?\s*(?<row>[1-9]|1[0-3])\s*(?<issue>\d{3})(?![\d\s])",
+        @"^\s*[【\[（({]?\s*(?:(?<row>[1-9]|1[0-3])\s*)?(?<issue>\d{3})(?!\d)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex YearIssueRegex = new(@"^\s*\d{4}\s*[-—/]\s*(?<issue>\d{3,6})(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     internal const string Zodiac = "马蛇龙兔虎牛鼠猪狗鸡猴羊";
@@ -665,7 +667,25 @@ public static class RuleEngine
             string section = Normalize(rule.Section);
             scopeStart = Array.FindIndex(lines, line => Normalize(line).Contains(section, StringComparison.Ordinal));
             if (scopeStart < 0)
-                return null;
+            {
+                // 区段标记可能被 OCR 拆到两行（…快乐的骚货九 / 肖】【九个生肖…）。
+                // 逐行找不到时按整段文本找一次，再把命中的行当作作用域起点；
+                // 仍找不到才判缺失。
+                int joinedIndex = Normalize(string.Concat(lines)).IndexOf(section, StringComparison.Ordinal);
+                if (joinedIndex < 0)
+                    return null;
+                int consumed = 0;
+                scopeStart = lines.Length - 1;
+                for (int index = 0; index < lines.Length; index++)
+                {
+                    consumed += Normalize(lines[index]).Length;
+                    if (consumed > joinedIndex)
+                    {
+                        scopeStart = index;
+                        break;
+                    }
+                }
+            }
         }
 
         var candidates = new List<string>();
@@ -706,10 +726,23 @@ public static class RuleEngine
             }
             if (peerClosed)
                 continue;
-            // 雁塔题名两列卡的值在上方（已向前合并），向后的行属于另一列/下一
-            // 期，不能再并入，否则会把下一期的值算成本期。
+            // 雁塔题名两列卡的取值是同行的另一列；OCR 常把同一 Excel 行的两列
+            // 读成两行，也常把值行读在期号行之后。只允许并入紧邻的下一行，
+            // 遇到边界/期号行立刻停止：不取下一行之外的任何行，也就不会借下一期。
             if (BackwardValueLineRuleIds.Contains(rule.Id))
+            {
+                string forwards = scopedLine;
+                for (int next = index + 1; next == index + 1 && next < lines.Length; next++)
+                {
+                    if (OcrLayoutMarkers.IsBoundary(lines[next])
+                        || LooksLikeIssueRow(lines[next])
+                        || ContainsIssueBoundary(lines[next], issue))
+                        break;
+                    forwards += " " + lines[next];
+                    candidates.Add(forwards);
+                }
                 continue;
+            }
             string combined = scopedLine;
             for (int next = index + 1; next < lines.Length && next <= index + 4; next++)
             {
@@ -2416,11 +2449,13 @@ public static class RuleEngine
         }
         if (rule.Id == "小骚货" && rule.Type == "九肖")
         {
+            // 这张卡把「九肖」拆成两行（…快乐的骚货九 / 肖】【九个生肖…），
+            // 标记必须容忍行内空白，否则拆行卡永远取不到值。
             string field = SimplifyOcrText(block);
-            int marker = field.IndexOf("九肖", StringComparison.Ordinal);
-            if (marker < 0)
+            Match marker = Regex.Match(field, @"九\s*肖");
+            if (!marker.Success)
                 return null;
-            field = field[(marker + "九肖".Length)..];
+            field = field[(marker.Index + marker.Length)..];
             int tierEnd = new[] { "六肖", "三肖", "一肖" }
                 .Select(tier => field.IndexOf(tier, StringComparison.Ordinal))
                 .Where(index => index >= 0)
