@@ -471,24 +471,32 @@ public static class RuleEngine
 
     // “每期一行”历史统计表（爱晚亭杀肖卡）：行形如 "NNN期：X开YY"，
     // X 是本资料的单个生肖；顶部"N1-N2期错N"区间统计行不算数据行。
+    // 期号行与值行被 OCR 拆成两行（"246期：" + "鼠开牛30✓"）时，值在紧邻的下一行。
     private static bool LooksLikePerIssueZodiacTable(string[] lines)
     {
         int rows = 0;
         int shapes = 0;
-        foreach (string line in lines)
+        for (int index = 0; index < lines.Length; index++)
         {
             Match row = Regex.Match(
-                SimplifyOcrText(line).Trim(),
+                SimplifyOcrText(lines[index]).Trim(),
                 @"^\s*[\[【(（]?\s*(?<issue>\d{2,4})\s*期\s*[:：]?(?<payload>[^\r\n]*)");
             if (!row.Success)
                 continue;
             rows++;
-            string payload = Regex.Split(row.Groups["payload"].Value, @"开|開|√|×|✗|✓|准|準|中|错|錯")[0];
-            payload = Regex.Replace(payload, @"[\s：:（(【\[《〈）)】\]》〉]", string.Empty);
+            string payload = PerIssueZodiacPayload(row.Groups["payload"].Value);
+            if (payload.Length == 0 && index + 1 < lines.Length)
+                payload = PerIssueZodiacPayload(SimplifyOcrText(lines[index + 1]));
             if (payload.Length == 1 && Zodiac.Contains(payload[0]))
                 shapes++;
         }
         return rows >= 5 && shapes * 5 >= rows * 4;
+    }
+
+    private static string PerIssueZodiacPayload(string text)
+    {
+        string payload = Regex.Split(text, @"开|開|√|×|✗|✓|准|準|中|错|錯")[0];
+        return Regex.Replace(payload, @"[\s：:（(【\[《〈）)】\]》〉]", string.Empty);
     }
 
     // 复核卡的行格式：行首 3 位期号 + 期 + 可选“：/:” + 恰好 N 个两位数字，

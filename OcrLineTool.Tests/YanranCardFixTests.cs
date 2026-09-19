@@ -89,6 +89,68 @@ public sealed class YanranCardFixTests
             @"C:\图片\9.18-嫣然心水\爱晚亭\20260918_204252_84058.jpg", lines, [rule], [rule]));
     }
 
+    // 262 期真实卡（9.19-嫣然心水\爱晚亭\20260919_195910_84396.jpg 的本机 medium 缓存原文）：
+    // 8 行「000-000期错N」区间统计 + 每期一行单肖表；246/252/253/254 期的期号行与值行被
+    // OCR 拆成两行，244 期的值格读成「00」，且整卡没有资料名、没有「杀1肖」字样。
+    [Fact]
+    public void AiwantingKillZodiacReadsThe262CardWithSplitRows()
+    {
+        OcrRule rule = Rule("爱晚亭杀肖");
+        string[] lines =
+        [
+            "001-030期错3", "031-060期错3", "061-090期错2", "091-120期错2",
+            "121-150期错3", "151-180期错5", "181-210期错3", "211-240期错4",
+            "241期:猴开马49", "242期:鸡开狗09", "243期：马开狗21", "244期：00开鸡46",
+            "245期：龙开牛18", "246期：", "鼠开牛30✓", "247期：马开兔40",
+            "248期：龙开猪20", "249期:马开猴23", "250期:狗开蛇14", "251期：龙开牛30",
+            "252期：", "牛开鸡22", "253期：", "鼠开兔16", "254期：", "马开蛇02",
+            "255期：狗开猪44", "256期：羊开马01", "257期：鼠开鼠07×", "258期:猪开鸡46",
+            "259期：鸡开鸡22×", "260期:猴开猪20", "261期:蛇开羊24", "262期：兔开00"
+        ];
+        string imagePath = @"C:\图片\9.19-嫣然心水\爱晚亭\20260919_195910_84396.jpg";
+
+        Assert.Contains(rule.Id, RuleEngine.FindMatches(imagePath, lines, [rule], [rule]).Select(item => item.Id));
+        Assert.Contains(rule.Id, RuleEngine.FindMatches(imagePath, lines, Rules, Rules).Select(item => item.Id));
+        Assert.Equal("兔", RuleEngine.ExtractFinalValue(lines, 262, rule));
+    }
+
+    // 262 期真实卡（9.19-嫣然心水\恩平\20260919_135925_84290.jpg 的本机 medium 缓存原文）：
+    // 标题「恩平公式九肖」，每期一行「NNN期，九个生肖」，246–261 期行尾还带开奖号。
+    [Fact]
+    public void EnpingNineZodiacReadsEachIssueRow()
+    {
+        OcrRule rule = Rule("恩平九肖");
+        string imagePath = @"C:\图片\9.19-嫣然心水\恩平\20260919_135925_84290.jpg";
+
+        Assert.Contains(rule.Id, RuleEngine.FindMatches(imagePath, EnpingNineZodiacCard, Rules, Rules).Select(item => item.Id));
+        Assert.Equal("牛兔龙蛇马羊猴鸡猪", RuleEngine.ExtractFinalValue(EnpingNineZodiacCard, 262, rule));
+        Assert.Equal("鼠牛虎兔蛇马猴狗猪", RuleEngine.ExtractFinalValue(EnpingNineZodiacCard, 261, rule));
+    }
+
+    // 数量是硬规则：9 个不同生肖，多一个、少一个、有重复、缺目标期行一律缺失，且不许借邻期。
+    [Fact]
+    public void EnpingNineZodiacKeepsTheNineDistinctRequirement()
+    {
+        OcrRule rule = Rule("恩平九肖");
+        string[] otherRows = EnpingNineZodiacCard[..^1];
+
+        Assert.Null(RuleEngine.ExtractFinalValue([.. otherRows, "262期，牛兔龙蛇马羊猴鸡狗猪"], 262, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue([.. otherRows, "262期，牛兔龙蛇马羊猴鸡鸡"], 262, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue([.. otherRows, "262期，牛兔龙蛇马羊猴鸡"], 262, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(otherRows, 262, rule));
+    }
+
+    private static readonly string[] EnpingNineZodiacCard =
+    [
+        "作者:恩平公式", "人气:9192211/回帖:1016", "2015/10/22 14:40:54", "[切换到分页阅读]", "恩平公式九肖",
+        "246期，鼠牛虎龙蛇马羊鸡猪✓30", "247期，鼠牛虎兔蛇马羊猴猪40", "248期，鼠虎兔龙蛇羊猴鸡猪20",
+        "249期，鼠兔龙马羊猴鸡狗猪23", "250期，鼠牛虎兔龙蛇猴鸡猪14", "251期，鼠牛虎兔龙蛇猴鸡猪30",
+        "252期，鼠牛虎兔龙蛇马羊猴22", "253期，鼠虎兔龙蛇马猴鸡狗16", "254期，鼠牛虎龙蛇马羊狗猪02",
+        "255期，鼠牛虎龙蛇羊鸡狗猪44", "256期，鼠牛虎蛇马羊猴狗猪01", "257期，鼠牛虎马羊猴鸡狗猪07",
+        "258期，牛虎兔龙蛇马羊鸡狗46", "259期，鼠牛虎兔龙蛇马鸡狗22", "260期，鼠虎兔蛇马羊猴狗猪20",
+        "261期，鼠牛虎兔蛇马猴狗猪24", "262期，牛兔龙蛇马羊猴鸡猪"
+    ];
+
     [Fact]
     public void AiwantingKillZodiacDoesNotTakeTheNumberTablesOfTheSameFolder()
     {

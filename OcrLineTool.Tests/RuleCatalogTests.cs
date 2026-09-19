@@ -10,11 +10,13 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
 
-        Assert.Equal(101, rules.Count);
+        Assert.Equal(102, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.Contains(rules, rule => rule.Id == "钦差大臣公式一" && rule.Section == "公式一");
         Assert.Contains(rules, rule => rule.Id == "君军两尾" && rule.Type == "尾数组合");
         Assert.Contains(rules, rule => rule.Id == "恩平公式" && rule.RequiredKeyword == "杀二肖" && rule.Section == "杀二肖");
+        Assert.Contains(rules, rule => rule.Id == "恩平九肖" && rule.Type == "九肖"
+            && rule.Keyword == "恩平公式九肖" && rule.Folder == "恩平");
         Assert.Contains(rules, rule => rule.Id == "小灰灰一肖" && rule.Type == "单生肖");
         Assert.DoesNotContain(rules, rule => rule.Id == "小灰灰两肖");
         Assert.DoesNotContain(rules, rule => rule.Id == "小灰灰两尾");
