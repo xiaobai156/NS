@@ -28,7 +28,34 @@ public sealed class VisualTemplateMatcherTests
         var match = Assert.Single(VisualTemplateMatcher.Match([shifted, other], [template], 300, device: LocalOcrDevice.Cpu));
         Assert.Equal(shifted, match.SourcePath);
         Assert.Equal(0.01, match.VerticalShiftWidthRatio);
-        Assert.Empty(VisualTemplateMatcher.Match([original, original], [template], 300, device: LocalOcrDevice.Cpu));
+        // 同内容的重复图（抓图端重复下载同一张）只算一次，不能因此把这条否掉。
+        string duplicate = Path.Combine(files.Folder, "original-copy.png");
+        File.Copy(original, duplicate);
+        Assert.Equal(original, Assert.Single(VisualTemplateMatcher.Match(
+            [original, duplicate], [template], 300, device: LocalOcrDevice.Cpu)).SourcePath);
+        // 内容不同、又同样接近的两张图仍然不猜（标题带一样、只有下半部分不同）。
+        string sameTitle = files.Create("same-title.png", 1, 2);
+        Assert.Empty(VisualTemplateMatcher.Match(
+            [original, sameTitle], [template], 300, device: LocalOcrDevice.Cpu));
+    }
+
+    // 同一张卡在当天文件夹里存了两份（字节完全相同）时，必须照常配上模板：
+    // 否则两份副本距离相同，会被"次佳与最佳差 <4 就丢弃"的规则整条判成缺失。
+    [Fact]
+    public void IdenticalDuplicateImagesDoNotCancelTheTemplate()
+    {
+        using var files = new ImageFixture();
+        string card = files.Create("card.png", 1, 1);
+        string duplicate = Path.Combine(files.Folder, "card-again.png");
+        File.Copy(card, duplicate);
+        var template = new VisualTemplateDefinition("目标", ["目标规则"],
+            VisualTemplateMatcher.CreateFingerprint(card, device: LocalOcrDevice.Cpu), 0.25, 0.55);
+
+        VisualTemplateMatch match = Assert.Single(VisualTemplateMatcher.Match(
+            [card, duplicate], [template], 60, device: LocalOcrDevice.Cpu));
+
+        Assert.Equal(card, match.SourcePath);
+        Assert.Equal(0, match.Distance);
     }
 
     [Theory]
