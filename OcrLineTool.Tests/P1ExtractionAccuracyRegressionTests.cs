@@ -47,6 +47,7 @@ public sealed class P1ExtractionAccuracyRegressionTests
     [MemberData(nameof(UnsafeCases))]
     public void UnsafeExtractionCasesStayMissing(string id, string group, string ruleId, int issue, string[] lines)
     {
+        Assert.NotEmpty(id);
         Assert.Null(RuleEngine.ExtractFinalValue(lines, issue, Rule(group, ruleId)));
     }
 

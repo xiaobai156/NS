@@ -32,6 +32,16 @@ public sealed class PaddleScriptTests
     }
 
     [Fact]
+    public void CPUUsesDedicatedRuntimeInsteadOfTheCudaVirtualEnvironment()
+    {
+        string source = File.ReadAllText(Path.Combine(
+            AppContext.BaseDirectory, "..", "..", "..", "..", "OcrLineTool.App", "PaddleLocalOcrClient.cs"));
+
+        Assert.Contains(".venv-cpu", source);
+        Assert.Contains("OCR_NVIDIA_CPU_PYTHON", source);
+    }
+
+    [Fact]
     public void SupportsMediumModelForTheSeparateLocalPrimaryMode()
     {
         string script = File.ReadAllText(ScriptPath);

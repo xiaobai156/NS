@@ -441,6 +441,59 @@ public sealed class PaddleProcessTests
         finally { DeleteIfExists(image); }
     }
 
+    [Fact]
+    public void SelectsSeparateCpuAndGpuPythonRuntimes()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "ocr-python-runtime-" + Guid.NewGuid().ToString("N"));
+        string cpu = Path.Combine(root, ".venv-cpu", "Scripts", "python.exe");
+        string gpu = Path.Combine(root, ".venv", "Scripts", "python.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(cpu)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(gpu)!);
+        File.WriteAllText(cpu, string.Empty);
+        File.WriteAllText(gpu, string.Empty);
+        try
+        {
+            Assert.Equal(cpu, PaddleLocalOcrClient.ResolvePythonExecutable(LocalOcrDevice.Cpu, root, null, null));
+            Assert.Equal(gpu, PaddleLocalOcrClient.ResolvePythonExecutable(LocalOcrDevice.Gpu, root, null, null));
+            Assert.Equal("C:\\cpu\\python.exe", PaddleLocalOcrClient.ResolvePythonExecutable(
+                LocalOcrDevice.Cpu, root, null, "C:\\cpu\\python.exe"));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public void ClearsCacheWrittenBeforeTheCurrentBeijingDay()
+    {
+        string cachePath = CreateTempPath("stale-cache", ".json");
+        try
+        {
+            File.WriteAllText(cachePath, "old");
+            DateOnly today = new(2026, 9, 22);
+            File.SetLastWriteTimeUtc(cachePath, new DateTime(2026, 9, 20, 0, 0, 0, DateTimeKind.Utc));
+
+            PaddleLocalOcrClient.ClearStaleCacheIfNeeded(cachePath, today);
+
+            Assert.False(File.Exists(cachePath));
+        }
+        finally { DeleteIfExists(cachePath); }
+    }
+
+    [Fact]
+    public void KeepsCacheWrittenDuringTheCurrentBeijingDay()
+    {
+        string cachePath = CreateTempPath("current-cache", ".json");
+        try
+        {
+            File.WriteAllText(cachePath, "current");
+            File.SetLastWriteTimeUtc(cachePath, new DateTime(2026, 9, 21, 16, 0, 0, DateTimeKind.Utc));
+
+            PaddleLocalOcrClient.ClearStaleCacheIfNeeded(cachePath, new DateOnly(2026, 9, 22));
+
+            Assert.True(File.Exists(cachePath));
+        }
+        finally { DeleteIfExists(cachePath); }
+    }
+
     private static string CreateImagePath()
     {
         string path = CreateTempPath("paddle-image", ".png");

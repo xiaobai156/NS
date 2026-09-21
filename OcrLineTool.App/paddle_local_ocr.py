@@ -53,6 +53,13 @@ def _require_cpu() -> None:
     import paddle
 
     paddle_device = getattr(paddle, "device", None)
+    checker = getattr(paddle_device, "is_compiled_with_cuda", None)
+    if checker is None:
+        checker = getattr(paddle, "is_compiled_with_cuda", None)
+    if checker is None:
+        raise RuntimeError("无法确认 PaddlePaddle CPU/CUDA 构建类型，拒绝启动 CPU 模式。")
+    if checker():
+        raise RuntimeError("CPU 模式需要 CPU 专用 PaddlePaddle 环境，不能使用 CUDA 版 Paddle 的 CPU 路径。")
     set_device = getattr(paddle_device, "set_device", None)
     get_device = getattr(paddle_device, "get_device", None)
     if set_device is None:
@@ -246,13 +253,20 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
+        import paddle
+        _configure_device(args.device)
+    except Exception as exc:
+        backend = "NVIDIA CUDA" if args.device.lower() == "gpu:0" else "CPU"
+        _write_error(args.output, f"无法初始化{backend} PaddlePaddle：{exc}")
+        return 3
+
+    try:
         from paddleocr import PaddleOCR
     except Exception as exc:
         _write_error(args.output, f"无法加载 PaddleOCR：{exc}")
         return 2
 
     try:
-        _configure_device(args.device)
         detection_model, recognition_model = MODEL_NAMES[args.model]
         model_root = _prepare_model_root((detection_model, recognition_model))
         detection_dir = model_root / detection_model if (model_root / detection_model).is_dir() else None

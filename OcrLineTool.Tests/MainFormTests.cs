@@ -353,6 +353,27 @@ public sealed class MainFormTests
     }
 
     [Fact]
+    public void CentersIssueDigitsInsideTheSharedInputFrame()
+    {
+        using var form = new MainForm();
+        var issue = (NumericUpDown)typeof(MainForm)
+            .GetField("issueInput", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
+        var folder = (Label)typeof(MainForm)
+            .GetField("folderNameLabel", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
+
+        form.Show();
+        PerformLayoutRecursively(form);
+
+        TextBox edit = Assert.Single(Descendants(issue).OfType<TextBox>());
+        Assert.True(issue.Top > 1, $"Issue input should be vertically centered, but was {issue.Bounds}.");
+        Assert.Equal(issue.Parent!.Padding.Left, issue.Left);
+        int expectedTop = (issue.ClientSize.Height - edit.Height) / 2;
+        Assert.InRange(Math.Abs(edit.Top - expectedTop), 0, 1);
+        Assert.Equal(issue.Parent.Bounds.Left, folder.Parent!.Bounds.Left);
+        Assert.Equal(issue.Parent.Bounds.Width, folder.Parent.Bounds.Width);
+    }
+
+    [Fact]
     public void UsesDarkSurfacesWithReadableResultText()
     {
         using var form = new MainForm();

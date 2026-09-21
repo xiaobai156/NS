@@ -202,7 +202,7 @@ public sealed class BaodianGapFillTests
         var values = new ResultValues(StringComparer.Ordinal);
         var ledger = new ResultEvidenceLedger();
 
-        MainForm.TryFillSingleMissingNumberCells(rules, 258, values, ledger, medium, null);
+        MainForm.TryFillSingleMissingNumberCells(rules, 258, values, ledger, medium);
 
         Assert.False(values.ContainsKey("宝典"));
     }

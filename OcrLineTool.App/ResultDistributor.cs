@@ -96,8 +96,9 @@ public static class ResultDistributor
 
         await using FileStream configStream = File.OpenRead(configPath);
         DistributionConfig? config = await JsonSerializer.DeserializeAsync<DistributionConfig>(configStream);
-        if (config?.Sources is null || string.IsNullOrWhiteSpace(config.TargetFile))
+        if (config is null || string.IsNullOrWhiteSpace(config.TargetFile))
             throw new OcrException($"数据分发规则格式无效：{configPath}");
+        ValidateConfig(config, configPath);
 
         string? sourceGroup = RuleCatalog.MatchGroupFolder(
             selectedDirectory,
@@ -115,6 +116,21 @@ public static class ResultDistributor
             .Where(item => labels.Contains(item.OutputLabel))
             .ToDictionary(item => item.OutputLabel, StringComparer.Ordinal);
         return new LoadedConfig(config, rule, labels, rule.NumberCounts, rule.ZodiacCounts, rulesByLabel);
+    }
+
+    private static void ValidateConfig(DistributionConfig config, string configPath)
+    {
+        if (config.Sources is null || config.Sources.Length == 0 || config.Sources.Any(source =>
+                source is null || string.IsNullOrWhiteSpace(source.SourceGroup)
+                || source.Labels is null || source.Labels.Length == 0
+                || source.Labels.Any(string.IsNullOrWhiteSpace)))
+            throw new OcrException($"数据分发规则格式无效：{configPath}");
+
+        Placement? placement = config.Placement;
+        if (placement is not null && placement.Mode is not (null or "" or "beforeLine"))
+            throw new OcrException($"数据分发规则格式无效：{configPath}");
+        if (placement?.Mode == "beforeLine" && string.IsNullOrWhiteSpace(placement.Marker))
+            throw new OcrException($"数据分发规则格式无效：{configPath}");
     }
 
     private static async Task<ConfigApplication> ApplyConfigAsync(

@@ -37,6 +37,7 @@ public sealed class P0DataAccuracyRegressionTests
     [MemberData(nameof(UnsafeCases))]
     public void UnsafeP0CasesStayMissing(string id, string group, string ruleId, int issue, string[] lines)
     {
+        Assert.NotEmpty(id);
         Assert.Null(RuleEngine.ExtractFinalValue(lines, issue, Rule(group, ruleId)));
     }
 

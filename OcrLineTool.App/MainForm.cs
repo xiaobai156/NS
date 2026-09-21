@@ -199,6 +199,7 @@ public sealed class MainForm : Form
         RecognitionStateStore.ClearStaleDays(AppContext.BaseDirectory);
         DistributionStateCleanup.ClearStaleBefore(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory));
         FailureLog.CleanupBefore(AppContext.BaseDirectory, CredentialSchedule.TodayInBeijing());
+        PaddleLocalOcrClient.ClearStaleCacheIfNeeded();
         issueDate = CredentialSchedule.TodayInBeijing();
         LogOperation("启动程序");
         RefreshCredentialLabel();
@@ -580,6 +581,7 @@ public sealed class MainForm : Form
     {
         field.Dock = DockStyle.Fill;
         field.Margin = Padding.Empty;
+        bool isNumeric = field is NumericUpDown;
         if (field is NumericUpDown upDown)
             upDown.BorderStyle = BorderStyle.None;
         else if (field is Label label)
@@ -591,6 +593,8 @@ public sealed class MainForm : Form
             BorderColor = BorderColor, CornerRadius = 6, Padding = new Padding(1),
             Margin = Padding.Empty
         };
+        if (isNumeric)
+            frame.Padding = new Padding(1, 12, 1, 12);
         frame.Controls.Add(field);
         return frame;
     }
@@ -2418,28 +2422,10 @@ public sealed class MainForm : Form
         identity.EnsureCurrent();
         string sourcePath = identity.SourcePath;
         string inputPath = identity.InputPath;
-        int retry = 0;
-        while (true)
-        {
-            try
-            {
-                OcrEvidence evidence = await client.RecognizeEvidenceAsync(inputPath, ActiveToken);
-                return evidence.Bind(identity);
-            }
-            catch (OcrException exception) when (CloudOcrPolicy.IsRateLimit(credential.Provider, exception))
-            {
-                if (retry < CloudOcrPolicy.MaxAutomaticRetries)
-                {
-                    TimeSpan delay = CloudOcrPolicy.RetryDelay(++retry);
-                    statusLabel.Text = $"复抓触发限流：{delay.TotalSeconds:0} 秒后重试 {current}/{total}";
-                    await Task.Delay(delay, ActiveToken);
-                    continue;
-                }
-
-                await WaitForCloudResumeAsync(current, total, sourcePath);
-                retry = 0;
-            }
-        }
+        OcrEvidence evidence = await RecognizeWithCloudRetryAsync(
+            credential, current, total, sourcePath,
+            () => client.RecognizeEvidenceAsync(inputPath, ActiveToken));
+        return evidence.Bind(identity);
     }
 
     private async Task<IReadOnlyList<string>> RecognizeRetryAsync(
@@ -2452,14 +2438,26 @@ public sealed class MainForm : Form
         int issue,
         IDictionary<string, string> values)
     {
+        IReadOnlyList<string> lines = await RecognizeWithCloudRetryAsync(
+            credential, current, total, imagePath,
+            () => client.RecognizeAsync(imagePath, ActiveToken));
+        AddExtractedValues(lines, rules, issue, values);
+        return lines;
+    }
+
+    private async Task<T> RecognizeWithCloudRetryAsync<T>(
+        OcrCredential credential,
+        int current,
+        int total,
+        string sourcePath,
+        Func<Task<T>> request)
+    {
         int retry = 0;
         while (true)
         {
             try
             {
-                IReadOnlyList<string> lines = await client.RecognizeAsync(imagePath, ActiveToken);
-                AddExtractedValues(lines, rules, issue, values);
-                return lines;
+                return await request();
             }
             catch (OcrException exception) when (CloudOcrPolicy.IsRateLimit(credential.Provider, exception))
             {
@@ -2471,7 +2469,7 @@ public sealed class MainForm : Form
                     continue;
                 }
 
-                await WaitForCloudResumeAsync(current, total, imagePath);
+                await WaitForCloudResumeAsync(current, total, sourcePath);
                 retry = 0;
             }
         }

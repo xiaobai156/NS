@@ -966,6 +966,56 @@ public sealed class ResultDistributorTests
         }
     }
 
+    [Fact]
+    public async Task RejectsDistributionConfigWithMissingSourceLabels()
+    {
+        string folder = CreateTempFolder();
+        try
+        {
+            string config = Path.Combine(folder, "尾分发规则.json");
+            await File.WriteAllTextAsync(config, JsonSerializer.Serialize(new
+            {
+                targetFile = "{issue}期-尾.txt",
+                sources = new[] { new { sourceGroup = "新澳六合彩资料" } }
+            }));
+
+            OcrException error = await Assert.ThrowsAsync<OcrException>(() => ResultDistributor.DistributeAsync(
+                @"C:\图片\新澳六合彩资料", 243, ["8尾 宝典尾"], folder, config));
+
+            Assert.Contains("格式无效", error.Message);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task RejectsBeforeLinePlacementWithoutMarker()
+    {
+        string folder = CreateTempFolder();
+        try
+        {
+            string config = Path.Combine(folder, "尾分发规则.json");
+            await File.WriteAllTextAsync(Path.Combine(folder, "243期-尾.txt"), "原有内容\n");
+            await File.WriteAllTextAsync(config, JsonSerializer.Serialize(new
+            {
+                targetFile = "{issue}期-尾.txt",
+                placement = new { mode = "beforeLine" },
+                sources = new[] { new { sourceGroup = "新澳六合彩资料", labels = new[] { "宝典尾" } } }
+            }));
+
+            OcrException error = await Assert.ThrowsAsync<OcrException>(() => ResultDistributor.DistributeAsync(
+                @"C:\图片\新澳六合彩资料", 243, ["08 宝典尾"], folder, config));
+
+            Assert.Contains("格式无效", error.Message);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
     private static string CreateTempFolder()
     {
         string folder = Path.Combine(Path.GetTempPath(), $"kill-number-distributor-{Guid.NewGuid():N}");

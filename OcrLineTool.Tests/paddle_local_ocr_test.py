@@ -36,7 +36,10 @@ class CompactFolderTest(unittest.TestCase):
                         raise RuntimeError(message)
 
                 argv = [str(script), "--list", str(listing), "--output", str(output), "--device", device]
-                with patch.dict(sys.modules, {"paddleocr": types.SimpleNamespace(PaddleOCR=FakeOCR)}), \
+                with patch.dict(sys.modules, {
+                    "paddle": types.SimpleNamespace(),
+                    "paddleocr": types.SimpleNamespace(PaddleOCR=FakeOCR),
+                }), \
                         patch.object(module, "_configure_device"), \
                         patch.object(module, "_prepare_model_root", return_value=root), \
                         patch.object(sys, "argv", argv):
@@ -147,6 +150,7 @@ class CompactFolderTest(unittest.TestCase):
 
         fake_paddle = types.SimpleNamespace(
             device=types.SimpleNamespace(
+                is_compiled_with_cuda=lambda: False,
                 set_device=lambda device: selected.append(device),
                 get_device=lambda: "cpu",
             )
@@ -165,6 +169,42 @@ class CompactFolderTest(unittest.TestCase):
 
         self.assertEqual("cpu", selected[0])
         self.assertEqual("cpu", selected[1]["device"])
+
+    def test_cpu_mode_rejects_cuda_build_instead_of_using_its_cpu_path(self):
+        script = Path(__file__).parents[1] / "OcrLineTool.App" / "paddle_local_ocr.py"
+        spec = importlib.util.spec_from_file_location("local_ocr_cpu_runtime", script)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        with tempfile.TemporaryDirectory(prefix="ocr-cpu-runtime-") as temporary:
+            root = Path(temporary)
+            listing = root / "list.txt"
+            listing.write_text("", encoding="utf-8")
+            output = root / "result.json"
+            argv = [str(script), "--list", str(listing), "--output", str(output), "--device", "cpu"]
+            fake_paddle = types.SimpleNamespace(
+                device=types.SimpleNamespace(
+                    is_compiled_with_cuda=lambda: True,
+                    set_device=lambda device: None,
+                    get_device=lambda: "cpu",
+                )
+            )
+            with patch.dict(sys.modules, {
+                "paddle": fake_paddle,
+                "paddleocr": None,
+            }), patch.object(sys, "argv", argv):
+                self.assertEqual(3, module.main())
+
+            self.assertIn("CPU 专用", json.loads(output.read_text(encoding="utf-8"))["error"])
+
+    def test_cpu_mode_rejects_runtime_without_build_capability_probe(self):
+        script = Path(__file__).parents[1] / "OcrLineTool.App" / "paddle_local_ocr.py"
+        spec = importlib.util.spec_from_file_location("local_ocr_cpu_probe_check", script)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with patch.dict(sys.modules, {"paddle": types.SimpleNamespace()}):
+            with self.assertRaisesRegex(RuntimeError, "无法确认 PaddlePaddle CPU/CUDA 构建类型"):
+                module._require_cpu()
 
     def test_uses_bundled_model_directories_when_present(self):
         script = Path(__file__).parents[1] / "OcrLineTool.App" / "paddle_local_ocr.py"

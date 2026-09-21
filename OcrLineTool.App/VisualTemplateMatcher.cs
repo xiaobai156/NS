@@ -270,57 +270,26 @@ public static class VisualTemplateMatcher
         FingerprintRegion[] templateRegions = templates.Select(regionSelector).ToArray();
         FingerprintRegion[] regions = templateRegions.Distinct().ToArray();
         var imageHashes = new (string Path, string SourceHash, Dictionary<FingerprintRegion, ulong[][]> Hashes)[imagePaths.Count];
-        // 同一张图被重复下载（内容完全相同）时只算一次，并固定取排序最靠前的那一份，
+        // 同一张图被重复下载（内容完全相同）时只保留一份匹配，并固定取排序最靠前的那一份，
         // 保证结果可复现；否则两份副本距离完全相同，会被下面"次佳与最佳距离差 <4
         // 就整条丢弃"的规则否掉，把明明存在的卡判成缺失。
-        var contentHashes = new string[imagePaths.Count];
-        Parallel.For(0, imagePaths.Count, index =>
-        {
-            try
-            {
-                contentHashes[index] = Convert.ToHexString(
-                    SHA256.HashData(File.ReadAllBytes(imagePaths[index])));
-            }
-            catch (Exception exception) when (exception is ArgumentException or IOException)
-            {
-                contentHashes[index] = string.Empty;
-            }
-        });
-        var firstIndexByContent = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        for (int index = 0; index < imagePaths.Count; index++)
-        {
-            string contentHash = contentHashes[index];
-            if (contentHash.Length > 0)
-                firstIndexByContent.TryAdd(contentHash, index);
-        }
-
         int completed = 0;
         try
         {
             Parallel.For(0, imagePaths.Count, index =>
             {
                 string path = imagePaths[index];
-                string contentHash = contentHashes[index];
-                bool duplicateOfEarlierImage = contentHash.Length == 0
-                    || firstIndexByContent[contentHash] != index;
                 try
                 {
-                    if (duplicateOfEarlierImage)
-                    {
-                        imageHashes[index] = (path, contentHash, []);
-                    }
-                    else
-                    {
-                        // Fingerprint and source identity must be derived from the exact
-                        // same bytes. Otherwise a same-path replacement between matching
-                        // and cropping could bind template A's location to image B.
-                        byte[] bytes = File.ReadAllBytes(path);
-                        using var stream = new MemoryStream(bytes, writable: false);
-                        using var image = new Bitmap(stream);
-                        imageHashes[index] = (path, contentHash, regions.ToDictionary(
-                            region => region,
-                            region => CreateFingerprints(image, region, ShiftRatios, device)));
-                    }
+                    // Derive the content identity and fingerprints from one byte read.
+                    // Duplicate images are removed in the deterministic pass below.
+                    byte[] bytes = File.ReadAllBytes(path);
+                    string contentHash = Convert.ToHexString(SHA256.HashData(bytes));
+                    using var stream = new MemoryStream(bytes, writable: false);
+                    using var image = new Bitmap(stream);
+                    imageHashes[index] = (path, contentHash, regions.ToDictionary(
+                        region => region,
+                        region => CreateFingerprints(image, region, ShiftRatios, device)));
                 }
                 catch (Exception exception) when (exception is ArgumentException or IOException)
                 {
@@ -335,6 +304,15 @@ public static class VisualTemplateMatcher
         {
             throw exception.Flatten().InnerExceptions.OfType<OcrException>()
                 .First(PaddleLocalOcrClient.IsCudaUnavailable);
+        }
+
+        var firstIndexByContent = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (int index = 0; index < imageHashes.Length; index++)
+        {
+            string contentHash = imageHashes[index].SourceHash;
+            if (contentHash.Length == 0 || firstIndexByContent.TryAdd(contentHash, index))
+                continue;
+            imageHashes[index] = (imageHashes[index].Path, contentHash, []);
         }
 
         var pairs = new List<Score>(templates.Count * imagePaths.Count);

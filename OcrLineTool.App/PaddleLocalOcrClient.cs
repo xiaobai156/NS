@@ -122,9 +122,28 @@ public sealed class PaddleLocalOcrClient
     {
         this.processRunner = processRunner ?? throw new ArgumentNullException(nameof(processRunner));
         this.device = device;
-        this.cachePath = cachePath ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "OcrLineTool-NVIDIA-CUDA", "paddle-v6-cuda-cache.json");
+        this.cachePath = cachePath ?? DefaultCachePath;
+    }
+
+    internal static string DefaultCachePath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "OcrLineTool-NVIDIA-CUDA", "paddle-v6-cuda-cache.json");
+
+    internal static void ClearStaleCacheIfNeeded() =>
+        ClearStaleCacheIfNeeded(DefaultCachePath, CredentialSchedule.TodayInBeijing());
+
+    internal static void ClearStaleCacheIfNeeded(string path, DateOnly today)
+    {
+        try
+        {
+            if (File.Exists(path)
+                && CredentialSchedule.BeijingDate(File.GetLastWriteTimeUtc(path)) < today)
+                File.Delete(path);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // Cache cleanup is best effort; it must never prevent the UI from starting.
+        }
     }
 
     public async Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> RecognizeBatchAsync(
@@ -282,7 +301,7 @@ public sealed class PaddleLocalOcrClient
 
         var startInfo = new ProcessStartInfo
         {
-            FileName = PythonExecutable(),
+            FileName = PythonExecutableFor(device),
             Arguments = $"-u {Quote(checkerPath)}",
             UseShellExecute = false,
             CreateNoWindow = true,
@@ -332,7 +351,7 @@ public sealed class PaddleLocalOcrClient
         string modelArgument = model == PaddleOcrModel.Medium ? "medium" : "small";
         var startInfo = new ProcessStartInfo
         {
-            FileName = PythonExecutable(),
+            FileName = PythonExecutableFor(device),
             Arguments = $"-u {Quote(scriptPath)} --list {Quote(listPath)} --output {Quote(outputPath)} --cpu-threads {cpuThreads} --device {DeviceArgumentFor(device)} --top-ratio {titleRatio.ToString(CultureInfo.InvariantCulture)} --model {modelArgument}{detectionArgument}",
             UseShellExecute = false,
             CreateNoWindow = true,
@@ -538,15 +557,27 @@ public sealed class PaddleLocalOcrClient
 
     private static string Quote(string value) => "\"" + value.Replace("\"", "\\\"") + "\"";
 
-    private static string PythonExecutable()
+    internal static string PythonExecutableFor(LocalOcrDevice device)
     {
-        string? configured = Environment.GetEnvironmentVariable("OCR_NVIDIA_PYTHON");
+        string? configuredGpu = Environment.GetEnvironmentVariable("OCR_NVIDIA_PYTHON");
+        string? configuredCpu = Environment.GetEnvironmentVariable("OCR_NVIDIA_CPU_PYTHON");
+        return ResolvePythonExecutable(device, AppContext.BaseDirectory, configuredGpu, configuredCpu);
+    }
+
+    internal static string ResolvePythonExecutable(
+        LocalOcrDevice device,
+        string baseDirectory,
+        string? configuredGpu,
+        string? configuredCpu)
+    {
+        string? configured = device == LocalOcrDevice.Cpu ? configuredCpu : configuredGpu;
         if (!string.IsNullOrWhiteSpace(configured))
             return configured.Trim().Trim('"');
 
-        for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        string environmentName = device == LocalOcrDevice.Cpu ? ".venv-cpu" : ".venv";
+        for (DirectoryInfo? directory = new(baseDirectory); directory is not null; directory = directory.Parent)
         {
-            string localPython = Path.Combine(directory.FullName, ".venv", "Scripts", "python.exe");
+            string localPython = Path.Combine(directory.FullName, environmentName, "Scripts", "python.exe");
             if (File.Exists(localPython))
                 return localPython;
         }

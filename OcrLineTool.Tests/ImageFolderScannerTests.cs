@@ -60,6 +60,38 @@ public sealed class ImageFolderScannerTests
     }
 
     [Fact]
+    public void IgnoresReparsePointDirectoriesWhenThePlatformAllowsCreatingOne()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "ocr-reparse-scan-" + Guid.NewGuid().ToString("N"));
+        string target = Path.Combine(Path.GetTempPath(), "ocr-reparse-target-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(target);
+        string link = Path.Combine(root, "linked");
+        try
+        {
+            try
+            {
+                Directory.CreateSymbolicLink(link, target);
+            }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+            {
+                return;
+            }
+
+            File.WriteAllText(Path.Combine(target, "should-not-be-scanned.jpg"), "x");
+
+            Assert.Empty(ImageFolderScanner.Scan(root));
+            Assert.Empty(ImageFolderScanner.ListSubfolders(root));
+        }
+        finally
+        {
+            if (Directory.Exists(link)) Directory.Delete(link);
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+            if (Directory.Exists(target)) Directory.Delete(target, recursive: true);
+        }
+    }
+
+    [Fact]
     public void AcceptsOnlyFoldersBelowTheFixedRoot()
     {
         string root = Path.Combine(Path.GetTempPath(), "ocr-root");
