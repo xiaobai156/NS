@@ -3,8 +3,17 @@ using System.Text.Json;
 
 namespace OcrLineTool;
 
+public enum LocalOcrDevice
+{
+    Gpu,
+    Cpu
+}
+
 /// <summary>界面偏好，保存在程序目录下的“界面设置.json”，升级和清除结果都不影响。</summary>
-internal sealed record UiSettings(bool ShowRecognizeButton, bool RetryUsesLocalOcr = true)
+internal sealed record UiSettings(
+    bool ShowRecognizeButton,
+    bool RetryUsesLocalOcr = true,
+    LocalOcrDevice OcrDevice = LocalOcrDevice.Gpu)
 {
     internal static UiSettings Default { get; } = new(false);
 
@@ -18,7 +27,8 @@ internal sealed record UiSettings(bool ShowRecognizeButton, bool RetryUsesLocalO
             string path = PathFor(appDirectory);
             if (!File.Exists(path))
                 return Default;
-            return JsonSerializer.Deserialize<UiSettings>(File.ReadAllText(path)) ?? Default;
+            UiSettings settings = JsonSerializer.Deserialize<UiSettings>(File.ReadAllText(path)) ?? Default;
+            return Enum.IsDefined(settings.OcrDevice) ? settings : settings with { OcrDevice = LocalOcrDevice.Gpu };
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {

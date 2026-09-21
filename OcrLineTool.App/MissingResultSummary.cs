@@ -43,8 +43,9 @@ public static class MissingResultSummary
                     category = line[1..^1];
                     continue;
                 }
-                if (!line.StartsWith("缺失", StringComparison.Ordinal) &&
-                    line.EndsWith("（已分流）", StringComparison.Ordinal))
+                // 只统计仍写着"缺失"的行。TXT 里已经有值的条目（多半是你手工填的）
+                // 视作已处理，不再进这个汇总；"还没分流"由"手动分流"自己报告。
+                if (!line.StartsWith("缺失", StringComparison.Ordinal))
                     continue;
 
                 if (!groups.TryGetValue(groupName, out var categories))
@@ -88,7 +89,7 @@ public static class MissingResultSummary
             }
         }
         if (count == 0)
-            output.Add("没有缺失或未分流的数据。");
+            output.Add("没有缺失的数据。");
 
         // Replace only after every source was read and the complete new summary was written.
         string temporaryPath = outputPath + "." + Guid.NewGuid().ToString("N") + ".tmp";

@@ -8,6 +8,63 @@ public static class GroupResultFormatter
         int index = line.IndexOf("—— 子文件夹=", StringComparison.Ordinal);
         return index < 0 ? line : line[..index].TrimEnd();
     }
+
+    // 群结果 TXT 里"已经有值"的行：可能是你手工填的，也可能是程序写好后你已确认。
+    // 这类条目光看 TXT 就已经有结论，复抓不再处理、统计也不再把它们算作缺失。
+    // 只有仍写着"缺失"的行才由程序负责。
+    public static Dictionary<string, string> ReadConcludedValueLines(
+        IEnumerable<string> lines, IEnumerable<OcrRule> rules)
+    {
+        OcrRule[] ruleList = rules.OrderByDescending(rule => rule.OutputLabel.Length).ToArray();
+        var concluded = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (string rawLine in lines)
+        {
+            string line = RemoveLegacySourceSuffix(rawLine).Trim();
+            if (line.Length == 0
+                || line.StartsWith("来源：", StringComparison.Ordinal)
+                || line.StartsWith("缺失", StringComparison.Ordinal))
+                continue;
+            if (line.StartsWith("【", StringComparison.Ordinal) && line.EndsWith("】", StringComparison.Ordinal))
+                continue;
+            OcrRule? rule = RuleFor(line, ruleList);
+            if (rule is not null)
+                concluded[rule.Id] = line;
+        }
+        return concluded;
+    }
+
+    // 复抓重写群结果时把这些行原样放回去：你手工修改过的结果不能被本轮识别覆盖。
+    public static string[] ReapplyConcludedValueLines(
+        IEnumerable<string> lines, IEnumerable<OcrRule> rules, IReadOnlyDictionary<string, string> concludedLines)
+    {
+        string[] source = lines.ToArray();
+        if (concludedLines.Count == 0)
+            return source;
+        OcrRule[] ruleList = rules.OrderByDescending(rule => rule.OutputLabel.Length).ToArray();
+        return source.Select(line =>
+        {
+            OcrRule? rule = RuleFor(line, ruleList);
+            return rule is not null && concludedLines.TryGetValue(rule.Id, out string? concluded)
+                ? concluded
+                : line;
+        }).ToArray();
+    }
+
+    // 复抓范围：程序还没有值的规则里，排除 TXT 里已经有值的那些（= 你已处理）。
+    public static OcrRule[] MissingRetryRules(
+        IEnumerable<OcrRule> rules, IReadOnlyCollection<string> valueRuleIds,
+        IReadOnlyDictionary<string, string> concludedLines)
+    {
+        return rules
+            .Where(rule => !valueRuleIds.Contains(rule.Id) && !concludedLines.ContainsKey(rule.Id))
+            .ToArray();
+    }
+
+    private static OcrRule? RuleFor(string line, OcrRule[] ruleList) =>
+        ruleList.FirstOrDefault(candidate =>
+            line.EndsWith(candidate.OutputLabel, StringComparison.Ordinal) ||
+            line.EndsWith(candidate.OutputLabel + "（已分流）", StringComparison.Ordinal));
+
     internal static readonly string[] CategoryOrder =
         ["头", "尾", "波", "半波", "半头", "一肖", "二肖", "九肖", "五行", "5个数字", "5个以上数字", "30个以上数字", "合", "段", "其他"];
     private static readonly HashSet<string> Headers =
@@ -25,9 +82,7 @@ public static class GroupResultFormatter
                      !string.IsNullOrWhiteSpace(line) && !Headers.Contains(line) &&
                      !(line.StartsWith("【", StringComparison.Ordinal) && line.EndsWith("】", StringComparison.Ordinal))))
         {
-            OcrRule? rule = ruleList.FirstOrDefault(candidate =>
-                line.EndsWith(candidate.OutputLabel, StringComparison.Ordinal) ||
-                line.EndsWith(candidate.OutputLabel + "（已分流）", StringComparison.Ordinal));
+            OcrRule? rule = RuleFor(line, ruleList);
             groups[rule is null ? "其他" : CategoryFor(rule.Type)].Add(line);
         }
 
@@ -62,6 +117,9 @@ public static class GroupResultFormatter
             return "二肖";
         if (type == "九肖")
             return "九肖";
+        // 方位型资料（藏宝九肖）的值是缺的那个方位标签，不属于任何生肖数量档。
+        if (type == "方位")
+            return "其他";
         if (type is "五行" or "单五行")
             return "五行";
         if (type == "合")

@@ -123,6 +123,17 @@
       "CropBottomWidthRatio": 0.41,
       "FingerprintTopWidthRatio": 0.16,
       "FingerprintBottomWidthRatio": 0.3
+    },
+    {
+      "Id": "藏宝九肖",
+      "RuleIds": [
+        "藏宝九肖"
+      ],
+      "Fingerprint": "E54DEEFEFBFB89CFF34CCE6EF37399C5E346CE6E63335767C3174CCE67335967C7534CC5673377078743CCCE463359A287B18CCE563355238FD58CE656335927CFC98C89563346C6DF958C897633B925DC85CCA912737F4FDD49A5A61A9E5B73FF4995A652CC5B73EF4995A652CD5A20DF4994A6728D5A63EF499DAE728DDA61",
+      "CropTopWidthRatio": 0.1,
+      "CropBottomWidthRatio": 0.41,
+      "FingerprintTopWidthRatio": 0.125,
+      "FingerprintBottomWidthRatio": 0.25
     }
   ],
   "FingerprintTopWidthRatio": null,

@@ -7,6 +7,55 @@ namespace OcrLineTool.Tests;
 public sealed class VisualTemplateMatcherTests
 {
     [Fact]
+    public void CpuTemplateMatchesExistingCatalogWithoutCuda()
+    {
+        string image = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "Fixtures", "leifeng.jpg"));
+        VisualTemplateSet catalog = VisualTemplateMatcher.Load(VisualTemplateMatcher.ConfigPath(AppContext.BaseDirectory));
+        var match = Assert.Single(VisualTemplateMatcher.Match([image], catalog, device: LocalOcrDevice.Cpu));
+        Assert.Equal("雷锋", match.Template.Id);
+        Assert.Equal(0, match.Distance);
+    }
+
+    [Fact]
+    public void CpuTemplateKeepsShiftAndUniquenessRules()
+    {
+        using var files = new ImageFixture();
+        string original = files.Create("original.png", 1, 1);
+        string shifted = files.Create("shifted.png", 1, 2, 8);
+        string other = files.Create("other.png", 2, 1);
+        var template = new VisualTemplateDefinition("test", ["test"],
+            VisualTemplateMatcher.CreateFingerprint(original, device: LocalOcrDevice.Cpu), 0.25, 0.55);
+        var match = Assert.Single(VisualTemplateMatcher.Match([shifted, other], [template], 300, device: LocalOcrDevice.Cpu));
+        Assert.Equal(shifted, match.SourcePath);
+        Assert.Equal(0.01, match.VerticalShiftWidthRatio);
+        Assert.Empty(VisualTemplateMatcher.Match([original, original], [template], 300, device: LocalOcrDevice.Cpu));
+    }
+
+    [Theory]
+    [Trait("Category", "CUDA")]
+    [InlineData(19, 17)]
+    [InlineData(65, 16)]
+    [InlineData(317, 483)]
+    [InlineData(800, 600)]
+    public void CpuFingerprintEqualsCudaForEveryShiftAndRegion(int width, int height)
+    {
+        using var files = new ImageFixture();
+        string path = Path.Combine(files.Folder, "colored.png");
+        using (var bitmap = new Bitmap(width, height))
+        {
+            var random = new Random(137);
+            for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++)
+                    bitmap.SetPixel(x, y, Color.FromArgb(random.Next(256), random.Next(256), random.Next(256)));
+            bitmap.Save(path);
+        }
+        foreach ((double top, double bottom) in new[] { (0.0, 0.1), (0.1125, 0.2125), (0.3, 0.4), (1.3, 1.4) })
+            foreach (double shift in new[] { -0.02, -0.01, 0, 0.01, 0.02 })
+                Assert.Equal(VisualTemplateMatcher.CreateFingerprint(path, top, bottom, shift),
+                    VisualTemplateMatcher.CreateFingerprint(path, top, bottom, shift, LocalOcrDevice.Cpu));
+    }
+
+    [Fact]
     public void EnablesVisualTemplatesForBothFixedLayoutGroups()
     {
         Assert.True(VisualTemplateMatcher.Supports(@"C:\结果\新澳六合彩资料"));
@@ -277,7 +326,7 @@ public sealed class VisualTemplateMatcherTests
     }
 
     [Fact]
-    public void PremiumProductionCatalogCoversAllElevenRulesWithDedicatedFingerprintRegions()
+    public void PremiumProductionCatalogCoversAllTwelveRulesWithDedicatedFingerprintRegions()
     {
         string[] expectedRuleIds =
         [
@@ -291,6 +340,7 @@ public sealed class VisualTemplateMatcherTests
             "翩翩公子杀十码",
             "翩翩公子头",
             "祥瑞阁二肖",
+            "藏宝九肖",
             "会员暴打"
         ];
         VisualTemplateSet catalog = VisualTemplateMatcher.Load(
@@ -298,7 +348,7 @@ public sealed class VisualTemplateMatcherTests
                 AppContext.BaseDirectory, @"C:\结果\新澳高级会员"));
 
         Assert.Equal("新澳高级会员", catalog.Folder);
-        Assert.Equal(11, catalog.Templates.Count);
+        Assert.Equal(12, catalog.Templates.Count);
         Assert.Equal(
             expectedRuleIds.Order(StringComparer.Ordinal),
             catalog.Templates.SelectMany(item => item.RuleIds).Order(StringComparer.Ordinal));

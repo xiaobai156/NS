@@ -866,6 +866,7 @@ public sealed class ResultDistributorTests
             ["有点帅", "高手两肖", "男人牛", "黄杀", "亚太两肖", "战澳两肖", "斩杀两肖", "女人味"],
             ReadSourceLabels("二肖分发规则.json", "新澳高手"));
         Assert.Equal(["跑狗", "高山流水"], ReadSourceLabels("生肖分发规则.json", "新澳高手"));
+        Assert.Equal(["藏宝九肖", "会员暴打"], ReadSourceLabels("生肖分发规则.json", "新澳高级会员"));
         Assert.Contains("斩杀半波", ReadSourceLabels("半波分发规则.json", "新澳高手"));
         Assert.Contains("斩杀一行", ReadSourceLabels("五行分发规则.json", "新澳高手"));
         Assert.Contains("斩杀两尾", ReadSourceLabels("尾分发规则.json", "新澳高手"));

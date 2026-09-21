@@ -74,4 +74,55 @@ public sealed class GroupResultFormatterTests
             ["【一肖】", "狗猴 品鉴"],
             GroupResultFormatter.Format(rules, ["狗猴 品鉴"]));
     }
+
+    // 你手工改过的行（值不再是"缺失"）算已经有了结论：复抓跳过、重写时原样保留。
+    [Fact]
+    public void ConcludedValueLinesArePickedUpAndReappliedOverComputedValues()
+    {
+        OcrRule[] rules =
+        [
+            new("雁塔题名", "头", "雁塔题名杀头"),
+            new("恩平", "头", "恩平杀头"),
+            new("齐天大圣", "头", "齐天大圣")
+        ];
+        string[] existing =
+        [
+            "【头】",
+            "3头 雁塔题名杀头",
+            "4头 齐天大圣（已分流）",
+            "缺失（未找到对应图片） 恩平杀头"
+        ];
+
+        Dictionary<string, string> concluded = GroupResultFormatter.ReadConcludedValueLines(existing, rules);
+
+        Assert.Equal(2, concluded.Count);
+        Assert.Equal("3头 雁塔题名杀头", concluded["雁塔题名杀头"]);
+        Assert.Equal("4头 齐天大圣（已分流）", concluded["齐天大圣"]);
+        Assert.DoesNotContain("恩平杀头", concluded.Keys);
+
+        // 复抓这一轮算出来的值不能覆盖你手工写的行。
+        string[] computed = ["缺失（未找到对应图片） 雁塔题名杀头", "4头 齐天大圣", "2头 恩平杀头"];
+        Assert.Equal(
+            ["3头 雁塔题名杀头", "4头 齐天大圣（已分流）", "2头 恩平杀头"],
+            GroupResultFormatter.ReapplyConcludedValueLines(computed, rules, concluded));
+    }
+
+    [Fact]
+    public void RetryScopeKeepsOnlyRulesWithoutValuesAndWithoutUserConclusions()
+    {
+        OcrRule[] rules =
+        [
+            new("雁塔题名", "头", "雁塔题名杀头"),
+            new("恩平", "头", "恩平杀头"),
+            new("小骚货", "九肖", "小骚货")
+        ];
+        Dictionary<string, string> concluded = new(StringComparer.Ordinal)
+        {
+            ["雁塔题名杀头"] = "3头 雁塔题名杀头"
+        };
+
+        OcrRule[] scope = GroupResultFormatter.MissingRetryRules(rules, ["小骚货"], concluded);
+
+        Assert.Equal(["恩平杀头"], scope.Select(rule => rule.Id));
+    }
 }

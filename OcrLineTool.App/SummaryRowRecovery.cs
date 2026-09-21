@@ -61,7 +61,7 @@ internal static class SummaryRowRecovery
                 cancellationToken: cancellationToken,
                 model: PaddleOcrModels.LocalPrimary);
         }
-        catch (OcrException)
+        catch (OcrException exception) when (!PaddleLocalOcrClient.IsCudaUnavailable(exception))
         {
             return null;
         }
@@ -114,7 +114,7 @@ internal static class SummaryRowRecovery
                 cancellationToken: cancellationToken,
                 model: PaddleOcrModels.LocalPrimary);
         }
-        catch (OcrException)
+        catch (OcrException exception) when (!PaddleLocalOcrClient.IsCudaUnavailable(exception))
         {
             return null;
         }
@@ -195,7 +195,7 @@ internal static class SummaryRowRecovery
                 cancellationToken: cancellationToken,
                 model: PaddleOcrModels.LocalPrimary);
         }
-        catch (OcrException)
+        catch (OcrException exception) when (!PaddleLocalOcrClient.IsCudaUnavailable(exception))
         {
             return null;
         }
@@ -273,7 +273,7 @@ internal static class SummaryRowRecovery
                     cancellationToken: cancellationToken,
                     model: PaddleOcrModels.LocalPrimary);
             }
-            catch (OcrException)
+            catch (OcrException exception) when (!PaddleLocalOcrClient.IsCudaUnavailable(exception))
             {
                 return null;
             }
@@ -349,7 +349,7 @@ internal static class SummaryRowRecovery
                     cancellationToken: cancellationToken,
                     model: PaddleOcrModels.LocalPrimary);
             }
-            catch (OcrException)
+            catch (OcrException exception) when (!PaddleLocalOcrClient.IsCudaUnavailable(exception))
             {
                 return null;
             }

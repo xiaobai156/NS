@@ -970,12 +970,18 @@ public sealed class MainFormTests
         try
         {
             Assert.False(UiSettings.Load(directory).ShowRecognizeButton);
+            Assert.Equal(LocalOcrDevice.Gpu, UiSettings.Load(directory).OcrDevice);
 
             UiSettings.Save(directory, new UiSettings(true));
             Assert.True(UiSettings.Load(directory).ShowRecognizeButton);
+            Assert.Equal(LocalOcrDevice.Gpu, UiSettings.Load(directory).OcrDevice);
+
+            UiSettings.Save(directory, new UiSettings(false, true, LocalOcrDevice.Cpu));
+            Assert.Equal(LocalOcrDevice.Cpu, UiSettings.Load(directory).OcrDevice);
 
             UiSettings.Save(directory, new UiSettings(false));
             Assert.False(UiSettings.Load(directory).ShowRecognizeButton);
+            Assert.Equal(LocalOcrDevice.Gpu, UiSettings.Load(directory).OcrDevice);
 
             File.WriteAllText(UiSettings.PathFor(directory), "not json");
             Assert.False(UiSettings.Load(directory).ShowRecognizeButton);
@@ -1058,7 +1064,7 @@ public sealed class MainFormTests
     {
         using var dialog = new SettingsForm(new UiSettings(false));
         RadioButton[] radios = Descendants(dialog).OfType<RadioButton>().ToArray();
-        Assert.Equal(2, radios.Length);
+        Assert.Equal(4, radios.Length);
         Assert.True(Assert.Single(radios, radio => radio.Name == "retryUsesLocalOcr").Checked);
         Assert.False(Assert.Single(radios, radio => radio.Name == "retryUsesCloudOcr").Checked);
 
@@ -1069,6 +1075,108 @@ public sealed class MainFormTests
 
         Assert.Equal(DialogResult.OK, dialog.DialogResult);
         Assert.False(dialog.Result.RetryUsesLocalOcr);
+    }
+
+    [Fact]
+    public void SettingsDialogReturnsTheChosenLocalOcrDevice()
+    {
+        using var dialog = new SettingsForm(new UiSettings(false));
+        RadioButton[] radios = Descendants(dialog).OfType<RadioButton>().ToArray();
+        Assert.True(Assert.Single(radios, radio => radio.Name == "localOcrGpu").Checked);
+        Assert.False(Assert.Single(radios, radio => radio.Name == "localOcrCpu").Checked);
+
+        Assert.Single(radios, radio => radio.Name == "localOcrCpu").Checked = true;
+        Button save = Assert.Single(Descendants(dialog).OfType<Button>(), button => button.Text == "保存");
+        typeof(Control).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(save, [EventArgs.Empty]);
+
+        Assert.Equal(DialogResult.OK, dialog.DialogResult);
+        Assert.Equal(LocalOcrDevice.Cpu, dialog.Result.OcrDevice);
+    }
+
+    [Fact]
+    public void SettingsDialogHasRoomForAllOptionsAndActionButtons()
+    {
+        using var dialog = new SettingsForm(new UiSettings(false));
+        dialog.Show();
+        try
+        {
+            dialog.PerformLayout();
+
+            Assert.True(dialog.ClientSize.Width >= 520, $"Settings width {dialog.ClientSize.Width} is too narrow for the option text.");
+            Assert.True(dialog.ClientSize.Height >= 340, $"Settings height {dialog.ClientSize.Height} is too short for the hint and buttons.");
+
+            RadioButton[] radios = Descendants(dialog).OfType<RadioButton>().ToArray();
+            Assert.Equal(4, radios.Length);
+            Assert.All(radios, radio =>
+            {
+                Assert.True(radio.Visible && radio.Enabled, $"{radio.Name} must be visible and enabled.");
+                Assert.True(radio.Right <= radio.Parent!.ClientSize.Width, $"{radio.Name} text is clipped by its host.");
+                Assert.True(radio.Bottom <= radio.Parent!.ClientSize.Height, $"{radio.Name} is clipped vertically.");
+            });
+
+            Button[] buttons = Descendants(dialog).OfType<Button>().Where(button => button.Text is "保存" or "取消").ToArray();
+            Assert.Equal(2, buttons.Length);
+            Assert.All(buttons, button =>
+            {
+                Assert.True(button.Visible && button.Enabled, $"{button.Text} must be visible and enabled.");
+                Assert.True(button.Width >= 96 && button.Height >= 34, $"{button.Text} click target is too small.");
+                Assert.True(button.Right <= button.Parent!.ClientSize.Width && button.Bottom <= button.Parent.ClientSize.Height,
+                    $"{button.Text} is outside its host.");
+            });
+        }
+        finally
+        {
+            dialog.Close();
+        }
+    }
+
+    [Fact]
+    public void SettingsDialogOptionsDoNotOverlapEachOther()
+    {
+        using var dialog = new SettingsForm(new UiSettings(false));
+        dialog.Show();
+        try
+        {
+            dialog.PerformLayout();
+
+            foreach (Control host in Descendants(dialog).Where(control => control is Panel && control.Controls.OfType<RadioButton>().Any()))
+            {
+                RadioButton[] controls = host.Controls.OfType<RadioButton>().ToArray();
+                for (int index = 0; index < controls.Length; index++)
+                    for (int other = index + 1; other < controls.Length; other++)
+                        Assert.False(controls[index].Bounds.IntersectsWith(controls[other].Bounds),
+                            $"{controls[index].Name} overlaps {controls[other].Name}.");
+            }
+        }
+        finally
+        {
+            dialog.Close();
+        }
+    }
+
+    [Fact]
+    public void SettingsDialogRadioAndSaveButtonsRespondToClicks()
+    {
+        using var dialog = new SettingsForm(new UiSettings(false));
+        dialog.Show();
+        try
+        {
+            RadioButton cpu = Assert.Single(Descendants(dialog).OfType<RadioButton>(), radio => radio.Name == "localOcrCpu");
+            Button save = Assert.Single(Descendants(dialog).OfType<Button>(), button => button.Text == "保存");
+
+            cpu.PerformClick();
+            Assert.True(cpu.Checked);
+            save.PerformClick();
+
+            Assert.Equal(DialogResult.OK, dialog.DialogResult);
+            Assert.Equal(LocalOcrDevice.Cpu, dialog.Result.OcrDevice);
+        }
+        finally
+        {
+            if (!dialog.IsDisposed)
+                dialog.Close();
+        }
     }
 
     [Fact]

@@ -49,6 +49,33 @@ def _require_cuda(device: str) -> None:
         raise RuntimeError(f"未检测到可用的 NVIDIA CUDA 设备（当前设备：{current}）。")
 
 
+def _require_cpu() -> None:
+    import paddle
+
+    paddle_device = getattr(paddle, "device", None)
+    set_device = getattr(paddle_device, "set_device", None)
+    get_device = getattr(paddle_device, "get_device", None)
+    if set_device is None:
+        return
+    try:
+        set_device("cpu")
+        current = str(get_device()) if get_device is not None else "cpu"
+    except Exception as exc:
+        raise RuntimeError(f"无法启用 CPU：{exc}") from exc
+    if not current.lower().startswith("cpu"):
+        raise RuntimeError(f"当前设备不是 CPU（当前设备：{current}）。")
+
+
+def _configure_device(device: str) -> None:
+    normalized = device.strip().lower()
+    if normalized == "cpu":
+        _require_cpu()
+    elif normalized == "gpu:0":
+        _require_cuda(normalized)
+    else:
+        raise RuntimeError("本地 OCR 设备只支持 cpu 或 gpu:0。")
+
+
 def _configured_model_root() -> Path:
     configured_root = os.environ.get("OCR_NVIDIA_MODEL_DIR")
     return Path(configured_root) if configured_root else Path(__file__).resolve().parent.parent / "模型"
@@ -225,7 +252,7 @@ def main() -> int:
         return 2
 
     try:
-        _require_cuda(args.device)
+        _configure_device(args.device)
         detection_model, recognition_model = MODEL_NAMES[args.model]
         model_root = _prepare_model_root((detection_model, recognition_model))
         detection_dir = model_root / detection_model if (model_root / detection_model).is_dir() else None
@@ -253,7 +280,8 @@ def main() -> int:
             text_det_limit_type="max" if args.det_max_side else None,
         )
     except Exception as exc:
-        _write_error(args.output, f"无法初始化 NVIDIA CUDA PaddleOCR：{exc}")
+        backend = "NVIDIA CUDA" if args.device.lower() == "gpu:0" else "CPU"
+        _write_error(args.output, f"无法初始化{backend} PaddleOCR：{exc}")
         return 3
 
     with open(args.list, "r", encoding="utf-8") as source:
@@ -297,7 +325,12 @@ def main() -> int:
             results.append({"path": path, "texts": texts, "items": items})
         except Exception as exc:
             if "ConvertPirAttribute2RuntimeAttribute" in str(exc):
-                _write_error(args.output, "当前 CUDA PaddlePaddle 版本与运行时不兼容，请安装与项目匹配的 3.2.2 版。")
+                _write_error(args.output, "当前 PaddlePaddle 版本与运行时不兼容，请安装与项目匹配的 3.2.2 版。")
+                return 4
+            if args.device.lower() == "gpu:0" and any(
+                marker in str(exc).lower() for marker in ("cuda", "cudnn", "cublas", "cusolver", "cusparse", "gpu")
+            ):
+                _write_error(args.output, f"NVIDIA CUDA 运行失败，请在设置中手动切换 CPU：{exc}")
                 return 4
             results.append({"path": path, "texts": [], "items": [], "error": str(exc)})
         finally:

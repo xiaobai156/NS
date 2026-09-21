@@ -21,6 +21,17 @@ public sealed class PaddleScriptTests
     }
 
     [Fact]
+    public void SupportsBothConfiguredLocalOcrDevices()
+    {
+        string script = File.ReadAllText(ScriptPath);
+
+        Assert.Contains("normalized == \"cpu\"", script);
+        Assert.Contains("normalized == \"gpu:0\"", script);
+        Assert.Equal("gpu:0", PaddleLocalOcrClient.DeviceArgumentFor(LocalOcrDevice.Gpu));
+        Assert.Equal("cpu", PaddleLocalOcrClient.DeviceArgumentFor(LocalOcrDevice.Cpu));
+    }
+
+    [Fact]
     public void SupportsMediumModelForTheSeparateLocalPrimaryMode()
     {
         string script = File.ReadAllText(ScriptPath);

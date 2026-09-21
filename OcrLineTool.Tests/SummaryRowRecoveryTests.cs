@@ -1,9 +1,75 @@
 using OcrLineTool;
+using System.Diagnostics;
+using System.Drawing;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace OcrLineTool.Tests;
 
 public sealed class SummaryRowRecoveryTests
 {
+    [Theory]
+    [InlineData("summary", 1)]
+    [InlineData("summary", 2)]
+    [InlineData("issue", 1)]
+    [InlineData("issue", 2)]
+    [InlineData("numbers", 1)]
+    [InlineData("numbers", 2)]
+    [InlineData("right", 1)]
+    [InlineData("right", 2)]
+    public async Task RecoveryPropagatesDeviceFailureAndCancellationButKeepsOrdinaryMissing(string route, int failAt)
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "recovery-errors-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            string image = Path.Combine(folder, "sample.png");
+            using (var bitmap = new Bitmap(400, 400)) bitmap.Save(image);
+            var rule = Rules.Single(r => r.Id == "简单爱");
+            foreach (string kind in new[] { "cuda", "ordinary", "cancel" })
+            {
+                var runner = new RecoveryErrorRunner(route, failAt, kind);
+                var client = new PaddleLocalOcrClient(runner, Path.Combine(folder, kind + ".json"));
+                Task<SummaryRowRecoveryResult?> Call() => route switch
+                {
+                    "summary" => SummaryRowRecovery.TryRecoverAsync(client, image, rule, Rules, 1, null, default),
+                    "right" => SummaryRowRecovery.TryRecoverRightBlockIssueRowAsync(client, image, 257, 1, null, default),
+                    "numbers" => SummaryRowRecovery.TryRecoverIssueRowNumbersAsync(client, image, 257, rule, 1, null, default),
+                    _ => SummaryRowRecovery.TryRecoverIssueRowAsync(client, image, 257, 1, null, default)
+                };
+                if (kind == "cuda")
+                    Assert.Equal(PaddleLocalOcrClient.CudaUnavailableCode, (await Assert.ThrowsAsync<OcrException>(Call)).Code);
+                else if (kind == "cancel")
+                    await Assert.ThrowsAnyAsync<OperationCanceledException>(Call);
+                else
+                    Assert.Null(await Call());
+                Assert.Equal(failAt, runner.Calls);
+            }
+        }
+        finally { Directory.Delete(folder, true); }
+    }
+
+    private sealed class RecoveryErrorRunner(string route, int failAt, string kind) : IProcessRunner
+    {
+        public int Calls { get; private set; }
+        public Task<ProcessResult> RunAsync(ProcessStartInfo info, Action<string>? output, CancellationToken token)
+        {
+            if (++Calls == failAt)
+                throw kind switch
+                {
+                    "cuda" => new OcrException("GPU failed", PaddleLocalOcrClient.CudaUnavailableCode),
+                    "cancel" => new OperationCanceledException(),
+                    _ => new OcrException("image failed")
+                };
+            string Argument(string name) => Regex.Match(info.Arguments, name + " \"([^\"]+)\"").Groups[1].Value;
+            string path = File.ReadAllLines(Argument("--list")).Single();
+            string[] texts = route == "summary" ? ["简单爱 正正正", "陈思思 正正正"] : ["257期", "258期"];
+            var items = texts.Select((text, i) => new { text, box = new[] { 20, 100 + i * 50, 180, 24 }, confidence = 0.99, viewId = "original" });
+            File.WriteAllText(Argument("--output"), JsonSerializer.Serialize(new { results = new[] { new { path, texts, items } } }));
+            return Task.FromResult(new ProcessResult(true, 0, "", ""));
+        }
+    }
+
     private static IReadOnlyList<OcrRule> Rules => RuleCatalog.Load(Path.Combine(
         ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
 

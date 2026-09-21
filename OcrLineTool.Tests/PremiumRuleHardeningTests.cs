@@ -21,6 +21,8 @@ public sealed class PremiumRuleHardeningTests
         yield return ["翩翩公子肖", "公子杀一肖：雞 雞 雞 准！", "鸡"];
         yield return ["祥瑞阁", "01 02 03 04 05 06 07 08 10 11 12 13 14 15 16 17 19\n22 23 25 26 28 30 31 33 34 35 36 37 39 41 42 43 44\n45 47", "01 02 03 04 05 06 07 08 10 11 12 13 14 15 16 17 19 22 23 25 26 28 30 31 33 34 35 36 37 39 41 42 43 44 45 47"];
         yield return ["会员暴打", "会员九肖:狗龍雞馬虎羊鼠猴豬", "狗龙鸡马虎羊鼠猴猪"];
+        // 藏宝九肖：值是缺的那个方位本身（卡面印东/西/南 → 缺北肖），不做生肖换算。
+        yield return ["藏宝九肖", "藏宝库：东肖 西肖 南肖", "北肖"];
     }
 
     [Theory]
@@ -37,6 +39,67 @@ public sealed class PremiumRuleHardeningTests
             Assert.Equal(expected, RuleEngine.ExtractValue(lines, issue, rule));
             Assert.Null(RuleEngine.ExtractFinalValue(lines, issue + 2, rule));
         }
+    }
+
+    // 藏宝库【东西南北】付费版：每期印三个方位，取缺的那个方位（东西南北固定，用户确认）。
+    private static string[] TreasureCard(int issue, string directions) =>
+    [
+        "新澳 38 22 33 47 36 07 刷 30",
+        "262期开蛇雞狗猴羊鼠",
+        "藏宝库【东西南北】付费版",
+        "东：兔虎龙/西：鸡猴狗/南：马蛇羊/北：鼠猪牛",
+        $"{issue}期",
+        $"藏宝库：{directions}",
+        "开??",
+        $"{issue - 1}期",
+        "藏宝库：东肖 南肖 北肖",
+        "牛30中",
+    ];
+
+    // 方位值要能被分发校验接受（否则生肖分发会判格式非法、不分发）。
+    [Fact]
+    public void TreasureDirectionValuePassesTheDistributionValidation()
+    {
+        OcrRule rule = Rule("藏宝九肖");
+        Assert.True(RuleEngine.IsFormattedOutputValueValid(rule, "北肖"));
+        Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "北"));
+        Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "兔虎龙"));
+        Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "东肖 西肖 南肖"));
+    }
+
+    [Fact]
+    public void TreasureDirectionIsTheOneMissingOnTheTargetRow()
+    {        OcrRule rule = Rule("藏宝九肖");
+        Assert.Equal("北肖", RuleEngine.ExtractFinalValue(TreasureCard(263, "东肖 西肖 南肖"), 263, rule));
+        // 目标期是表格中间那行时，只按那一行算缺哪个方位。
+        Assert.Equal("西肖", RuleEngine.ExtractFinalValue(TreasureCard(262, "东肖 南肖 北肖"), 262, rule));
+        Assert.Equal("东肖", RuleEngine.ExtractFinalValue(TreasureCard(260, "西肖 南肖 北肖"), 260, rule));
+    }
+
+    [Fact]
+    public void TreasureDirectionStaysMissingWhenTheDirectionCountIsInvalid()
+    {
+        OcrRule rule = Rule("藏宝九肖");
+        // 只印两个方位 / 印了四个方位 / 同一方位重复 / 卡上没有本期
+        Assert.Null(RuleEngine.ExtractFinalValue(TreasureCard(263, "东肖 西肖"), 263, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(TreasureCard(263, "东肖 西肖 南肖 北肖"), 263, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(TreasureCard(263, "东肖 东肖 南肖"), 263, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(TreasureCard(263, "东肖 西肖 南肖"), 264, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(["藏宝库【东西南北】付费版", "263期", "藏宝库：开??"], 263, rule));
+    }
+
+    [Fact]
+    public void TreasureDirectionTreatsTwoDifferentAnswersForTheSameIssueAsAConflict()
+    {
+        string[] lines =
+        [
+            "藏宝库【东西南北】付费版", "263期", "藏宝库：东肖 西肖 南肖", "开??",
+            "263期", "藏宝库：西肖 南肖 北肖", "开??"
+        ];
+
+        Assert.Equal(
+            RuleExtractionStatus.Conflict,
+            RuleEngine.ExtractFinalResult(lines, 263, Rule("藏宝九肖")).Status);
     }
 
     [Theory]

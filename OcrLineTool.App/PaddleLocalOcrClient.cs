@@ -99,19 +99,29 @@ public sealed class PaddleLocalOcrClient
 
     private readonly string cachePath;
     private readonly IProcessRunner processRunner;
+    private readonly LocalOcrDevice device;
     private readonly Dictionary<string, string> imageErrors = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, OcrEvidence> imageEvidence = new(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyDictionary<string, string> LastImageErrors => imageErrors;
     public IReadOnlyDictionary<string, OcrEvidence> LastEvidence => imageEvidence;
 
     public PaddleLocalOcrClient()
-        : this(new SystemProcessRunner())
+        : this(new SystemProcessRunner(), null, LocalOcrDevice.Gpu)
     {
     }
 
-    internal PaddleLocalOcrClient(IProcessRunner processRunner, string? cachePath = null)
+    internal PaddleLocalOcrClient(LocalOcrDevice device)
+        : this(new SystemProcessRunner(), null, device)
+    {
+    }
+
+    internal PaddleLocalOcrClient(
+        IProcessRunner processRunner,
+        string? cachePath = null,
+        LocalOcrDevice device = LocalOcrDevice.Gpu)
     {
         this.processRunner = processRunner ?? throw new ArgumentNullException(nameof(processRunner));
+        this.device = device;
         this.cachePath = cachePath ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "OcrLineTool-NVIDIA-CUDA", "paddle-v6-cuda-cache.json");
@@ -141,7 +151,7 @@ public sealed class PaddleLocalOcrClient
 
         foreach (string path in imagePaths)
         {
-            string key = CacheKeyCore(path, titleRatio, detectionMaxSide, model, pipeline);
+            string key = CacheKeyCore(path, titleRatio, detectionMaxSide, model, pipeline, device);
             initialKeys[path] = key;
             if (cache.TryGetValue(key, out CacheEntry? entry))
             {
@@ -167,7 +177,7 @@ public sealed class PaddleLocalOcrClient
                 ResultFilePaths.RuntimeDirectory(AppContext.BaseDirectory),
                 "paddle_local_ocr.py");
             if (!File.Exists(scriptPath))
-                throw new OcrException("未找到 PaddleOCR 脚本，请重新发布软件。");
+                throw InfrastructureError("未找到 PaddleOCR 脚本，请重新发布软件。");
 
             string tempFolder = Path.Combine(Path.GetTempPath(), "OcrLineTool-NVIDIA-CUDA", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(tempFolder);
@@ -207,29 +217,35 @@ public sealed class PaddleLocalOcrClient
                         {
                             PropertyNameCaseInsensitive = true
                         }, cancellationToken)
-                            ?? throw new OcrException("PaddleOCR 没有返回结果。");
+                            ?? throw InfrastructureError("PaddleOCR 没有返回结果。");
                     }
                     catch (JsonException)
                     {
-                        throw new OcrException("PaddleOCR 返回格式异常。");
+                        throw InfrastructureError("PaddleOCR 返回格式异常。");
+                    }
+                    catch (IOException)
+                    {
+                        throw InfrastructureError("PaddleOCR 结果文件不可用。");
                     }
 
                     if (response.Error is not null)
-                        throw new OcrException(response.Error, ErrorCodeFor(response.Error));
+                        throw InfrastructureError(response.Error);
                     if (response.Results is null)
-                        throw new OcrException("PaddleOCR 返回结果缺少 results。");
+                        throw InfrastructureError("PaddleOCR 返回结果缺少 results。");
                     foreach (PaddleResult result in response.Results)
                     {
+                        if (result is null || string.IsNullOrWhiteSpace(result.Path))
+                            throw InfrastructureError("PaddleOCR 返回结果缺少图片路径。");
                         if (!initialKeys.TryGetValue(result.Path, out string? initialKey))
-                            throw new OcrException("PaddleOCR 返回了未请求的图片路径。", "OCR_PROTOCOL_ERROR");
+                            throw InfrastructureError("PaddleOCR 返回了未请求的图片路径。");
                         if (!string.IsNullOrWhiteSpace(result.Error))
                         {
                             imageErrors[result.Path] = result.Error;
-                            if (ErrorCodeFor(result.Error) == CudaUnavailableCode)
+                            if (device == LocalOcrDevice.Gpu && ErrorCodeFor(result.Error) == CudaUnavailableCode)
                                 throw new OcrException(result.Error, CudaUnavailableCode);
                             continue;
                         }
-                        string key = CacheKeyCore(result.Path, titleRatio, detectionMaxSide, model, pipeline);
+                        string key = CacheKeyCore(result.Path, titleRatio, detectionMaxSide, model, pipeline, device);
                         if (key != initialKey)
                         {
                             imageErrors[result.Path] = "图片在识别过程中发生变化，请重新识别。";
@@ -293,7 +309,7 @@ public sealed class PaddleLocalOcrClient
 
         if (result.ExitCode != 0)
             throw new OcrException(
-                "未检测到可用的 NVIDIA CUDA 设备；请安装 RTX 2070 SUPER 驱动后再进行本地识别。",
+                "未检测到可用的 NVIDIA CUDA 设备；请在“设置”中手动切换 CPU，或修复 NVIDIA 驱动后重试。",
                 CudaUnavailableCode);
     }
 
@@ -317,7 +333,7 @@ public sealed class PaddleLocalOcrClient
         var startInfo = new ProcessStartInfo
         {
             FileName = PythonExecutable(),
-            Arguments = $"-u {Quote(scriptPath)} --list {Quote(listPath)} --output {Quote(outputPath)} --cpu-threads {cpuThreads} --device {CudaDevice} --top-ratio {titleRatio.ToString(CultureInfo.InvariantCulture)} --model {modelArgument}{detectionArgument}",
+            Arguments = $"-u {Quote(scriptPath)} --list {Quote(listPath)} --output {Quote(outputPath)} --cpu-threads {cpuThreads} --device {DeviceArgumentFor(device)} --top-ratio {titleRatio.ToString(CultureInfo.InvariantCulture)} --model {modelArgument}{detectionArgument}",
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,
@@ -342,11 +358,11 @@ public sealed class PaddleLocalOcrClient
         }
         catch (Win32Exception)
         {
-            throw new OcrException("未找到 Python，无法运行 PaddleOCR。");
+            throw InfrastructureError("未找到 Python，无法运行 PaddleOCR。");
         }
 
         if (!result.Started)
-            throw new OcrException("无法启动本机 Python/PaddleOCR。");
+            throw InfrastructureError("无法启动本机 Python/PaddleOCR。");
 
         if (result.ExitCode != 0)
         {
@@ -357,17 +373,18 @@ public sealed class PaddleLocalOcrClient
                 try
                 {
                     using JsonDocument document = JsonDocument.Parse(await File.ReadAllTextAsync(outputPath, cancellationToken));
-                    if (document.RootElement.TryGetProperty("error", out JsonElement error) &&
+                    if (document.RootElement.ValueKind == JsonValueKind.Object &&
+                        document.RootElement.TryGetProperty("error", out JsonElement error) &&
                         error.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(error.GetString()))
                     {
                         string message = error.GetString()!;
-                        throw new OcrException(message, ErrorCodeFor(message));
+                        throw InfrastructureError(message);
                     }
                 }
                 catch (JsonException) { }
                 catch (IOException) { }
             }
-            throw new OcrException($"PaddleOCR 执行失败（代码 {result.ExitCode}）。");
+            throw InfrastructureError($"PaddleOCR 执行失败（代码 {result.ExitCode}）。");
         }
     }
 
@@ -460,9 +477,21 @@ public sealed class PaddleLocalOcrClient
     public static bool IsCudaUnavailable(OcrException exception) =>
         exception.Code == CudaUnavailableCode;
 
+    internal static string DeviceArgumentFor(LocalOcrDevice device) =>
+        device == LocalOcrDevice.Cpu ? "cpu" : CudaDevice;
+
+    // Worker-level failures are not image misses and must never trigger GPU cloud fallback.
+    private OcrException InfrastructureError(string message) =>
+        new(message, device == LocalOcrDevice.Gpu ? CudaUnavailableCode : null);
+
     public static string? ErrorCodeFor(string message) =>
         message.Contains("CUDA", StringComparison.OrdinalIgnoreCase) ||
-        message.Contains("NVIDIA GPU", StringComparison.OrdinalIgnoreCase)
+        message.Contains("cuDNN", StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("cuBLAS", StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("cuSOLVER", StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("cuSPARSE", StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("GPU", StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("ConvertPirAttribute2RuntimeAttribute", StringComparison.Ordinal)
             ? CudaUnavailableCode
             : null;
 
@@ -482,12 +511,22 @@ public sealed class PaddleLocalOcrClient
         CacheKeyForModel(path, titleRatio, detectionMaxSide, PaddleOcrModel.Small);
 
     private static string CacheKeyForModel(string path, double titleRatio, int? detectionMaxSide, PaddleOcrModel model) =>
-        CacheKeyCore(path, titleRatio, detectionMaxSide, model, LocalOcrIdentity.Pipeline(model));
+        CacheKeyCore(path, titleRatio, detectionMaxSide, model, LocalOcrIdentity.Pipeline(model), LocalOcrDevice.Gpu);
 
     private static string CacheKeyCore(string path, double titleRatio, int? detectionMaxSide, PaddleOcrModel model, string pipeline)
+        => CacheKeyCore(path, titleRatio, detectionMaxSide, model, pipeline, LocalOcrDevice.Gpu);
+
+    private static string CacheKeyCore(
+        string path,
+        double titleRatio,
+        int? detectionMaxSide,
+        PaddleOcrModel model,
+        string pipeline,
+        LocalOcrDevice device)
     {
         FileInfo file = new(path);
-        string key = $"backend=cuda|device={CudaDevice}|{path}|{file.Length}|{file.LastWriteTimeUtc.Ticks}|top={titleRatio.ToString(CultureInfo.InvariantCulture)}";
+        string backend = device == LocalOcrDevice.Cpu ? "cpu" : "cuda";
+        string key = $"backend={backend}|device={DeviceArgumentFor(device)}|{path}|{file.Length}|{file.LastWriteTimeUtc.Ticks}|top={titleRatio.ToString(CultureInfo.InvariantCulture)}";
         key += $"|sha256={LocalOcrIdentity.Image(path)}|pipeline={pipeline}";
         if (model != PaddleOcrModel.Small)
             key += $"|model={model.ToString().ToLowerInvariant()}";

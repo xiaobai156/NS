@@ -143,6 +143,22 @@ public sealed class AuditPipelineRegressionTests
     }
 
     [Fact]
+    public async Task CpuClientPassesCpuDeviceToPaddleWorker()
+    {
+        using var files = new TemporaryFiles();
+        string image = files.File("image.png", "test");
+        var runner = new CapturingRunner();
+        var client = new PaddleLocalOcrClient(
+            runner, Path.Combine(files.Root, "cache.json"), LocalOcrDevice.Cpu);
+
+        IReadOnlyDictionary<string, IReadOnlyList<string>> results =
+            await client.RecognizeBatchAsync([image], useCache: false);
+
+        Assert.Contains("--device cpu", runner.Arguments);
+        Assert.Equal(new[] { "ok" }, results[image]);
+    }
+
+    [Fact]
     public void OnlyConfiguredSecretSlotsAreRequired()
     {
         using var files = new TemporaryFiles();
@@ -183,6 +199,26 @@ public sealed class AuditPipelineRegressionTests
             string path = System.Text.RegularExpressions.Regex.Match(startInfo.Arguments, "--output \"(?<path>[^\"]+)\"").Groups["path"].Value;
             System.IO.File.WriteAllText(path, JsonSerializer.Serialize(new { error = "无法启用 NVIDIA CUDA 设备" }));
             return Task.FromResult(new ProcessResult(true, 3, "", ""));
+        }
+    }
+
+    private sealed class CapturingRunner : IProcessRunner
+    {
+        internal string Arguments { get; private set; } = string.Empty;
+
+        public Task<ProcessResult> RunAsync(ProcessStartInfo startInfo, Action<string>? output, CancellationToken cancellationToken)
+        {
+            Arguments = startInfo.Arguments;
+            string listPath = System.Text.RegularExpressions.Regex.Match(
+                startInfo.Arguments, "--list \\\"(?<path>[^\\\"]+)\\\"").Groups["path"].Value;
+            string outputPath = System.Text.RegularExpressions.Regex.Match(
+                startInfo.Arguments, "--output \\\"(?<path>[^\\\"]+)\\\"").Groups["path"].Value;
+            string image = System.IO.File.ReadAllLines(listPath).Single();
+            System.IO.File.WriteAllText(outputPath, JsonSerializer.Serialize(new
+            {
+                results = new[] { new { path = image, texts = new[] { "ok" }, items = Array.Empty<object>() } }
+            }));
+            return Task.FromResult(new ProcessResult(true, 0, "", ""));
         }
     }
 

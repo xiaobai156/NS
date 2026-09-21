@@ -2091,6 +2091,9 @@ public static class RuleEngine
         string? verticalZodiac = ExtractVerticalIssueZodiac(lines, issue, rule);
         if (verticalZodiac is not null)
             return verticalZodiac;
+        string? treasureDirection = ExtractTreasureMissingDirection(lines, issue, rule);
+        if (treasureDirection is not null)
+            return treasureDirection;
         // Do not infer a centred/split row from page-level leading numbers.
         // Reviewed wrapped cards are handled below by TryExtractWrappedCardRow,
         // which consumes explicit neighbouring physical rows instead of TakeLast
@@ -2277,6 +2280,42 @@ public static class RuleEngine
             }
             yield return lines[index];
         }
+    }
+
+    private static readonly string[] TreasureDirections = ["东", "西", "南", "北"];
+
+    // 藏宝库【东西南北】付费版（新澳高级会员「藏宝九肖」专属）：卡面每期只印三个方位
+    // （东肖/西肖/南肖/北肖），这里只取**缺的那个方位**本身（如“北肖”），不做生肖换算；
+    // 方位固定就是 东西南北（用户确认）。本期必须恰好印三个不同方位，多/少/重复一律缺失；
+    // 同期在图上出现多次（表头“263期开…”、数据行“263期”）时只认形状完整的切片，
+    // 两个不同的完整答案按冲突处理。
+    private static string? ExtractTreasureMissingDirection(string[] lines, int issue, OcrRule rule)
+    {
+        if (rule.Id != "藏宝九肖")
+            return null;
+
+        string compact = Regex.Replace(
+            SimplifyOcrText(string.Concat(lines)), @"[\s/／|｜、,，]+", string.Empty);
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (Match candidate in Regex.Matches(compact, $@"(?<!\d){issue}期"))
+        {
+            int start = candidate.Index + candidate.Length;
+            Match nextPeriod = Regex.Match(compact[start..], @"(?<!\d)\d{3}期");
+            string row = compact[start..(nextPeriod.Success ? start + nextPeriod.Index : compact.Length)];
+            MatchCollection printed = Regex.Matches(row, "[东西南北]肖");
+            if (printed.Count != 3)
+                continue;
+            string[] directions = printed.Select(match => match.Value[..1]).ToArray();
+            if (directions.Distinct(StringComparer.Ordinal).Count() != 3)
+                continue;
+            observed.Add(TreasureDirections.Single(direction => !directions.Contains(direction)) + "肖");
+        }
+        return observed.Count switch
+        {
+            0 => null,
+            1 => observed.Single(),
+            _ => ConflictMarker
+        };
     }
 
     private static string? ExtractVerticalIssueZodiac(string[] lines, int issue, OcrRule rule)
@@ -2889,6 +2928,9 @@ public static class RuleEngine
             return value.Length == 2 && value.All(Zodiac.Contains) && value.Distinct().Count() == 2;
         if (rule.Type == "九肖")
             return value.Length == 9 && value.All(Zodiac.Contains) && value.Distinct().Count() == 9;
+        // 方位型资料（藏宝九肖）：值是缺的那个方位本身，不做生肖换算。
+        if (rule.Type == "方位")
+            return Regex.IsMatch(value, "^[东西南北]肖$");
         if (rule.Type == "统计生肖")
             return value.Length > 0 && value.Length <= Zodiac.Length && value.All(Zodiac.Contains)
                 && value.Distinct().Count() == value.Length;

@@ -115,12 +115,15 @@ public sealed class MainForm : Form
     private ResultValues lastValues = new(StringComparer.Ordinal);
     private Dictionary<string, string> lastMissingReasons = new(StringComparer.Ordinal);
     private HashSet<string> lastTextRecognizedRuleIds = new(StringComparer.Ordinal);
+    // 群结果 TXT 里已经有值（多半是手工改过）的规则：复抓要跳过它们。
+    private HashSet<string> lastConcludedValueRuleIds = new(StringComparer.Ordinal);
     private Dictionary<string, IReadOnlyList<string>> lastCloudOcrResults = new(StringComparer.OrdinalIgnoreCase);
     private ResultEvidenceLedger lastEvidenceLedger = new();
     private int lastIssue;
     private bool isBusy;
     private bool showRecognizeButton;
     private bool retryUsesLocalOcr;
+    private LocalOcrDevice ocrDevice;
     private TableLayoutPanel? settingsContent;
     private bool closeWhenIdle;
     private CancellationTokenSource? activeCancellation;
@@ -173,6 +176,7 @@ public sealed class MainForm : Form
         UiSettings initialSettings = UiSettings.Load(AppContext.BaseDirectory);
         ApplyShowRecognizeButton(initialSettings.ShowRecognizeButton);
         retryUsesLocalOcr = initialSettings.RetryUsesLocalOcr;
+        ocrDevice = initialSettings.OcrDevice;
 
         folderList.Click += SelectFolderListItem;
         recognizeButton.Click += RecognizeImagesAsync;
@@ -982,8 +986,9 @@ public sealed class MainForm : Form
         {
             RefreshImagesForRetry();
             if (imagePaths.Length == 0) throw new OcrException("所选目录没有可识别图片。");
-            var localClient = new PaddleLocalOcrClient();
-            await localClient.EnsureCudaAvailableAsync(ActiveToken);
+            var localClient = new PaddleLocalOcrClient(ocrDevice);
+            if (ocrDevice == LocalOcrDevice.Gpu)
+                await localClient.EnsureCudaAvailableAsync(ActiveToken);
 
             IReadOnlyList<OcrRule> rules = RuleCatalog.Load(selectedRulePath
                 ?? throw new OcrException("请先选择要读取的子文件夹。"));
@@ -1384,6 +1389,11 @@ public sealed class MainForm : Form
         catch (OperationCanceledException)
         {
             statusLabel.Text = "识别已取消；未完成结果不会自动分流。";
+        }
+        catch (OcrException exception) when (PaddleLocalOcrClient.IsCudaUnavailable(exception))
+        {
+            statusLabel.Text = "GPU 本地 OCR 不可用，请在“设置”中手动切换 CPU。";
+            MessageBox.Show(this, exception.Message, "GPU 不可用", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
         catch (OcrException exception)
         {
@@ -1827,6 +1837,11 @@ public sealed class MainForm : Form
         {
             statusLabel.Text = "识别已取消；未完成结果不会自动分流。";
         }
+        catch (OcrException exception) when (PaddleLocalOcrClient.IsCudaUnavailable(exception))
+        {
+            statusLabel.Text = "GPU 本地 OCR 不可用，请在“设置”中手动切换 CPU。";
+            MessageBox.Show(this, exception.Message, "GPU 不可用", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
         catch (OcrException exception)
         {
             statusLabel.Text = "识别失败。";
@@ -1963,7 +1978,7 @@ public sealed class MainForm : Form
         int issue,
         CancellationToken cancellationToken)
     {
-        var client = new PaddleLocalOcrClient();
+        var client = new PaddleLocalOcrClient(ocrDevice);
         string[] retryRuleIds = candidates
             .SelectMany(candidate => candidate.Rules)
             .Select(rule => rule.Id)
@@ -1998,6 +2013,10 @@ public sealed class MainForm : Form
                     useCache: true,
                     cancellationToken: cancellationToken,
                     model: PaddleOcrModels.LocalPrimary);
+            }
+            catch (OcrException exception) when (PaddleLocalOcrClient.IsCudaUnavailable(exception))
+            {
+                throw;
             }
             catch (OcrException)
             {
@@ -2087,7 +2106,15 @@ public sealed class MainForm : Form
         try
         {
             RefreshImagesForRetry();
-            OcrRule[] missingRules = lastRules.Where(rule => !lastValues.ContainsKey(rule.Id)).ToArray();
+            string groupOutputPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, selectedImageDirectory!, lastIssue);
+            // 你手工改过的条目（TXT 里已经是值、不再是"缺失"）本轮完全不碰。
+            IReadOnlyDictionary<string, string> concludedLines = RefreshConcludedValueLines(groupOutputPath);
+            OcrRule[] missingRules = GroupResultFormatter.MissingRetryRules(lastRules, lastValues.Keys, concludedLines);
+            if (missingRules.Length == 0)
+            {
+                statusLabel.Text = "没有需要复抓的条目：TXT 里的缺失行都已被手动改过，本次未改动任何文件。";
+                return;
+            }
             string groupName = RuleCatalog.GroupNameForFolder(AppContext.BaseDirectory, selectedImageDirectory!);
             // Revalidate disk/image identity; structured cache entries retain the
             // exact source hash and OCR evidence. Known conflicts stay sticky.
@@ -2317,7 +2344,6 @@ public sealed class MainForm : Form
                 lastRules, lastValues, lastEvidenceLedger, lastMissingReasons);
             string[] outputLines = RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons);
             ResultFilePaths.EnsureOutputDirectories(AppContext.BaseDirectory);
-            string groupOutputPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, selectedImageDirectory!, lastIssue);
             RecognitionStateStore.RecognitionStateSaveOutcome saveOutcome =
                 await RecognitionStateStore.SaveAsync(
                     AppContext.BaseDirectory, selectedImageDirectory!, lastIssue, lastRules, lastValues, lastEvidenceLedger, ActiveToken);
@@ -2329,12 +2355,21 @@ public sealed class MainForm : Form
             }
             string[] groupLines = GroupResultFormatter.Format(
                 lastRules,
-                PreserveDistributedMarkers(groupOutputPath, outputLines));
+                PreserveDistributedMarkers(
+                    groupOutputPath,
+                    GroupResultFormatter.ReapplyConcludedValueLines(outputLines, lastRules, concludedLines)));
             await AtomicFile.WriteAllLinesAsync(groupOutputPath, groupLines, new UTF8Encoding(true));
             LogMissingDetails(
-                "手动复抓缺失", groupName, lastIssue, lastRules, lastValues, selection.Candidates, lastMissingReasons);
+                "手动复抓缺失",
+                groupName,
+                lastIssue,
+                lastRules.Where(rule => !concludedLines.ContainsKey(rule.Id)).ToArray(),
+                lastValues,
+                selection.Candidates,
+                lastMissingReasons);
             resultsBox.Text = string.Join(Environment.NewLine, groupLines);
-            int remaining = lastRules.Count(rule => !lastValues.ContainsKey(rule.Id));
+            int remaining = lastRules.Count(rule =>
+                !lastValues.ContainsKey(rule.Id) && !concludedLines.ContainsKey(rule.Id));
             statusLabel.Text = selection.Candidates.Count == 0
                 ? $"复抓未找到 {missingRules.Length} 条缺失项对应的图片，缺失原因已更新；已写群结果（未自动分流）。TXT：{groupOutputPath}"
                 : retryUsesLocalOcr
@@ -2344,6 +2379,10 @@ public sealed class MainForm : Form
         catch (OperationCanceledException)
         {
             statusLabel.Text = "识别已取消；未完成结果不会自动分流。";
+        }
+        catch (OcrException exception) when (PaddleLocalOcrClient.IsCudaUnavailable(exception))
+        {
+            statusLabel.Text = "GPU 本地 OCR 不可用，请在“设置”中手动切换 CPU。";
         }
         catch (OcrException exception)
         {
@@ -2495,6 +2534,10 @@ public sealed class MainForm : Form
                 model: PaddleOcrModels.LocalPrimary,
                 cancellationToken: ActiveToken);
         }
+        catch (OcrException exception) when (PaddleLocalOcrClient.IsCudaUnavailable(exception))
+        {
+            throw;
+        }
         catch (OcrException)
         {
             return;
@@ -2557,7 +2600,7 @@ public sealed class MainForm : Form
             && issueRowNumberRules.Length == 0 && rightBlockRules.Length == 0)
             return;
 
-        var client = new PaddleLocalOcrClient();
+        var client = new PaddleLocalOcrClient(ocrDevice);
         double titleRatio = PaddleLocalOcrClient.TitleRatioFor(selectedImageDirectory);
         int? detectionMaxSide = PaddleLocalOcrClient.DetectionMaxSideFor(selectedImageDirectory);
         foreach (OcrRule rule in recoverable)
@@ -2576,6 +2619,11 @@ public sealed class MainForm : Form
                     candidate.SourcePath, recovered.StripLines, "summary-row-strip");
                 evidenceLedger.Observe(values, rule, recovered.Value, evidence);
                 missingReasons.Remove(rule.Id);
+            }
+            catch (Exception exception) when (exception is OcrException cuda
+                && PaddleLocalOcrClient.IsCudaUnavailable(cuda))
+            {
+                throw;
             }
             catch (Exception exception) when (exception is OcrException
                 or IOException
@@ -2609,6 +2657,11 @@ public sealed class MainForm : Form
                 evidenceLedger.Observe(values, rule, recovered.Value, evidence);
                 missingReasons.Remove(rule.Id);
             }
+            catch (Exception exception) when (exception is OcrException cuda
+                && PaddleLocalOcrClient.IsCudaUnavailable(cuda))
+            {
+                throw;
+            }
             catch (Exception exception) when (exception is OcrException
                 or IOException
                 or UnauthorizedAccessException)
@@ -2641,6 +2694,11 @@ public sealed class MainForm : Form
                 evidenceLedger.Observe(values, rule, recovered.Value, evidence);
                 missingReasons.Remove(rule.Id);
             }
+            catch (Exception exception) when (exception is OcrException cuda
+                && PaddleLocalOcrClient.IsCudaUnavailable(cuda))
+            {
+                throw;
+            }
             catch (Exception exception) when (exception is OcrException
                 or IOException
                 or UnauthorizedAccessException)
@@ -2669,6 +2727,11 @@ public sealed class MainForm : Form
                     candidate.SourcePath, recovered.StripLines, "right-block-strip");
                 evidenceLedger.Observe(values, rule, recovered.Value, evidence);
                 missingReasons.Remove(rule.Id);
+            }
+            catch (Exception exception) when (exception is OcrException cuda
+                && PaddleLocalOcrClient.IsCudaUnavailable(cuda))
+            {
+                throw;
             }
             catch (Exception exception) when (exception is OcrException
                 or IOException
@@ -2885,10 +2948,31 @@ public sealed class MainForm : Form
             || !string.IsNullOrWhiteSpace(rule.Folder) && folders.Contains(rule.Folder!)).ToArray();
     }
 
+    // 群结果 TXT 里已经有值的行：说明这些条目已有结论（多半是你手工改的），
+    // 复抓跳过它们、统计也不再算缺失。读不到 TXT 时返回空表，行为回退到"按结构状态复抓"。
+    private IReadOnlyDictionary<string, string> RefreshConcludedValueLines(string groupOutputPath)
+    {
+        lastConcludedValueRuleIds = new HashSet<string>(StringComparer.Ordinal);
+        if (!File.Exists(groupOutputPath))
+            return new Dictionary<string, string>(StringComparer.Ordinal);
+        try
+        {
+            Dictionary<string, string> concluded = GroupResultFormatter.ReadConcludedValueLines(
+                File.ReadAllLines(groupOutputPath, Encoding.UTF8), lastRules);
+            lastConcludedValueRuleIds.UnionWith(concluded.Keys);
+            return concluded;
+        }
+        catch (IOException)
+        {
+            return new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+    }
+
     private bool CanRetryMissing() =>
         selectedImageDirectory is not null
         && Decimal.ToInt32(issueInput.Value) == lastIssue
-        && lastRules.Any(rule => !lastValues.ContainsKey(rule.Id));
+        && lastRules.Any(rule =>
+            !lastValues.ContainsKey(rule.Id) && !lastConcludedValueRuleIds.Contains(rule.Id));
 
     private bool CanManualDistribute() =>
         selectedImageDirectory is not null
@@ -2934,6 +3018,7 @@ public sealed class MainForm : Form
         lastRules = rules;
         lastMissingReasons = new Dictionary<string, string>(StringComparer.Ordinal);
         lastTextRecognizedRuleIds = new HashSet<string>(StringComparer.Ordinal);
+        lastConcludedValueRuleIds = new HashSet<string>(StringComparer.Ordinal);
         lastCloudOcrResults = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         lastIssue = Decimal.ToInt32(issueInput.Value);
 
@@ -2969,6 +3054,8 @@ public sealed class MainForm : Form
 
             if (lastValues.ContainsKey(rule.Id))
                 continue; // Structured state, not the TXT text, is the trusted source.
+            // TXT 里这一行已经是值（多半是你手工改的）：算你已处理，复抓不再动它。
+            lastConcludedValueRuleIds.Add(rule.Id);
             lastMissingReasons[rule.Id] = RuleEngine.IsFormattedOutputValueValid(rule, value)
                 ? "保存TXT仅用于展示，未找到有效来源状态"
                 : "保存结果未通过当前规则校验";
@@ -3046,7 +3133,7 @@ public sealed class MainForm : Form
                         statusLabel.Text = $"标题模板：{item.Completed}/{item.Total}（{percent}%） · 当前：{ShortPath(item.Path)} · 已用 {FormatDuration(watch.Elapsed)}";
                     });
                     IReadOnlyList<VisualTemplateMatch> matches = await Task.Run(() =>
-                        VisualTemplateMatcher.Match(imagePaths, templates, catalog.MaxDistance, progress)
+                        VisualTemplateMatcher.Match(imagePaths, templates, catalog.MaxDistance, progress, ocrDevice)
                             .Where(match => match.Template.RuleIds.All(ruleMap.ContainsKey))
                             .ToArray());
                     bool hasCompleteTemplateMatches = VisualTemplateMatcher.HasUsableMatches(
@@ -3117,7 +3204,7 @@ public sealed class MainForm : Form
                 }
                 catch (OcrException exception)
                 {
-                    if (deferUnmatchedTemplates)
+                    if (deferUnmatchedTemplates || PaddleLocalOcrClient.IsCudaUnavailable(exception))
                         throw;
                     statusLabel.Text = $"标题模板不可用（{exception.Message}），正在回退本地 OCR……";
                 }
@@ -3148,7 +3235,7 @@ public sealed class MainForm : Form
         if (localLimitedRuleIds is not null && rules.All(rule => localLimitedRuleIds.Contains(rule.Id)))
             localImagePaths = imagePaths.Take(60).ToArray();
 
-        var localClient = new PaddleLocalOcrClient();
+        var localClient = new PaddleLocalOcrClient(ocrDevice);
         IReadOnlyDictionary<string, IReadOnlyList<string>> localResults =
             await localClient.RecognizeBatchAsync(
                 localImagePaths,
@@ -3422,7 +3509,7 @@ public sealed class MainForm : Form
 
     private void OpenSettings(object? sender, EventArgs e)
     {
-        using var dialog = new SettingsForm(new UiSettings(showRecognizeButton, retryUsesLocalOcr));
+        using var dialog = new SettingsForm(new UiSettings(showRecognizeButton, retryUsesLocalOcr, ocrDevice));
         if (dialog.ShowDialog(this) != DialogResult.OK)
             return;
 
@@ -3439,9 +3526,11 @@ public sealed class MainForm : Form
 
         ApplyShowRecognizeButton(dialog.Result.ShowRecognizeButton);
         retryUsesLocalOcr = dialog.Result.RetryUsesLocalOcr;
+        ocrDevice = dialog.Result.OcrDevice;
+        string deviceName = ocrDevice == LocalOcrDevice.Gpu ? "GPU" : "CPU";
         statusLabel.Text = showRecognizeButton
-            ? $"已显示“开始识别”按钮；手动复抓使用{(retryUsesLocalOcr ? "本地 OCR" : "云 OCR")}。"
-            : $"已隐藏“开始识别”按钮；手动复抓使用{(retryUsesLocalOcr ? "本地 OCR" : "云 OCR")}。";
+            ? $"已显示“开始识别”按钮；本地 OCR 使用{deviceName}，手动复抓使用{(retryUsesLocalOcr ? "本地 OCR" : "云 OCR")}。"
+            : $"已隐藏“开始识别”按钮；本地 OCR 使用{deviceName}，手动复抓使用{(retryUsesLocalOcr ? "本地 OCR" : "云 OCR")}。";
     }
 
     internal void ApplyShowRecognizeButton(bool visible)

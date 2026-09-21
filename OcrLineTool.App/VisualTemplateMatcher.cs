@@ -123,40 +123,42 @@ public static class VisualTemplateMatcher
         }
     }
 
-    public static string CreateFingerprint(string imagePath, double verticalShiftWidthRatio = 0)
-    {
-        using var image = new Bitmap(imagePath);
-        return CreateCudaFingerprint(image, TitleTopWidthRatio, TitleBottomWidthRatio, verticalShiftWidthRatio);
-    }
+    public static string CreateFingerprint(string imagePath, double verticalShiftWidthRatio = 0,
+        LocalOcrDevice device = LocalOcrDevice.Gpu) =>
+        CreateFingerprint(imagePath, TitleTopWidthRatio, TitleBottomWidthRatio, verticalShiftWidthRatio, device);
 
     public static string CreateFingerprint(
         string imagePath,
         double fingerprintTopWidthRatio,
         double fingerprintBottomWidthRatio,
-        double verticalShiftWidthRatio = 0)
+        double verticalShiftWidthRatio = 0,
+        LocalOcrDevice device = LocalOcrDevice.Gpu)
     {
         FingerprintRegion region = CreateRegion(
             fingerprintTopWidthRatio, fingerprintBottomWidthRatio);
         using var image = new Bitmap(imagePath);
-        return CreateCudaFingerprint(image, region.Top, region.Bottom, verticalShiftWidthRatio);
+        ulong[] hash = CreateFingerprints(image, region, [verticalShiftWidthRatio], device)[0];
+        return string.Concat(hash.Select(value => value.ToString("X16")));
     }
 
     public static IReadOnlyList<VisualTemplateMatch> Match(
         IReadOnlyList<string> imagePaths,
         IReadOnlyList<VisualTemplateDefinition> templates,
         int maxDistance,
-        IProgress<VisualTemplateProgress>? progress = null) =>
+        IProgress<VisualTemplateProgress>? progress = null,
+        LocalOcrDevice device = LocalOcrDevice.Gpu) =>
         Match(
             imagePaths,
             templates,
             maxDistance,
             template => ResolveRegion(template, null, null),
-            progress);
+            progress, device);
 
     public static IReadOnlyList<VisualTemplateMatch> Match(
         IReadOnlyList<string> imagePaths,
         VisualTemplateSet catalog,
-        IProgress<VisualTemplateProgress>? progress = null) =>
+        IProgress<VisualTemplateProgress>? progress = null,
+        LocalOcrDevice device = LocalOcrDevice.Gpu) =>
         Match(
             imagePaths,
             catalog.Templates,
@@ -165,7 +167,7 @@ public static class VisualTemplateMatcher
                 template,
                 catalog.FingerprintTopWidthRatio,
                 catalog.FingerprintBottomWidthRatio),
-            progress);
+            progress, device);
 
     public static bool HasUsableMatches(
         IReadOnlyList<VisualTemplateMatch> matches,
@@ -258,7 +260,8 @@ public static class VisualTemplateMatcher
         IReadOnlyList<VisualTemplateDefinition> templates,
         int maxDistance,
         Func<VisualTemplateDefinition, FingerprintRegion> regionSelector,
-        IProgress<VisualTemplateProgress>? progress)
+        IProgress<VisualTemplateProgress>? progress,
+        LocalOcrDevice device)
     {
         if (imagePaths.Count == 0 || templates.Count == 0)
             return [];
@@ -268,29 +271,38 @@ public static class VisualTemplateMatcher
         FingerprintRegion[] regions = templateRegions.Distinct().ToArray();
         var imageHashes = new (string Path, string SourceHash, Dictionary<FingerprintRegion, ulong[][]> Hashes)[imagePaths.Count];
         int completed = 0;
-        Parallel.For(0, imagePaths.Count, index =>
+        try
         {
-            string path = imagePaths[index];
-            try
+            Parallel.For(0, imagePaths.Count, index =>
             {
-                // Fingerprint and source identity must be derived from the exact
-                // same bytes. Otherwise a same-path replacement between matching
-                // and cropping could bind template A's location to image B.
-                byte[] bytes = File.ReadAllBytes(path);
-                string sourceHash = Convert.ToHexString(SHA256.HashData(bytes));
-                using var stream = new MemoryStream(bytes, writable: false);
-                using var image = new Bitmap(stream);
-                imageHashes[index] = (path, sourceHash, regions.ToDictionary(
-                    region => region,
-                    region => CreateCudaFingerprints(image, region)));
-            }
-            catch (Exception exception) when (exception is ArgumentException or IOException)
-            {
-                imageHashes[index] = (path, string.Empty, []);
-            }
-            int current = Interlocked.Increment(ref completed);
-            progress?.Report(new VisualTemplateProgress(current, imagePaths.Count, path));
-        });
+                string path = imagePaths[index];
+                try
+                {
+                    // Fingerprint and source identity must be derived from the exact
+                    // same bytes. Otherwise a same-path replacement between matching
+                    // and cropping could bind template A's location to image B.
+                    byte[] bytes = File.ReadAllBytes(path);
+                    string sourceHash = Convert.ToHexString(SHA256.HashData(bytes));
+                    using var stream = new MemoryStream(bytes, writable: false);
+                    using var image = new Bitmap(stream);
+                    imageHashes[index] = (path, sourceHash, regions.ToDictionary(
+                        region => region,
+                        region => CreateFingerprints(image, region, ShiftRatios, device)));
+                }
+                catch (Exception exception) when (exception is ArgumentException or IOException)
+                {
+                    imageHashes[index] = (path, string.Empty, []);
+                }
+                int current = Interlocked.Increment(ref completed);
+                progress?.Report(new VisualTemplateProgress(current, imagePaths.Count, path));
+            });
+        }
+        catch (AggregateException exception) when (exception.Flatten().InnerExceptions
+            .OfType<OcrException>().Any(PaddleLocalOcrClient.IsCudaUnavailable))
+        {
+            throw exception.Flatten().InnerExceptions.OfType<OcrException>()
+                .First(PaddleLocalOcrClient.IsCudaUnavailable);
+        }
 
         var pairs = new List<Score>(templates.Count * imagePaths.Count);
         for (int templateIndex = 0; templateIndex < templates.Count; templateIndex++)
@@ -400,46 +412,8 @@ public static class VisualTemplateMatcher
         enlarged.Save(destinationPath, ImageFormat.Png);
     }
 
-    private static string CreateFingerprint(
-        Bitmap image,
-        double fingerprintTopWidthRatio,
-        double fingerprintBottomWidthRatio,
-        double verticalShiftWidthRatio)
-    {
-        int top = (int)Math.Round(image.Width * (fingerprintTopWidthRatio + verticalShiftWidthRatio));
-        int bottom = (int)Math.Round(image.Width * (fingerprintBottomWidthRatio + verticalShiftWidthRatio));
-        top = Math.Clamp(top, 0, image.Height - 1);
-        bottom = Math.Clamp(bottom, top + 1, image.Height);
-
-        using var reduced = new Bitmap(65, 16, PixelFormat.Format24bppRgb);
-        using (Graphics graphics = Graphics.FromImage(reduced))
-        {
-            graphics.Clear(Color.White);
-            graphics.InterpolationMode = InterpolationMode.HighQualityBilinear;
-            graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-            graphics.DrawImage(
-                image,
-                new Rectangle(0, 0, reduced.Width, reduced.Height),
-                new Rectangle(0, top, image.Width, bottom - top),
-                GraphicsUnit.Pixel);
-        }
-
-        Span<ulong> hash = stackalloc ulong[16];
-        for (int y = 0; y < 16; y++)
-        {
-            for (int x = 0; x < 64; x++)
-            {
-                if (Gray(reduced.GetPixel(x, y)) <= Gray(reduced.GetPixel(x + 1, y)))
-                    hash[(y * 64 + x) / 64] |= 1UL << x;
-            }
-        }
-        return string.Concat(hash.ToArray().Select(value => value.ToString("X16")));
-    }
-
-    private static int Gray(Color color) =>
-        (color.R * 299 + color.G * 587 + color.B * 114) / 1000;
-
-    private static ulong[][] CreateCudaFingerprints(Bitmap source, FingerprintRegion region)
+    private static ulong[][] CreateFingerprints(Bitmap source, FingerprintRegion region,
+        double[] shifts, LocalOcrDevice device)
     {
         using Bitmap packed = source.Clone(
             new Rectangle(0, 0, source.Width, source.Height), PixelFormat.Format24bppRgb);
@@ -448,13 +422,26 @@ public static class VisualTemplateMatcher
         try
         {
             byte[] bgr = CopyTopDownBgr(data, packed.Width, packed.Height);
-            var output = new ulong[ShiftRatios.Length * 16];
-            int status = CudaFingerprints(
-                bgr, packed.Width, packed.Height, region.Top, region.Bottom,
-                ShiftRatios, ShiftRatios.Length, output);
-            if (status != 0)
-                throw new OcrException($"CUDA 标题指纹计算失败（代码 {status}）。");
-            return Enumerable.Range(0, ShiftRatios.Length)
+            var output = new ulong[shifts.Length * 16];
+            if (device == LocalOcrDevice.Cpu)
+                CpuFingerprints(bgr, packed.Width, packed.Height, region, shifts, output);
+            else
+            {
+                try
+                {
+                    int status = CudaFingerprints(bgr, packed.Width, packed.Height,
+                        region.Top, region.Bottom, shifts, shifts.Length, output);
+                    if (status != 0)
+                        throw new OcrException($"CUDA 标题指纹计算失败（代码 {status}），请在设置中手动切换 CPU。",
+                            PaddleLocalOcrClient.CudaUnavailableCode);
+                }
+                catch (Exception exception) when (exception is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
+                {
+                    throw new OcrException("无法加载 CUDA 标题指纹组件，请在设置中手动切换 CPU。",
+                        PaddleLocalOcrClient.CudaUnavailableCode);
+                }
+            }
+            return Enumerable.Range(0, shifts.Length)
                 .Select(shift => output.Skip(shift * 16).Take(16).ToArray())
                 .ToArray();
         }
@@ -464,28 +451,52 @@ public static class VisualTemplateMatcher
         }
     }
 
-    private static string CreateCudaFingerprint(
-        Bitmap source, double top, double bottom, double shift)
+    // Same separable triangular resampling and rounding as tools/CudaImage/cuda_image.cu.
+    // GDI+ resizing is not equivalent and would invalidate the existing template hashes.
+    private static void CpuFingerprints(byte[] bgr, int width, int height,
+        FingerprintRegion region, double[] shifts, ulong[] output)
     {
-        using Bitmap packed = source.Clone(
-            new Rectangle(0, 0, source.Width, source.Height), PixelFormat.Format24bppRgb);
-        BitmapData data = packed.LockBits(
-            new Rectangle(0, 0, packed.Width, packed.Height),
-            ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
-        try
+        var horizontal = new float[height * 65 * 3];
+        double scale = width / 65.0;
+        double radius = Math.Max(1, scale);
+        for (int y = 0; y < height; y++)
+        for (int x = 0; x < 65; x++)
+        for (int c = 0; c < 3; c++)
         {
-            byte[] bgr = CopyTopDownBgr(data, packed.Width, packed.Height);
-            var shifts = new[] { shift };
-            var output = new ulong[16];
-            int status = CudaFingerprints(
-                bgr, packed.Width, packed.Height, top, bottom, shifts, 1, output);
-            if (status != 0)
-                throw new OcrException($"CUDA 标题指纹计算失败（代码 {status}）。");
-            return string.Concat(output.Select(value => value.ToString("X16")));
+            double center = (x + 0.5) * scale - 0.5, sum = 0, weight = 0;
+            for (int sx = (int)Math.Ceiling(center - radius); sx <= (int)Math.Floor(center + radius); sx++)
+            {
+                double a = Math.Max(0, 1 - Math.Abs(sx - center) / radius);
+                sum += a * bgr[(y * width + Math.Clamp(sx, 0, width - 1)) * 3 + c];
+                weight += a;
+            }
+            horizontal[(y * 65 + x) * 3 + c] = (float)(sum / weight);
         }
-        finally
+        var row = new byte[65 * 3];
+        for (int s = 0; s < shifts.Length; s++)
         {
-            packed.UnlockBits(data);
+            int top = Math.Clamp((int)Math.Round(width * (region.Top + shifts[s])), 0, height - 1);
+            int bottom = Math.Clamp((int)Math.Round(width * (region.Bottom + shifts[s])), top + 1, height);
+            scale = (bottom - top) / 16.0;
+            radius = Math.Max(1, scale);
+            for (int y = 0; y < 16; y++)
+            {
+                for (int x = 0; x < 65; x++)
+                for (int c = 0; c < 3; c++)
+                {
+                    double center = top + (y + 0.5) * scale - 0.5, sum = 0, weight = 0;
+                    for (int sy = (int)Math.Ceiling(center - radius); sy <= (int)Math.Floor(center + radius); sy++)
+                    {
+                        double a = Math.Max(0, 1 - Math.Abs(sy - center) / radius);
+                        sum += a * horizontal[(Math.Clamp(sy, 0, height - 1) * 65 + x) * 3 + c];
+                        weight += a;
+                    }
+                    row[x * 3 + c] = (byte)Math.Clamp((int)Math.Floor(sum / weight + 0.5), 0, 255);
+                }
+                int GrayAt(int x) => (114 * row[3 * x] + 587 * row[3 * x + 1] + 299 * row[3 * x + 2]) / 1000;
+                for (int x = 0; x < 64; x++)
+                    if (GrayAt(x) <= GrayAt(x + 1)) output[s * 16 + y] |= 1UL << x;
+            }
         }
     }
 

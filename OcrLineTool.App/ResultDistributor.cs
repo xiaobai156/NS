@@ -160,9 +160,15 @@ public static class ResultDistributor
             || string.IsNullOrWhiteSpace(loaded.Config.NativeOcrKind)
                 ? NativeOcrMirrorOutcome.Empty
                 : NativeOcrDirectoryMirror.Apply(
-                    nativeOcrStorePath, loaded.Config.NativeOcrKind, RowsToMirror(configuredLines));
+                    nativeOcrStorePath, loaded.Config.NativeOcrKind,
+                    RowsToMirror(configuredLines).Where(row => !SkipNativeOcrMirror(loaded.Config, row.Label)));
         return new ConfigApplication(distributed, mirror);
     }
+
+    // 有些资料的取值不是对方软件的格式（例如方位型「北肖」），按配置明确不镜像。
+    private static bool SkipNativeOcrMirror(DistributionConfig config, string label) =>
+        config.NativeOcrSkipLabels is { Length: > 0 } skip
+        && skip.Contains(label, StringComparer.Ordinal);
 
     private static IEnumerable<(string Label, string Value)> RowsToMirror(IEnumerable<string> lines)
     {
@@ -334,7 +340,8 @@ public static class ResultDistributor
         [property: JsonPropertyName("sources")] SourceRule[] Sources,
         [property: JsonPropertyName("targetDirectory")] string? TargetDirectory = null,
         [property: JsonPropertyName("placement")] Placement? Placement = null,
-        [property: JsonPropertyName("native_ocr_kind")] string? NativeOcrKind = null);
+        [property: JsonPropertyName("native_ocr_kind")] string? NativeOcrKind = null,
+        [property: JsonPropertyName("native_ocr_skip_labels")] string[]? NativeOcrSkipLabels = null);
 
     private sealed record SourceRule(
         [property: JsonPropertyName("sourceGroup")] string SourceGroup,

@@ -19,13 +19,14 @@ public sealed class MissingResultSummaryTests : IDisposable
 
         var result = await MissingResultSummary.WriteAsync(appDirectory);
 
-        Assert.Equal(6, result.Count);
+        // 只统计仍写着"缺失"的行：TXT 里已经有值的条目（含手工改过的）不再进汇总。
+        Assert.Equal(3, result.Count);
         Assert.Equal(ResultFilePaths.ForMissingSummary(appDirectory), result.Path);
         Assert.Equal(
         [
-            "新增群", "【半波】", "蓝单 半波资料 —— 新增群", "", "【五行】", "缺失（图片文字识别失败） 五行资料 —— 新增群",
-            "", "甲群", "【尾】", "缺失（未找到对应图片） 尾资料 —— 甲群", "2尾 第二份尾 —— 甲群",
-            "", "【一肖】", "虎 未分流肖 —— 甲群", "", "【九肖】", "缺失（未识别到当期目标数据） 九肖资料 —— 甲群"
+            "新增群", "【五行】", "缺失（图片文字识别失败） 五行资料 —— 新增群",
+            "", "甲群", "【尾】", "缺失（未找到对应图片） 尾资料 —— 甲群",
+            "", "【九肖】", "缺失（未识别到当期目标数据） 九肖资料 —— 甲群"
         ], await File.ReadAllLinesAsync(result.Path));
         Assert.Equal(original, File.ReadAllBytes(first));
         Assert.True(File.Exists(second) && File.Exists(third));
@@ -33,9 +34,30 @@ public sealed class MissingResultSummaryTests : IDisposable
     }
 
     [Fact]
+    public async Task HandEditedValuesAreNotReportedAsMissing()
+    {
+        // 用户报过的场景：打开群结果 TXT 手工把缺失那条填成值，
+        // 再点"统计缺失"时它不该再出现。
+        string path = Write("嫣然心水_261期.txt", """
+            【头】
+            4头 齐天大圣（已分流）
+            3头 雁塔题名杀头
+            缺失（未找到对应图片） 恩平杀头
+            """);
+
+        var result = await MissingResultSummary.WriteAsync(appDirectory);
+
+        Assert.Equal(1, result.Count);
+        Assert.Equal(
+            ["嫣然心水", "【头】", "缺失（未找到对应图片） 恩平杀头 —— 嫣然心水"],
+            await File.ReadAllLinesAsync(result.Path));
+        Assert.Contains("3头 雁塔题名杀头", await File.ReadAllTextAsync(path));
+    }
+
+    [Fact]
     public async Task RebuildsTheSameFileWithoutReadingItsOwnOldContents()
     {
-        Write("甲群_245期.txt", "【尾】\n3尾 资料");
+        Write("甲群_245期.txt", "【尾】\n缺失（未找到对应图片） 资料");
         var first = await MissingResultSummary.WriteAsync(appDirectory);
         byte[] previous = File.ReadAllBytes(first.Path);
         var second = await MissingResultSummary.WriteAsync(appDirectory);
@@ -45,7 +67,7 @@ public sealed class MissingResultSummaryTests : IDisposable
         Write("甲群_245期.txt", "【尾】\n3尾 资料（已分流）");
         var cleared = await MissingResultSummary.WriteAsync(appDirectory);
         Assert.Equal(0, cleared.Count);
-        Assert.Equal(["没有缺失或未分流的数据。"], await File.ReadAllLinesAsync(cleared.Path));
+        Assert.Equal(["没有缺失的数据。"], await File.ReadAllLinesAsync(cleared.Path));
         Assert.Equal(2, Directory.GetFiles(ResultFilePaths.GroupResultsDirectory(appDirectory)).Length);
     }
 
@@ -54,22 +76,26 @@ public sealed class MissingResultSummaryTests : IDisposable
     {
         var empty = await MissingResultSummary.WriteAsync(appDirectory);
         Assert.Equal(0, empty.Count);
-        Write("新群_1期.TXT", "缺失 旧格式资料\n【新种类】\n数据 新资料\n\n【尾】\n4尾 已分流尾（已分流）  ");
+        Write("新群_1期.TXT", "缺失 旧格式资料\n【新种类】\n缺失（未识别到当期目标数据） 新资料\n\n【尾】\n4尾 已分流尾（已分流）  ");
         var result = await MissingResultSummary.WriteAsync(appDirectory);
         Assert.Equal(2, result.Count);
-        Assert.Equal(["新群", "【其他】", "缺失 旧格式资料 —— 新群", "", "【新种类】", "数据 新资料 —— 新群"], await File.ReadAllLinesAsync(result.Path));
+        Assert.Equal(
+        [
+            "新群", "【其他】", "缺失 旧格式资料 —— 新群",
+            "", "【新种类】", "缺失（未识别到当期目标数据） 新资料 —— 新群"
+        ], await File.ReadAllLinesAsync(result.Path));
     }
 
     [Fact]
     public async Task LeavesPreviousSummaryAndSourcesIntactIfAnySourceCannotBeRead()
     {
-        string source = Write("甲群_245期.txt", "【尾】\n3尾 资料");
+        string source = Write("甲群_245期.txt", "【尾】\n缺失（未找到对应图片） 资料");
         var previous = await MissingResultSummary.WriteAsync(appDirectory);
         byte[] oldSummary = File.ReadAllBytes(previous.Path);
         using (FileStream locked = File.Open(source, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
             await Assert.ThrowsAsync<IOException>(() => MissingResultSummary.WriteAsync(appDirectory));
         Assert.Equal(oldSummary, File.ReadAllBytes(previous.Path));
-        Assert.Equal("【尾】\n3尾 资料", File.ReadAllText(source));
+        Assert.Equal("【尾】\n缺失（未找到对应图片） 资料", File.ReadAllText(source));
     }
 
     private string Write(string name, string text)
@@ -94,20 +120,20 @@ public sealed class MissingResultSummaryTests : IDisposable
             """);
         string path = Write("嫣然心水_251期.txt", """
             【头】
-            3头 齐天大圣 —— 子文件夹=9.8-嫣然心水
+            缺失（未找到对应图片） 齐天大圣 —— 子文件夹=9.8-嫣然心水
             缺失（未找到对应图片） 永卟弃杀头 —— 子文件夹=9.8-嫣然心水
              —— 子文件夹=9.8-嫣然心水
             1头 齐天大圣（已分流） —— 子文件夹=9.8-嫣然心水
             【30个以上数字】
-            01,02 蓝色
+            缺失（未找到对应图片） 蓝色
             """);
         byte[] original = File.ReadAllBytes(path);
         var result = await MissingResultSummary.WriteAsync(appDirectory);
         string[] lines = File.ReadAllLines(result.Path);
         Assert.Equal(3, result.Count);
-        Assert.Contains("3头 齐天大圣 —— 嫣然心水 —— 天机阁杀料", lines);
+        Assert.Contains("缺失（未找到对应图片） 齐天大圣 —— 嫣然心水 —— 天机阁杀料", lines);
         Assert.Contains("缺失（未找到对应图片） 永卟弃杀头 —— 嫣然心水 —— 乖乖团队", lines);
-        Assert.Contains("01,02 蓝色 —— 嫣然心水 —— 36码", lines);
+        Assert.Contains("缺失（未找到对应图片） 蓝色 —— 嫣然心水 —— 36码", lines);
         Assert.DoesNotContain(lines, line => line.Contains("9.8-") || line.Contains("子文件夹=") || line.Contains("（已分流）"));
         Assert.Equal(original, File.ReadAllBytes(path));
         await MissingResultSummary.WriteAsync(appDirectory);
@@ -115,16 +141,17 @@ public sealed class MissingResultSummaryTests : IDisposable
     }
 
     [Fact]
-    public async Task MatchesWholeLabelAndRetainsExplicitUnroutedStatus()
+    public async Task MatchesWholeLabelAndIgnoresValueLinesOfTheSameRule()
     {
         Directory.CreateDirectory(ResultFilePaths.ConfigurationDirectory(appDirectory));
         File.WriteAllText(Path.Combine(ResultFilePaths.ConfigurationDirectory(appDirectory), "甲群.json"), """
             {"rules":[{"keyword":"资料","type":"尾","folder":"专属目录"}]}
             """);
-        Write("甲群_252期.txt", "【尾】\n3尾 资料（未分流）\n2尾 其他资料");
+        Write("甲群_252期.txt", "【尾】\n缺失（未找到对应图片） 资料（未分流）\n2尾 其他资料");
         var result = await MissingResultSummary.WriteAsync(appDirectory);
-        Assert.Contains("3尾 资料（未分流） —— 甲群 —— 专属目录", File.ReadAllLines(result.Path));
-        Assert.Contains("2尾 其他资料 —— 甲群", File.ReadAllLines(result.Path));
+        string[] lines = File.ReadAllLines(result.Path);
+        Assert.Contains("缺失（未找到对应图片） 资料（未分流） —— 甲群 —— 专属目录", lines);
+        Assert.DoesNotContain(lines, line => line.Contains("2尾 其他资料"));
     }
 
     [Fact]
@@ -145,20 +172,20 @@ public sealed class MissingResultSummaryTests : IDisposable
         File.WriteAllText(diagnostic, """
             {"images":[{"file":"sample.jpg","rules":["资料"]}]}
             """);
-        Write("甲群_251期.txt", "【尾】\n3尾 资料");
+        Write("甲群_251期.txt", "【尾】\n缺失（未找到对应图片） 资料");
         var result = await MissingResultSummary.WriteAsync(appDirectory, imageRoot);
-        Assert.Contains("3尾 资料 —— 甲群 —— 真实子目录", File.ReadAllLines(result.Path));
+        Assert.Contains("缺失（未找到对应图片） 资料 —— 甲群 —— 真实子目录", File.ReadAllLines(result.Path));
         string second = Path.Combine(group, "不同目录");
         Directory.CreateDirectory(second);
         File.WriteAllBytes(Path.Combine(second, "sample.jpg"), [1]);
         result = await MissingResultSummary.WriteAsync(appDirectory, imageRoot);
-        Assert.Contains("3尾 资料 —— 甲群", File.ReadAllLines(result.Path));
+        Assert.Contains("缺失（未找到对应图片） 资料 —— 甲群", File.ReadAllLines(result.Path));
     }
 
     [Fact]
     public async Task FailedReplacementPreservesThePreviousSummaryAndRemovesItsTemporaryFile()
     {
-        Write("甲群_245期.txt", "【尾】\n3尾 资料");
+        Write("甲群_245期.txt", "【尾】\n缺失（未找到对应图片） 资料");
         var result = await MissingResultSummary.WriteAsync(appDirectory);
         byte[] previous = File.ReadAllBytes(result.Path);
         Write("甲群_245期.txt", "【尾】\n3尾 资料（已分流）");

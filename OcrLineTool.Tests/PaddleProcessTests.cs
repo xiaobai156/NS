@@ -71,7 +71,7 @@ public sealed class PaddleProcessTests
                 client.RecognizeBatchAsync([imagePath], useCache: false));
 
             Assert.Equal("PaddleOCR 执行失败（代码 7）。", exception.Message);
-            Assert.NotEqual(PaddleLocalOcrClient.CudaUnavailableCode, exception.Code);
+            Assert.Equal(PaddleLocalOcrClient.CudaUnavailableCode, exception.Code);
         }
         finally
         {
@@ -400,6 +400,45 @@ public sealed class PaddleProcessTests
         {
             DeleteIfExists(imagePath);
         }
+    }
+
+    [Theory]
+    [InlineData("start")]
+    [InlineData("win32")]
+    [InlineData("exit")]
+    [InlineData("import")]
+    [InlineData("missing")]
+    [InlineData("malformed")]
+    [InlineData("null")]
+    [InlineData("shape")]
+    [InlineData("null-item")]
+    [InlineData("unknown-path")]
+    [InlineData("invalid-exit-json")]
+    public async Task InfrastructureErrorsAreFatalOnlyInGpuMode(string failure)
+    {
+        string image = CreateImagePath();
+        try
+        {
+            foreach (LocalOcrDevice device in Enum.GetValues<LocalOcrDevice>())
+            {
+                var runner = new FakeProcessRunner((info, _, _) =>
+                {
+                    if (failure == "win32") throw new Win32Exception();
+                    if (failure == "import") WriteError(info, "无法加载 PaddleOCR：DLL load failed");
+                    if (failure is "malformed" or "null" or "shape")
+                        File.WriteAllText(OutputPath(info), failure == "malformed" ? "{" : failure == "null" ? "null" : "{}");
+                    if (failure == "null-item") File.WriteAllText(OutputPath(info), "{\"results\":[null]}");
+                    if (failure == "unknown-path") WriteResult(info, "not-requested.png", ["bad"]);
+                    if (failure == "invalid-exit-json") File.WriteAllText(OutputPath(info), "[]");
+                    return Task.FromResult(new ProcessResult(failure != "start", failure is "exit" or "import" or "invalid-exit-json" ? 2 : 0, "", "private stderr"));
+                });
+                var client = new PaddleLocalOcrClient(runner, CreateTempPath("cache", ".json"), device);
+                OcrException error = await Assert.ThrowsAsync<OcrException>(() => client.RecognizeBatchAsync([image], useCache: false));
+                Assert.Equal(device == LocalOcrDevice.Gpu, PaddleLocalOcrClient.IsCudaUnavailable(error));
+                Assert.DoesNotContain("private stderr", error.Message);
+            }
+        }
+        finally { DeleteIfExists(image); }
     }
 
     private static string CreateImagePath()

@@ -378,12 +378,12 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "新澳高级会员.json"));
 
-        Assert.Equal(11, rules.Count);
+        Assert.Equal(12, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(
         [
             "会员特供杀十码", "表弟", "翩翩公子尾", "翩翩公子肖", "祥瑞阁",
-            "翩翩公子半波", "翩翩公子五行", "翩翩公子杀十码", "翩翩公子头", "祥瑞阁二肖", "会员暴打"
+            "翩翩公子半波", "翩翩公子五行", "翩翩公子杀十码", "翩翩公子头", "祥瑞阁二肖", "藏宝九肖", "会员暴打"
         ], rules.Select(rule => rule.Id));
         Assert.Contains(rules, rule =>
             rule.Id == "会员特供杀十码" && rule.Keyword == "会员特供绝杀10码" && rule.Type == "号码:10");
@@ -395,6 +395,8 @@ public sealed class RuleCatalogTests
             rule.Id == "翩翩公子五行" && rule.Keyword == "公子4行" && rule.Type == "五行");
         Assert.Contains(rules, rule =>
             rule.Id == "祥瑞阁二肖" && rule.Keyword == "祥瑞阁" && rule.RequiredKeyword == "杀2肖" && rule.Type == "生肖组合");
+        Assert.Contains(rules, rule =>
+            rule.Id == "藏宝九肖" && rule.Keyword == "藏宝库" && rule.RequiredKeyword == "藏宝库" && rule.Type == "方位");
     }
 
     [Theory]

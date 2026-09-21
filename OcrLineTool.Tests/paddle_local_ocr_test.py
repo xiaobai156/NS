@@ -12,6 +12,40 @@ from PIL import Image
 
 
 class CompactFolderTest(unittest.TestCase):
+    def test_gpu_runtime_failure_stops_batch_but_bad_images_do_not(self):
+        script = Path(__file__).parents[1] / "OcrLineTool.App" / "paddle_local_ocr.py"
+        spec = importlib.util.spec_from_file_location("runtime_failure_test", script)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        for device, message, fatal in [("gpu:0", "CUDNN_STATUS_INTERNAL_ERROR", True),
+                                        ("gpu:0", "GPU memory allocation failed", True),
+                                        ("gpu:0", "cannot identify image file", False),
+                                        ("cpu", "cannot identify image file", False)]:
+            with self.subTest(device=device, message=message), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                listing, output = root / "list.txt", root / "out.json"
+                listing.write_text("one.png\ntwo.png\n", encoding="utf-8")
+                calls = []
+
+                class FakeOCR:
+                    def __init__(self, **kwargs):
+                        pass
+
+                    def predict(self, source):
+                        calls.append(source)
+                        raise RuntimeError(message)
+
+                argv = [str(script), "--list", str(listing), "--output", str(output), "--device", device]
+                with patch.dict(sys.modules, {"paddleocr": types.SimpleNamespace(PaddleOCR=FakeOCR)}), \
+                        patch.object(module, "_configure_device"), \
+                        patch.object(module, "_prepare_model_root", return_value=root), \
+                        patch.object(sys, "argv", argv):
+                    status = module.main()
+                result = json.loads(output.read_text(encoding="utf-8"))
+                self.assertEqual(4 if fatal else 0, status)
+                self.assertEqual(1 if fatal else 2, len(calls))
+                self.assertIn("error" if fatal else "results", result)
+
     def test_only_selected_folder_uses_header_and_compact_image(self):
         self.check_sources(compact=True)
 
@@ -99,6 +133,38 @@ class CompactFolderTest(unittest.TestCase):
 
             error = json.loads(output.read_text(encoding="utf-8"))["error"]
             self.assertIn("不是 CUDA 版 PaddlePaddle", error)
+
+    def test_cpu_mode_configures_cpu_without_cuda_requirement(self):
+        script = Path(__file__).parents[1] / "OcrLineTool.App" / "paddle_local_ocr.py"
+        spec = importlib.util.spec_from_file_location("local_ocr_cpu_mode", script)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        selected = []
+
+        class FakeOCR:
+            def __init__(self, **kwargs):
+                selected.append(kwargs)
+
+        fake_paddle = types.SimpleNamespace(
+            device=types.SimpleNamespace(
+                set_device=lambda device: selected.append(device),
+                get_device=lambda: "cpu",
+            )
+        )
+        with tempfile.TemporaryDirectory(prefix="ocr-cpu-mode-") as temporary:
+            root = Path(temporary)
+            listing = root / "list.txt"
+            listing.write_text("", encoding="utf-8")
+            output = root / "result.json"
+            argv = [str(script), "--list", str(listing), "--output", str(output), "--device", "cpu"]
+            with patch.dict(sys.modules, {
+                "paddle": fake_paddle,
+                "paddleocr": types.SimpleNamespace(PaddleOCR=FakeOCR),
+            }), patch.object(sys, "argv", argv):
+                self.assertEqual(0, module.main())
+
+        self.assertEqual("cpu", selected[0])
+        self.assertEqual("cpu", selected[1]["device"])
 
     def test_uses_bundled_model_directories_when_present(self):
         script = Path(__file__).parents[1] / "OcrLineTool.App" / "paddle_local_ocr.py"

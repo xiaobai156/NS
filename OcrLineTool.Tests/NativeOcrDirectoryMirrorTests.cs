@@ -174,4 +174,59 @@ public sealed class NativeOcrDirectoryMirrorTests
             Directory.Delete(folder, recursive: true);
         }
     }
+
+    // 方位型资料（藏宝九肖 的「北肖」）不是对方软件能吃的格式：按配置不镜像，
+    // 同一次分发的其它标签照旧镜像。
+    [Fact]
+    public async Task SkipsTheLabelsListedInNativeOcrSkipLabels()
+    {
+        string folder = CreateTempFolder();
+        try
+        {
+            string store = Path.Combine(folder, "directory-data.json");
+            File.WriteAllText(store, """
+            {
+              "Shengxiao": {
+                "Directories": [
+                  { "Id": "藏宝九肖", "Label": "藏宝九肖" },
+                  { "Id": "会员暴打", "Label": "会员暴打" }
+                ],
+                "Values": {}
+              }
+            }
+            """, new UTF8Encoding(false));
+            string config = Path.Combine(folder, "config");
+            Directory.CreateDirectory(config);
+            File.WriteAllText(Path.Combine(config, "新澳高级会员.json"), """
+            {"group":"新澳高级会员","strictIssueBlock":true,"rules":[
+              {"keyword":"藏宝库","type":"方位","label":"藏宝九肖"},
+              {"keyword":"暴打九肖","type":"九肖","label":"会员暴打"}]}
+            """, new UTF8Encoding(false));
+            string target = Path.Combine(folder, "target");
+            Directory.CreateDirectory(target);
+            File.WriteAllText(Path.Combine(target, "243期-生肖.txt"), string.Empty, new UTF8Encoding(false));
+            File.WriteAllText(Path.Combine(config, "生肖分发规则.json"), """
+            {
+              "targetFile": "{issue}期-生肖.txt",
+              "native_ocr_kind": "Shengxiao",
+              "native_ocr_skip_labels": [ "藏宝九肖" ],
+              "sources": [ { "sourceGroup": "新澳高级会员", "labels": [ "藏宝九肖", "会员暴打" ] } ]
+            }
+            """, new UTF8Encoding(false));
+
+            string[] lines = ["北肖 藏宝九肖", "马蛇龙兔虎牛鼠猪狗 会员暴打"];
+            DistributionResult result = await ResultDistributor.DistributeAllAsync(
+                @"C:\图片\9.20-新澳高级会员", 243, lines, target, config, store);
+
+            Assert.Equal(2, result.DistributedLines.Count);
+            Assert.NotNull(result.NativeOcrMirror);
+            Assert.Equal(1, result.NativeOcrMirror!.Written);
+            Assert.Equal("羊猴鸡", Values(store, "Shengxiao").GetProperty("会员暴打").GetString());
+            Assert.False(Values(store, "Shengxiao").TryGetProperty("藏宝九肖", out _));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
 }
