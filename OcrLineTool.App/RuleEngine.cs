@@ -110,7 +110,8 @@ public static class RuleEngine
         if (ContainsAnyIssue(line))
             return true;
         string trimmed = SimplifyOcrText(line).Trim();
-        return Regex.IsMatch(trimmed, @"^[【\[（(]?\s*\d{3,6}(?!\d)");
+        return Regex.IsMatch(trimmed, @"^[【\[（(]?\s*\d{3,6}(?!\d)")
+            || MergedRowIndexIssueRegex.IsMatch(trimmed);
     }
 
     private static int LastIssueIndex(string line, int issue)
@@ -650,6 +651,186 @@ public static class RuleEngine
         return raw == ConflictMarker ? null : raw;
     }
 
+    private static string[] NormalizeSplitIssueDigits(IEnumerable<string> source)
+    {
+        string[] raw = source.Select(SimplifyOcrText).ToArray();
+        var normalized = new List<string>(raw.Length);
+        for (int index = 0; index < raw.Length; index++)
+        {
+            if (index + 2 < raw.Length
+                && IsStandaloneIssueDigits(raw[index], 1)
+                && IsStandaloneIssueDigits(raw[index + 1], 1)
+                && Regex.IsMatch(raw[index + 2], @"^\s*\d\s*期"))
+            {
+                normalized.Add(raw[index] + raw[index + 1] + raw[index + 2]);
+                index += 2;
+                continue;
+            }
+            if (index + 1 < raw.Length
+                && IsStandaloneIssueDigits(raw[index], 1, 2)
+                && Regex.IsMatch(raw[index + 1], @"^\s*\d{1,2}\s*期"))
+            {
+                normalized.Add(raw[index] + raw[index + 1]);
+                index++;
+                continue;
+            }
+
+            string line = raw[index];
+            line = Regex.Replace(
+                line,
+                @"(?<!\d)(?<prefix>第\s*)?(?<a>\d)\s+(?<b>\d)\s+(?<c>\d)\s*期",
+                match => $"{match.Groups["prefix"].Value}{match.Groups["a"].Value}"
+                    + $"{match.Groups["b"].Value}{match.Groups["c"].Value}期");
+            line = Regex.Replace(
+                line,
+                @"(?<!\d)(?<prefix>第\s*)?(?<a>\d)\s+(?<b>\d{2})\s*期",
+                match => $"{match.Groups["prefix"].Value}{match.Groups["a"].Value}"
+                    + $"{match.Groups["b"].Value}期");
+            normalized.Add(line);
+        }
+        return normalized.ToArray();
+    }
+
+    private static bool IsStandaloneIssueDigits(string text, params int[] lengths) =>
+        lengths.Any(length => Regex.IsMatch(text, $@"^\s*\d{{{length}}}\s*$"));
+
+    private static string? ExtractOuyangHalfWaveRow(
+        string[] lines, int issue, OcrRule rule)
+    {
+        int sectionStart = LocateSectionStart(lines, rule.Section);
+        if (sectionStart < 0)
+            return null;
+
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        for (int index = sectionStart; index < lines.Length; index++)
+        {
+            if (!ContainsIssue(lines[index], issue)
+                || !HasSectionForIssueRow(lines, index, sectionStart, issue, rule))
+                continue;
+
+            string? value = ExtractTypedForRule(lines[index], rule);
+            if (value == ConflictMarker)
+                return ConflictMarker;
+            if (value is null && index + 1 < lines.Length
+                && !ContainsAnyIssue(lines[index + 1])
+                && IsHalfWaveContinuation(lines[index + 1]))
+            {
+                string joined = lines[index] + " " + lines[index + 1];
+                value = ExtractTypedForRule(joined, rule);
+            }
+            if (value == ConflictMarker)
+                return ConflictMarker;
+            if (value is not null)
+                observed.Add(value);
+        }
+
+        return observed.Count == 0
+            ? null
+            : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    private static bool IsHalfWaveContinuation(string line)
+    {
+        string compact = SimplifyOcrText(line).Trim();
+        compact = Regex.Replace(compact, @"[【】\[\]（）()：:,，。.!！?？√✓×\s]", "");
+        return compact.Length > 0
+            && compact.All(character => "禁杀半波红蓝绿单双准對对錯错".Contains(character));
+    }
+
+    private static string? ExtractZiyanerKillZodiac(
+        string[] lines, int issue, OcrRule rule)
+    {
+        int sectionStart = LocateSectionStart(lines, rule.Section);
+        if (sectionStart < 0)
+            return null;
+        bool sectionTitleFollowsRows = lines
+            .Take(sectionStart)
+            .Any(line => ContainsIssue(line, issue));
+
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        for (int index = 0; index < lines.Length; index++)
+        {
+            if (!ContainsIssue(lines[index], issue))
+                continue;
+            if (index < sectionStart)
+            {
+                if (!sectionTitleFollowsRows || !IsZiyanerKillRow(lines, index))
+                    continue;
+            }
+            else if (!HasSectionForIssueRow(lines, index, sectionStart, issue, rule)
+                || !IsZiyanerKillRow(lines, index))
+                continue;
+
+            string payload = BeforeOpeningResult(SimplifyOcrText(lines[index]));
+            foreach (string marker in new[] { "附注", "备注", "说明", "杀一尾" })
+            {
+                int cut = payload.IndexOf(marker, StringComparison.Ordinal);
+                if (cut >= 0)
+                    payload = payload[..cut];
+            }
+            string? value = ExtractSingleZodiac(RemoveIssue(payload));
+            if (value is null
+                && index + 1 < lines.Length
+                && !ContainsAnyIssue(lines[index + 1])
+                && ContainsKeyword(lines[index + 1], "新澳杀"))
+            {
+                value = ExtractSingleZodiac(RemoveIssue(
+                    BeforeOpeningResult(lines[index] + " " + lines[index + 1])));
+            }
+            if (value is null && index + 1 < lines.Length
+                && Regex.IsMatch(RemoveIssue(payload), @"^\s*[:：,，]*\s*新[澳奥]杀\s*[:：,，]*\s*$")
+                && !ContainsAnyIssue(lines[index + 1])
+                && IsWrappedSingleZodiacCell(lines[index + 1]))
+            {
+                value = ExtractSingleZodiac(lines[index + 1]);
+            }
+            if (value is not null)
+                observed.Add(value);
+        }
+
+        return observed.Count == 0
+            ? null
+            : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    private static bool IsZiyanerKillRow(string[] lines, int index) =>
+        ContainsKeyword(lines[index], "新澳杀")
+        || index + 1 < lines.Length
+            && !ContainsAnyIssue(lines[index + 1])
+            && ContainsKeyword(lines[index + 1], "新澳杀");
+
+    private static int LocateSectionStart(string[] lines, string? section)
+    {
+        if (string.IsNullOrWhiteSpace(section))
+            return 0;
+        string normalizedSection = Normalize(section);
+        int direct = Array.FindIndex(lines, line => Normalize(line).Contains(
+            normalizedSection, StringComparison.Ordinal));
+        if (direct >= 0)
+            return direct;
+
+        int joinedIndex = Normalize(string.Concat(lines)).IndexOf(
+            normalizedSection, StringComparison.Ordinal);
+        if (joinedIndex < 0)
+            return -1;
+        int consumed = 0;
+        for (int index = 0; index < lines.Length; index++)
+        {
+            consumed += Normalize(lines[index]).Length;
+            if (consumed > joinedIndex)
+                return index;
+        }
+        return -1;
+    }
+
+    private static bool IsWrappedSingleZodiacCell(string line)
+    {
+        string compact = SimplifyOcrText(line).Trim();
+        compact = Regex.Replace(compact, @"[【】\[\]（）()：:,，。.!！?？√✓×\s]", "");
+        compact = compact.TrimStart('杀', '禁');
+        return compact.Length == 1 && Zodiac.Contains(compact[0]);
+    }
+
     private static string? ExtractValueCore(IEnumerable<string> cloudLines, int issue, OcrRule rule, bool requireCloudKeyword)
     {
         if (!rule.IgnoreIssue)
@@ -665,6 +846,20 @@ public static class RuleEngine
             return null;
         if (!rule.StrictIssueBlock)
             lines = SplitInlineIssueRows(lines);
+        if (rule.Id is "欧阳半波" or "紫燕儿杀一肖")
+            lines = NormalizeSplitIssueDigits(lines);
+        if (rule.Id == "欧阳半波")
+        {
+            string? halfWave = ExtractOuyangHalfWaveRow(lines, issue, rule);
+            if (halfWave is not null || lines.Any(line => ContainsIssue(line, issue)))
+                return halfWave;
+        }
+        if (rule.Id == "紫燕儿杀一肖")
+        {
+            string? zodiac = ExtractZiyanerKillZodiac(lines, issue, rule);
+            if (zodiac is not null || lines.Any(line => ContainsIssue(line, issue)))
+                return zodiac;
+        }
         string keyword = Normalize(rule.Keyword);
         string[] aliases = new[] { rule.Keyword, rule.Label ?? string.Empty }
             .Where(alias => !string.IsNullOrWhiteSpace(alias))
@@ -1087,6 +1282,12 @@ public static class RuleEngine
             .ToArray();
         for (int index = issueIndex - 1; index >= scopeStart; index--)
         {
+            if (index + 1 < issueIndex
+                && !ContainsAnyIssue(lines[index])
+                && !ContainsAnyIssue(lines[index + 1])
+                && Normalize(lines[index] + lines[index + 1])
+                    .Contains(section, StringComparison.Ordinal))
+                return true;
             if (ContainsIssue(lines[index], issue))
                 continue;
             // Other-period rows of the same section are data, not a section
