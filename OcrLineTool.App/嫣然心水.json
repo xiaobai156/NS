@@ -169,7 +169,9 @@
       "required_keyword": "紫燕儿",
       "label": "紫燕儿尾",
       "section": "杀一尾",
-      "folder": "紫燕儿"
+      "folder": "紫燕儿",
+      "required_keywords_any": ["杀一尾"],
+      "allow_folder_identity": true
     },
     {
       "keyword": "沁园春",

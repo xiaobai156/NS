@@ -45,6 +45,8 @@ public sealed class YanranFormatStabilityTests
     [InlineData("20260922_121805_85442.jpg", "雁塔题名半波", 261, "蓝单")]
     [InlineData("20260922_195308_85582.jpg", "欧阳半波", 264, "红双")]
     [InlineData("20260922_153900_85501.jpg", "紫燕儿杀一肖", 262, "猴")]
+    [InlineData("20260922_153900_85501.jpg", "紫燕儿尾", 265, "3尾")]
+    [InlineData("20260922_153900_85501.jpg", "紫燕儿尾", 264, "1尾")]
     public void ConfirmedGeometryReadsItsOwnIssue(string file, string id, int issue, string expected)
     {
         string fixture = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
@@ -203,5 +205,71 @@ public sealed class YanranFormatStabilityTests
     {
         Assert.Null(RuleEngine.ExtractFinalValue(
             ["紫燕儿", row, "【猪】"], 265, Rule("紫燕儿杀一肖")));
+    }
+
+    [Fact]
+    public void ZiyanerTailUsesItsDedicatedFolderWhenTheCardHasNoTitle()
+    {
+        OcrRule rule = Rule("紫燕儿尾");
+        string image = @"C:\图片\9.23-嫣然心水\紫燕儿\tail.jpg";
+        string[] lines = ["264期:杀一尾【1尾】X", "265期:杀一尾【3尾】√", "266期:杀一尾【2尾】"];
+
+        Assert.True(rule.AllowFolderIdentity);
+        Assert.Contains(rule, RuleEngine.FindMatches(image, lines, [rule], Rules));
+        Assert.Equal("3尾", RuleEngine.ExtractFinalValue(lines, 265, rule));
+    }
+
+    [Fact]
+    public void ZiyanerTailCandidatePrefersTheTitlelessTailCardByTargetValue()
+    {
+        OcrRule tail = Rule("紫燕儿尾");
+        OcrRule zodiac = Rule("紫燕儿杀一肖");
+        string folder = @"C:\图片\9.23-嫣然心水\紫燕儿";
+        string zodiacImage = Path.Combine(folder, "zodiac.jpg");
+        string tailImage = Path.Combine(folder, "tail.jpg");
+        var local = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            [zodiacImage] = ["紫燕儿", "265期:新澳杀【猪】"],
+            [tailImage] = ["264期:杀一尾【1尾】X", "265期:杀一尾【3尾】√", "266期:杀一尾【2尾】"]
+        };
+
+        IReadOnlyList<LocalCandidatePlan> plans = LocalCandidatePlanner.Build(
+            [zodiacImage, tailImage], local, [zodiac, tail], 265, Rules);
+
+        Assert.Equal(tailImage, Assert.Single(plans, plan => plan.Rules.Any(item => item.Id == tail.Id)).Path);
+    }
+
+    [Theory]
+    [InlineData("紫燕儿", "紫燕儿", "266期:新澳杀【虎】")]
+    [InlineData("其他目录", "", "266期:杀一尾【2尾】")]
+    [InlineData("紫燕儿", "恩平杀一尾", "266期:杀一尾【2尾】")]
+    public void ZiyanerTailRejectsOtherCards(string folder, string title, string row)
+    {
+        string image = $@"C:\图片\9.23-嫣然心水\{folder}\sample.jpg";
+        Assert.Empty(RuleEngine.FindMatches(image, [title, row], [Rule("紫燕儿尾")], Rules));
+    }
+
+    [Theory]
+    [InlineData(7, 0)]
+    [InlineData(266, 2)]
+    [InlineData(301, 9)]
+    [InlineData(1001, 4)]
+    public void ZiyanerTailReadsDynamicIssuesAndSplitCells(int issue, int tail)
+    {
+        OcrRule rule = Rule("紫燕儿尾");
+        string[] lines = [$"{issue - 1}期:杀一尾【1尾】", $"{issue}期:杀一尾", $"【{tail}尾】", $"{issue + 1}期:杀一尾【8尾】"];
+        Assert.Equal($"{tail}尾", RuleEngine.ExtractFinalValue(lines, issue, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, issue + 2, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue([$"{issue}期:杀一尾", $"{issue + 1}期:杀一尾【8尾】"], issue, rule));
+    }
+
+    [Fact]
+    public void ZiyanerTailRejectsInvalidValuesAndKeepsConflicts()
+    {
+        OcrRule rule = Rule("紫燕儿尾");
+        Assert.Null(RuleEngine.ExtractFinalValue(["266期:杀一尾【12尾】"], 266, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(["266期:杀一尾【1尾】【2尾】"], 266, rule));
+        Assert.Equal(RuleExtractionStatus.Conflict, RuleEngine.ExtractFinalResult(
+            ["266期:杀一尾【1尾】", "266期:杀一尾【2尾】"], 266, rule).Status);
     }
 }

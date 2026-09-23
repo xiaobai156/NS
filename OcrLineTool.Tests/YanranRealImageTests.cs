@@ -6,6 +6,56 @@ namespace OcrLineTool.Tests;
 
 public sealed class YanranRealImageTests(ITestOutputHelper output)
 {
+    [YanranRealImageTheory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public async Task ZiyanerTailUsesTheTitlelessRealCard(int deviceNumber)
+    {
+        string root = Environment.GetEnvironmentVariable("OCR_YANRAN_SAMPLE_DIRECTORY")!;
+        string report = Environment.GetEnvironmentVariable("OCR_YANRAN_REPORT_DIRECTORY")!;
+        var device = (LocalOcrDevice)deviceNumber;
+        Directory.CreateDirectory(report);
+        var catalog = RuleCatalog.Load(Path.Combine(
+            ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
+        OcrRule rule = catalog.Single(rule => rule.Id == "紫燕儿尾");
+        string[] paths = Directory.GetFiles(Path.Combine(root, rule.Folder!), "*.jpg");
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(8));
+        var client = new PaddleLocalOcrClient(new SystemProcessRunner(),
+            Path.Combine(report, device + "-unused-cache.json"), device);
+        var small = await client.RecognizeBatchAsync(paths, useCache: false,
+            detectionMaxSide: PaddleLocalOcrClient.DetectionMaxSideFor(root), cancellationToken: timeout.Token);
+        await File.WriteAllTextAsync(Path.Combine(report, device + "-tail-small.json"), JsonSerializer.Serialize(small));
+        Assert.Empty(client.LastImageErrors);
+        var plan = Assert.Single(LocalCandidatePlanner.Build(paths, small, [rule], 266, catalog));
+        Assert.Equal("20260923_115850_85769.jpg", Path.GetFileName(plan.Path));
+        // Reproduce the old configuration against the same fresh OCR input.
+        OcrRule previous = rule with { AllowFolderIdentity = false, RequiredKeywordsAny = null };
+        Assert.Empty(LocalCandidatePlanner.Build(paths, small, [previous], 266, catalog));
+        output.WriteLine($"{device}: old configuration=MISSING; selected={Path.GetFileName(plan.Path)}");
+        await client.RecognizeBatchAsync([plan.Path], useCache: false,
+            model: PaddleOcrModel.Medium, cancellationToken: timeout.Token);
+        Assert.Empty(client.LastImageErrors);
+        OcrEvidence evidence = client.LastEvidence[plan.Path].Bind(
+            OcrEvidenceIdentity.Capture(plan.Path, plan.Path, "local-primary/medium"));
+        await File.WriteAllTextAsync(Path.Combine(report, device + "-tail-evidence.json"), JsonSerializer.Serialize(
+            new { Evidence = evidence, Tokens = evidence.TokenItems }));
+        var reportLines = new List<string>();
+        foreach (var (issue, expected) in new[] { (264, "1尾"), (265, "3尾"), (266, "2尾") })
+        {
+            var values = new ResultValues(StringComparer.Ordinal);
+            var ledger = new ResultEvidenceLedger();
+            MainForm.AddExtractedEvidenceValues(evidence, [rule], issue, values, ledger);
+            Assert.Empty(values.Conflicts);
+            Assert.Equal(expected, values.GetValueOrDefault(rule.Id));
+            Assert.Equal(plan.Path, ledger.Records[rule.Id].SourcePath);
+            reportLines.Add($"{issue}期");
+            reportLines.AddRange(GroupResultFormatter.Format([rule], RuleEngine.FormatOutput([rule], values)));
+            output.WriteLine($"{device}: issue={issue}, result={values[rule.Id]}, conflict=False");
+        }
+        Assert.Null(RuleEngine.ExtractFinalValue(evidence, 267, rule));
+        await File.WriteAllLinesAsync(Path.Combine(report, device + "-tail-results.txt"), reportLines);
+    }
+
     // Explicit opt-in only. The directory is supplied by the operator; ordinary
     // regression runs never read a daily folder or start a model.
     [YanranRealImageTheory]
