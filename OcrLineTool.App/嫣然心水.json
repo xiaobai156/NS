@@ -566,12 +566,11 @@
       "folder": "乖乖团队"
     },
     {
-      "keyword": "恩平杀一头",
-      "type": "头",
+      "keyword": "恩平澳彩四头",
+      "type": "缺头",
       "label": "恩平杀头",
-      "required_keyword": "恩平杀一头",
-      "folder": "恩平",
-      "singleValuePerIssue": true
+      "required_keyword": "恩平澳彩四头",
+      "folder": "恩平"
     },
     {
       "keyword": "恩平杀一尾",

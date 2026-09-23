@@ -826,15 +826,16 @@ public sealed class RuleEngineTests
     }
 
     [Fact]
-    public void RequiresTheUniqueEnpingFourHeadHistoryInsideTheSharedFolder()
+    public void RequiresTheEnpingFourHeadTitleInsideTheSharedFolder()
     {
-        var rule = new OcrRule("恩平澳彩四头", "缺头", "恩平杀头", null, "220期止38期错5", "恩平");
+        // 身份用稳定的卡面标题；样张里的“N期止N期错N”历史行每天变，不能固化
+        var rule = new OcrRule("恩平澳彩四头", "缺头", "恩平杀头", null, "恩平澳彩四头", "恩平");
         string image = Path.Combine("C:\\结果", "恩平", "sample.jpg");
 
-        Assert.Empty(RuleEngine.FindMatches(image, ["恩平澳彩四头", "242期2031头"], [rule]));
+        Assert.Empty(RuleEngine.FindMatches(image, ["恩平四头表", "242期0123头"], [rule]));
         Assert.Single(RuleEngine.FindMatches(
             image,
-            ["恩平澳彩四头，220期止38期错5", "242期0123头"],
+            ["恩平澳彩四头，251期止58期错7", "266期， 0124头"],
             [rule]));
     }
 

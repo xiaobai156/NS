@@ -35,7 +35,8 @@ public sealed class RuleCatalogTests
         Assert.Contains(rules, rule => rule.Id == "白少华半头" && rule.Type == "半头" && rule.Folder == "白少华");
         Assert.Contains(rules, rule => rule.Id == "白少华五码" && rule.Type == "号码:5" && rule.Folder == "白少华");
         Assert.Contains(rules, rule => rule.Id == "永卟弃杀头" && rule.Type == "缺头");
-        Assert.Contains(rules, rule => rule.Id == "恩平杀头" && rule.Type == "头");
+        Assert.Contains(rules, rule => rule.Id == "恩平杀头" && rule.Type == "缺头"
+            && rule.RequiredKeyword == "恩平澳彩四头" && rule.Folder == "恩平");
         Assert.Contains(rules, rule => rule.Id == "独傲洒脱杀肖肖" && rule.Type == "生肖"
             && rule.Folder == "独傲洒脱" && rule.RequiredKeyword == "一特肖");
         Assert.Contains(rules, rule => rule.Id == "独傲洒脱杀二肖" && rule.Type == "生肖组合"
