@@ -120,20 +120,26 @@ public static class RuleCatalog
     /// Falls back to the stripped folder name when no catalog is available.
     /// </summary>
     public static string GroupNameForFolder(string appDirectory, string selectedFolder)
+        => GroupNamesForFolders(appDirectory, [selectedFolder])[selectedFolder];
+
+    internal static IReadOnlyDictionary<string, string> GroupNamesForFolders(
+        string appDirectory, IEnumerable<string> selectedFolders)
     {
+        string[] folders = selectedFolders.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         string configurationDirectory = ResultFilePaths.ConfigurationDirectory(appDirectory);
-        if (Directory.Exists(configurationDirectory))
+        RuleFileCandidate[] candidates = folders.Length > 0 && Directory.Exists(configurationDirectory)
+            ? EnumerateRuleFiles(configurationDirectory).ToArray() : [];
+        var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string folder in folders)
         {
-            RuleFileCandidate? matching = EnumerateRuleFiles(configurationDirectory)
-                .Where(item => IsGroupFolder(selectedFolder, item.GroupName))
+            RuleFileCandidate? matching = candidates
+                .Where(item => IsGroupFolder(folder, item.GroupName))
                 .OrderByDescending(item => NormalizeGroupName(item.GroupName).Length)
                 .ThenBy(item => item.Path, StringComparer.OrdinalIgnoreCase)
                 .FirstOrDefault();
-            if (matching is not null)
-                return matching.GroupName;
+            names[folder] = matching?.GroupName ?? BaseGroupName(folder);
         }
-
-        return BaseGroupName(selectedFolder);
+        return names;
     }
 
     /// <summary>
@@ -150,7 +156,9 @@ public static class RuleCatalog
         {
             string fileName = Path.GetFileName(path);
             if (fileName.EndsWith(".templates.json", StringComparison.OrdinalIgnoreCase) ||
-                fileName.EndsWith("分发规则.json", StringComparison.OrdinalIgnoreCase))
+                fileName.EndsWith("分发规则.json", StringComparison.OrdinalIgnoreCase) ||
+                fileName.StartsWith("云OCR缓存_", StringComparison.OrdinalIgnoreCase) ||
+                fileName.Equals("界面设置.json", StringComparison.OrdinalIgnoreCase))
                 continue;
 
             string stem = Path.GetFileNameWithoutExtension(path);

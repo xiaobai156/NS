@@ -9,6 +9,112 @@ namespace OcrLineTool.Tests;
 public sealed class PaddleProcessTests
 {
     [Theory]
+    [InlineData(LocalOcrDevice.Cpu)]
+    [InlineData(LocalOcrDevice.Gpu)]
+    public async Task CacheRollsOverWithoutRestartingClient(LocalOcrDevice device)
+    {
+        string image = CreateImagePath();
+        string cache = CreateTempPath("rollover-cache", ".json");
+        DateOnly today = new(2026, 9, 24);
+        var runner = new FakeProcessRunner((info, _, _) =>
+        {
+            WriteResult(info, image, [today.ToString("yyyy-MM-dd")]);
+            return Task.FromResult(new ProcessResult(true, 0, "", ""));
+        });
+        try
+        {
+            var client = new PaddleLocalOcrClient(runner, cache, device, () => today);
+            await client.RecognizeBatchAsync([image]);
+            await client.RecognizeBatchAsync([image]);
+            Assert.Single(runner.Requests);
+            today = today.AddDays(1);
+            var result = await client.RecognizeBatchAsync([image]);
+            Assert.Equal([today.ToString("yyyy-MM-dd")], result[image]);
+            Assert.Equal(2, runner.Requests.Count);
+            using var document = JsonDocument.Parse(File.ReadAllText(cache));
+            Assert.Equal(today.ToString("yyyy-MM-dd"),
+                Assert.Single(document.RootElement.EnumerateArray()).GetProperty("Date").GetString());
+        }
+        finally { DeleteIfExists(image); DeleteIfExists(cache); }
+    }
+
+    [Fact]
+    public async Task BatchFinishingAfterMidnightDoesNotReviveYesterdayCache()
+    {
+        string image = CreateImagePath();
+        string cache = CreateTempPath("midnight-cache", ".json");
+        DateOnly today = new(2026, 9, 24);
+        var runner = new FakeProcessRunner((info, _, _) =>
+        {
+            WriteResult(info, image, ["completed"]);
+            today = today.AddDays(1);
+            return Task.FromResult(new ProcessResult(true, 0, "", ""));
+        });
+        try
+        {
+            var client = new PaddleLocalOcrClient(runner, cache, currentDate: () => today);
+            Assert.Equal(["completed"], (await client.RecognizeBatchAsync([image]))[image]);
+            using var document = JsonDocument.Parse(File.ReadAllText(cache));
+            Assert.Empty(document.RootElement.EnumerateArray());
+            await client.RecognizeBatchAsync([image]);
+            Assert.Equal(2, runner.Requests.Count);
+        }
+        finally { DeleteIfExists(image); DeleteIfExists(cache); }
+    }
+
+    [Fact]
+    public async Task OldCacheEntryIsNotReusedEvenWhenFileWasTouchedToday()
+    {
+        string imagePath = CreateImagePath();
+        string cachePath = CreateTempPath("dated-cache", ".json");
+        string key = CacheKey(imagePath, 1.0, null, PaddleOcrModel.Small);
+        File.WriteAllText(cachePath, JsonSerializer.Serialize(new[]
+        {
+            new { Key = key, Texts = new[] { "old" }, Date = CredentialSchedule.TodayInBeijing().AddDays(-1) }
+        }));
+        var runner = new FakeProcessRunner((startInfo, _, _) =>
+        {
+            WriteResult(startInfo, imagePath, ["fresh"]);
+            return Task.FromResult(new ProcessResult(true, 0, "", ""));
+        });
+        try
+        {
+            var client = new PaddleLocalOcrClient(runner, cachePath);
+            var result = await client.RecognizeBatchAsync([imagePath]);
+            Assert.Equal(["fresh"], result[imagePath]);
+            Assert.Single(runner.Requests);
+        }
+        finally { DeleteIfExists(imagePath); DeleteIfExists(cachePath); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CacheCleanupUsesEntryDatesNotFileModificationTime(bool includeToday)
+    {
+        string cachePath = CreateTempPath("dated-cleanup", ".json");
+        DateOnly today = CredentialSchedule.TodayInBeijing();
+        var entries = new[]
+        {
+            new { Key = "old", Texts = new[] { "old" }, Date = today.AddDays(-1) },
+            new { Key = "today", Texts = new[] { "today" }, Date = today }
+        };
+        File.WriteAllText(cachePath, JsonSerializer.Serialize(entries.Take(includeToday ? 2 : 1)));
+        try
+        {
+            PaddleLocalOcrClient.ClearStaleCacheIfNeeded(cachePath, today);
+            if (includeToday)
+            {
+                using var document = JsonDocument.Parse(File.ReadAllText(cachePath));
+                Assert.Equal("today", Assert.Single(document.RootElement.EnumerateArray()).GetProperty("Key").GetString());
+            }
+            else
+                Assert.False(File.Exists(cachePath));
+        }
+        finally { DeleteIfExists(cachePath); }
+    }
+
+    [Theory]
     [InlineData(PaddleOcrModel.Small, "small")]
     [InlineData(PaddleOcrModel.Medium, "medium")]
     public async Task RecognizeBatchAsyncUsesInjectedProcessAndCurrentModelArguments(
@@ -302,7 +408,7 @@ public sealed class PaddleProcessTests
         string key = CacheKey(imagePath, 1.0, null, PaddleOcrModel.Small);
         File.WriteAllText(cachePath, JsonSerializer.Serialize(new[]
         {
-            new { key, texts = new[] { "缓存结果" } }
+            new { key, texts = new[] { "缓存结果" }, date = CredentialSchedule.TodayInBeijing() }
         }));
         var runner = new FakeProcessRunner((_, _, _) =>
             throw new InvalidOperationException("A cache hit must not start Python."));

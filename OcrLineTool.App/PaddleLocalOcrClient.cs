@@ -100,6 +100,7 @@ public sealed class PaddleLocalOcrClient
     private readonly string cachePath;
     private readonly IProcessRunner processRunner;
     private readonly LocalOcrDevice device;
+    private readonly Func<DateOnly> currentDate;
     private readonly Dictionary<string, string> imageErrors = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, OcrEvidence> imageEvidence = new(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyDictionary<string, string> LastImageErrors => imageErrors;
@@ -118,11 +119,13 @@ public sealed class PaddleLocalOcrClient
     internal PaddleLocalOcrClient(
         IProcessRunner processRunner,
         string? cachePath = null,
-        LocalOcrDevice device = LocalOcrDevice.Gpu)
+        LocalOcrDevice device = LocalOcrDevice.Gpu,
+        Func<DateOnly>? currentDate = null)
     {
         this.processRunner = processRunner ?? throw new ArgumentNullException(nameof(processRunner));
         this.device = device;
         this.cachePath = cachePath ?? DefaultCachePath;
+        this.currentDate = currentDate ?? CredentialSchedule.TodayInBeijing;
     }
 
     internal static string DefaultCachePath => Path.Combine(
@@ -136,9 +139,25 @@ public sealed class PaddleLocalOcrClient
     {
         try
         {
-            if (File.Exists(path)
-                && CredentialSchedule.BeijingDate(File.GetLastWriteTimeUtc(path)) < today)
+            if (!File.Exists(path))
+                return;
+            List<CacheEntry> entries;
+            try
+            {
+                entries = JsonSerializer.Deserialize<List<CacheEntry>>(File.ReadAllText(path),
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
+            }
+            catch (JsonException)
+            {
+                if (CredentialSchedule.BeijingDate(File.GetLastWriteTimeUtc(path)) < today)
+                    File.Delete(path);
+                return;
+            }
+            CacheEntry[] retained = entries.Where(entry => entry is not null && entry.Date == today).ToArray();
+            if (retained.Length == 0)
                 File.Delete(path);
+            else if (retained.Length != entries.Count)
+                AtomicFile.WriteAllText(path, JsonSerializer.Serialize(retained));
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -158,11 +177,12 @@ public sealed class PaddleLocalOcrClient
         imageErrors.Clear();
         imageEvidence.Clear();
         cancellationToken.ThrowIfCancellationRequested();
+        DateOnly batchDate = currentDate();
         string pipeline = LocalOcrIdentity.Pipeline(model);
         var initialKeys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         progress?.Report(new LocalOcrProgress(0, imagePaths.Count, string.Empty, "正在检查本地 OCR 缓存……"));
         var cache = useCache
-            ? await ReadCacheAsync(cancellationToken)
+            ? await ReadCacheAsync(batchDate, cancellationToken)
             : new Dictionary<string, CacheEntry>(StringComparer.OrdinalIgnoreCase);
         var results = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         var pending = new List<string>();
@@ -276,7 +296,7 @@ public sealed class PaddleLocalOcrClient
                         imageEvidence[result.Path] = BuildEvidence(result.Path, texts, items);
                         // Empty results are not durable success-cache entries.
                         if (texts.Any(line => !string.IsNullOrWhiteSpace(line)))
-                            cache[key] = new CacheEntry(key, texts, items);
+                            cache[key] = new CacheEntry(key, texts, items, batchDate);
                     }
                 }
                 if (useCache)
@@ -454,22 +474,27 @@ public sealed class PaddleLocalOcrClient
         return new OcrEvidence(path, path, hash, hash, "paddle", partitioned, raw);
     }
 
-    private async Task<Dictionary<string, CacheEntry>> ReadCacheAsync(CancellationToken cancellationToken)
+    private async Task<Dictionary<string, CacheEntry>> ReadCacheAsync(DateOnly today, CancellationToken cancellationToken)
     {
         try
         {
             if (!File.Exists(cachePath))
                 return new(StringComparer.OrdinalIgnoreCase);
-            await using FileStream stream = File.OpenRead(cachePath);
-            var entries = await JsonSerializer.DeserializeAsync<List<CacheEntry>>(stream, new JsonSerializerOptions
+            List<CacheEntry> entries;
+            await using (FileStream stream = File.OpenRead(cachePath))
             {
-                PropertyNameCaseInsensitive = true
-            }, cancellationToken) ?? [];
-            return entries.Where(entry => entry.Texts is not null && entry.Texts.Any(line => !string.IsNullOrWhiteSpace(line)))
+                entries = await JsonSerializer.DeserializeAsync<List<CacheEntry>>(stream,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, cancellationToken) ?? [];
+            }
+            var retained = entries.Where(entry => entry is not null && entry.Date == today
+                    && entry.Texts is not null && entry.Texts.Any(line => !string.IsNullOrWhiteSpace(line)))
                 .GroupBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(group => group.Key, group => group.Last(), StringComparer.OrdinalIgnoreCase);
+            if (retained.Count != entries.Count)
+                await WriteCacheAsync(retained, cancellationToken);
+            return retained;
         }
-        catch (Exception exception) when (exception is IOException or JsonException)
+        catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
         {
             return new(StringComparer.OrdinalIgnoreCase);
         }
@@ -482,7 +507,10 @@ public sealed class PaddleLocalOcrClient
             string? folder = Path.GetDirectoryName(cachePath);
             if (folder is not null)
                 Directory.CreateDirectory(folder);
-            await AtomicFile.WriteAllTextAsync(cachePath, JsonSerializer.Serialize(cache.Values.ToArray()),
+            // A batch started yesterday may finish today, but must not revive yesterday's cache.
+            DateOnly today = currentDate();
+            await AtomicFile.WriteAllTextAsync(cachePath,
+                JsonSerializer.Serialize(cache.Values.Where(entry => entry.Date == today).ToArray()),
                 new UTF8Encoding(false), cancellationToken);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -588,5 +616,5 @@ public sealed class PaddleLocalOcrClient
     private sealed record PaddleResponse(List<PaddleResult>? Results, string? Error);
     private sealed record PaddleResult(string Path, string[]? Texts, PaddleItem[]? Items, string? Error);
     private sealed record PaddleItem(string Text, double? Confidence, int[]? Box, string? ViewId);
-    private sealed record CacheEntry(string Key, string[] Texts, PaddleItem[]? Items = null);
+    private sealed record CacheEntry(string Key, string[] Texts, PaddleItem[]? Items = null, DateOnly Date = default);
 }

@@ -826,6 +826,7 @@ public sealed class MainForm : Form
         DateOnly date = CredentialSchedule.TodayInBeijing();
         if (issueDate != date && !isBusy)
         {
+            PaddleLocalOcrClient.ClearStaleCacheIfNeeded();
             RecognitionStateStore.ClearAll(AppContext.BaseDirectory);
             DistributionStateCleanup.ClearStaleBefore(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), date);
             FailureLog.CleanupBefore(AppContext.BaseDirectory, date);
@@ -879,27 +880,24 @@ public sealed class MainForm : Form
     private void RefreshFolderResultMarkers()
     {
         int issue = Decimal.ToInt32(issueInput.Value);
-        HashSet<string> updated = folderList.Items.Cast<DirectoryInfo>()
-            .Where(folder => CurrentIssueResultExists(folder.FullName, issue))
-            .Select(folder => folder.FullName)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        string[] folders = folderList.Items.Cast<DirectoryInfo>().Select(folder => folder.FullName).ToArray();
+        HashSet<string> updated;
+        try
+        {
+            var groups = RuleCatalog.GroupNamesForFolders(AppContext.BaseDirectory, folders);
+            updated = folders.Where(folder => File.Exists(
+                    ResultFilePaths.ForGroupName(AppContext.BaseDirectory, groups[folder], issue)))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is OcrException or IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return;
+        }
         if (foldersWithCurrentIssueResult.SetEquals(updated))
             return;
         foldersWithCurrentIssueResult.Clear();
         foldersWithCurrentIssueResult.UnionWith(updated);
         folderList.Invalidate();
-    }
-
-    private static bool CurrentIssueResultExists(string directory, int issue)
-    {
-        try
-        {
-            return File.Exists(ResultFilePaths.ForGroup(AppContext.BaseDirectory, directory, issue));
-        }
-        catch (Exception exception) when (exception is OcrException or IOException or UnauthorizedAccessException or ArgumentException)
-        {
-            return false;
-        }
     }
 
     private void SelectFolderListItem(object? sender, EventArgs e)
@@ -2601,141 +2599,58 @@ public sealed class MainForm : Form
         var client = new PaddleLocalOcrClient(ocrDevice);
         double titleRatio = PaddleLocalOcrClient.TitleRatioFor(selectedImageDirectory);
         int? detectionMaxSide = PaddleLocalOcrClient.DetectionMaxSideFor(selectedImageDirectory);
-        foreach (OcrRule rule in recoverable)
+        var requests = new List<SummaryRowRecoveryRequest>();
+        AddRequests(recoverable, SummaryRowRecoveryKind.Summary);
+        AddRequests(issueRowRules, SummaryRowRecoveryKind.IssueZodiac);
+        AddRequests(issueRowNumberRules, SummaryRowRecoveryKind.IssueNumbers);
+        await ApplyBatchAsync();
+
+        requests.Clear();
+        AddRequests(rightBlockRules, SummaryRowRecoveryKind.RightBlock);
+        await ApplyBatchAsync();
+
+        void AddRequests(IEnumerable<OcrRule> selected, SummaryRowRecoveryKind kind)
         {
-            RecognitionCandidate? candidate = candidates.FirstOrDefault(
-                item => item.Rules.Any(candidateRule => candidateRule.Id == rule.Id));
-            if (candidate is null || !File.Exists(candidate.SourcePath))
-                continue;
-            try
+            foreach (OcrRule rule in selected)
             {
-                SummaryRowRecoveryResult? recovered = await SummaryRowRecovery.TryRecoverAsync(
-                    client, candidate.SourcePath, rule, rules, titleRatio, detectionMaxSide, cancellationToken);
-                if (recovered is null)
+                if (values.ContainsKey(rule.Id))
                     continue;
-                OcrEvidence evidence = OcrEvidence.FromLines(
-                    candidate.SourcePath, recovered.StripLines, "summary-row-strip");
-                evidenceLedger.Observe(values, rule, recovered.Value, evidence);
-                missingReasons.Remove(rule.Id);
-            }
-            catch (Exception exception) when (exception is OcrException cuda
-                && PaddleLocalOcrClient.IsCudaUnavailable(cuda))
-            {
-                throw;
-            }
-            catch (Exception exception) when (exception is OcrException
-                or IOException
-                or UnauthorizedAccessException)
-            {
-                // Recovery is best effort: an unreadable strip keeps the value missing.
+                RecognitionCandidate? candidate = candidates.FirstOrDefault(
+                    item => item.Rules.Any(candidateRule => candidateRule.Id == rule.Id));
+                if (candidate is null || !File.Exists(candidate.SourcePath))
+                    continue;
+                if (kind is SummaryRowRecoveryKind.IssueZodiac or SummaryRowRecoveryKind.IssueNumbers
+                    && !string.Equals(Path.GetFileName(Path.GetDirectoryName(candidate.SourcePath)),
+                        rule.Folder, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                requests.Add(new SummaryRowRecoveryRequest(candidate.SourcePath, rule, kind));
             }
         }
 
-        // Dedicated cards whose full-image read dropped the target period row:
-        // crop that row (box from the candidate scan) and re-read it locally.
-        foreach (OcrRule rule in issueRowRules)
+        async Task ApplyBatchAsync()
         {
-            if (values.ContainsKey(rule.Id))
-                continue;
-            RecognitionCandidate? candidate = candidates.FirstOrDefault(
-                item => item.Rules.Any(candidateRule => candidateRule.Id == rule.Id));
-            if (candidate is null || !File.Exists(candidate.SourcePath))
-                continue;
-            string? imageFolder = Path.GetFileName(Path.GetDirectoryName(candidate.SourcePath));
-            if (!string.Equals(imageFolder, rule.Folder, StringComparison.OrdinalIgnoreCase))
-                continue;
-            try
+            if (requests.Count == 0)
+                return;
+            var recovered = await SummaryRowRecovery.TryRecoverBatchAsync(
+                client, requests, rules, issue, titleRatio, detectionMaxSide, cancellationToken);
+            foreach (var request in requests)
             {
-                SummaryRowRecoveryResult? recovered = await SummaryRowRecovery.TryRecoverIssueRowAsync(
-                    client, candidate.SourcePath, issue, titleRatio, detectionMaxSide, cancellationToken);
-                if (recovered is null)
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!recovered.TryGetValue(request, out SummaryRowRecoveryResult? result))
                     continue;
-                OcrEvidence evidence = OcrEvidence.FromLines(
-                    candidate.SourcePath, recovered.StripLines, "issue-row-strip");
-                evidenceLedger.Observe(values, rule, recovered.Value, evidence);
-                missingReasons.Remove(rule.Id);
-            }
-            catch (Exception exception) when (exception is OcrException cuda
-                && PaddleLocalOcrClient.IsCudaUnavailable(cuda))
-            {
-                throw;
-            }
-            catch (Exception exception) when (exception is OcrException
-                or IOException
-                or UnauthorizedAccessException)
-            {
-                // Recovery is best effort: an unreadable strip keeps the value missing.
-            }
-        }
-
-        // Dedicated number cards (for example 潮汕陈龙杀三码) whose period row
-        // was dropped by the whole-image read: crop that row and re-read it.
-        foreach (OcrRule rule in issueRowNumberRules)
-        {
-            if (values.ContainsKey(rule.Id))
-                continue;
-            RecognitionCandidate? candidate = candidates.FirstOrDefault(
-                item => item.Rules.Any(candidateRule => candidateRule.Id == rule.Id));
-            if (candidate is null || !File.Exists(candidate.SourcePath))
-                continue;
-            string? imageFolder = Path.GetFileName(Path.GetDirectoryName(candidate.SourcePath));
-            if (!string.Equals(imageFolder, rule.Folder, StringComparison.OrdinalIgnoreCase))
-                continue;
-            try
-            {
-                SummaryRowRecoveryResult? recovered = await SummaryRowRecovery.TryRecoverIssueRowNumbersAsync(
-                    client, candidate.SourcePath, issue, rule, titleRatio, detectionMaxSide, cancellationToken);
-                if (recovered is null)
-                    continue;
-                OcrEvidence evidence = OcrEvidence.FromLines(
-                    candidate.SourcePath, recovered.StripLines, "issue-row-strip");
-                evidenceLedger.Observe(values, rule, recovered.Value, evidence);
-                missingReasons.Remove(rule.Id);
-            }
-            catch (Exception exception) when (exception is OcrException cuda
-                && PaddleLocalOcrClient.IsCudaUnavailable(cuda))
-            {
-                throw;
-            }
-            catch (Exception exception) when (exception is OcrException
-                or IOException
-                or UnauthorizedAccessException)
-            {
-                // Recovery is best effort: an unreadable strip keeps the value missing.
-            }
-        }
-
-        // 右侧小块卡（简单爱）：整图把右下小块读散时按目标期号格的坐标裁右侧
-        // 同一行做二次识别。
-        foreach (OcrRule rule in rightBlockRules)
-        {
-            if (values.ContainsKey(rule.Id))
-                continue;
-            RecognitionCandidate? candidate = candidates.FirstOrDefault(
-                item => item.Rules.Any(candidateRule => candidateRule.Id == rule.Id));
-            if (candidate is null || !File.Exists(candidate.SourcePath))
-                continue;
-            try
-            {
-                SummaryRowRecoveryResult? recovered = await SummaryRowRecovery.TryRecoverRightBlockIssueRowAsync(
-                    client, candidate.SourcePath, issue, titleRatio, detectionMaxSide, cancellationToken);
-                if (recovered is null)
-                    continue;
-                OcrEvidence evidence = OcrEvidence.FromLines(
-                    candidate.SourcePath, recovered.StripLines, "right-block-strip");
-                evidenceLedger.Observe(values, rule, recovered.Value, evidence);
-                missingReasons.Remove(rule.Id);
-            }
-            catch (Exception exception) when (exception is OcrException cuda
-                && PaddleLocalOcrClient.IsCudaUnavailable(cuda))
-            {
-                throw;
-            }
-            catch (Exception exception) when (exception is OcrException
-                or IOException
-                or UnauthorizedAccessException)
-            {
-                // Recovery is best effort: an unreadable strip keeps the value missing.
+                try
+                {
+                    var identity = new OcrEvidenceIdentity(request.ImagePath, request.ImagePath,
+                        result.SourceHash, result.SourceHash, request.ViewId);
+                    OcrEvidence evidence = OcrEvidence.FromLines(request.ImagePath, result.StripLines, request.ViewId)
+                        .Bind(identity);
+                    evidenceLedger.Observe(values, request.Rule, result.Value, evidence);
+                    missingReasons.Remove(request.Rule.Id);
+                }
+                catch (OcrException exception) when (!PaddleLocalOcrClient.IsCudaUnavailable(exception))
+                {
+                    // A source changed after the batch finished; keep that rule missing.
+                }
             }
         }
     }
@@ -3097,205 +3012,225 @@ public sealed class MainForm : Form
     {
         var templateCandidates = new List<RecognitionCandidate>();
         string? templateCropFolder = null;
-        bool deferUnmatchedTemplates = DeferUnmatchedTemplates(allowTemplateSubset);
-        if (selectedImageDirectory is not null && VisualTemplateMatcher.Supports(selectedImageDirectory))
+        CancellationToken cancellationToken = ActiveToken;
+        try
         {
-            string templatePath = VisualTemplateMatcher.ConfigPath(
-                AppContext.BaseDirectory, selectedImageDirectory);
-            if (File.Exists(templatePath) || deferUnmatchedTemplates)
+            cancellationToken.ThrowIfCancellationRequested();
+            bool deferUnmatchedTemplates = DeferUnmatchedTemplates(allowTemplateSubset);
+            if (selectedImageDirectory is not null && VisualTemplateMatcher.Supports(selectedImageDirectory))
             {
-                try
+                string templatePath = VisualTemplateMatcher.ConfigPath(
+                    AppContext.BaseDirectory, selectedImageDirectory);
+                if (File.Exists(templatePath) || deferUnmatchedTemplates)
                 {
-                    VisualTemplateSet catalog = VisualTemplateMatcher.Load(templatePath);
-                    var ruleMap = rules.ToDictionary(rule => rule.Id, StringComparer.Ordinal);
-                    string[] configuredIds = catalog.Templates.SelectMany(item => item.RuleIds).ToArray();
-                    HashSet<string> configuredRuleIds = configuredIds.ToHashSet(StringComparer.Ordinal);
-                    if (configuredIds.Distinct(StringComparer.Ordinal).Count() != configuredIds.Length ||
-                        !configuredRuleIds.SetEquals(completeRuleIds))
-                        throw new OcrException($"{catalog.Folder}标题模板与规则不一致。");
-
-                    IReadOnlyList<VisualTemplateDefinition> templates = allowTemplateSubset
-                        ? VisualTemplateMatcher.SelectForRules(
-                            catalog.Templates,
-                            ruleMap.Keys.ToHashSet(StringComparer.Ordinal))
-                        : catalog.Templates;
-                    if ((!allowTemplateSubset && !configuredRuleIds.SetEquals(ruleMap.Keys)) ||
-                        templates.Count == 0)
-                        throw new OcrException($"{catalog.Folder}标题模板与规则不一致。");
-
-                    var watch = Stopwatch.StartNew();
-                    var progress = new Progress<VisualTemplateProgress>(item =>
+                    try
                     {
-                        SetProgress(item.Completed, item.Total);
-                        int percent = item.Total == 0 ? 0 : item.Completed * 100 / item.Total;
-                        statusLabel.Text = $"标题模板：{item.Completed}/{item.Total}（{percent}%） · 当前：{ShortPath(item.Path)} · 已用 {FormatDuration(watch.Elapsed)}";
-                    });
-                    IReadOnlyList<VisualTemplateMatch> matches = await Task.Run(() =>
-                        VisualTemplateMatcher.Match(imagePaths, templates, catalog.MaxDistance, progress, ocrDevice)
-                            .Where(match => match.Template.RuleIds.All(ruleMap.ContainsKey))
-                            .ToArray());
-                    bool hasCompleteTemplateMatches = VisualTemplateMatcher.HasUsableMatches(
-                        matches,
-                        templates,
-                        ruleMap.Keys.ToHashSet(StringComparer.Ordinal));
-                    if (deferUnmatchedTemplates && matches.Count == 0)
-                        return new CandidateSelection([], null, "标题模板（未命中，待手动复抓）");
+                        VisualTemplateSet catalog = VisualTemplateMatcher.Load(templatePath);
+                        var ruleMap = rules.ToDictionary(rule => rule.Id, StringComparer.Ordinal);
+                        string[] configuredIds = catalog.Templates.SelectMany(item => item.RuleIds).ToArray();
+                        HashSet<string> configuredRuleIds = configuredIds.ToHashSet(StringComparer.Ordinal);
+                        if (configuredIds.Distinct(StringComparer.Ordinal).Count() != configuredIds.Length ||
+                            !configuredRuleIds.SetEquals(completeRuleIds))
+                            throw new OcrException($"{catalog.Folder}标题模板与规则不一致。");
 
-                    if (hasCompleteTemplateMatches || ((allowTemplateSubset || deferUnmatchedTemplates) && matches.Count > 0))
-                    {
-                        templateCropFolder = Path.Combine(
-                            Path.GetTempPath(), "OcrLineTool", "visual-templates-" + Guid.NewGuid().ToString("N"));
-                        templateCandidates = new List<RecognitionCandidate>(matches.Count);
-                        int index = 0;
-                        foreach (VisualTemplateMatch match in matches)
+                        IReadOnlyList<VisualTemplateDefinition> templates = allowTemplateSubset
+                            ? VisualTemplateMatcher.SelectForRules(
+                                catalog.Templates,
+                                ruleMap.Keys.ToHashSet(StringComparer.Ordinal))
+                            : catalog.Templates;
+                        if ((!allowTemplateSubset && !configuredRuleIds.SetEquals(ruleMap.Keys)) ||
+                            templates.Count == 0)
+                            throw new OcrException($"{catalog.Folder}标题模板与规则不一致。");
+
+                        var watch = Stopwatch.StartNew();
+                        var progress = new Progress<VisualTemplateProgress>(item =>
                         {
-                            OcrEvidenceIdentity sourceAtStart = OcrEvidenceIdentity.Capture(
-                                match.SourcePath, match.SourcePath, "candidate-source");
-                            string cropPath = Path.Combine(templateCropFolder, $"{index++:D2}.png");
-                            string ocrPath = cropPath;
-                            try
+                            if (cancellationToken.IsCancellationRequested)
+                                return;
+                            SetProgress(item.Completed, item.Total);
+                            int percent = item.Total == 0 ? 0 : item.Completed * 100 / item.Total;
+                            statusLabel.Text = $"标题模板：{item.Completed}/{item.Total}（{percent}%） · 当前：{ShortPath(item.Path)} · 已用 {FormatDuration(watch.Elapsed)}";
+                        });
+                        IReadOnlyList<VisualTemplateMatch> matches = await Task.Run(() =>
+                            VisualTemplateMatcher.Match(imagePaths, templates, catalog.MaxDistance, progress, ocrDevice, cancellationToken)
+                                .Where(match => match.Template.RuleIds.All(ruleMap.ContainsKey))
+                                .ToArray(), cancellationToken);
+                        cancellationToken.ThrowIfCancellationRequested();
+                        bool hasCompleteTemplateMatches = VisualTemplateMatcher.HasUsableMatches(
+                            matches,
+                            templates,
+                            ruleMap.Keys.ToHashSet(StringComparer.Ordinal));
+                        if (deferUnmatchedTemplates && matches.Count == 0)
+                            return new CandidateSelection([], null, "标题模板（未命中，待手动复抓）");
+
+                        if (hasCompleteTemplateMatches || ((allowTemplateSubset || deferUnmatchedTemplates) && matches.Count > 0))
+                        {
+                            templateCropFolder = Path.Combine(
+                                Path.GetTempPath(), "OcrLineTool", "visual-templates-" + Guid.NewGuid().ToString("N"));
+                            await Task.Run(() =>
                             {
-                                VisualTemplateMatcher.CreateCrop(match, cropPath,
-                                    includeRemainingRows: match.Template.RuleIds.Any(id =>
-                                        ruleMap[id].StrictIssueBlock && !ruleMap[id].AllowNearbyValue),
-                                    scale: match.Template.RuleIds.Contains("翩翩公子尾") ? 2 : 1);
-                            }
-                            catch (Exception exception) when (exception is ArgumentException or IOException or ExternalException)
-                            {
-                                ocrPath = match.SourcePath;
-                            }
-                            OcrEvidenceIdentity creationIdentity = PinCreatedCandidateView(
-                                sourceAtStart, ocrPath);
-                            string[] declaredRuleIds = catalog.Templates
-                                .Single(template => template.Id.Equals(match.Template.Id, StringComparison.Ordinal))
-                                .RuleIds;
-                            templateCandidates.Add(new RecognitionCandidate(
-                                match.SourcePath,
-                                ocrPath,
-                                match.Template.RuleIds.Select(id => ruleMap[id]).ToArray(),
-                                true,
-                                "标题模板",
-                                match.Distance,
-                                CreationIdentity: creationIdentity,
-                                DeclaredRuleIds: declaredRuleIds));
+                                templateCandidates = new List<RecognitionCandidate>(matches.Count);
+                                int index = 0;
+                                foreach (VisualTemplateMatch match in matches)
+                                {
+                                    cancellationToken.ThrowIfCancellationRequested();
+                                    OcrEvidenceIdentity sourceAtStart = OcrEvidenceIdentity.Capture(
+                                        match.SourcePath, match.SourcePath, "candidate-source");
+                                    string cropPath = Path.Combine(templateCropFolder, $"{index++:D2}.png");
+                                    string ocrPath = cropPath;
+                                    try
+                                    {
+                                        VisualTemplateMatcher.CreateCrop(match, cropPath,
+                                            includeRemainingRows: match.Template.RuleIds.Any(id =>
+                                                ruleMap[id].StrictIssueBlock && !ruleMap[id].AllowNearbyValue),
+                                            scale: match.Template.RuleIds.Contains("翩翩公子尾") ? 2 : 1,
+                                            cancellationToken: cancellationToken);
+                                    }
+                                    catch (Exception exception) when (exception is ArgumentException or IOException or ExternalException)
+                                    {
+                                        ocrPath = match.SourcePath;
+                                    }
+                                    OcrEvidenceIdentity creationIdentity = PinCreatedCandidateView(
+                                        sourceAtStart, ocrPath);
+                                    string[] declaredRuleIds = catalog.Templates
+                                        .Single(template => template.Id.Equals(match.Template.Id, StringComparison.Ordinal))
+                                        .RuleIds;
+                                    templateCandidates.Add(new RecognitionCandidate(
+                                        match.SourcePath,
+                                        ocrPath,
+                                        match.Template.RuleIds.Select(id => ruleMap[id]).ToArray(),
+                                        true,
+                                        "标题模板",
+                                        match.Distance,
+                                        CreationIdentity: creationIdentity,
+                                        DeclaredRuleIds: declaredRuleIds));
+                                }
+                            }, cancellationToken);
+                            cancellationToken.ThrowIfCancellationRequested();
+
+                            if (hasCompleteTemplateMatches)
+                                return new CandidateSelection(templateCandidates, templateCropFolder, "标题模板");
+
+                            if (deferUnmatchedTemplates)
+                                return new CandidateSelection(templateCandidates, templateCropFolder,
+                                    "标题模板（部分命中，未匹配项待手动复抓）");
+
+                            HashSet<string> matchedRuleIds = templateCandidates
+                                .SelectMany(candidate => candidate.Rules)
+                                .Select(rule => rule.Id)
+                                .ToHashSet(StringComparer.Ordinal);
+                            rules = rules.Where(rule => !matchedRuleIds.Contains(rule.Id)).ToArray();
+                            if (rules.Count == 0)
+                                return new CandidateSelection(templateCandidates, templateCropFolder, "标题模板");
                         }
-
-                        if (hasCompleteTemplateMatches)
-                            return new CandidateSelection(templateCandidates, templateCropFolder, "标题模板");
-
-                        if (deferUnmatchedTemplates)
-                            return new CandidateSelection(templateCandidates, templateCropFolder,
-                                "标题模板（部分命中，未匹配项待手动复抓）");
-
-                        HashSet<string> matchedRuleIds = templateCandidates
-                            .SelectMany(candidate => candidate.Rules)
-                            .Select(rule => rule.Id)
-                            .ToHashSet(StringComparer.Ordinal);
-                        rules = rules.Where(rule => !matchedRuleIds.Contains(rule.Id)).ToArray();
-                        if (rules.Count == 0)
-                            return new CandidateSelection(templateCandidates, templateCropFolder, "标题模板");
+                        else
+                        {
+                            statusLabel.Text = $"标题模板未命中可用图片（{matches.Count}/{templates.Count}），正在回退本地 OCR……";
+                        }
                     }
-                    else
+                    catch (OcrException exception)
                     {
-                        statusLabel.Text = $"标题模板未命中可用图片（{matches.Count}/{templates.Count}），正在回退本地 OCR……";
+                        if (deferUnmatchedTemplates || PaddleLocalOcrClient.IsCudaUnavailable(exception))
+                            throw;
+                        statusLabel.Text = $"标题模板不可用（{exception.Message}），正在回退本地 OCR……";
                     }
                 }
-                catch (OcrException exception)
+            }
+
+            var localWatch = Stopwatch.StartNew();
+            var localProgress = new Progress<LocalOcrProgress>(item =>
+            {
+                if (string.IsNullOrEmpty(item.Path))
                 {
-                    if (deferUnmatchedTemplates || PaddleLocalOcrClient.IsCudaUnavailable(exception))
-                        throw;
-                    statusLabel.Text = $"标题模板不可用（{exception.Message}），正在回退本地 OCR……";
+                    SetIndeterminateProgress();
+                    statusLabel.Text = $"{item.Stage} 已用 {FormatDuration(localWatch.Elapsed)}";
+                    return;
                 }
-            }
-        }
 
-        var localWatch = Stopwatch.StartNew();
-        var localProgress = new Progress<LocalOcrProgress>(item =>
-        {
-            if (string.IsNullOrEmpty(item.Path))
+                SetProgress(item.Completed, item.Total);
+                int percent = item.Total == 0 ? 0 : item.Completed * 100 / item.Total;
+                TimeSpan remaining = item.Completed == 0
+                    ? TimeSpan.Zero
+                    : TimeSpan.FromSeconds(localWatch.Elapsed.TotalSeconds / item.Completed * (item.Total - item.Completed));
+                statusLabel.Text = $"本地 OCR：{item.Completed}/{item.Total}（{percent}%） · 当前：{ShortPath(item.Path)} · 已用 {FormatDuration(localWatch.Elapsed)} · 预计剩余 {FormatDuration(remaining)}";
+            });
+            IReadOnlyList<string> localImagePaths = imagePaths;
+            HashSet<string> limitedImagePaths = localLimitedRuleIds is null
+                ? []
+                : imagePaths.Take(60).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (localLimitedRuleIds is not null && rules.All(rule => localLimitedRuleIds.Contains(rule.Id)))
+                localImagePaths = imagePaths.Take(60).ToArray();
+
+            var localClient = new PaddleLocalOcrClient(ocrDevice);
+            IReadOnlyDictionary<string, IReadOnlyList<string>> localResults =
+                await localClient.RecognizeBatchAsync(
+                    localImagePaths,
+                    localProgress,
+                    LocalRetryTitleRatio(localLimitedRuleIds),
+                    PaddleLocalOcrClient.DetectionMaxSideFor(selectedImageDirectory!), cancellationToken: ActiveToken);
+            var candidateResults = new Dictionary<string, IReadOnlyList<string>>(localResults, StringComparer.OrdinalIgnoreCase);
+            foreach ((string failedPath, string error) in localClient.LastImageErrors)
             {
-                SetIndeterminateProgress();
-                statusLabel.Text = $"{item.Stage} 已用 {FormatDuration(localWatch.Elapsed)}";
-                return;
+                candidateResults[failedPath] = [];
+                statusLabel.Text = $"本地 OCR 单图失败：{ShortPath(failedPath)}；{error}";
+            }
+            localResults = candidateResults;
+            await Task.Yield();
+            var localCandidates = new List<RecognitionCandidate>();
+            IReadOnlyList<OcrRule> completeIdentityRules = selectedRulePath is null
+                ? rules
+                : RuleCatalog.Load(selectedRulePath);
+            bool isYanran = RuleCatalog.IsGroupFolder(selectedImageDirectory!, "嫣然心水");
+            if (isYanran)
+            {
+                foreach (LocalCandidatePlan plan in LocalCandidatePlanner.Build(
+                    imagePaths, localResults, rules, issue, completeIdentityRules))
+                {
+                    OcrEvidenceIdentity sourceAtStart = OcrEvidenceIdentity.Capture(
+                        plan.Path, plan.Path, "candidate-source");
+                    string ocrPath = PrepareLocalCloudImage(
+                        selectedImageDirectory!, plan.Path, plan.Rules, ref templateCropFolder);
+                    OcrEvidenceIdentity creationIdentity = PinCreatedCandidateView(
+                        sourceAtStart, ocrPath);
+                    localCandidates.Add(new RecognitionCandidate(
+                        plan.Path,
+                        ocrPath,
+                        plan.Rules,
+                        plan.IsPrimary,
+                        (plan.IsPrimary ? "本地OCR首选" : "本地OCR备选") + (ocrPath == plan.Path ? "" : "（杰少密集表横向压缩整图）"),
+                        null,
+                        localResults.TryGetValue(plan.Path, out IReadOnlyList<string>? planLines) ? planLines : [],
+                        BindPaddleEvidence(localClient, plan.Path, plan.Path, "candidate-small"),
+                        creationIdentity));
+                }
+                return new CandidateSelection(templateCandidates.Concat(localCandidates).ToArray(), templateCropFolder, "本地OCR");
             }
 
-            SetProgress(item.Completed, item.Total);
-            int percent = item.Total == 0 ? 0 : item.Completed * 100 / item.Total;
-            TimeSpan remaining = item.Completed == 0
-                ? TimeSpan.Zero
-                : TimeSpan.FromSeconds(localWatch.Elapsed.TotalSeconds / item.Completed * (item.Total - item.Completed));
-            statusLabel.Text = $"本地 OCR：{item.Completed}/{item.Total}（{percent}%） · 当前：{ShortPath(item.Path)} · 已用 {FormatDuration(localWatch.Elapsed)} · 预计剩余 {FormatDuration(remaining)}";
-        });
-        IReadOnlyList<string> localImagePaths = imagePaths;
-        HashSet<string> limitedImagePaths = localLimitedRuleIds is null
-            ? []
-            : imagePaths.Take(60).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (localLimitedRuleIds is not null && rules.All(rule => localLimitedRuleIds.Contains(rule.Id)))
-            localImagePaths = imagePaths.Take(60).ToArray();
-
-        var localClient = new PaddleLocalOcrClient(ocrDevice);
-        IReadOnlyDictionary<string, IReadOnlyList<string>> localResults =
-            await localClient.RecognizeBatchAsync(
-                localImagePaths,
-                localProgress,
-                LocalRetryTitleRatio(localLimitedRuleIds),
-                PaddleLocalOcrClient.DetectionMaxSideFor(selectedImageDirectory!), cancellationToken: ActiveToken);
-        var candidateResults = new Dictionary<string, IReadOnlyList<string>>(localResults, StringComparer.OrdinalIgnoreCase);
-        foreach ((string failedPath, string error) in localClient.LastImageErrors)
-        {
-            candidateResults[failedPath] = [];
-            statusLabel.Text = $"本地 OCR 单图失败：{ShortPath(failedPath)}；{error}";
-        }
-        localResults = candidateResults;
-        await Task.Yield();
-        var localCandidates = new List<RecognitionCandidate>();
-        IReadOnlyList<OcrRule> completeIdentityRules = selectedRulePath is null
-            ? rules
-            : RuleCatalog.Load(selectedRulePath);
-        bool isYanran = RuleCatalog.IsGroupFolder(selectedImageDirectory!, "嫣然心水");
-        if (isYanran)
-        {
-            foreach (LocalCandidatePlan plan in LocalCandidatePlanner.Build(
-                imagePaths, localResults, rules, issue, completeIdentityRules))
+            foreach (string path in localImagePaths)
             {
-                OcrEvidenceIdentity sourceAtStart = OcrEvidenceIdentity.Capture(
-                    plan.Path, plan.Path, "candidate-source");
-                string ocrPath = PrepareLocalCloudImage(
-                    selectedImageDirectory!, plan.Path, plan.Rules, ref templateCropFolder);
-                OcrEvidenceIdentity creationIdentity = PinCreatedCandidateView(
-                    sourceAtStart, ocrPath);
-                localCandidates.Add(new RecognitionCandidate(
-                    plan.Path,
-                    ocrPath,
-                    plan.Rules,
-                    plan.IsPrimary,
-                    (plan.IsPrimary ? "本地OCR首选" : "本地OCR备选") + (ocrPath == plan.Path ? "" : "（杰少密集表横向压缩整图）"),
-                    null,
-                    localResults.TryGetValue(plan.Path, out IReadOnlyList<string>? planLines) ? planLines : [],
-                    BindPaddleEvidence(localClient, plan.Path, plan.Path, "candidate-small"),
-                    creationIdentity));
+                if (!localResults.TryGetValue(path, out IReadOnlyList<string>? lines))
+                    continue;
+                IReadOnlyList<OcrRule> matched = RuleEngine.FindMatches(path, lines, rules, completeIdentityRules);
+                if (localLimitedRuleIds is not null && limitedImagePaths.Count > 0 &&
+                    !limitedImagePaths.Contains(path))
+                {
+                    matched = matched
+                        .Where(rule => !localLimitedRuleIds.Contains(rule.Id))
+                        .ToArray();
+                }
+                if (matched.Count > 0)
+                    localCandidates.Add(new RecognitionCandidate(
+                        path, path, matched, true, "本地OCR", null, lines,
+                        BindPaddleEvidence(localClient, path, path, "candidate-small")));
             }
             return new CandidateSelection(templateCandidates.Concat(localCandidates).ToArray(), templateCropFolder, "本地OCR");
         }
-
-        foreach (string path in localImagePaths)
+        catch
         {
-            if (!localResults.TryGetValue(path, out IReadOnlyList<string>? lines))
-                continue;
-            IReadOnlyList<OcrRule> matched = RuleEngine.FindMatches(path, lines, rules, completeIdentityRules);
-            if (localLimitedRuleIds is not null && limitedImagePaths.Count > 0 &&
-                !limitedImagePaths.Contains(path))
-            {
-                matched = matched
-                    .Where(rule => !localLimitedRuleIds.Contains(rule.Id))
-                    .ToArray();
-            }
-            if (matched.Count > 0)
-                localCandidates.Add(new RecognitionCandidate(
-                    path, path, matched, true, "本地OCR", null, lines,
-                    BindPaddleEvidence(localClient, path, path, "candidate-small")));
+            if (templateCropFolder is not null)
+                try { Directory.Delete(templateCropFolder, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            throw;
         }
-        return new CandidateSelection(templateCandidates.Concat(localCandidates).ToArray(), templateCropFolder, "本地OCR");
     }
 
     internal static IReadOnlyList<OcrRule> RulesForAlreadyRequestedCloudFallback(

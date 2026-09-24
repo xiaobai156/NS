@@ -30,19 +30,21 @@ public sealed class SummaryRowRecoveryTests
             {
                 var runner = new RecoveryErrorRunner(route, failAt, kind);
                 var client = new PaddleLocalOcrClient(runner, Path.Combine(folder, kind + ".json"));
-                Task<SummaryRowRecoveryResult?> Call() => route switch
+                SummaryRowRecoveryKind recoveryKind = route switch
                 {
-                    "summary" => SummaryRowRecovery.TryRecoverAsync(client, image, rule, Rules, 1, null, default),
-                    "right" => SummaryRowRecovery.TryRecoverRightBlockIssueRowAsync(client, image, 257, 1, null, default),
-                    "numbers" => SummaryRowRecovery.TryRecoverIssueRowNumbersAsync(client, image, 257, rule, 1, null, default),
-                    _ => SummaryRowRecovery.TryRecoverIssueRowAsync(client, image, 257, 1, null, default)
+                    "summary" => SummaryRowRecoveryKind.Summary,
+                    "right" => SummaryRowRecoveryKind.RightBlock,
+                    "numbers" => SummaryRowRecoveryKind.IssueNumbers,
+                    _ => SummaryRowRecoveryKind.IssueZodiac
                 };
+                Task<IReadOnlyDictionary<SummaryRowRecoveryRequest, SummaryRowRecoveryResult>> Call() =>
+                    SummaryRowRecovery.TryRecoverBatchAsync(client, [new(image, rule, recoveryKind)], Rules, 257, 1, null, default);
                 if (kind == "cuda")
                     Assert.Equal(PaddleLocalOcrClient.CudaUnavailableCode, (await Assert.ThrowsAsync<OcrException>(Call)).Code);
                 else if (kind == "cancel")
                     await Assert.ThrowsAnyAsync<OperationCanceledException>(Call);
                 else
-                    Assert.Null(await Call());
+                    Assert.Empty(await Call());
                 Assert.Equal(failAt, runner.Calls);
             }
         }

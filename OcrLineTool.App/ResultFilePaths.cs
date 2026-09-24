@@ -36,9 +36,12 @@ public static class ResultFilePaths
         Path.Combine(appDirectory, "本地日志", "操作日志.txt");
 
     public static string ForGroup(string outputDirectory, string selectedDirectory, int issue) =>
+        ForGroupName(outputDirectory, RuleCatalog.GroupNameForFolder(outputDirectory, selectedDirectory), issue);
+
+    internal static string ForGroupName(string outputDirectory, string groupName, int issue) =>
         Path.Combine(
             GroupResultsDirectory(outputDirectory),
-            $"{RuleCatalog.GroupNameForFolder(outputDirectory, selectedDirectory)}_{issue}期.txt");
+            $"{groupName}_{issue}期.txt");
 
     public static string ForDiagnostic(string outputDirectory, int issue) =>
         Path.Combine(TemporaryFilesDirectory(outputDirectory), "诊断", $"OCR诊断_{issue}期.json");

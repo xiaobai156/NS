@@ -146,19 +146,21 @@ public static class VisualTemplateMatcher
         IReadOnlyList<VisualTemplateDefinition> templates,
         int maxDistance,
         IProgress<VisualTemplateProgress>? progress = null,
-        LocalOcrDevice device = LocalOcrDevice.Gpu) =>
+        LocalOcrDevice device = LocalOcrDevice.Gpu,
+        CancellationToken cancellationToken = default) =>
         Match(
             imagePaths,
             templates,
             maxDistance,
             template => ResolveRegion(template, null, null),
-            progress, device);
+            progress, device, cancellationToken);
 
     public static IReadOnlyList<VisualTemplateMatch> Match(
         IReadOnlyList<string> imagePaths,
         VisualTemplateSet catalog,
         IProgress<VisualTemplateProgress>? progress = null,
-        LocalOcrDevice device = LocalOcrDevice.Gpu) =>
+        LocalOcrDevice device = LocalOcrDevice.Gpu,
+        CancellationToken cancellationToken = default) =>
         Match(
             imagePaths,
             catalog.Templates,
@@ -167,7 +169,7 @@ public static class VisualTemplateMatcher
                 template,
                 catalog.FingerprintTopWidthRatio,
                 catalog.FingerprintBottomWidthRatio),
-            progress, device);
+            progress, device, cancellationToken);
 
     public static bool HasUsableMatches(
         IReadOnlyList<VisualTemplateMatch> matches,
@@ -261,8 +263,10 @@ public static class VisualTemplateMatcher
         int maxDistance,
         Func<VisualTemplateDefinition, FingerprintRegion> regionSelector,
         IProgress<VisualTemplateProgress>? progress,
-        LocalOcrDevice device)
+        LocalOcrDevice device,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (imagePaths.Count == 0 || templates.Count == 0)
             return [];
 
@@ -276,8 +280,9 @@ public static class VisualTemplateMatcher
         int completed = 0;
         try
         {
-            Parallel.For(0, imagePaths.Count, index =>
+            Parallel.For(0, imagePaths.Count, new ParallelOptions { CancellationToken = cancellationToken }, index =>
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 string path = imagePaths[index];
                 try
                 {
@@ -289,7 +294,11 @@ public static class VisualTemplateMatcher
                     using var image = new Bitmap(stream);
                     imageHashes[index] = (path, contentHash, regions.ToDictionary(
                         region => region,
-                        region => CreateFingerprints(image, region, ShiftRatios, device)));
+                        region =>
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            return CreateFingerprints(image, region, ShiftRatios, device);
+                        }));
                 }
                 catch (Exception exception) when (exception is ArgumentException or IOException)
                 {
@@ -309,6 +318,7 @@ public static class VisualTemplateMatcher
         var firstIndexByContent = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         for (int index = 0; index < imageHashes.Length; index++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             string contentHash = imageHashes[index].SourceHash;
             if (contentHash.Length == 0 || firstIndexByContent.TryAdd(contentHash, index))
                 continue;
@@ -320,6 +330,7 @@ public static class VisualTemplateMatcher
         {
             for (int imageIndex = 0; imageIndex < imageHashes.Length; imageIndex++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (!imageHashes[imageIndex].Hashes.TryGetValue(
                     templateRegions[templateIndex], out ulong[][]? variants))
                     continue;
@@ -347,6 +358,7 @@ public static class VisualTemplateMatcher
             .GroupBy(item => item.TemplateIndex)
             .SelectMany(group =>
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 Score[] ordered = group.OrderBy(item => item.Distance)
                     .ThenBy(item => imageHashes[item.ImageIndex].Path, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
@@ -366,6 +378,7 @@ public static class VisualTemplateMatcher
             .ThenBy(item => Math.Abs(ShiftRatios[item.ShiftIndex]))
             .ThenBy(item => imageHashes[item.ImageIndex].Path, StringComparer.OrdinalIgnoreCase))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (usedTemplates.Contains(score.TemplateIndex) || usedImages.Contains(score.ImageIndex))
                 continue;
             usedTemplates.Add(score.TemplateIndex);
@@ -377,11 +390,14 @@ public static class VisualTemplateMatcher
                 ShiftRatios[score.ShiftIndex],
                 imageHashes[score.ImageIndex].SourceHash));
         }
+        cancellationToken.ThrowIfCancellationRequested();
         return matches.OrderBy(item => item.Template.Id, StringComparer.Ordinal).ToArray();
     }
 
-    public static void CreateCrop(VisualTemplateMatch match, string destinationPath, bool includeRemainingRows = false, int scale = 1)
+    public static void CreateCrop(VisualTemplateMatch match, string destinationPath, bool includeRemainingRows = false, int scale = 1,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         byte[] sourceBytes;
         try
         {
@@ -396,6 +412,7 @@ public static class VisualTemplateMatcher
             && !sourceHash.Equals(match.SourceHash, StringComparison.OrdinalIgnoreCase))
             throw new OcrException("模板来源图片在匹配后发生变化，请重新识别。", "OCR_IMAGE_CHANGED");
 
+        cancellationToken.ThrowIfCancellationRequested();
         using var stream = new MemoryStream(sourceBytes, writable: false);
         using var image = new Bitmap(stream);
         double shift = Math.Round(match.VerticalShiftWidthRatio, 2);
@@ -405,11 +422,13 @@ public static class VisualTemplateMatcher
         top = Math.Clamp(top, 0, image.Height - 1);
         bottom = Math.Clamp(bottom, top + 1, image.Height);
 
+        cancellationToken.ThrowIfCancellationRequested();
         Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)
             ?? throw new OcrException("无法创建OCR裁剪目录。"));
         using Bitmap crop = image.Clone(new Rectangle(0, top, image.Width, bottom - top), PixelFormat.Format24bppRgb);
         if (scale <= 1)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             crop.Save(destinationPath, ImageFormat.Png);
             return;
         }
@@ -420,6 +439,7 @@ public static class VisualTemplateMatcher
             graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
             graphics.DrawImage(crop, new Rectangle(0, 0, enlarged.Width, enlarged.Height));
         }
+        cancellationToken.ThrowIfCancellationRequested();
         enlarged.Save(destinationPath, ImageFormat.Png);
     }
 

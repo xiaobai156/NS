@@ -6,6 +6,53 @@ namespace OcrLineTool.Tests;
 
 public sealed class VisualTemplateMatcherTests
 {
+    [Theory]
+    [InlineData(LocalOcrDevice.Cpu)]
+    [InlineData(LocalOcrDevice.Gpu)]
+    public void CancelledTemplateBatchDoesNotReadImagesOrLoadCuda(LocalOcrDevice device)
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var template = new VisualTemplateDefinition("test", ["test"], "invalid", 0.25, 0.55);
+        var catalog = new VisualTemplateSet(1, "test", 300, [template]);
+        Assert.ThrowsAny<OperationCanceledException>(() => VisualTemplateMatcher.Match(
+            ["missing.png"], [template], 300, device: device, cancellationToken: cancellation.Token));
+        Assert.ThrowsAny<OperationCanceledException>(() => VisualTemplateMatcher.Match(
+            ["missing.png"], catalog, device: device, cancellationToken: cancellation.Token));
+    }
+
+    [Fact]
+    public void CancellationDuringFingerprintingStopsBeforeReturningMatches()
+    {
+        using var files = new ImageFixture();
+        string image = files.Create("card.png", 1, 1);
+        var template = new VisualTemplateDefinition("test", ["test"],
+            VisualTemplateMatcher.CreateFingerprint(image, device: LocalOcrDevice.Cpu), 0.25, 0.55);
+        using var cancellation = new CancellationTokenSource();
+        var progress = new CancelOnProgress(cancellation);
+        Assert.ThrowsAny<OperationCanceledException>(() => VisualTemplateMatcher.Match(
+            [image], [template], 300, progress, LocalOcrDevice.Cpu, cancellation.Token));
+    }
+
+    [Fact]
+    public void CancelledCropDoesNotCreateOutputOrReadSource()
+    {
+        using var files = new ImageFixture();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var template = new VisualTemplateDefinition("test", ["test"], "", 0.25, 0.55);
+        string destination = Path.Combine(files.Folder, "crop.png");
+        Assert.ThrowsAny<OperationCanceledException>(() => VisualTemplateMatcher.CreateCrop(
+            new VisualTemplateMatch("missing.png", template, 0, 0), destination,
+            cancellationToken: cancellation.Token));
+        Assert.False(File.Exists(destination));
+    }
+
+    private sealed class CancelOnProgress(CancellationTokenSource cancellation) : IProgress<VisualTemplateProgress>
+    {
+        public void Report(VisualTemplateProgress value) => cancellation.Cancel();
+    }
+
     [Fact]
     public void CpuTemplateMatchesExistingCatalogWithoutCuda()
     {

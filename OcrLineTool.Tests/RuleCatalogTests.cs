@@ -5,6 +5,47 @@ namespace OcrLineTool.Tests;
 public sealed class RuleCatalogTests
 {
     [Fact]
+    public void GroupNameBatchUsesOneSnapshotAndReloadsForTheNextRefresh()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "group-refresh-" + Guid.NewGuid().ToString("N"));
+        string config = ResultFilePaths.ConfigurationDirectory(root);
+        Directory.CreateDirectory(config);
+        string rules = Path.Combine(config, "sample.json");
+        File.WriteAllText(rules, "{\"group\":\"目标 群\",\"rules\":[]}");
+        string[] folders = [@"C:\images\267期-目标群", @"C:\images\9.24-目标群", @"C:\images\目标群-备份"];
+        try
+        {
+            var snapshot = RuleCatalog.GroupNamesForFolders(root, folders);
+            Assert.Equal("目标 群", snapshot[folders[0]]);
+            Assert.Equal("目标 群", snapshot[folders[1]]);
+            Assert.Equal("目标群-备份", snapshot[folders[2]]);
+            File.WriteAllText(rules, "{\"group\":\"目标群\",\"rules\":[]}");
+            Assert.Equal("目标 群", snapshot[folders[0]]);
+            Assert.Equal("目标群", RuleCatalog.GroupNamesForFolders(root, folders)[folders[0]]);
+            Assert.Equal(ResultFilePaths.ForGroup(root, folders[0], 267),
+                ResultFilePaths.ForGroupName(root, "目标群", 267));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Theory]
+    [InlineData("云OCR缓存_目标群.json")]
+    [InlineData("界面设置.json")]
+    public void NonRuleDocumentsCannotSupplyAGroupName(string fileName)
+    {
+        string root = Path.Combine(Path.GetTempPath(), "rule-poll-" + Guid.NewGuid().ToString("N"));
+        string config = ResultFilePaths.ConfigurationDirectory(root);
+        Directory.CreateDirectory(config);
+        try
+        {
+            File.WriteAllText(Path.Combine(config, fileName), "{\"group\":\"目标群\",\"entries\":[]}");
+            Assert.Equal(Path.Combine(config, "267期-目标群.json"),
+                RuleCatalog.PathForFolder(root, @"C:\images\267期-目标群"));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
     public void LoadsAllConfiguredItemsWithUniqueOutputIds()
     {
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
