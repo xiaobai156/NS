@@ -117,7 +117,7 @@ public static class GroupResultFormatter
             return "二肖";
         if (type == "九肖")
             return "九肖";
-        // 方位型资料（藏宝九肖）的值是缺的那个方位标签，不属于任何生肖数量档。
+        // 方位型资料（藏宝九肖）输出三个方向字，不属于任何生肖数量档。
         if (type == "方位")
             return "其他";
         if (type is "五行" or "单五行")

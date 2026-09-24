@@ -13,6 +13,24 @@ public sealed class NewAogaoShou253RulesTests
 
     private static OcrRule Rule(string id) => Assert.Single(Rules(), rule => rule.Id == id);
 
+    [Theory]
+    [InlineData("亚太五行", "亚太地区四行")]
+    [InlineData("战澳五行", "团队四行")]
+    public void FourElementCardsAlwaysOutputTheElementSuffix(string id, string title)
+    {
+        OcrRule rule = Rule(id);
+        foreach (int issue in new[] { 8, 267, 1001 })
+        foreach (char missing in "金木水火土")
+        {
+            string printed = string.Concat("金木水火土".Where(element => element != missing));
+            string? value = RuleEngine.ExtractFinalValue([$"{issue}期{title}：{printed}√"], issue, rule);
+            Assert.Equal(missing.ToString(), value);
+            Assert.Equal($"{missing}行 {id}", Assert.Single(RuleEngine.FormatOutput(
+                [rule], new Dictionary<string, string> { [id] = value! })));
+            Assert.True(RuleEngine.IsFormattedOutputValueValid(rule, $"{missing}行"));
+        }
+    }
+
     [Fact]
     public void ExtractsYataiHeadsFromTheBracketedFourHeadCard()
     {

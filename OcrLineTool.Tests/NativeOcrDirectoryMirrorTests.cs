@@ -83,6 +83,11 @@ public sealed class NativeOcrDirectoryMirrorTests
     [InlineData("ShaWuma", "爱晚亭", "01 02 0306", "01,02,03,06")]
     [InlineData("Dawei", "图库", "1 2 03 49", "01,02,03,49")]
     [InlineData("Shengxiao", "阿尔康奈", "虎狗", "虎狗")]
+    [InlineData("Shengxiao", "阿尔康奈", "东西北", "蛇马羊")]
+    [InlineData("Shengxiao", "阿尔康奈", "东南北", "猴鸡狗")]
+    [InlineData("Shengxiao", "阿尔康奈", "西南北", "虎兔龙")]
+    [InlineData("Shengxiao", "阿尔康奈", "北东西", "蛇马羊")]
+    [InlineData("Shengxiao", "阿尔康奈", "东西南", "鼠牛猪")]
     public void FormatsValuesLikeTheOtherApp(string kind, string label, string value, string expected)
     {
         string folder = CreateTempFolder();
@@ -110,6 +115,29 @@ public sealed class NativeOcrDirectoryMirrorTests
                 store, "Shengxiao", [("阿尔康奈", "鼠牛虎兔龙蛇马羊猴")]);
             Assert.Equal(1, outcome.Written);
             Assert.Equal("鸡狗猪", Values(store, "Shengxiao").GetProperty("阿尔康奈").GetString());
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData("东东北")]
+    [InlineData("东西")]
+    [InlineData("东西南北")]
+    [InlineData("东 西 北")]
+    [InlineData("东西北鼠")]
+    public void InvalidDirectionsNeverWriteAnExternalValue(string value)
+    {
+        string folder = CreateTempFolder();
+        try
+        {
+            string store = CreateStore(folder);
+            string before = File.ReadAllText(store);
+            var outcome = NativeOcrDirectoryMirror.Apply(store, "Shengxiao", [("阿尔康奈", value)]);
+            Assert.Equal(0, outcome.Written);
+            Assert.Equal(before, File.ReadAllText(store));
         }
         finally
         {
@@ -175,10 +203,8 @@ public sealed class NativeOcrDirectoryMirrorTests
         }
     }
 
-    // 方位型资料（藏宝九肖 的「北肖」）不是对方软件能吃的格式：按配置不镜像，
-    // 同一次分发的其它标签照旧镜像。
     [Fact]
-    public async Task SkipsTheLabelsListedInNativeOcrSkipLabels()
+    public async Task TreasureDirectionsUseProductionConfigurationAndMirrorWithoutOverwriting()
     {
         string folder = CreateTempFolder();
         try
@@ -197,32 +223,29 @@ public sealed class NativeOcrDirectoryMirrorTests
             """, new UTF8Encoding(false));
             string config = Path.Combine(folder, "config");
             Directory.CreateDirectory(config);
-            File.WriteAllText(Path.Combine(config, "新澳高级会员.json"), """
-            {"group":"新澳高级会员","strictIssueBlock":true,"rules":[
-              {"keyword":"藏宝库","type":"方位","label":"藏宝九肖"},
-              {"keyword":"暴打九肖","type":"九肖","label":"会员暴打"}]}
-            """, new UTF8Encoding(false));
+            string sourceConfig = ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory);
+            File.Copy(Path.Combine(sourceConfig, "新澳高级会员.json"), Path.Combine(config, "新澳高级会员.json"));
             string target = Path.Combine(folder, "target");
             Directory.CreateDirectory(target);
             File.WriteAllText(Path.Combine(target, "243期-生肖.txt"), string.Empty, new UTF8Encoding(false));
-            File.WriteAllText(Path.Combine(config, "生肖分发规则.json"), """
-            {
-              "targetFile": "{issue}期-生肖.txt",
-              "native_ocr_kind": "Shengxiao",
-              "native_ocr_skip_labels": [ "藏宝九肖" ],
-              "sources": [ { "sourceGroup": "新澳高级会员", "labels": [ "藏宝九肖", "会员暴打" ] } ]
-            }
-            """, new UTF8Encoding(false));
+            File.Copy(Path.Combine(sourceConfig, "生肖分发规则.json"), Path.Combine(config, "生肖分发规则.json"));
 
-            string[] lines = ["北肖 藏宝九肖", "马蛇龙兔虎牛鼠猪狗 会员暴打"];
+            OcrRule rule = RuleCatalog.Load(Path.Combine(config, "新澳高级会员.json")).Single(rule => rule.Id == "藏宝九肖");
+            string value = RuleEngine.ExtractFinalValue(["藏宝库【东西南北】付费版", "243期藏宝库：东肖西肖北肖"], 243, rule)!;
+            string[] lines = [..RuleEngine.FormatOutput([rule], new Dictionary<string, string> { [rule.Id] = value }), "马蛇龙兔虎牛鼠猪狗 会员暴打"];
             DistributionResult result = await ResultDistributor.DistributeAllAsync(
                 @"C:\图片\9.20-新澳高级会员", 243, lines, target, config, store);
 
             Assert.Equal(2, result.DistributedLines.Count);
             Assert.NotNull(result.NativeOcrMirror);
-            Assert.Equal(1, result.NativeOcrMirror!.Written);
+            Assert.Equal(2, result.NativeOcrMirror!.Written);
+            Assert.Empty(result.Errors);
+            Assert.Contains("东西北 藏宝九肖", File.ReadAllText(Path.Combine(target, "243期-生肖.txt")));
             Assert.Equal("羊猴鸡", Values(store, "Shengxiao").GetProperty("会员暴打").GetString());
-            Assert.False(Values(store, "Shengxiao").TryGetProperty("藏宝九肖", out _));
+            Assert.Equal("蛇马羊", Values(store, "Shengxiao").GetProperty("藏宝九肖").GetString());
+            NativeOcrMirrorOutcome retry = NativeOcrDirectoryMirror.Apply(store, "Shengxiao", [("藏宝九肖", "西南北")]);
+            Assert.Equal(1, retry.SkippedExisting);
+            Assert.Equal("蛇马羊", Values(store, "Shengxiao").GetProperty("藏宝九肖").GetString());
         }
         finally
         {

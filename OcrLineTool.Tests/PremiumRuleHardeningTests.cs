@@ -21,8 +21,8 @@ public sealed class PremiumRuleHardeningTests
         yield return ["翩翩公子肖", "公子杀一肖：雞 雞 雞 准！", "鸡"];
         yield return ["祥瑞阁", "01 02 03 04 05 06 07 08 10 11 12 13 14 15 16 17 19\n22 23 25 26 28 30 31 33 34 35 36 37 39 41 42 43 44\n45 47", "01 02 03 04 05 06 07 08 10 11 12 13 14 15 16 17 19 22 23 25 26 28 30 31 33 34 35 36 37 39 41 42 43 44 45 47"];
         yield return ["会员暴打", "会员九肖:狗龍雞馬虎羊鼠猴豬", "狗龙鸡马虎羊鼠猴猪"];
-        // 藏宝九肖：值是缺的那个方位本身（卡面印东/西/南 → 缺北肖），不做生肖换算。
-        yield return ["藏宝九肖", "藏宝库：东肖 西肖 南肖", "北肖"];
+        // Keep the printed directions in order; no complement or zodiac conversion.
+        yield return ["藏宝九肖", "藏宝库：东肖 西肖 南肖", "东西南"];
     }
 
     [Theory]
@@ -41,7 +41,7 @@ public sealed class PremiumRuleHardeningTests
         }
     }
 
-    // 藏宝库【东西南北】付费版：每期印三个方位，取缺的那个方位（东西南北固定，用户确认）。
+    // Each period has three distinct printed directions.
     private static string[] TreasureCard(int issue, string directions) =>
     [
         "新澳 38 22 33 47 36 07 刷 30",
@@ -61,19 +61,27 @@ public sealed class PremiumRuleHardeningTests
     public void TreasureDirectionValuePassesTheDistributionValidation()
     {
         OcrRule rule = Rule("藏宝九肖");
-        Assert.True(RuleEngine.IsFormattedOutputValueValid(rule, "北肖"));
+        Assert.True(RuleEngine.IsFormattedOutputValueValid(rule, "东西北"));
+        Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "北肖"));
+        Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "东东北"));
+        Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "东西南北"));
+        Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "东 西 北"));
         Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "北"));
         Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "兔虎龙"));
         Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "东肖 西肖 南肖"));
     }
 
     [Fact]
-    public void TreasureDirectionIsTheOneMissingOnTheTargetRow()
+    public void TreasureDirectionsKeepThePrintedOrderOnTheTargetRow()
     {        OcrRule rule = Rule("藏宝九肖");
-        Assert.Equal("北肖", RuleEngine.ExtractFinalValue(TreasureCard(263, "东肖 西肖 南肖"), 263, rule));
-        // 目标期是表格中间那行时，只按那一行算缺哪个方位。
-        Assert.Equal("西肖", RuleEngine.ExtractFinalValue(TreasureCard(262, "东肖 南肖 北肖"), 262, rule));
-        Assert.Equal("东肖", RuleEngine.ExtractFinalValue(TreasureCard(260, "西肖 南肖 北肖"), 260, rule));
+        Assert.Equal("东西南", RuleEngine.ExtractFinalValue(TreasureCard(263, "东肖 西肖 南肖"), 263, rule));
+        Assert.Equal("东南北", RuleEngine.ExtractFinalValue(TreasureCard(262, "东肖 南肖 北肖"), 262, rule));
+        Assert.Equal("西南北", RuleEngine.ExtractFinalValue(TreasureCard(260, "西肖 南肖 北肖"), 260, rule));
+        Assert.Equal("北东西", RuleEngine.ExtractFinalValue(TreasureCard(1001, "北肖 东肖 西肖"), 1001, rule));
+        Assert.Equal("东西南", RuleEngine.ExtractFinalValue(TreasureCard(8, "东肖 西肖 南肖"), 8, rule));
+        string[] lines = ["藏宝库【东西南北】付费版", "1002期藏宝库：东肖西肖北肖", "1001期藏宝库：东肖南肖北肖"];
+        Assert.Equal("东西北", RuleEngine.ExtractFinalValue(lines, 1002, rule));
+        Assert.Equal("东南北", RuleEngine.ExtractFinalValue(lines, 1001, rule));
     }
 
     [Fact]

@@ -181,7 +181,7 @@ public static class ResultDistributor
         return new ConfigApplication(distributed, mirror);
     }
 
-    // 有些资料的取值不是对方软件的格式（例如方位型「北肖」），按配置明确不镜像。
+    // Only explicitly configured labels are excluded from external mirroring.
     private static bool SkipNativeOcrMirror(DistributionConfig config, string label) =>
         config.NativeOcrSkipLabels is { Length: > 0 } skip
         && skip.Contains(label, StringComparer.Ordinal);
