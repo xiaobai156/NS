@@ -1302,6 +1302,10 @@ public static class RuleEngine
             return true;
         if (ContainsSectionMarker(lines[issueIndex], rule.Section))
             return true;
+        if (issueIndex + 1 < lines.Length
+            && !ContainsAnyIssue(lines[issueIndex + 1])
+            && ContainsSectionMarker(lines[issueIndex] + lines[issueIndex + 1], rule.Section))
+            return true;
 
         string[] identity = new[] { rule.Keyword, rule.RequiredKeyword ?? string.Empty, rule.Folder ?? string.Empty }
             .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -1749,8 +1753,11 @@ public static class RuleEngine
                         conflict = true;
                     continue;
                 }
+                bool unpositionedPurpleSection = rule.Id == "紫蝴蝶"
+                    && items.All(item => item.Box is null);
                 regional = holistic.Status == RuleExtractionStatus.Success
-                    && atomic.Count == 1 && atomic.Contains(holistic.Value!)
+                    && (unpositionedPurpleSection
+                        || atomic.Count == 1 && atomic.Contains(holistic.Value!))
                     ? holistic
                     : RuleExtractionResult.Missing;
             }
