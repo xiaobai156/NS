@@ -154,8 +154,9 @@ public static class RuleEngine
         // shows another material's name and none of this rule's own names.
         bool guardForeignIdentity = RuleCatalog.PathBelongsToGroup(imagePath, "嫣然心水");
         HashSet<string> presentIdentities = guardForeignIdentity
-            ? identityRules.Select(other => Normalize(other.Keyword))
-                .Where(value => value.Length > 0 && text.Contains(value, StringComparison.Ordinal))
+            ? identityRules.Where(other => ContainsKeyword(text, Normalize(other.Keyword)))
+                .Select(other => Normalize(other.Keyword))
+                .Where(value => value.Length > 0)
                 .ToHashSet(StringComparer.Ordinal)
             : [];
         HashSet<string> exactIdentityIds = hasCompleteIdentityCatalog
@@ -225,7 +226,7 @@ public static class RuleEngine
             }
             bool explicitIdentity = MatchesText(text, rule)
                 && (string.IsNullOrWhiteSpace(rule.Section)
-                    || text.Contains(Normalize(rule.Section), StringComparison.Ordinal));
+                    || ContainsSectionMarker(text, rule.Section));
             if (explicitIdentity)
                 return true;
             return HasValueForAnyIssue(lines, rule)
@@ -236,7 +237,7 @@ public static class RuleEngine
                     && (hasCompleteIdentityCatalog
                         && identityRules.Count(other => (other.Folder ?? other.Keyword).Equals(expectedFolder, StringComparison.OrdinalIgnoreCase)
                             && Normalize(other.RequiredKeyword ?? other.Keyword) == Normalize(rule.RequiredKeyword)) == 1
-                        || !string.IsNullOrWhiteSpace(rule.Section) && text.Contains(Normalize(rule.Section), StringComparison.Ordinal)))
+                        || !string.IsNullOrWhiteSpace(rule.Section) && ContainsSectionMarker(text, rule.Section)))
                 || (hasCompleteIdentityCatalog
                     && identityRules.Count(other => (other.Folder ?? other.Keyword).Equals(expectedFolder, StringComparison.OrdinalIgnoreCase)) == 1
                     && expectedFolder.Equals(rule.RequiredKeyword ?? rule.Keyword, StringComparison.OrdinalIgnoreCase));
@@ -344,9 +345,9 @@ public static class RuleEngine
 
         return identityMatched
             && (string.IsNullOrWhiteSpace(rule.RequiredKeyword)
-                || ContainsKeyword(text, Normalize(rule.RequiredKeyword)))
+                || RequiredKeywordMatches(text, rule.RequiredKeyword, rule))
             && (rule.RequiredKeywordsAny is not { Count: > 0 }
-                || rule.RequiredKeywordsAny.Any(value => ContainsKeyword(text, Normalize(value))));
+                || rule.RequiredKeywordsAny.Any(value => RequiredKeywordMatches(text, value, rule)));
     }
 
     public static bool IsZodiacSummary(IEnumerable<string> lines) =>
@@ -385,10 +386,50 @@ public static class RuleEngine
         return false;
     }
 
+    private static bool ContainsSectionMarker(string text, string? section)
+    {
+        if (string.IsNullOrWhiteSpace(section))
+            return true;
+        string normalized = Normalize(text);
+        return SectionAliases(section).Any(alias => alias.Length > 0
+            && normalized.Contains(alias, StringComparison.Ordinal));
+    }
+
+    private static bool ContainsAnyAlias(string text, IEnumerable<string> aliases)
+    {
+        string normalized = Normalize(text);
+        return aliases.Any(alias => ContainsKeyword(normalized, alias));
+    }
+
+    private static bool ContainsRuleIdentity(IEnumerable<string> lines, OcrRule rule)
+    {
+        string[] identities = new[] { rule.Keyword, rule.Label ?? string.Empty }
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(Normalize)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        return identities.Length > 0 && lines.Any(line => ContainsAnyAlias(line, identities));
+    }
+
+    private static IReadOnlyList<string> SectionAliases(string section)
+    {
+        string normalized = Normalize(section);
+        var aliases = new List<string> { normalized };
+        Match month = Regex.Match(normalized, "^(?<month>\\d{1,2})月份$");
+        if (month.Success)
+        {
+            string number = month.Groups["month"].Value;
+            aliases.Add(number + "份");
+            aliases.Add(number + "月");
+        }
+        return aliases.Distinct(StringComparer.Ordinal).ToArray();
+    }
+
     private static string ApplyIdentityOcrConfusions(string text) => text
         .Replace('惠', '慧')
         .Replace('奥', '澳')
-        .Replace('叶', '卟');
+        .Replace('叶', '卟')
+        .Replace('啊', '阿');
 
     // Exact identity after the known OCR look-alike normalization, without the
     // one-edit tolerance. Required identities use this so that a sibling
@@ -408,7 +449,8 @@ public static class RuleEngine
         // One-edit OCR tolerance stays available to every required keyword. A
         // rule that only matches fuzzily is kept away from a sibling's card by
         // the exact-identity guard in FindMatches.
-        ContainsKeyword(text, Normalize(requiredKeyword));
+        ContainsKeyword(text, Normalize(requiredKeyword))
+        || ContainsSectionMarker(text, requiredKeyword);
 
     private static bool HasExactIdentity(string text, OcrRule rule)
     {
@@ -422,9 +464,12 @@ public static class RuleEngine
 
         return identityMatched
             && (string.IsNullOrWhiteSpace(rule.RequiredKeyword)
-                || ContainsKeywordExact(text, Normalize(rule.RequiredKeyword)))
+                || ContainsKeywordExact(text, Normalize(rule.RequiredKeyword))
+                || ContainsSectionMarker(text, rule.RequiredKeyword))
             && (rule.RequiredKeywordsAny is not { Count: > 0 }
-                || rule.RequiredKeywordsAny.Any(value => ContainsKeywordExact(text, Normalize(value))));
+                || rule.RequiredKeywordsAny.Any(value =>
+                    ContainsKeywordExact(text, Normalize(value))
+                    || ContainsSectionMarker(text, value)));
     }
 
     private static bool HasExactSiblingIdentity(
@@ -803,14 +848,16 @@ public static class RuleEngine
     {
         if (string.IsNullOrWhiteSpace(section))
             return 0;
-        string normalizedSection = Normalize(section);
-        int direct = Array.FindIndex(lines, line => Normalize(line).Contains(
-            normalizedSection, StringComparison.Ordinal));
+        int direct = Array.FindIndex(lines, line => ContainsSectionMarker(line, section));
         if (direct >= 0)
             return direct;
 
-        int joinedIndex = Normalize(string.Concat(lines)).IndexOf(
-            normalizedSection, StringComparison.Ordinal);
+        string joined = Normalize(string.Concat(lines));
+        int joinedIndex = SectionAliases(section)
+            .Select(alias => joined.IndexOf(alias, StringComparison.Ordinal))
+            .Where(index => index >= 0)
+            .DefaultIfEmpty(-1)
+            .Min();
         if (joinedIndex < 0)
             return -1;
         int consumed = 0;
@@ -894,28 +941,9 @@ public static class RuleEngine
         int scopeStart = 0;
         if (!string.IsNullOrWhiteSpace(rule.Section) && !explicitHalfWaveIssueIdentity)
         {
-            string section = Normalize(rule.Section);
-            scopeStart = Array.FindIndex(lines, line => Normalize(line).Contains(section, StringComparison.Ordinal));
+            scopeStart = LocateSectionStart(lines, rule.Section);
             if (scopeStart < 0)
-            {
-                // 区段标记可能被 OCR 拆到两行（…快乐的骚货九 / 肖】【九个生肖…）。
-                // 逐行找不到时按整段文本找一次，再把命中的行当作作用域起点；
-                // 仍找不到才判缺失。
-                int joinedIndex = Normalize(string.Concat(lines)).IndexOf(section, StringComparison.Ordinal);
-                if (joinedIndex < 0)
-                    return null;
-                int consumed = 0;
-                scopeStart = lines.Length - 1;
-                for (int index = 0; index < lines.Length; index++)
-                {
-                    consumed += Normalize(lines[index]).Length;
-                    if (consumed > joinedIndex)
-                    {
-                        scopeStart = index;
-                        break;
-                    }
-                }
-            }
+                return null;
         }
 
         var candidates = new List<string>();
@@ -928,7 +956,7 @@ public static class RuleEngine
             // Shared multi-author sheets must identify the author on the selected
             // issue row itself. A heading attached to an older issue is not proof.
             if (rule.Folder == "天机阁杀料"
-                && !aliases.Any(alias => Normalize(line).Contains(alias, StringComparison.Ordinal)))
+                && !ContainsAnyAlias(line, aliases))
                 continue;
             // Section ownership is resolved from the nearest active section.
             if (!string.IsNullOrWhiteSpace(rule.Section)
@@ -989,7 +1017,7 @@ public static class RuleEngine
         // Section ownership is enforced while each issue candidate is built; do
         // not reopen the scope later based on a sibling section.
 
-        bool keywordInTarget = candidates.Any(line => aliases.Any(alias => Normalize(line).Contains(alias, StringComparison.Ordinal)));
+        bool keywordInTarget = candidates.Any(line => ContainsAnyAlias(line, aliases));
         bool keywordInHeading = aliases.Any(alias => HasKeywordInHeading(lines, alias));
         if (requireCloudKeyword && !rule.AllowValueWithoutKeyword && !keywordInTarget && !keywordInHeading)
             return null;
@@ -1051,7 +1079,7 @@ public static class RuleEngine
             }
         }
         IEnumerable<string> keywordCandidates = candidates.Where(
-            line => aliases.Any(alias => Normalize(line).Contains(alias, StringComparison.Ordinal))).ToArray();
+            line => ContainsAnyAlias(line, aliases)).ToArray();
         IEnumerable<string>[] passes = keywordInTarget
             ? [keywordCandidates, candidates]
             : [candidates];
@@ -1072,7 +1100,7 @@ public static class RuleEngine
         {
             int heading = rule.Type == "九肖"
                 ? Array.FindIndex(lines, line => Normalize(line).Contains(keyword, StringComparison.Ordinal))
-                : Array.FindIndex(lines, line => aliases.Any(alias => Normalize(line).Contains(alias, StringComparison.Ordinal)));
+                : Array.FindIndex(lines, line => ContainsAnyAlias(line, aliases));
             if (heading >= 0)
             {
                 string nearby = rule.Type == "九肖"
@@ -1272,7 +1300,7 @@ public static class RuleEngine
         string section = Normalize(rule.Section ?? string.Empty);
         if (section.Length == 0)
             return true;
-        if (Normalize(lines[issueIndex]).Contains(section, StringComparison.Ordinal))
+        if (ContainsSectionMarker(lines[issueIndex], rule.Section))
             return true;
 
         string[] identity = new[] { rule.Keyword, rule.RequiredKeyword ?? string.Empty, rule.Folder ?? string.Empty }
@@ -1285,8 +1313,7 @@ public static class RuleEngine
             if (index + 1 < issueIndex
                 && !ContainsAnyIssue(lines[index])
                 && !ContainsAnyIssue(lines[index + 1])
-                && Normalize(lines[index] + lines[index + 1])
-                    .Contains(section, StringComparison.Ordinal))
+                && ContainsSectionMarker(lines[index] + lines[index + 1], rule.Section))
                 return true;
             if (ContainsIssue(lines[index], issue))
                 continue;
@@ -1305,7 +1332,7 @@ public static class RuleEngine
             string current = Normalize(lines[index]);
             if (current.Length == 0)
                 continue;
-            if (current.Contains(section, StringComparison.Ordinal))
+            if (ContainsSectionMarker(lines[index], rule.Section))
                 return true;
             // A sibling section heading of the same folder is a boundary even
             // when it also repeats the shared author name.
@@ -1537,8 +1564,7 @@ public static class RuleEngine
         int start = 0;
         if (!string.IsNullOrWhiteSpace(rule.Section))
         {
-            string section = Normalize(rule.Section);
-            start = Array.FindIndex(lines, line => Normalize(line).Contains(section, StringComparison.Ordinal));
+            start = Array.FindIndex(lines, line => ContainsSectionMarker(line, rule.Section));
             if (start < 0)
                 return null;
         }
@@ -1647,12 +1673,12 @@ public static class RuleEngine
                 continue;
 
             string combined = lines[index];
-            if (Normalize(combined).Contains(keyword, StringComparison.Ordinal))
+            if (ContainsKeyword(Normalize(combined), keyword))
                 return true;
             for (int next = index + 1; next < lines.Length && next <= index + 2 && !ContainsAnyIssue(lines[next]); next++)
             {
                 combined += " " + lines[next];
-                if (Normalize(combined).Contains(keyword, StringComparison.Ordinal))
+                if (ContainsKeyword(Normalize(combined), keyword))
                     return true;
             }
         }
@@ -1675,11 +1701,16 @@ public static class RuleEngine
         ArgumentNullException.ThrowIfNull(evidence);
         var observed = new HashSet<string>(StringComparer.Ordinal);
         bool conflict = false;
+        var anchoredObserved = new HashSet<string>(StringComparer.Ordinal);
+        bool anchoredConflict = false;
+        bool hasAnchoredIdentity = false;
         foreach (IGrouping<string, OcrLineEvidence> region in evidence.Items
             .Where(item => !string.IsNullOrWhiteSpace(item.Text))
             .GroupBy(item => item.ViewId + "\u001f" + item.RegionId, StringComparer.Ordinal))
         {
             OcrLineEvidence[] items = region.ToArray();
+            bool anchored = ContainsRuleIdentity(items.Select(item => item.Text), rule);
+            hasAnchoredIdentity |= anchored;
             RuleExtractionResult regional;
             if (items.All(item => item.Box is not null))
             {
@@ -1690,7 +1721,10 @@ public static class RuleEngine
                 RuleExtractionResult holistic = ExtractFinalResult(items.Select(item => item.Text), issue, rule);
                 if (holistic.Status == RuleExtractionStatus.Conflict)
                 {
-                    conflict = true;
+                    if (anchored)
+                        anchoredConflict = true;
+                    else
+                        conflict = true;
                     continue;
                 }
                 var atomic = new HashSet<string>(StringComparer.Ordinal);
@@ -1698,13 +1732,21 @@ public static class RuleEngine
                 {
                     RuleExtractionResult itemResult = ExtractFinalResult(new[] { item.Text }, issue, rule);
                     if (itemResult.Status == RuleExtractionStatus.Conflict)
-                        conflict = true;
+                    {
+                        if (anchored)
+                            anchoredConflict = true;
+                        else
+                            conflict = true;
+                    }
                     else if (itemResult.Status == RuleExtractionStatus.Success)
                         atomic.Add(itemResult.Value!);
                 }
-                if (conflict || atomic.Count > 1)
+                if ((anchored && anchoredConflict) || (!anchored && conflict) || atomic.Count > 1)
                 {
-                    conflict = true;
+                    if (anchored)
+                        anchoredConflict = true;
+                    else
+                        conflict = true;
                     continue;
                 }
                 regional = holistic.Status == RuleExtractionStatus.Success
@@ -1713,9 +1755,19 @@ public static class RuleEngine
                     : RuleExtractionResult.Missing;
             }
             if (regional.Status == RuleExtractionStatus.Conflict)
-                conflict = true;
+            {
+                if (anchored)
+                    anchoredConflict = true;
+                else
+                    conflict = true;
+            }
             else if (regional.Status == RuleExtractionStatus.Success)
-                observed.Add(regional.Value!);
+            {
+                if (anchored)
+                    anchoredObserved.Add(regional.Value!);
+                else
+                    observed.Add(regional.Value!);
+            }
         }
         // Column partitioning is required to stop cross-column joins, but a
         // dense card table can split one physical field into many cell
@@ -1730,10 +1782,22 @@ public static class RuleEngine
         {
             RuleExtractionResult rowMajor = ExtractFinalResult(
                 BuildRowMajorReading(positioned), issue, rule);
+            bool anchored = ContainsRuleIdentity(positioned.Select(item => item.Text), rule);
+            hasAnchoredIdentity |= anchored;
             if (rowMajor.Status == RuleExtractionStatus.Conflict)
-                conflict = true;
+            {
+                if (anchored)
+                    anchoredConflict = true;
+                else
+                    conflict = true;
+            }
             else if (rowMajor.Status == RuleExtractionStatus.Success)
-                observed.Add(rowMajor.Value!);
+            {
+                if (anchored)
+                    anchoredObserved.Add(rowMajor.Value!);
+                else
+                    observed.Add(rowMajor.Value!);
+            }
         }
         // 经复核的多区卡（雁塔题名/恩平杀一尾/简单爱/爱晚亭）：分区与带边界的
         // 行读会把同一物理行切进互不相连的区域，按几何顺序整页顺读再试一次。
@@ -1748,10 +1812,33 @@ public static class RuleEngine
                     .Select(item => item.Text),
                 issue,
                 rule);
+            bool anchored = ContainsRuleIdentity(positioned.Select(item => item.Text), rule);
+            hasAnchoredIdentity |= anchored;
             if (wholeReading.Status == RuleExtractionStatus.Conflict)
-                conflict = true;
+            {
+                if (anchored)
+                    anchoredConflict = true;
+                else
+                    conflict = true;
+            }
             else if (wholeReading.Status == RuleExtractionStatus.Success)
-                observed.Add(wholeReading.Value!);
+            {
+                if (anchored)
+                    anchoredObserved.Add(wholeReading.Value!);
+                else
+                    observed.Add(wholeReading.Value!);
+            }
+        }
+        // A card can contain a neighbouring author's row in another OCR region.
+        // Once this rule's own identity is visible, only identity-anchored
+        // regions are evidence; a sibling row must not create a false conflict.
+        if (hasAnchoredIdentity && (anchoredConflict || anchoredObserved.Count > 0))
+        {
+            if (anchoredConflict || anchoredObserved.Count > 1)
+                return RuleExtractionResult.Conflict;
+            return anchoredObserved.Count == 1
+                ? RuleExtractionResult.Success(anchoredObserved.Single())
+                : RuleExtractionResult.Missing;
         }
         if (conflict || observed.Count > 1)
             return RuleExtractionResult.Conflict;
@@ -2329,7 +2416,7 @@ public static class RuleEngine
             if (block.StartsWith('开'))
                 continue;
             if (!string.IsNullOrWhiteSpace(rule.Section)
-                && !Normalize(block).Contains(Normalize(rule.Section), StringComparison.Ordinal)
+                && !ContainsSectionMarker(block, rule.Section)
                 && !HasExplicitHalfWaveIdentity(block, rule))
                 continue;
             if (rule.Folder == "公式杀料" && !FormulaBlockAppliesToRule(block, rule))
