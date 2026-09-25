@@ -699,6 +699,8 @@ public sealed class NewCardsExtractionTests
         Assert.Null(RuleEngine.ExtractIssueRowZodiacFromStrip(["257期禁一肖羊兔"], 257));
         Assert.Null(RuleEngine.ExtractIssueRowZodiacFromStrip(["253期禁一肖牛"], 257));
         Assert.Null(RuleEngine.ExtractIssueRowZodiacFromStrip(["257期禁一肖羊", "野马"], 257));
+        // 杰少密集表（0.55 压缩视图）读崩后，期行补读裁出的单行条仍按标准形状取值。
+        Assert.Equal("狗", RuleEngine.ExtractIssueRowZodiacFromStrip(["{268期}新澳杀①肖：狗开猫50准"], 268));
     }
 
     [Fact]

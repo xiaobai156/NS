@@ -40,9 +40,11 @@ internal static class SummaryRowRecovery
         var results = await RecoverOnceAsync(client, requests, catalog, issue, titleRatio, detectionMaxSide, cancellationToken);
         if (detectionMaxSide is not null)
         {
-            // Keep the right-block fallback to standard medium detection, only for missing rows.
-            var remaining = requests.Where(request => request.Kind == SummaryRowRecoveryKind.RightBlock
-                && !results.ContainsKey(request)).ToArray();
+            // 定位读带本组的 det-max（嫣然心水 960 = 0.55 横向压缩视图）；密集表
+            // 在该视图里可能连目标期号锚点都读不到（杰少杀一肖），于是补读连行都
+            // 裁不出来。对仍未解决的请求用原图坐标系（标准 medium 检测）再定位一次，
+            // 行条取值仍由标准 medium（1440）产出，不换取值来源。
+            var remaining = requests.Where(request => !results.ContainsKey(request)).ToArray();
             if (remaining.Length > 0)
                 foreach (var result in await RecoverOnceAsync(client, remaining, catalog, issue, titleRatio, null, cancellationToken))
                     results[result.Key] = result.Value;

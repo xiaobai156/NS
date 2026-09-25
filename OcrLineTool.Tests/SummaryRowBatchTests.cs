@@ -62,6 +62,24 @@ public sealed class SummaryRowBatchTests
         Assert.Contains("--det-max-side 1440", files.Runner.Arguments[2]);
     }
 
+    // 期行补读：嫣然心水的定位读带 det-max 960（0.55 横向压缩视图），密集表在该
+    // 视图里可能连目标期号锚点都读不到（268 期杰少杀一肖），此时整条补读连行都裁不
+    // 出来。仍未解决的请求要用原图坐标系再定位一次，行条取值仍是标准 medium 1440。
+    [Fact]
+    public async Task IssueRowRecoveryRelocatesOnTheOriginalGeometryWhenTheCompactViewLosesTheAnchor()
+    {
+        using var files = new BatchFixture(SummaryRowRecoveryKind.IssueZodiac);
+        files.Runner.RequireStandardDetection = true;
+        var result = await SummaryRowRecovery.TryRecoverBatchAsync(files.Client, files.Requests,
+            files.Rules, 267, 1, 960, default);
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal(3, files.Runner.Inputs.Count);
+        Assert.Contains("--det-max-side 960", files.Runner.Arguments[0]);
+        Assert.DoesNotContain("--det-max-side", files.Runner.Arguments[1]);
+        Assert.Contains("--det-max-side 1440", files.Runner.Arguments[2]);
+    }
+
     [Fact]
     public async Task ARecoverableBatchFailureIsIsolatedWithoutLosingValidPeers()
     {

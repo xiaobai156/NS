@@ -177,8 +177,13 @@ public static class RuleEngine
                 return MatchesRequiredRowFormat(lines, rule);
             // A rule that only matches fuzzily must not steal a sibling
             // material's card when that sibling matches the image exactly.
+            // 例外：靠文件夹+行形状认卡的无标题规则（爱晚亭杀肖）——同夹水印会让
+            // 兄弟规则成为精确身份，本规则因此永远不在精确身份里；再用兄弟否决就
+            // 会把本规则自己的卡也否决掉。放宽后身份仍由下面的
+            // allow_folder_identity 分支按行形状确认，别的资料名的卡照旧排除。
             if (hasCompleteIdentityCatalog
                 && !exactIdentityIds.Contains(rule.Id)
+                && !(rule.AllowFolderIdentity && rule.MatchByRowStructure)
                 && HasExactSiblingIdentity(rule, expectedFolder, identityRules, exactIdentityIds))
             {
                 return false;

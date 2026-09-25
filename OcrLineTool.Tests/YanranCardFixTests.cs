@@ -114,6 +114,36 @@ public sealed class YanranCardFixTests
         Assert.Equal("兔", RuleEngine.ExtractFinalValue(lines, 262, rule));
     }
 
+    // 268 期真实失败卡（9.25-嫣然心水\爱晚亭\20260925_200453_86784.jpg 的本机小模型
+    // 缓存原文）：每期一行单肖表，卡面没有「杀1肖」字样，只有右侧竖排水印「爱晚亭」。
+    // 水印让同夹的号码表规则「爱晚亭」成为精确身份，而本规则永远进不了精确身份，
+    // 兄弟否决曾把本规则自己的卡一并否决（268 期报「未找到对应图片」）。放宽后身份
+    // 仍由 allow_folder_identity + 行形状确认，号码表不能顶替，268 期取值"猪"。
+    [Fact]
+    public void AiwantingKillZodiacKeepsItsOwnWatermarkedCard()
+    {
+        OcrRule rule = Rule("爱晚亭杀肖");
+        OcrRule numberTable = Rule("爱晚亭");
+        string[] lines =
+        [
+            "241期：猴开马49", "242期：鸡开狗09", "243期：马开狗21", "244期：00开鸡46",
+            "245期：龙开牛18", "246期：鼠开牛30", "247期：马开兔40", "248期：龙开猪20",
+            "249期：马开猴23", "250期：狗开蛇14", "爱晚亭", "251期：龙开牛30",
+            "252期：牛开鸡22", "253期：鼠开兔16", "254期：马开蛇02", "255期：狗开猪44",
+            "256期：羊开马01", "257期：鼠开鼠07X", "258期：猪开鸡46", "259期:鸡开鸡22X",
+            "260期：猴开猪20", "261期：蛇开羊24", "262期：兔开牛30", "263期：鼠开狗09",
+            "264期：猴开狗21", "265期：兔开马49", "266期：猴开猪08", "267期：猴开兔40",
+            "268期：猪开00"
+        ];
+        string imagePath = @"C:\图片\9.25-嫣然心水\爱晚亭\20260925_200453_86784.jpg";
+        string[] matched = RuleEngine.FindMatches(imagePath, lines, Rules, Rules)
+            .Select(item => item.Id).ToArray();
+
+        Assert.Contains(rule.Id, matched);
+        Assert.DoesNotContain(numberTable.Id, matched);
+        Assert.Equal("猪", RuleEngine.ExtractFinalValue(lines, 268, rule));
+    }
+
     // 262 期真实卡（9.19-嫣然心水\恩平\20260919_135925_84290.jpg 的本机 medium 缓存原文）：
     // 标题「恩平公式九肖」，每期一行「NNN期，九个生肖」，246–261 期行尾还带开奖号。
     [Fact]
