@@ -2391,6 +2391,8 @@ public static class RuleEngine
         string? verticalZodiac = ExtractVerticalIssueZodiac(lines, issue, rule);
         if (verticalZodiac is not null)
             return verticalZodiac;
+        if (rule.Type == "琴棋书画")
+            return ExtractMemberArts(lines, issue);
         string? treasureDirection = ExtractTreasureDirections(lines, issue, rule);
         if (treasureDirection is not null)
             return treasureDirection;
@@ -2587,6 +2589,29 @@ public static class RuleEngine
     // 方位固定就是 东西南北（用户确认）。本期必须恰好印三个不同方位，多/少/重复一律缺失；
     // 同期在图上出现多次（表头“263期开…”、数据行“263期”）时只认形状完整的切片，
     // 两个不同的完整答案按冲突处理。
+    private static string? ExtractMemberArts(string[] lines, int issue)
+    {
+        string text = Regex.Replace(SimplifyOcrText(string.Concat(lines)), @"\s+", "")
+            .Replace('書', '书').Replace('畫', '画');
+        var values = new HashSet<string>(StringComparer.Ordinal);
+        foreach (Match period in Regex.Matches(text, $@"(?<!\d){issue}期"))
+        {
+            string block = text[(period.Index + period.Length)..];
+            block = Regex.Split(block, @"(?<!\d)\d+期")[0];
+            // Opening banner is not a member field; never borrow the legend above the table.
+            if (!block.StartsWith("会员特供", StringComparison.Ordinal))
+                continue;
+            string payload = Regex.Replace(block, @"^会员特供[:：]?", "");
+            payload = Regex.Split(payload, @"开|開|[鼠牛虎兔龙龍蛇马馬羊猴鸡雞狗猪豬][0-9]")[0];
+            if (!Regex.IsMatch(payload, @"^(?:[琴棋书画]肖){3}$"))
+                continue;
+            string value = payload.Replace("肖", "");
+            if (value.Distinct().Count() == 3)
+                values.Add(value);
+        }
+        return values.Count switch { 0 => null, 1 => values.Single(), _ => ConflictMarker };
+    }
+
     private static string? ExtractTreasureDirections(string[] lines, int issue, OcrRule rule)
     {
         if (rule.Id != "藏宝九肖")
@@ -3227,6 +3252,8 @@ public static class RuleEngine
         if (rule.Type == "九肖")
             return value.Length == 9 && value.All(Zodiac.Contains) && value.Distinct().Count() == 9;
         // 方位型资料保留卡面上的三个不同方向。
+        if (rule.Type == "琴棋书画")
+            return value.Length == 3 && value.All("琴棋书画".Contains) && value.Distinct().Count() == 3;
         if (rule.Type == "方位")
             return value.Length == 3 && value.All("东西南北".Contains) && value.Distinct().Count() == 3;
         if (rule.Type == "统计生肖")

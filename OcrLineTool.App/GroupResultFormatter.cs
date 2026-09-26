@@ -118,7 +118,7 @@ public static class GroupResultFormatter
         if (type == "九肖")
             return "九肖";
         // 方位型资料（藏宝九肖）输出三个方向字，不属于任何生肖数量档。
-        if (type == "方位")
+        if (type is "方位" or "琴棋书画")
             return "其他";
         if (type is "五行" or "单五行")
             return "五行";

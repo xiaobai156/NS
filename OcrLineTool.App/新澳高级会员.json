@@ -3,6 +3,7 @@
   "group": "新澳高级会员",
   "strictIssueBlock": true,
   "rules": [
+    { "keyword": "琴棋书画", "type": "琴棋书画", "label": "会员琴棋" },
     { "keyword": "会员特供绝杀10码", "type": "号码:10", "label": "会员特供杀十码" },
     { "keyword": "表弟主36码", "type": "号码:36", "label": "表弟" },
     { "keyword": "公子送尾数", "type": "缺尾", "label": "翩翩公子尾", "allowValueWithoutKeyword": true },
