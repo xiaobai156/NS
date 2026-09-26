@@ -281,8 +281,10 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "新澳六合彩资料.json"));
 
-        Assert.Equal(103, rules.Count);
+        Assert.Equal(105, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
+        Assert.Contains(rules, rule => rule.Id == "白小姐四季" && rule.Type == "四季");
+        Assert.Contains(rules, rule => rule.Id == "白小姐来钱" && rule.Type == "九肖" && rule.AllowOpeningRow);
         Assert.Contains(rules, rule => rule.Id == "官方两肖" && rule.Type == "生肖组合" && rule.AllowNearbyValue);
         Assert.Contains(rules, rule => rule.Id == "老墨两肖" && rule.Type == "生肖组合" && rule.AllowNearbyValue);
         Assert.Contains(rules, rule => rule.Id == "帅铁两肖" && rule.Type == "缺两肖");
@@ -387,7 +389,8 @@ public sealed class RuleCatalogTests
             "官方两肖", "老墨两肖", "图库禁两肖", "帅铁两肖", "心水两两肖", "金钱两肖", "王不王两肖",
             "曾道人小杀肖", "心水杀肖肖肖", "聚彩堂一肖", "聚彩堂一尾", "姨妈肖杀", "姨妈尾杀",
             "彩虹半波", "超级赢家半波波", "王不王一头", "神算子避头", "财神一头",
-            "近期开奖员", "毛老二", "通天九九肖", "大赢家九肖", "亮剑九肖"
+            "近期开奖员", "毛老二", "通天九九肖", "大赢家九肖", "亮剑九肖",
+            "白小姐四季", "白小姐来钱"
         ], rules.Select(rule => rule.Id));
     }
 

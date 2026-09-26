@@ -128,6 +128,8 @@ public sealed class NativeOcrDirectoryMirrorTests
     [InlineData("东西南北")]
     [InlineData("东 西 北")]
     [InlineData("东西北鼠")]
+    // 四季型资料（白小姐四季）在提取时已按属性表还原成九个生肖，镜像不再展开季节字。
+    [InlineData("夏秋冬")]
     public void InvalidDirectionsNeverWriteAnExternalValue(string value)
     {
         string folder = CreateTempFolder();
@@ -240,7 +242,7 @@ public sealed class NativeOcrDirectoryMirrorTests
             Assert.NotNull(result.NativeOcrMirror);
             Assert.Equal(2, result.NativeOcrMirror!.Written);
             Assert.Empty(result.Errors);
-            Assert.Contains("东西北 藏宝九肖", File.ReadAllText(Path.Combine(target, "243期-生肖.txt")));
+            Assert.Contains("兔虎龙鸡猴狗鼠猪牛 藏宝九肖", File.ReadAllText(Path.Combine(target, "243期-生肖.txt")));
             Assert.Equal("羊猴鸡", Values(store, "Shengxiao").GetProperty("会员暴打").GetString());
             Assert.Equal("蛇马羊", Values(store, "Shengxiao").GetProperty("藏宝九肖").GetString());
             NativeOcrMirrorOutcome retry = NativeOcrDirectoryMirror.Apply(store, "Shengxiao", [("藏宝九肖", "西南北")]);

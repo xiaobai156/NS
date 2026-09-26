@@ -143,19 +143,16 @@ public static class NativeOcrDirectoryMirror
     // and turn a complete nine-zodiac list into its three missing zodiacs.
     private static string FormatShengxiao(string value)
     {
-        // The receiving app expands direction input before applying its nine-zodiac rule.
-        if (value.Any("东西南北".Contains))
+        // The receiving app expands direction input before applying its nine-zodiac rule;
+        // the mapping comes from the zodiac attribute table (ZodiacAttributes), not a local copy.
+        // 四季型资料（白小姐四季）在提取时就已经还原成九个生肖，这里不再展开季节字。
+        string attributeCharacters = ZodiacAttributes.FamilyCharacters("方位");
+        if (value.Any(attributeCharacters.Contains))
         {
-            if (value.Length != 3 || !value.All("东西南北".Contains) || value.Distinct().Count() != 3)
+            if (value.Length != 3 || !value.All(attributeCharacters.Contains) || value.Distinct().Count() != 3)
                 return string.Empty;
-            value = string.Concat(value.Select(direction => direction switch
-            {
-                '东' => "兔虎龙",
-                '西' => "鸡猴狗",
-                '南' => "马蛇羊",
-                '北' => "鼠猪牛",
-                _ => string.Empty
-            }));
+            value = string.Concat(value.Select(character =>
+                ZodiacAttributes.TryGetZodiacs(character.ToString(), out string expanded) ? expanded : string.Empty));
         }
         var seen = new HashSet<char>();
         var result = new List<char>();

@@ -241,6 +241,7 @@ public static class RuleCatalog
                 bool matchByRowStructure = ReadOptionalBoolean(item, "match_by_row_structure", false, fileName);
                 bool requireRowStructure = ReadOptionalBoolean(item, "require_row_structure", false, fileName);
                 bool dedupeNumbers = ReadOptionalBoolean(item, "dedupe_numbers", false, fileName);
+                bool allowOpeningRow = ReadOptionalBoolean(item, "allow_opening_row", false, fileName);
                 if (keyword.Length > 0 && type.Length > 0)
                     output.Add(new OcrRule(
                         keyword,
@@ -265,7 +266,8 @@ public static class RuleCatalog
                         headerIdentity,
                         matchByRowStructure,
                         requireRowStructure,
-                        dedupeNumbers));
+                        dedupeNumbers,
+                        allowOpeningRow));
             }
             if (output.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count() != output.Count)
                 throw new OcrException($"{fileName} 中存在重复的输出名称。");

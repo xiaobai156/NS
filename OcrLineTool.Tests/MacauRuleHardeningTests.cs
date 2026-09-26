@@ -166,12 +166,15 @@ public sealed class MacauRuleHardeningTests
     {
         // 特殊版式卡由 NewCardsExtractionTests 用当天真实 OCR 文本单独覆盖：
         // 期号上方取值、十肖反推、一肖一尾同卡等版式不适用通用样本脚手架。
+        // 白小姐四季/白小姐来钱的真实卡面同样是单独的版式（四季行、开奖行九肖），
+        // 由 BaixiaojieCardTests 用两张原图的 medium 文本覆盖。
         string[] specialLayouts =
         [
             "官方两肖", "老墨两肖", "图库禁两肖", "帅铁两肖", "心水两两肖", "金钱两肖", "王不王两肖",
             "曾道人小杀肖", "心水杀肖肖肖", "聚彩堂一肖", "聚彩堂一尾", "姨妈肖杀", "姨妈尾杀",
             "彩虹半波", "超级赢家半波波", "王不王一头", "神算子避头", "财神一头",
-            "近期开奖员", "毛老二", "通天九九肖", "大赢家九肖", "亮剑九肖"
+            "近期开奖员", "毛老二", "通天九九肖", "大赢家九肖", "亮剑九肖",
+            "白小姐四季", "白小姐来钱"
         ];
         string[] covered = Samples().Concat(Portraits()).Select(row => (string)row[0])
             .Append("时点半").Concat(specialLayouts).Order().ToArray();
@@ -353,7 +356,9 @@ public sealed class MacauRuleHardeningTests
             ["毛老二"] = "龙鼠羊虎狗兔猪猴牛",
             ["通天九九肖"] = "虎兔鸡蛇猴牛狗猪鼠",
             ["大赢家九肖"] = "狗羊虎猴蛇龙鼠牛兔",
-            ["亮剑九肖"] = "牛龙虎羊猴猪蛇兔鼠"
+            ["亮剑九肖"] = "牛龙虎羊猴猪蛇兔鼠",
+            ["白小姐四季"] = "马蛇羊鸡猴狗鼠猪牛",
+            ["白小姐来钱"] = "狗猪牛龙虎羊鼠鸡马"
         };
         foreach ((string id, string value) in specialValues)
             values.Add(id, value);

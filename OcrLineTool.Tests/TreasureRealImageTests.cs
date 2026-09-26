@@ -29,7 +29,11 @@ public sealed class TreasureRealImageTests(ITestOutputHelper output)
         await File.WriteAllTextAsync(Path.Combine(report, device + "-evidence.json"), JsonSerializer.Serialize(
             new { Evidence = evidence, Tokens = evidence.TokenItems }));
         var lines = new List<string>();
-        foreach (var (issue, expected) in new[] { (267, "东西北"), (266, "东南北"), (265, "东西北"), (264, "西南北") })
+        foreach (var (issue, expected) in new[]
+        {
+            (267, "兔虎龙鸡猴狗鼠猪牛"), (266, "兔虎龙马蛇羊鼠猪牛"),
+            (265, "兔虎龙鸡猴狗鼠猪牛"), (264, "鸡猴狗马蛇羊鼠猪牛"),
+        })
         {
             var values = new ResultValues(StringComparer.Ordinal);
             var ledger = new ResultEvidenceLedger();

@@ -21,8 +21,8 @@ public sealed class PremiumRuleHardeningTests
         yield return ["翩翩公子肖", "公子杀一肖：雞 雞 雞 准！", "鸡"];
         yield return ["祥瑞阁", "01 02 03 04 05 06 07 08 10 11 12 13 14 15 16 17 19\n22 23 25 26 28 30 31 33 34 35 36 37 39 41 42 43 44\n45 47", "01 02 03 04 05 06 07 08 10 11 12 13 14 15 16 17 19 22 23 25 26 28 30 31 33 34 35 36 37 39 41 42 43 44 45 47"];
         yield return ["会员暴打", "会员九肖:狗龍雞馬虎羊鼠猴豬", "狗龙鸡马虎羊鼠猴猪"];
-        // Keep the printed directions in order; no complement or zodiac conversion.
-        yield return ["藏宝九肖", "藏宝库：东肖 西肖 南肖", "东西南"];
+        // 卡面印方位，落库时按属性表还原成九个生肖（东=兔虎龙／西=鸡猴狗／南=马蛇羊）。
+        yield return ["藏宝九肖", "藏宝库：东肖 西肖 南肖", "兔虎龙鸡猴狗马蛇羊"];
     }
 
     [Theory]
@@ -56,12 +56,13 @@ public sealed class PremiumRuleHardeningTests
         "牛30中",
     ];
 
-    // 方位值要能被分发校验接受（否则生肖分发会判格式非法、不分发）。
+    // 方位换算出的九个生肖要能被分发校验接受（否则生肖分发会判格式非法、不分发）。
     [Fact]
-    public void TreasureDirectionValuePassesTheDistributionValidation()
+    public void TreasureZodiacValuePassesTheDistributionValidation()
     {
         OcrRule rule = Rule("藏宝九肖");
-        Assert.True(RuleEngine.IsFormattedOutputValueValid(rule, "东西北"));
+        Assert.True(RuleEngine.IsFormattedOutputValueValid(rule, "兔虎龙鸡猴狗鼠猪牛"));
+        Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "东西北"));
         Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "北肖"));
         Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "东东北"));
         Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "东西南北"));
@@ -69,19 +70,21 @@ public sealed class PremiumRuleHardeningTests
         Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "北"));
         Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "兔虎龙"));
         Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "东肖 西肖 南肖"));
+        Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "兔虎龙鸡猴狗鼠猪"));   // 只有八个生肖
+        Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "兔虎龙鸡猴狗鼠猪猪"));  // 重复
     }
 
     [Fact]
-    public void TreasureDirectionsKeepThePrintedOrderOnTheTargetRow()
+    public void TreasureDirectionsExpandToNineZodiacsInThePrintedOrder()
     {        OcrRule rule = Rule("藏宝九肖");
-        Assert.Equal("东西南", RuleEngine.ExtractFinalValue(TreasureCard(263, "东肖 西肖 南肖"), 263, rule));
-        Assert.Equal("东南北", RuleEngine.ExtractFinalValue(TreasureCard(262, "东肖 南肖 北肖"), 262, rule));
-        Assert.Equal("西南北", RuleEngine.ExtractFinalValue(TreasureCard(260, "西肖 南肖 北肖"), 260, rule));
-        Assert.Equal("北东西", RuleEngine.ExtractFinalValue(TreasureCard(1001, "北肖 东肖 西肖"), 1001, rule));
-        Assert.Equal("东西南", RuleEngine.ExtractFinalValue(TreasureCard(8, "东肖 西肖 南肖"), 8, rule));
+        Assert.Equal("兔虎龙鸡猴狗马蛇羊", RuleEngine.ExtractFinalValue(TreasureCard(263, "东肖 西肖 南肖"), 263, rule));
+        Assert.Equal("兔虎龙马蛇羊鼠猪牛", RuleEngine.ExtractFinalValue(TreasureCard(262, "东肖 南肖 北肖"), 262, rule));
+        Assert.Equal("鸡猴狗马蛇羊鼠猪牛", RuleEngine.ExtractFinalValue(TreasureCard(260, "西肖 南肖 北肖"), 260, rule));
+        Assert.Equal("鼠猪牛兔虎龙鸡猴狗", RuleEngine.ExtractFinalValue(TreasureCard(1001, "北肖 东肖 西肖"), 1001, rule));
+        Assert.Equal("兔虎龙鸡猴狗马蛇羊", RuleEngine.ExtractFinalValue(TreasureCard(8, "东肖 西肖 南肖"), 8, rule));
         string[] lines = ["藏宝库【东西南北】付费版", "1002期藏宝库：东肖西肖北肖", "1001期藏宝库：东肖南肖北肖"];
-        Assert.Equal("东西北", RuleEngine.ExtractFinalValue(lines, 1002, rule));
-        Assert.Equal("东南北", RuleEngine.ExtractFinalValue(lines, 1001, rule));
+        Assert.Equal("兔虎龙鸡猴狗鼠猪牛", RuleEngine.ExtractFinalValue(lines, 1002, rule));
+        Assert.Equal("兔虎龙马蛇羊鼠猪牛", RuleEngine.ExtractFinalValue(lines, 1001, rule));
     }
 
     [Fact]
