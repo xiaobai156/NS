@@ -62,6 +62,10 @@ public static class RuleEngine
         @"^\s*[【\[（({]?\s*(?:(?<row>[1-9]|1[0-3])\s*)?(?<issue>\d{3})(?!\d)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex YearIssueRegex = new(@"^\s*\d{4}\s*[-—/]\s*(?<issue>\d{3,6})(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    // 期号块边界：提取与失败原因共用同一套（不要在诊断里另写宽松的「截几行」解析器）。
+    private static readonly Regex IssueBlockRegex = new(
+        @"(?<!\d)(?:第\s*)?(?<issue>\d{1,6})\s*期|(?m:^\s*(?<issue>\d{3})(?!\d)(?=\s|$))",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
     internal const string Zodiac = "马蛇龙兔虎牛鼠猪狗鸡猴羊";
     private const string ConflictMarker = "OCR-CONFLICT";
     // Only reviewed layouts may place part of one physical number row before
@@ -150,7 +154,6 @@ public static class RuleEngine
         OcrRule[] identityRules = completeRules?.ToArray() ?? [];
         bool hasCompleteIdentityCatalog = completeRules is not null;
         string text = Normalize(string.Concat(lines));
-        string folder = Path.GetFileName(Path.GetDirectoryName(imagePath)) ?? "";
         // 嫣然心水: the subfolder alone is not identity when the image actually
         // shows another material's name and none of this rule's own names.
         bool guardForeignIdentity = RuleCatalog.PathBelongsToGroup(imagePath, "嫣然心水");
@@ -167,9 +170,7 @@ public static class RuleEngine
         return requestedRules.Where(rule =>
         {
             string expectedFolder = rule.Folder ?? rule.Keyword;
-            bool folderMatches = folder.Equals(expectedFolder, StringComparison.OrdinalIgnoreCase)
-                || DirectoryAncestors(imagePath).Any(item =>
-                    item.Equals(expectedFolder, StringComparison.OrdinalIgnoreCase));
+            bool folderMatches = MatchesRuleFolder(imagePath, rule);
             if (!folderMatches)
                 return string.IsNullOrWhiteSpace(rule.Folder) && MatchesText(text, rule);
             // 复核卡（require_row_structure）：第一关子文件夹已过，第二关必须是
@@ -248,6 +249,20 @@ public static class RuleEngine
                     && identityRules.Count(other => (other.Folder ?? other.Keyword).Equals(expectedFolder, StringComparison.OrdinalIgnoreCase)) == 1
                     && expectedFolder.Equals(rule.RequiredKeyword ?? rule.Keyword, StringComparison.OrdinalIgnoreCase));
         }).ToArray();
+    }
+
+    // 目录身份判定（候选识别与缺项补读共用同一套判断）：目录段精确相等，
+    // 允许规则的资料夹出现在图片的任一级祖先目录（作者\子目录\图片.jpg 仍属于该作者），
+    // 但绝不按名称包含或前缀相等放宽。
+    public static bool MatchesRuleFolder(string imagePath, OcrRule rule)
+    {
+        string expectedFolder = rule.Folder ?? rule.Keyword;
+        if (string.IsNullOrWhiteSpace(expectedFolder))
+            return false;
+        string parent = Path.GetFileName(Path.GetDirectoryName(imagePath)) ?? string.Empty;
+        return parent.Equals(expectedFolder, StringComparison.OrdinalIgnoreCase)
+            || DirectoryAncestors(imagePath).Any(item =>
+                item.Equals(expectedFolder, StringComparison.OrdinalIgnoreCase));
     }
 
     private static IEnumerable<string> DirectoryAncestors(string imagePath)
@@ -952,73 +967,7 @@ public static class RuleEngine
                 return null;
         }
 
-        var candidates = new List<string>();
-
-        for (int index = scopeStart; index < lines.Length; index++)
-        {
-            string line = lines[index];
-            if (!ContainsIssue(line, issue))
-                continue;
-            // Shared multi-author sheets must identify the author on the selected
-            // issue row itself. A heading attached to an older issue is not proof.
-            if (rule.Folder == "天机阁杀料"
-                && !ContainsAnyAlias(line, aliases))
-                continue;
-            // Section ownership is resolved from the nearest active section.
-            if (!string.IsNullOrWhiteSpace(rule.Section)
-                && !HasExplicitHalfWaveIdentity(line, rule)
-                && !HasSectionForIssueRow(lines, index, scopeStart, issue, rule))
-                continue;
-
-            string scopedLine = ScopeCandidateToPeerBoundary(line, rule, aliases, out bool peerClosed);
-            candidates.Add(scopedLine);
-            // 值行印在期号行上方的两列卡（雁塔题名）：期号行本身只有色单双，
-            // 头/合的值在紧邻的上一行，允许向前合并有限行。
-            if (BackwardValueLineRuleIds.Contains(rule.Id))
-            {
-                string backwards = scopedLine;
-                for (int previous = index - 1; previous >= scopeStart && previous >= index - 2; previous--)
-                {
-                    if (OcrLayoutMarkers.IsBoundary(lines[previous])
-                        || LooksLikeIssueRow(lines[previous])
-                        || ContainsIssueBoundary(lines[previous], issue)
-                        || ContainsPeerIdentity(lines[previous], rule))
-                        break;
-                    backwards = lines[previous] + " " + backwards;
-                    candidates.Add(backwards);
-                }
-            }
-            if (peerClosed)
-                continue;
-            // 雁塔题名两列卡的取值是同行的另一列；OCR 常把同一 Excel 行的两列
-            // 读成两行，也常把值行读在期号行之后。只允许并入紧邻的下一行，
-            // 遇到边界/期号行立刻停止：不取下一行之外的任何行，也就不会借下一期。
-            if (BackwardValueLineRuleIds.Contains(rule.Id))
-            {
-                string forwards = scopedLine;
-                for (int next = index + 1; next == index + 1 && next < lines.Length; next++)
-                {
-                    if (OcrLayoutMarkers.IsBoundary(lines[next])
-                        || LooksLikeIssueRow(lines[next])
-                        || ContainsIssueBoundary(lines[next], issue))
-                        break;
-                    forwards += " " + lines[next];
-                    candidates.Add(forwards);
-                }
-                continue;
-            }
-            string combined = scopedLine;
-            for (int next = index + 1; next < lines.Length && next <= index + 4; next++)
-            {
-                if (OcrLayoutMarkers.IsBoundary(lines[next])
-                    || ContainsIssueBoundary(lines[next], issue)
-                    || ContainsPeerIdentity(lines[next], rule)
-                    || combined.Length + lines[next].Length >= 180)
-                    break;
-                combined += " " + lines[next];
-                candidates.Add(combined);
-            }
-        }
+        var candidates = BuildIssueCandidates(lines, issue, rule, scopeStart, aliases);
 
         // Section ownership is enforced while each issue candidate is built; do
         // not reopen the scope later based on a sibling section.
@@ -1130,6 +1079,83 @@ public static class RuleEngine
         }
 
         return null;
+    }
+
+    // 提取流程与失败诊断共用同一套「本人作者/栏目归属 + 目标期」目标行定位：先按作者与
+    // 栏目筛掉同图旁的别人区段，再按期号边界合并相邻行。诊断统计到的字必须来自提取器
+    // 真正检查的目标字段，不能拿整张图里第一个碰巧同期的期块冒充。
+    private static List<string> BuildIssueCandidates(
+        string[] lines, int issue, OcrRule rule, int scopeStart, IReadOnlyList<string> aliases)
+    {
+        var candidates = new List<string>();
+
+        for (int index = scopeStart; index < lines.Length; index++)
+        {
+            string line = lines[index];
+            if (!ContainsIssue(line, issue))
+                continue;
+            // Shared multi-author sheets must identify the author on the selected
+            // issue row itself. A heading attached to an older issue is not proof.
+            if (rule.Folder == "天机阁杀料"
+                && !ContainsAnyAlias(line, aliases))
+                continue;
+            // Section ownership is resolved from the nearest active section.
+            if (!string.IsNullOrWhiteSpace(rule.Section)
+                && !HasExplicitHalfWaveIdentity(line, rule)
+                && !HasSectionForIssueRow(lines, index, scopeStart, issue, rule))
+                continue;
+
+            string scopedLine = ScopeCandidateToPeerBoundary(line, rule, aliases, out bool peerClosed);
+            candidates.Add(scopedLine);
+            // 值行印在期号行上方的两列卡（雁塔题名）：期号行本身只有色单双，
+            // 头/合的值在紧邻的上一行，允许向前合并有限行。
+            if (BackwardValueLineRuleIds.Contains(rule.Id))
+            {
+                string backwards = scopedLine;
+                for (int previous = index - 1; previous >= scopeStart && previous >= index - 2; previous--)
+                {
+                    if (OcrLayoutMarkers.IsBoundary(lines[previous])
+                        || LooksLikeIssueRow(lines[previous])
+                        || ContainsIssueBoundary(lines[previous], issue)
+                        || ContainsPeerIdentity(lines[previous], rule))
+                        break;
+                    backwards = lines[previous] + " " + backwards;
+                    candidates.Add(backwards);
+                }
+            }
+            if (peerClosed)
+                continue;
+            // 雁塔题名两列卡的取值是同行的另一列；OCR 常把同一 Excel 行的两列
+            // 读成两行，也常把值行读在期号行之后。只允许并入紧邻的下一行，
+            // 遇到边界/期号行立刻停止：不取下一行之外的任何行，也就不会借下一期。
+            if (BackwardValueLineRuleIds.Contains(rule.Id))
+            {
+                string forwards = scopedLine;
+                for (int next = index + 1; next == index + 1 && next < lines.Length; next++)
+                {
+                    if (OcrLayoutMarkers.IsBoundary(lines[next])
+                        || LooksLikeIssueRow(lines[next])
+                        || ContainsIssueBoundary(lines[next], issue))
+                        break;
+                    forwards += " " + lines[next];
+                    candidates.Add(forwards);
+                }
+                continue;
+            }
+            string combined = scopedLine;
+            for (int next = index + 1; next < lines.Length && next <= index + 4; next++)
+            {
+                if (OcrLayoutMarkers.IsBoundary(lines[next])
+                    || ContainsIssueBoundary(lines[next], issue)
+                    || ContainsPeerIdentity(lines[next], rule)
+                    || combined.Length + lines[next].Length >= 180)
+                    break;
+                combined += " " + lines[next];
+                candidates.Add(combined);
+            }
+        }
+
+        return candidates;
     }
 
     private static IEnumerable<string> MaximalCandidates(IEnumerable<string> source)
@@ -2271,6 +2297,99 @@ public static class RuleEngine
         return lines;
     }
 
+    // 提取流程的期号块切片（期号之后到下一期号之前）。诊断也走这里，保证失败原因统计的
+    // 就是取值流程看的那一块文字，而不是整张图。
+    private static string SliceIssueBlock(string text, MatchCollection periods, int index)
+    {
+        Match period = periods[index];
+        int start = period.Index + period.Length;
+        int end = index + 1 < periods.Count ? periods[index + 1].Index : text.Length;
+        return text[start..end].Trim();
+    }
+
+    // 诊断用的当期目标字段：与提取流程走同一套定位，失败原因里统计到的字必须就是提取器
+    // 真正检查过的那段文字。严格期号卡（StrictIssueBlock / 公式杀料）在提取时按
+    // IssueBlockRegex 切块，这里复用同一套切块与块过滤；其余规则按作者/栏目归属构建
+    // 候选行，只统计最长的那批候选（提取也走 MaximalCandidates）。
+    // 定位不到、或存在多个互相独立的目标字段时返回 null，由调用方报告「无法确定当期目标
+    // 字段」，绝不拿同图旁栏、历史期或开奖段的字凑数。无期号卡（IgnoreIssue）整张卡即
+    // 目标字段，身份已由候选/模板确定。
+    private static string? LocateIssueCandidateField(string[] lines, int issue, OcrRule rule)
+    {
+        if (rule.IgnoreIssue)
+            return Regex.Split(SimplifyOcrText(string.Join('\n', lines)), @"上期\s*开奖\s*结果")[0];
+        if (rule.StrictIssueBlock || rule.Folder == "公式杀料")
+            return LocateStrictIssueBlock(lines, issue, rule);
+        string[] prepared = SplitInlineIssueRows(lines);
+        string[] aliases = new[] { rule.Keyword, rule.Label ?? string.Empty }
+            .Where(alias => !string.IsNullOrWhiteSpace(alias))
+            .Select(Normalize)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        int scopeStart = 0;
+        if (!string.IsNullOrWhiteSpace(rule.Section))
+        {
+            scopeStart = LocateSectionStart(prepared, rule.Section);
+            if (scopeStart < 0)
+                return null;
+        }
+        IEnumerable<string> maximal = MaximalCandidates(
+            BuildIssueCandidates(prepared, issue, rule, scopeStart, aliases));
+        // 栏目标题下的相邻行都可能被判定为「本栏目」，但只有自己带栏目标记的那一行才是
+        // 规则自己的字段。先按此筛一遍，避免把标题旁的另一栏（如「杀一肖」）当成目标字段；
+        // 数据行本身不重复栏目标记的老卡仍保留唯一候选的原行为。
+        if (!string.IsNullOrWhiteSpace(rule.Section))
+        {
+            string[] own = maximal
+                .Where(candidate => ContainsSectionMarker(candidate, rule.Section))
+                .ToArray();
+            if (own.Length > 0)
+                maximal = own;
+        }
+        string[] fields = maximal.Select(Normalize).Distinct(StringComparer.Ordinal).ToArray();
+        return fields.Length == 1 ? fields[0] : null;
+    }
+
+    // 严格期号卡提取时真正检查的期号块：与 ExtractStrictIssueBlock 共用 SliceIssueBlock、
+    // 开奖横幅、栏目标记与公式适用范围这几道过滤，不再另写一套「截几行」的宽松解析器。
+    private static string? LocateStrictIssueBlock(string[] lines, int issue, OcrRule rule)
+    {
+        string text = Regex.Split(SimplifyOcrText(string.Join('\n', lines)), @"上期\s*开奖\s*结果")[0];
+        MatchCollection periods = IssueBlockRegex.Matches(text);
+        var blocks = new List<string>();
+        for (int index = 0; index < periods.Count; index++)
+        {
+            if (!int.TryParse(periods[index].Groups["issue"].Value, out int actualIssue)
+                || actualIssue != issue)
+                continue;
+            string block = SliceIssueBlock(text, periods, index);
+            // 开奖横幅不是数据行，栏目/公式归属决定这个块是否属于本规则。
+            if (block.StartsWith('开') && !rule.AllowOpeningRow)
+                continue;
+            if (!string.IsNullOrWhiteSpace(rule.Section)
+                && !ContainsSectionMarker(block, rule.Section)
+                && !HasExplicitHalfWaveIdentity(block, rule))
+                continue;
+            if (rule.Folder == "公式杀料" && !FormulaBlockAppliesToRule(block, rule))
+                continue;
+            blocks.Add(block);
+        }
+        return blocks.Count == 1 ? blocks[0] : null;
+    }
+
+    // 藏宝九肖的当期行候选（正文压缩 + 期号到下一位「N期」）：提取与失败原因共用同一段定位。
+    private static IEnumerable<string> TreasureDirectionRows(string[] lines, int issue)
+    {
+        string compact = Regex.Replace(
+            SimplifyOcrText(string.Concat(lines)), @"[\s/／|｜、,，]+", string.Empty);
+        foreach (Match candidate in Regex.Matches(compact, $@"(?<!\d){issue}期"))
+        {
+            int start = candidate.Index + candidate.Length;
+            Match nextPeriod = Regex.Match(compact[start..], @"(?<!\d)\d+期");
+            yield return compact[start..(nextPeriod.Success ? start + nextPeriod.Index : compact.Length)];
+        }
+    }
+
     public static string DescribeExtractionFailure(IEnumerable<string> cloudLines, int issue, OcrRule rule)
     {
         string[] lines = cloudLines.Where(line => !string.IsNullOrWhiteSpace(line)).ToArray();
@@ -2290,19 +2409,25 @@ public static class RuleEngine
             return $"已找到候选图片和{issue}期文字，但未通过{count}个两位数号码校验（要求01-49且不重复）";
         if (rule.Type is "九肖" or "四季" or "方位")
         {
-            string printedCharacters = rule.Type switch
+            // 输入契约才是印在卡上的字数：九肖=9 个不同生肖；方位=3 个不同方位字；
+            // 四季=3 个不同四季字。它们落库前都被属性表还原成九个生肖，那是输出契约。
+            (string printedCharacters, int required, string unit) = rule.Type switch
             {
-                "方位" => "东西南北",
-                "四季" => ZodiacAttributes.FamilyCharacters("四季"),
-                _ => Zodiac,
+                "方位" => ("东西南北", 3, "个不同方位字"),
+                "四季" => (ZodiacAttributes.FamilyCharacters("四季"), 3, "个不同四季字"),
+                _ => (Zodiac, 9, "个不同生肖"),
             };
-            string printed = string.Concat(Regex.Matches(
-                    SimplifyOcrText(string.Join(' ', lines)), $"[{printedCharacters}]")
+            string? field = rule.Type == "方位"
+                ? TreasureDirectionRows(lines, issue).FirstOrDefault()
+                : LocateIssueCandidateField(lines, issue, rule);
+            // 目标字段定位不到时只报定不了位，不拿整张图的历期文字凑总数/去重数。
+            if (field is null)
+                return $"已找到{issue}期文字，但无法确定当期目标字段，未通过{required}{unit}校验";
+            string printed = string.Concat(Regex.Matches(field, $"[{printedCharacters}]")
                 .Select(match => match.Value));
-            string unit = rule.Type == "九肖" ? "个不同生肖" : $"个不同{rule.Type}字";
             return printed.Length == 0
-                ? $"已找到{issue}期文字，但未识别到9{unit}"
-                : $"已找到{issue}期文字，但未通过9{unit}校验"
+                ? $"已找到{issue}期文字，但当期目标字段未识别到{required}{unit}"
+                : $"已找到{issue}期文字，但未通过{required}{unit}校验"
                     + $"（识别到{printed.Length}个，去重后{printed.Distinct().Count()}个）";
         }
         if (rule.Type == "缺两肖")
@@ -2402,8 +2527,7 @@ public static class RuleEngine
             string heading = string.Join(@"\s*", rule.Keyword.Select(c => Regex.Escape(c.ToString())));
             return ExtractStrictTableValue(Regex.Replace(text.Trim(), "^" + heading, ""), rule);
         }
-        MatchCollection periods = Regex.Matches(text,
-            @"(?<!\d)(?:第\s*)?(?<issue>\d{1,6})\s*期|(?m:^\s*(?<issue>\d{3})(?!\d)(?=\s|$))");
+        MatchCollection periods = IssueBlockRegex.Matches(text);
         string? verticalZodiac = ExtractVerticalIssueZodiac(lines, issue, rule);
         if (verticalZodiac is not null)
             return verticalZodiac;
@@ -2431,9 +2555,7 @@ public static class RuleEngine
             Match period = periods[index];
             if (!int.TryParse(period.Groups["issue"].Value, out int actualIssue) || actualIssue != issue)
                 continue;
-            int start = period.Index + period.Length;
-            int end = index + 1 < periods.Count ? periods[index + 1].Index : text.Length;
-            string block = text[start..end].Trim();
+            string block = SliceIssueBlock(text, periods, index);
             if (TryExtractWrappedCardRow(text, period, rule, out string? wrappedValue))
             {
                 if (wrappedValue is null)
@@ -2634,14 +2756,9 @@ public static class RuleEngine
         if (rule.Id != "藏宝九肖")
             return null;
 
-        string compact = Regex.Replace(
-            SimplifyOcrText(string.Concat(lines)), @"[\s/／|｜、,，]+", string.Empty);
         var observed = new HashSet<string>(StringComparer.Ordinal);
-        foreach (Match candidate in Regex.Matches(compact, $@"(?<!\d){issue}期"))
+        foreach (string row in TreasureDirectionRows(lines, issue))
         {
-            int start = candidate.Index + candidate.Length;
-            Match nextPeriod = Regex.Match(compact[start..], @"(?<!\d)\d+期");
-            string row = compact[start..(nextPeriod.Success ? start + nextPeriod.Index : compact.Length)];
             MatchCollection printed = Regex.Matches(row, "[东西南北]肖");
             if (printed.Count != 3)
                 continue;

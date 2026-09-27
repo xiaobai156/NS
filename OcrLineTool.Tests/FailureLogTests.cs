@@ -102,6 +102,8 @@ public sealed class FailureLogTests
         Assert.Equal("同一期结果冲突", FailureLog.CategoryFor("同一期结果冲突，待核对"));
         Assert.Equal("未识别到目标数据", FailureLog.CategoryFor("已找到图片和文字，但未识别到第258期"));
         Assert.Equal("未通过校验", FailureLog.CategoryFor("已找到258期文字，但未通过9个不同生肖校验"));
+        Assert.Equal("未通过校验", FailureLog.CategoryFor("已找到246期文字，但未通过3个不同方位字校验（识别到2个，去重后2个）"));
+        Assert.Equal("未通过校验", FailureLog.CategoryFor("已找到246期文字，但无法确定当期目标字段，未通过9个不同生肖校验"));
         Assert.Equal("其他失败", FailureLog.CategoryFor("意外情况"));
     }
 }

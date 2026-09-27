@@ -104,6 +104,17 @@ public sealed class MainForm : Form
     private readonly System.Windows.Forms.Timer folderRefreshTimer = new() { Interval = 2_000 };
     private readonly System.Windows.Forms.Timer recognitionTimer = new() { Interval = 1_000 };
     private readonly Stopwatch recognitionWatch = new();
+    // 复抓按阶段显示进度：阶段计时独立于总耗时，阶段切换或阶段结束都会让旧阶段的回调失效。
+    private readonly RecognitionStageTracker recognitionStage = new();
+    private readonly Stopwatch recognitionStageWatch = new();
+    // 诊断用阶段耗时：与估算用的 recognitionStageWatch 分开，估算表阶段中途不重启（否则均速失真）。
+    private readonly Dictionary<string, double> recognitionStageSeconds = new(StringComparer.Ordinal);
+    private readonly Stopwatch recognitionStageSecondsWatch = new();
+    private TimeSpan recognitionExcludedWait;
+    // 本次任务的本地 OCR 客户端台账：候选筛选 small、主识别 medium、原图复读与补读各自新建客户端，
+    // 诊断要按阶段汇总它们的实际启动/缓存/推理计数与 worker 耗时（C4）；同一实例只记一次，
+    // 每个任务（StartRecognitionTiming）开头清空，绝不把上一轮任务的累计值带进来。
+    private readonly List<(string Stage, PaddleLocalOcrClient Client)> localOcrClients = new();
     private int recognitionCompleted;
     private int recognitionTotal;
     private string[] imagePaths = [];
@@ -118,6 +129,8 @@ public sealed class MainForm : Form
     // 群结果 TXT 里已经有值（多半是手工改过）的规则：复抓要跳过它们。
     private HashSet<string> lastConcludedValueRuleIds = new(StringComparer.Ordinal);
     private Dictionary<string, IReadOnlyList<string>> lastCloudOcrResults = new(StringComparer.OrdinalIgnoreCase);
+    // 候选/复抓阶段读不出来的图片：单图读盘失败要留在缺失原因里，不能退化成「未找到对应图片」。
+    private readonly Dictionary<string, string> lastLocalImageReadErrors = new(StringComparer.OrdinalIgnoreCase);
     private ResultEvidenceLedger lastEvidenceLedger = new();
     private int lastIssue;
     private bool isBusy;
@@ -979,6 +992,9 @@ public sealed class MainForm : Form
     {
         int issue = Decimal.ToInt32(issueInput.Value);
         string? temporaryCropFolder = null;
+        // 诊断用任务标识与开始时间：让诊断能区分“哪一轮、什么模式、是否完成”。
+        string taskId = Guid.NewGuid().ToString("N");
+        DateTimeOffset startedAt = DateTimeOffset.Now;
         ClearRetryState();
         SetBusy(true);
         StartRecognitionTiming();
@@ -989,6 +1005,7 @@ public sealed class MainForm : Form
             RefreshImagesForRetry();
             if (imagePaths.Length == 0) throw new OcrException("所选目录没有可识别图片。");
             var localClient = new PaddleLocalOcrClient(ocrDevice);
+            TrackLocalOcrClient("本地主识别（medium）", localClient);
             if (ocrDevice == LocalOcrDevice.Gpu)
                 await localClient.EnsureCudaAvailableAsync(ActiveToken);
 
@@ -1361,22 +1378,27 @@ public sealed class MainForm : Form
                 rules,
                 PreserveDistributedMarkers(groupOutputPath, outputLines));
             await AtomicFile.WriteAllLinesAsync(groupOutputPath, groupLines, new UTF8Encoding(true));
-            await AtomicFile.WriteAllTextAsync(
+            string? diagnosticError = await OcrDiagnostics.TryWriteAsync(
                 diagnosticPath,
-                JsonSerializer.Serialize(new
+                new
                 {
                     group = groupName,
                     issue,
                     mode = "本地主识别",
+                    device = LocalDeviceName,
                     local_model = "PP-OCRv6_medium_det + PP-OCRv6_medium_rec",
+                    task_id = taskId,
+                    started_at = startedAt,
+                    finished_at = DateTimeOffset.Now,
+                    status = "完成",
+                    published = true,
                     image_count = imagePaths.Length,
                     cloud_request_count = cloudRequests,
                     matched_rule_count = values.Count,
                     missing_rules = rules.Select(rule => rule.Id).Where(id => !values.ContainsKey(id)),
                     missing_reasons = missingReasons,
                     images = diagnostics
-                }, new JsonSerializerOptions { WriteIndented = true }),
-                new UTF8Encoding(true));
+                });
             LogMissingDetails("本地主识别", groupName, issue, rules, values, candidates, missingReasons);
             resultsBox.Text = string.Join(Environment.NewLine, groupLines);
             lastRules = rules;
@@ -1386,7 +1408,7 @@ public sealed class MainForm : Form
             lastEvidenceLedger = evidenceLedger;
             lastIssue = issue;
             SetProgress(1, 1);
-            statusLabel.Text = $"本地主识别完成{(rules.Count == values.Count ? "" : "，但有缺失")}：目录 {imagePaths.Length} 张，本地优先，云 OCR 兜底 {cloudRequests} 次，提取 {values.Count} 条，缺失 {rules.Count - values.Count} 条，已写群结果（未自动分流）。群TXT：{groupOutputPath}；诊断：{diagnosticPath}";
+            statusLabel.Text = $"本地主识别完成{(rules.Count == values.Count ? "" : "，但有缺失")}：目录 {imagePaths.Length} 张，本地优先，云 OCR 兜底 {cloudRequests} 次，提取 {values.Count} 条，缺失 {rules.Count - values.Count} 条，已写群结果（未自动分流）。群TXT：{groupOutputPath}；{OcrDiagnostics.StatusSuffix(diagnosticPath, diagnosticError)}";
         }
         catch (OperationCanceledException)
         {
@@ -1436,6 +1458,9 @@ public sealed class MainForm : Form
     {
         int issue = Decimal.ToInt32(issueInput.Value);
         string? temporaryCropFolder = null;
+        // 诊断用任务标识与开始时间：让诊断能区分“哪一轮、什么模式、是否完成”。
+        string taskId = Guid.NewGuid().ToString("N");
+        DateTimeOffset startedAt = DateTimeOffset.Now;
         ClearRetryState();
         SetBusy(true);
         StartRecognitionTiming();
@@ -1806,12 +1831,19 @@ public sealed class MainForm : Form
                 rules,
                 PreserveDistributedMarkers(groupOutputPath, outputLines));
             await AtomicFile.WriteAllLinesAsync(groupOutputPath, groupLines, new UTF8Encoding(true));
-            await AtomicFile.WriteAllTextAsync(
+            string? diagnosticError = await OcrDiagnostics.TryWriteAsync(
                 diagnosticPath,
-                JsonSerializer.Serialize(new
+                new
                 {
                     group = groupName,
                     issue,
+                    mode = "开始识别（云 OCR）",
+                    device = LocalDeviceName,
+                    task_id = taskId,
+                    started_at = startedAt,
+                    finished_at = DateTimeOffset.Now,
+                    status = "完成",
+                    published = true,
                     image_count = imagePaths.Length,
                     candidate_selection = selection.DisplayName,
                     candidate_image_count = candidateImages,
@@ -1822,8 +1854,7 @@ public sealed class MainForm : Form
                         .Where(rule => !values.ContainsKey(rule.Id))
                         .ToDictionary(rule => rule.Id, rule => missingReasons[rule.Id]),
                     images = diagnostics
-                }, new JsonSerializerOptions { WriteIndented = true }),
-                new UTF8Encoding(true));
+                });
             LogMissingDetails("开始识别", groupName, issue, rules, values, candidates, missingReasons);
             resultsBox.Text = string.Join(Environment.NewLine, groupLines);
             lastRules = rules;
@@ -1833,7 +1864,7 @@ public sealed class MainForm : Form
             lastEvidenceLedger = evidenceLedger;
             lastIssue = issue;
             SetProgress(1, 1);
-            statusLabel.Text = $"完成{(rules.Count == values.Count ? "" : "，但有缺失")}：目录 {imagePaths.Length} 张，候选 {candidateImages} 张，云 OCR 请求 {cloudRequests} 次，提取 {values.Count} 条，缺失 {rules.Count - values.Count} 条，已写群结果（未自动分流）。群TXT：{groupOutputPath}；诊断：{diagnosticPath}";
+            statusLabel.Text = $"完成{(rules.Count == values.Count ? "" : "，但有缺失")}：目录 {imagePaths.Length} 张，候选 {candidateImages} 张，云 OCR 请求 {cloudRequests} 次，提取 {values.Count} 条，缺失 {rules.Count - values.Count} 条，已写群结果（未自动分流）。群TXT：{groupOutputPath}；{OcrDiagnostics.StatusSuffix(diagnosticPath, diagnosticError)}";
         }
         catch (OperationCanceledException)
         {
@@ -1981,6 +2012,7 @@ public sealed class MainForm : Form
         CancellationToken cancellationToken)
     {
         var client = new PaddleLocalOcrClient(ocrDevice);
+        TrackLocalOcrClient("复抓本机 OCR（medium，裁剪图→原图）", client);
         string[] retryRuleIds = candidates
             .SelectMany(candidate => candidate.Rules)
             .Select(rule => rule.Id)
@@ -1990,14 +2022,43 @@ public sealed class MainForm : Form
         int? detectionMaxSide = PaddleLocalOcrClient.DetectionMaxSideFor(selectedImageDirectory!);
         int total = Math.Max(1, candidates.Count);
         int completed = 0;
-        SetProgress(0, total);
+        int localStageToken = BeginRecognitionStage("复抓本机 OCR：准备候选");
+        ReportRecognitionStage(localStageToken, "复抓本机 OCR：准备候选", 0, total, 0, 0);
 
+        // 复抓本机 OCR 按阶段显示真实进度：加载模型/缓存校验不参与本阶段均速（stageTotal = 0 时只显示“无法估算”），
+        // 识别阶段只把真正推理的图片算进均速，缓存命中与加载耗时不算。
+        string phaseLabel = "提取候选";
+        int phaseBase = 0;
+        int cachedCount = 0;
         var batchProgress = new Progress<LocalOcrProgress>(item =>
         {
-            int step = Math.Min(completed + 1, total);
-            statusLabel.Text = string.IsNullOrEmpty(item.Path)
-                ? $"复抓缺失（本机 OCR）{step}/{total} · {item.Stage}"
-                : $"复抓缺失（本机 OCR）{step}/{total} · {ShortPath(item.Path)}";
+            int totalCompleted = Math.Clamp(phaseBase + item.Completed, 0, total);
+            if (item.Stage.Contains("加载", StringComparison.Ordinal))
+            {
+                statusLabel.Text = $"复抓本机 OCR：{phaseLabel}·正在加载模型";
+                ReportRecognitionStage(localStageToken, $"复抓本机 OCR：{phaseLabel}·加载模型", 0, 0, 0, 0);
+                return;
+            }
+
+            if (item.Stage.Contains("缓存", StringComparison.Ordinal))
+            {
+                cachedCount = item.Completed;
+                statusLabel.Text = $"复抓本机 OCR：{phaseLabel}·检查缓存 {totalCompleted}/{total}";
+                ReportRecognitionStage(
+                    localStageToken, $"复抓本机 OCR：{phaseLabel}·缓存校验", totalCompleted, total, 0, 0);
+                return;
+            }
+
+            int inferenceTotal = Math.Max(0, item.Total - cachedCount);
+            int inferenceCompleted = Math.Clamp(item.Completed - cachedCount, 0, inferenceTotal);
+            statusLabel.Text = $"复抓本机 OCR：{phaseLabel}·识别 {totalCompleted}/{total} · {ShortPath(item.Path)}";
+            ReportRecognitionStage(
+                localStageToken,
+                $"复抓本机 OCR：{phaseLabel}·识别",
+                totalCompleted,
+                total,
+                inferenceCompleted,
+                inferenceTotal);
         });
 
         async Task RecognizeRetryBatchAsync(IReadOnlyList<string> inputs)
@@ -2005,6 +2066,7 @@ public sealed class MainForm : Form
             if (inputs.Count == 0)
                 return;
             cancellationToken.ThrowIfCancellationRequested();
+            cachedCount = 0;
             try
             {
                 await client.RecognizeBatchAsync(
@@ -2026,10 +2088,11 @@ public sealed class MainForm : Form
             }
         }
 
-        void ApplyRetryEvidence(RecognitionCandidate candidate, string inputPath)
+        int phaseCompleted = 0;
+        void ApplyRetryEvidence(RecognitionCandidate candidate, string inputPath, string phase, int phaseTotal)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            statusLabel.Text = $"复抓缺失（本机 OCR）{completed + 1}/{total} · {ShortPath(candidate.SourcePath)}";
+            statusLabel.Text = $"复抓本机 OCR：{phase}结果应用 {Math.Min(phaseCompleted + 1, phaseTotal)}/{phaseTotal} · {ShortPath(candidate.SourcePath)}";
             client.LastEvidence.TryGetValue(inputPath, out OcrEvidence? evidence);
             IReadOnlyDictionary<string, string>? gapFillNotes = null;
             if (evidence is not null)
@@ -2047,15 +2110,18 @@ public sealed class MainForm : Form
                 if (lastValues.ContainsKey(rule.Id))
                     lastMissingReasons.Remove(rule.Id);
                 else
-                    lastMissingReasons[rule.Id] = lastTextRecognizedRuleIds.Contains(rule.Id)
-                        ? RuleEngine.DescribeExtractionFailure(evidence?.Lines ?? [], issue, rule)
-                        : RuleEngine.DescribeMissing(foundImage: true, recognizedText: false);
+                    lastMissingReasons[rule.Id] = UnreadImageReason(rule, client.LastImageErrors)
+                        ?? (lastTextRecognizedRuleIds.Contains(rule.Id)
+                            ? RuleEngine.DescribeExtractionFailure(evidence?.Lines ?? [], issue, rule)
+                            : RuleEngine.DescribeMissing(foundImage: true, recognizedText: false));
             }
             if (gapFillNotes is not null)
                 ApplyGapFillNotes(gapFillNotes, lastMissingReasons);
 
             completed++;
-            SetProgress(completed, total);
+            phaseCompleted++;
+            ReportRecognitionStage(
+                localStageToken, $"复抓本机 OCR：{phase}结果应用", completed, total, phaseCompleted, phaseTotal);
             resultsBox.Text = string.Join(
                 Environment.NewLine,
                 RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons));
@@ -2064,7 +2130,7 @@ public sealed class MainForm : Form
         await RecognizeRetryBatchAsync(
             RetryBatchInputs(candidates.Select(candidate => candidate.OcrPath)));
         foreach (RecognitionCandidate candidate in candidates)
-            ApplyRetryEvidence(candidate, candidate.OcrPath);
+            ApplyRetryEvidence(candidate, candidate.OcrPath, "提取候选", candidates.Count);
 
         RecognitionCandidate[] secondary = candidates
             .Where(candidate => NeedsSourceRetry(
@@ -2075,11 +2141,55 @@ public sealed class MainForm : Form
         if (secondary.Length > 0)
         {
             total = candidates.Count + secondary.Length;
-            SetProgress(completed, total);
+            phaseLabel = "原图复读";
+            phaseBase = completed;
             await RecognizeRetryBatchAsync(
                 RetryBatchInputs(secondary.Select(candidate => candidate.SourcePath)));
+            phaseCompleted = 0;
             foreach (RecognitionCandidate candidate in secondary)
-                ApplyRetryEvidence(candidate, candidate.SourcePath);
+                ApplyRetryEvidence(candidate, candidate.SourcePath, "原图复读", secondary.Length);
+        }
+    }
+
+    // 单图读盘失败（被删除/被占用/无权限）必须留在缺失原因里，不能统一记成「未找到对应图片」。
+    // 归属判断复用程序自己的资料夹判定（与复抓范围缩小同一套）；规则没有资料夹身份时不猜，返回 null。
+    internal static string? UnreadImageReason(OcrRule rule, IReadOnlyDictionary<string, string> imageReadErrors)
+    {
+        if (imageReadErrors.Count == 0 || string.IsNullOrWhiteSpace(rule.Folder))
+            return null;
+
+        string[] errors = imageReadErrors
+            .Where(pair => RuleCatalog.PathBelongsToGroup(pair.Key, rule.Folder!))
+            .Select(pair => pair.Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        return errors.Length switch
+        {
+            0 => null,
+            1 => $"图片读取失败：{errors[0]}",
+            _ => $"图片读取失败（本资料夹 {errors.Length} 张）：{string.Join("；", errors)}"
+        };
+    }
+
+    // 复抓失败原因刷新：本轮已重新查过这些规则，必须覆盖上一轮的旧原因，否则界面与失败记录会一直
+    // 显示过期结论（上次「未找到对应图片」、这次图片已存在但读不出来）。已有值或已标记冲突的条目
+    // 不是「缺失」，保持原结论；不在本次范围内、不传进来的规则原因为「不参与本次复抓」而保留。
+    internal static void RefreshRetryMissingReasons(
+        IReadOnlyList<OcrRule> noCandidateRules,
+        IDictionary<string, string> missingReasons,
+        IReadOnlyDictionary<string, string> imageReadErrors,
+        IReadOnlyCollection<string> rulesWithValues,
+        IReadOnlyCollection<string> conflictedRules)
+    {
+        var values = new HashSet<string>(rulesWithValues, StringComparer.Ordinal);
+        var conflicts = new HashSet<string>(conflictedRules, StringComparer.Ordinal);
+        foreach (OcrRule rule in noCandidateRules)
+        {
+            if (values.Contains(rule.Id) || conflicts.Contains(rule.Id))
+                continue;
+
+            missingReasons[rule.Id] = UnreadImageReason(rule, imageReadErrors)
+                ?? RuleEngine.DescribeMissing(foundImage: false, recognizedText: false);
         }
     }
 
@@ -2088,6 +2198,31 @@ public sealed class MainForm : Form
         .Where(path => !string.IsNullOrWhiteSpace(path))
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .ToArray();
+
+    // 复抓只把「缺失资料自己的文件夹」交给本机 OCR，避免缺失项很少却扫描整目录。
+    // 目录身份用 RuleCatalog.PathBelongsToGroup 判定（允许日期/期号包装目录），
+    // 不按文件名或图片顺序猜目标图：只要有缺失规则没有 folder（身份无法确认）
+    // 或按 folder 一张都筛不出来，就退回完整列表，绝不缩小到猜出来的范围。
+    internal static IReadOnlyList<string> RetryImageScope(
+        IReadOnlyList<string> imagePaths,
+        IReadOnlyList<OcrRule> missingRules)
+    {
+        string[] folders = missingRules
+            .Select(rule => rule.Folder)
+            .Where(folder => !string.IsNullOrWhiteSpace(folder))
+            .Select(folder => folder!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (imagePaths.Count == 0 || folders.Length == 0 ||
+            missingRules.Any(rule => string.IsNullOrWhiteSpace(rule.Folder)))
+            return imagePaths;
+
+        string[] scoped = imagePaths
+            .Where(path => !string.IsNullOrWhiteSpace(path) &&
+                folders.Any(folder => RuleCatalog.PathBelongsToGroup(path, folder)))
+            .ToArray();
+        return scoped.Length == 0 ? imagePaths : scoped;
+    }
 
     // 第二轮（原图复读）只在“原图与候选识别图不是同一张”且“该候选确实还有缺失规则”时才跑。
     internal static bool NeedsSourceRetry(
@@ -2103,12 +2238,18 @@ public sealed class MainForm : Form
             return;
 
         string? temporaryCropFolder = null;
+        // 诊断用：任务标识、开始时间与云请求计数在 try 外声明，取消/GPU 故障/失败路径同样能记录真实状态。
+        string retryTaskId = Guid.NewGuid().ToString("N");
+        DateTimeOffset retryStartedAt = DateTimeOffset.Now;
+        int cloudRequests = 0;
         SetBusy(true);
         StartRecognitionTiming();
         try
         {
             RefreshImagesForRetry();
             string groupOutputPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, selectedImageDirectory!, lastIssue);
+            string diagnosticPath = ResultFilePaths.ForDiagnostic(
+                AppContext.BaseDirectory, selectedImageDirectory!, lastIssue);
             // 你手工改过的条目（TXT 里已经是值、不再是"缺失"）本轮完全不碰。
             IReadOnlyDictionary<string, string> concludedLines = RefreshConcludedValueLines(groupOutputPath);
             OcrRule[] missingRules = GroupResultFormatter.MissingRetryRules(lastRules, lastValues.Keys, concludedLines);
@@ -2118,6 +2259,10 @@ public sealed class MainForm : Form
                 return;
             }
             string groupName = RuleCatalog.GroupNameForFolder(AppContext.BaseDirectory, selectedImageDirectory!);
+            // 复抓候选范围：只按缺失资料的文件夹缩小（见 RetryImageScope），
+            // 缩小后的张数直接显示在状态栏，方便核对有没有漏掉目标资料。
+            IReadOnlyList<string> retryScope = RetryImageScope(imagePaths, missingRules);
+            statusLabel.Text = $"复抓候选范围：{retryScope.Count}/{imagePaths.Length} 张";
             // Revalidate disk/image identity; structured cache entries retain the
             // exact source hash and OCR evidence. Known conflicts stay sticky.
             Dictionary<string, OcrEvidence> retryCloudEvidence =
@@ -2125,21 +2270,29 @@ public sealed class MainForm : Form
             lastCloudOcrResults = retryCloudEvidence.ToDictionary(
                 pair => pair.Key, pair => (IReadOnlyList<string>)pair.Value.Lines.ToArray(),
                 StringComparer.OrdinalIgnoreCase);
+            lastLocalImageReadErrors.Clear();
+            // 阶段化进度：筛选候选阶段无法估算剩余，只说明正在做什么。
+            BeginRecognitionStage("复抓：筛选候选");
             CandidateSelection selection = await SelectCandidatesAsync(
                 missingRules,
                 lastIssue,
                 allowTemplateSubset: true,
                 completeRuleIds: lastRules.Select(rule => rule.Id).ToHashSet(StringComparer.Ordinal),
-                localLimitedRuleIds: LimitedLocalRetryRuleIds(missingRules));
+                localLimitedRuleIds: LimitedLocalRetryRuleIds(missingRules),
+                localImagePathsOverride: retryScope);
             temporaryCropFolder = selection.TemporaryCropFolder;
             HashSet<string> retryCandidateRuleIds = selection.Candidates
                 .SelectMany(candidate => candidate.Rules)
                 .Select(rule => rule.Id)
                 .ToHashSet(StringComparer.Ordinal);
-            foreach (OcrRule rule in missingRules.Where(rule => !retryCandidateRuleIds.Contains(rule.Id)))
-                lastMissingReasons.TryAdd(
-                    rule.Id,
-                    RuleEngine.DescribeMissing(foundImage: false, recognizedText: false));
+            // 复抓范围内的规则重新给失败原因：上一次的旧原因（例如「未找到对应图片」）会被本次
+            // 实测结果覆盖；已有值/冲突的规则保持原结论，范围外的规则原因不动。
+            RefreshRetryMissingReasons(
+                missingRules.Where(rule => !retryCandidateRuleIds.Contains(rule.Id)).ToArray(),
+                lastMissingReasons,
+                lastLocalImageReadErrors,
+                lastValues.Keys.ToArray(),
+                lastValues.Conflicts.ToArray());
 
             // 复抓默认“本机优先”：先按本地主识别的顺序用本机 medium 出值
             //（裁剪图 → 原图），仍缺失的规则再走云兜底。
@@ -2162,9 +2315,7 @@ public sealed class MainForm : Form
             var fallbackImageDeduplicator = new CloudImageDeduplicator();
             bool primaryStarted = false;
             bool fallbackStarted = false;
-            int cloudRequests = 0;
             int completed = 0;
-            SetProgress(0, selection.Candidates.Count);
 
             // 只对本机仍未取到值的规则请求云（本机优先的统一顺序）。
             RecognitionCandidate[] cloudRetryCandidates = selection.Candidates
@@ -2177,6 +2328,14 @@ public sealed class MainForm : Form
                 .Where(candidate => candidate.Rules.Count > 0)
                 .ToArray();
 
+            // 云阶段的进度分母是本轮真正要问云的候选数，而不是全部候选；
+            // 云请求次数单独计数，缓存命中的图片不计入本阶段工作单位（不能混成每图均速）。
+            int cloudTotal = cloudRetryCandidates.Length;
+            int cloudWorkDone = 0;
+            int cloudWorkTotal = cloudTotal;
+            int cloudStageToken = BeginRecognitionStage("复抓：云兜底");
+            ReportRecognitionStage(cloudStageToken, "复抓：云兜底", 0, cloudTotal, 0, cloudWorkTotal);
+
             foreach (RecognitionCandidate candidate in cloudRetryCandidates)
             {
                 // Selection contains the rules missing at retry start, but an already
@@ -2186,6 +2345,7 @@ public sealed class MainForm : Form
                 if (candidateMissing.Length == 0)
                     continue;
                 OcrRule[] evidenceRules = RetryEvidenceRules(candidate, lastRules);
+                int cloudRequestsBeforeCandidate = cloudRequests;
 
                 if (candidateMissing.Length == 0)
                 {
@@ -2193,7 +2353,9 @@ public sealed class MainForm : Form
                         if (lastValues.ContainsKey(rule.Id))
                             lastMissingReasons.Remove(rule.Id);
                     completed++;
-                    SetProgress(completed, selection.Candidates.Count);
+                    cloudWorkTotal = Math.Max(cloudWorkDone, cloudWorkTotal - 1);
+                    ReportRecognitionStage(
+                        cloudStageToken, "复抓：云兜底", completed, cloudTotal, cloudWorkDone, cloudWorkTotal);
                     resultsBox.Text = string.Join(
                         Environment.NewLine,
                         RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons));
@@ -2207,18 +2369,22 @@ public sealed class MainForm : Form
                 {
                     primaryEvidence = cachedEvidence!;
                     AddExtractedEvidenceValues(primaryEvidence, evidenceRules, lastIssue, lastValues, lastEvidenceLedger);
+                    // 缓存命中没有云推理：从本阶段的工作单位里移除，避免把它算进每图均速。
+                    cloudWorkTotal = Math.Max(cloudWorkDone, cloudWorkTotal - 1);
                 }
                 else
                 {
                     if (primaryStarted)
-                        await WaitForPacingAsync(primarySpacing, CloudOcrPolicy.MinimumInterval(credential.Provider));
+                        await ExcludeStageWaitAsync(
+                            WaitForPacingAsync(primarySpacing, CloudOcrPolicy.MinimumInterval(credential.Provider)));
                     primarySpacing.Restart();
                     primaryStarted = true;
                     while (true)
                     {
                         try
                         {
-                            statusLabel.Text = $"复抓缺失：主云 {credential.DisplayName} {completed + 1}/{selection.Candidates.Count} · {ShortPath(candidate.SourcePath)}";
+                            statusLabel.Text = CloudRetryStatusText(
+                                $"主云 {credential.DisplayName}", completed + 1, cloudTotal, cloudRequests, candidate.SourcePath);
                             string primaryInputPath = retryUsesLocalOcr
                                 ? candidate.OcrPath
                                 : RetryPrimaryImage(
@@ -2235,7 +2401,7 @@ public sealed class MainForm : Form
                                         $"retry/{credential.Provider}");
                                     return await RecognizeRetryEvidenceAsync(
                                         cloudClient, credential, retryIdentity,
-                                        completed + 1, selection.Candidates.Count);
+                                        completed + 1, cloudTotal);
                                 });
                             AddExtractedEvidenceValues(primaryEvidence, evidenceRules, lastIssue, lastValues, lastEvidenceLedger);
                             break;
@@ -2270,12 +2436,14 @@ public sealed class MainForm : Form
                 if (fallbackMissing.Length > 0)
                 {
                     if (fallbackStarted)
-                        await WaitForPacingAsync(fallbackSpacing, CloudOcrPolicy.MinimumInterval(fallbackCredential.Provider));
+                        await ExcludeStageWaitAsync(
+                            WaitForPacingAsync(fallbackSpacing, CloudOcrPolicy.MinimumInterval(fallbackCredential.Provider)));
                     fallbackSpacing.Restart();
                     fallbackStarted = true;
                     try
                     {
-                        statusLabel.Text = $"复抓缺失：备用 {fallbackCredential.DisplayName} {completed + 1}/{selection.Candidates.Count} · {ShortPath(candidate.SourcePath)}";
+                        statusLabel.Text = CloudRetryStatusText(
+                            $"备用 {fallbackCredential.DisplayName}", completed + 1, cloudTotal, cloudRequests, candidate.SourcePath);
                         fallbackEvidence = await fallbackImageDeduplicator.RecognizeEvidenceAsync(
                             selectedImageDirectory!, candidate.SourcePath, fallbackMissing,
                             async () =>
@@ -2288,7 +2456,7 @@ public sealed class MainForm : Form
                                     $"retry/{fallbackCredential.Provider}");
                                 return await RecognizeRetryEvidenceAsync(
                                     fallbackClient, fallbackCredential, retryIdentity,
-                                    completed + 1, selection.Candidates.Count);
+                                    completed + 1, cloudTotal);
                             });
                         AddExtractedEvidenceValues(fallbackEvidence, evidenceRules, lastIssue, lastValues, lastEvidenceLedger);
                     }
@@ -2328,7 +2496,10 @@ public sealed class MainForm : Form
                 ApplyGapFillNotes(gapFillNotes, lastMissingReasons);
 
                 completed++;
-                SetProgress(completed, selection.Candidates.Count);
+                if (cloudRequests > cloudRequestsBeforeCandidate)
+                    cloudWorkDone++;
+                ReportRecognitionStage(
+                    cloudStageToken, "复抓：云兜底", completed, cloudTotal, cloudWorkDone, cloudWorkTotal);
                 resultsBox.Text = string.Join(
                     Environment.NewLine,
                     RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons));
@@ -2342,6 +2513,9 @@ public sealed class MainForm : Form
                 selection.Candidates, lastIssue, ActiveToken);
 
             ActiveToken.ThrowIfCancellationRequested();
+            int saveStageToken = BeginRecognitionStage("复抓：保存结果");
+            ReportRecognitionStage(saveStageToken, "复抓：保存结果", 0, 0, 0, 0);
+            statusLabel.Text = "复抓：正在校验证据并保存结果…";
             using IDisposable publishGuard = RecognitionStateStore.LockValidEvidenceForPublish(
                 lastRules, lastValues, lastEvidenceLedger, lastMissingReasons);
             string[] outputLines = RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons);
@@ -2372,28 +2546,77 @@ public sealed class MainForm : Form
             resultsBox.Text = string.Join(Environment.NewLine, groupLines);
             int remaining = lastRules.Count(rule =>
                 !lastValues.ContainsKey(rule.Id) && !concludedLines.ContainsKey(rule.Id));
-            statusLabel.Text = selection.Candidates.Count == 0
+            // 复抓同样刷新当前群/当前期的诊断：状态、计数和阶段耗时都取最终发布之后的状态，
+            // 中途被撤销的成功不计入补回数；写失败只提示本轮诊断未更新，不改写结果。
+            // 本地 OCR 计数按本次任务的各阶段客户端汇总（候选筛选 small、本机复抓 medium、补读），
+            // 客户端自身的累计值只算一次，避免同一个客户端被重复累计（C4）。
+            LocalOcrStageStat[] localOcrStages = LocalOcrStageStats();
+            string? diagnosticError = await OcrDiagnostics.TryWriteAsync(
+                diagnosticPath,
+                new
+                {
+                    group = groupName,
+                    issue = lastIssue,
+                    mode = RetryDiagnosticMode,
+                    device = LocalDeviceName,
+                    image_mode = retryUsesLocalOcr ? "候选识别图（模板群为裁剪图）" : "原图",
+                    task_id = retryTaskId,
+                    started_at = retryStartedAt,
+                    finished_at = DateTimeOffset.Now,
+                    status = "完成",
+                    published = true,
+                    image_count = imagePaths.Length,
+                    retry_scope_image_count = retryScope.Count,
+                    candidate_count = selection.Candidates.Count,
+                    cloud_candidate_count = cloudTotal,
+                    missing_before = missingRules.Length,
+                    recovered = missingRules.Length - remaining,
+                    missing_after = remaining,
+                    manual_confirmed_rules = concludedLines.Keys.ToArray(),
+                    conflicts = lastValues.Conflicts.ToArray(),
+                    missing_reasons = lastMissingReasons,
+                    cloud_request_count = cloudRequests,
+                    excluded_wait_seconds = Math.Round(
+                        (recognitionExcludedWait + recognitionStage.ExcludedWait).TotalSeconds, 3),
+                    total_seconds = Math.Round(recognitionWatch.Elapsed.TotalSeconds, 3),
+                    stage_seconds = StageSecondsSnapshot(),
+                    local_ocr_stages = localOcrStages,
+                    cache_hit_count = localOcrStages.Sum(stat => stat.CacheHitCount),
+                    inference_count = localOcrStages.Sum(stat => stat.InferenceCount),
+                    python_start_count = localOcrStages.Sum(stat => stat.PythonStartCount),
+                    worker_timings = WorkerTimingSnapshot()
+                });
+            statusLabel.Text = (selection.Candidates.Count == 0
                 ? $"复抓未找到 {missingRules.Length} 条缺失项对应的图片，缺失原因已更新；已写群结果（未自动分流）。TXT：{groupOutputPath}"
                 : retryUsesLocalOcr
                     ? $"复抓完成（本地 OCR）：补回 {missingRules.Length - remaining} 条，仍缺失 {remaining} 条，已写群结果（未自动分流）。TXT：{groupOutputPath}"
-                    : $"复抓完成：云 OCR 请求 {cloudRequests} 次，补回 {missingRules.Length - remaining} 条，仍缺失 {remaining} 条，已写群结果（未自动分流）。TXT：{groupOutputPath}";
+                    : $"复抓完成：云 OCR 请求 {cloudRequests} 次，补回 {missingRules.Length - remaining} 条，仍缺失 {remaining} 条，已写群结果（未自动分流）。TXT：{groupOutputPath}")
+                + "；" + OcrDiagnostics.StatusSuffix(diagnosticPath, diagnosticError);
         }
         catch (OperationCanceledException)
         {
             statusLabel.Text = "识别已取消；未完成结果不会自动分流。";
+            await ReportRetryAbortAsync("已取消", retryTaskId, retryStartedAt, cloudRequests,
+                RetryAbortReason.Cancelled);
         }
         catch (OcrException exception) when (PaddleLocalOcrClient.IsCudaUnavailable(exception))
         {
             statusLabel.Text = "GPU 本地 OCR 不可用，请在“设置”中手动切换 CPU。";
+            await ReportRetryAbortAsync("GPU 不可用", retryTaskId, retryStartedAt, cloudRequests,
+                RetryAbortReason.FromException(exception));
         }
         catch (OcrException exception)
         {
             statusLabel.Text = $"复抓失败：{exception.Message}";
+            await ReportRetryAbortAsync("失败", retryTaskId, retryStartedAt, cloudRequests,
+                RetryAbortReason.FromException(exception));
         }
         catch (Exception exception)
         {
             OperationLog.AppendException(AppContext.BaseDirectory, "手动复抓", RuleCatalog.BaseGroupName(selectedImageDirectory ?? ""), lastIssue, exception);
             statusLabel.Text = "复抓失败，请稍后重试。";
+            await ReportRetryAbortAsync("失败", retryTaskId, retryStartedAt, cloudRequests,
+                RetryAbortReason.FromException(exception));
         }
         finally
         {
@@ -2401,6 +2624,7 @@ public sealed class MainForm : Form
             {
                 try { Directory.Delete(temporaryCropFolder, recursive: true); } catch { }
             }
+            EndRecognitionStage();
             StopRecognitionTiming();
             SetBusy(false);
             RefreshCredentialLabel();
@@ -2480,6 +2704,122 @@ public sealed class MainForm : Form
             await Task.Delay(delay, ActiveToken);
     }
 
+    // 限流等待、等待手动继续都不属于识别速度：单独累计扣除，等待期间界面不显示精确倒计时。
+    private async Task ExcludeStageWaitAsync(Task wait)
+    {
+        recognitionStage.BeginWait();
+        UpdateRecognitionTiming();
+        var elapsed = Stopwatch.StartNew();
+        try
+        {
+            await wait;
+        }
+        finally
+        {
+            recognitionStage.AddExcludedWait(elapsed.Elapsed);
+            recognitionStage.EndWait();
+        }
+    }
+
+    // 云阶段状态：图片完成数与真实云请求次数分开显示，避免把候选总数当成云任务数。
+    internal static string CloudRetryStatusText(string phase, int imageIndex, int imageTotal, int cloudRequests, string sourcePath) =>
+        $"复抓缺失：{phase} 第 {imageIndex}/{imageTotal} 张，已发云请求 {cloudRequests} 次 · {ShortPath(sourcePath)}";
+
+    private string RetryDiagnosticMode => retryUsesLocalOcr ? "复抓（本机优先 → 云兜底）" : "复抓（云 OCR）";
+
+    private string LocalDeviceName => ocrDevice == LocalOcrDevice.Gpu ? "GPU" : "CPU";
+
+    /// <summary>
+    /// 中止诊断只写安全错误分类：异常原文可能带外部请求正文、路径或凭据，一律不写入。
+    /// 类型与 HResult 由 OperationLog.AppendException 单独记录。
+    /// </summary>
+    internal sealed record RetryAbortReason(string Category, string? Code)
+    {
+        public static readonly RetryAbortReason Cancelled = new("取消", null);
+
+        // 只放行本程序自己定义的错误码；外部/未知错误码一律并入通用分类。
+        private static readonly HashSet<string> KnownCodes = new(StringComparer.Ordinal)
+        {
+            PaddleLocalOcrClient.CudaUnavailableCode,
+            "OCR_IMAGE_IDENTITY_ERROR",
+            "OCR_IMAGE_CHANGED",
+            "OCR_STATE_REQUIRED",
+            "OCR_STATE_WRITE_ERROR"
+        };
+
+        internal static RetryAbortReason FromException(Exception exception) => exception switch
+        {
+            OcrException ocr when PaddleLocalOcrClient.IsCudaUnavailable(ocr) => new("GPU 不可用", CodeFor(ocr)),
+            OcrException ocr => new("OCR 失败", CodeFor(ocr)),
+            _ => new("未预期异常", null)
+        };
+
+        private static string? CodeFor(OcrException exception) =>
+            exception.Code is not null && KnownCodes.Contains(exception.Code) ? exception.Code : null;
+    }
+
+    internal static object RetryAbortDiagnosticPayload(
+        string group,
+        int issue,
+        string mode,
+        string device,
+        string taskId,
+        DateTimeOffset startedAt,
+        string status,
+        RetryAbortReason reason,
+        int cloudRequests,
+        double excludedWaitSeconds,
+        double totalSeconds,
+        IReadOnlyDictionary<string, double> stageSeconds,
+        LocalOcrStageStat[] localOcrStages,
+        PaddleTiming[] workerTimings) => new
+        {
+            group,
+            issue,
+            mode,
+            device,
+            task_id = taskId,
+            started_at = startedAt,
+            finished_at = DateTimeOffset.Now,
+            status,
+            published = false,
+            error = reason.Category,
+            error_code = reason.Code,
+            cloud_request_count = cloudRequests,
+            excluded_wait_seconds = excludedWaitSeconds,
+            total_seconds = totalSeconds,
+            stage_seconds = stageSeconds,
+            local_ocr_stages = localOcrStages,
+            cache_hit_count = localOcrStages.Sum(stat => stat.CacheHitCount),
+            inference_count = localOcrStages.Sum(stat => stat.InferenceCount),
+            python_start_count = localOcrStages.Sum(stat => stat.PythonStartCount),
+            worker_timings = workerTimings
+        };
+
+    private async Task ReportRetryAbortAsync(
+        string status, string taskId, DateTimeOffset startedAt, int cloudRequests, RetryAbortReason reason)
+    {
+        if (selectedImageDirectory is null)
+            return;
+        string path = ResultFilePaths.ForDiagnostic(AppContext.BaseDirectory, selectedImageDirectory, lastIssue);
+        string? writeError = await OcrDiagnostics.TryWriteAsync(path, RetryAbortDiagnosticPayload(
+            RuleCatalog.GroupNameForFolder(AppContext.BaseDirectory, selectedImageDirectory),
+            lastIssue,
+            RetryDiagnosticMode,
+            LocalDeviceName,
+            taskId,
+            startedAt,
+            status,
+            reason,
+            cloudRequests,
+            Math.Round((recognitionExcludedWait + recognitionStage.ExcludedWait).TotalSeconds, 3),
+            Math.Round(recognitionWatch.Elapsed.TotalSeconds, 3),
+            StageSecondsSnapshot(),
+            LocalOcrStageStats(),
+            WorkerTimingSnapshot()));
+        statusLabel.Text = $"{statusLabel.Text}；{OcrDiagnostics.StatusSuffix(path, writeError)}";
+    }
+
     private static void AddExtractedValues(
         IReadOnlyList<string> lines,
         IEnumerable<OcrRule> rules,
@@ -2557,6 +2897,20 @@ public sealed class MainForm : Form
         }
     }
 
+    // 补读进度分类：SummaryRowRecovery 会把「定位…/裁剪重读…」前缀拼在消息前面，所以必须先按
+    // 消息本身的实际状态判断加载模型与缓存校验（仅准备动作），再回落到阶段说明；否则被前缀包着的
+    // 加载/缓存消息会被当成推理进度，提前推进进度条与剩余时间（C5）。
+    internal static (string Detail, bool Countable) ClassifyRecoveryProgress(string stage)
+    {
+        if (stage.Contains("加载", StringComparison.Ordinal))
+            return ("加载模型", false);
+        if (stage.Contains("缓存", StringComparison.Ordinal))
+            return ("缓存校验", false);
+        return (stage.Contains("裁剪重读", StringComparison.Ordinal) ? "裁剪重读"
+            : stage.Contains("定位", StringComparison.Ordinal) ? "定位"
+            : "识别", true);
+    }
+
     // Shared summary sheets can drop a single author cell while other authors
     // stay readable. Recover the missing row from a strip cropped around that
     // author's own line; the strip never contains a neighbouring row's value.
@@ -2597,17 +2951,20 @@ public sealed class MainForm : Form
             return;
 
         var client = new PaddleLocalOcrClient(ocrDevice);
+        TrackLocalOcrClient("复抓补读（medium，定位+裁剪重读）", client);
         double titleRatio = PaddleLocalOcrClient.TitleRatioFor(selectedImageDirectory);
         int? detectionMaxSide = PaddleLocalOcrClient.DetectionMaxSideFor(selectedImageDirectory);
+        int recoverStageToken = BeginRecognitionStage("复抓补读：准备");
+        statusLabel.Text = "复抓补读：正在准备待补行…";
         var requests = new List<SummaryRowRecoveryRequest>();
         AddRequests(recoverable, SummaryRowRecoveryKind.Summary);
         AddRequests(issueRowRules, SummaryRowRecoveryKind.IssueZodiac);
         AddRequests(issueRowNumberRules, SummaryRowRecoveryKind.IssueNumbers);
-        await ApplyBatchAsync();
+        await ApplyBatchAsync("横带");
 
         requests.Clear();
         AddRequests(rightBlockRules, SummaryRowRecoveryKind.RightBlock);
-        await ApplyBatchAsync();
+        await ApplyBatchAsync("右侧");
 
         void AddRequests(IEnumerable<OcrRule> selected, SummaryRowRecoveryKind kind)
         {
@@ -2619,23 +2976,39 @@ public sealed class MainForm : Form
                     item => item.Rules.Any(candidateRule => candidateRule.Id == rule.Id));
                 if (candidate is null || !File.Exists(candidate.SourcePath))
                     continue;
-                if (kind is SummaryRowRecoveryKind.IssueZodiac or SummaryRowRecoveryKind.IssueNumbers
-                    && !string.Equals(Path.GetFileName(Path.GetDirectoryName(candidate.SourcePath)),
-                        rule.Folder, StringComparison.OrdinalIgnoreCase))
+                if (!AllowsSummaryRowRecoveryCandidate(candidate.SourcePath, rule, kind))
                     continue;
                 requests.Add(new SummaryRowRecoveryRequest(candidate.SourcePath, rule, kind));
             }
         }
 
-        async Task ApplyBatchAsync()
+        async Task ApplyBatchAsync(string label)
         {
             if (requests.Count == 0)
                 return;
+            // 补读进度由本机 OCR 自己的回调驱动：定位与裁剪重读分开报，裁剪阶段不伪造协议项。
+            var batchProgress = new Progress<LocalOcrProgress>(item =>
+            {
+                (string detail, bool countable) = ClassifyRecoveryProgress(item.Stage);
+                statusLabel.Text = $"复抓补读：{label}·{detail} {item.Completed}/{item.Total} · {ShortPath(item.Path)}";
+                ReportRecognitionStage(
+                    recoverStageToken,
+                    $"复抓补读：{label}·{detail}",
+                    item.Completed,
+                    item.Total,
+                    countable ? item.Completed : 0,
+                    countable ? item.Total : 0);
+            });
             var recovered = await SummaryRowRecovery.TryRecoverBatchAsync(
-                client, requests, rules, issue, titleRatio, detectionMaxSide, cancellationToken);
+                client, requests, rules, issue, titleRatio, detectionMaxSide, cancellationToken, batchProgress);
+            int applied = 0;
             foreach (var request in requests)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                applied++;
+                statusLabel.Text = $"复抓补读：{label}·结果应用 {applied}/{requests.Count} · {ShortPath(request.ImagePath)}";
+                ReportRecognitionStage(
+                    recoverStageToken, $"复抓补读：{label}·结果应用", applied, requests.Count, applied, requests.Count);
                 if (!recovered.TryGetValue(request, out SummaryRowRecoveryResult? result))
                     continue;
                 try
@@ -2654,6 +3027,15 @@ public sealed class MainForm : Form
             }
         }
     }
+
+    // 缺项补读入口的身份过滤：号码/期行补读只接受与规则同资料夹的候选图，
+    // 判定与候选识别阶段完全一致（RuleEngine.MatchesRuleFolder：目录段精确相等，允许下级目录）。
+    internal static bool AllowsSummaryRowRecoveryCandidate(
+        string sourcePath,
+        OcrRule rule,
+        SummaryRowRecoveryKind kind)
+        => kind is not (SummaryRowRecoveryKind.IssueZodiac or SummaryRowRecoveryKind.IssueNumbers)
+            || RuleEngine.MatchesRuleFolder(sourcePath, rule);
 
     internal static void AddExtractedEvidenceValues(
         OcrEvidence evidence,
@@ -3008,7 +3390,8 @@ public sealed class MainForm : Form
         int issue,
         bool allowTemplateSubset,
         IReadOnlySet<string> completeRuleIds,
-        IReadOnlySet<string>? localLimitedRuleIds = null)
+        IReadOnlySet<string>? localLimitedRuleIds = null,
+        IReadOnlyList<string>? localImagePathsOverride = null)
     {
         var templateCandidates = new List<RecognitionCandidate>();
         string? templateCropFolder = null;
@@ -3154,7 +3537,9 @@ public sealed class MainForm : Form
                     : TimeSpan.FromSeconds(localWatch.Elapsed.TotalSeconds / item.Completed * (item.Total - item.Completed));
                 statusLabel.Text = $"本地 OCR：{item.Completed}/{item.Total}（{percent}%） · 当前：{ShortPath(item.Path)} · 已用 {FormatDuration(localWatch.Elapsed)} · 预计剩余 {FormatDuration(remaining)}";
             });
-            IReadOnlyList<string> localImagePaths = imagePaths;
+            // 模板匹配仍用完整 imagePaths（避免模板漏图），只有本机候选识别
+            // 在复抓按资料身份缩小范围时改用缩小后的列表。
+            IReadOnlyList<string> localImagePaths = localImagePathsOverride ?? imagePaths;
             HashSet<string> limitedImagePaths = localLimitedRuleIds is null
                 ? []
                 : imagePaths.Take(60).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -3162,19 +3547,17 @@ public sealed class MainForm : Form
                 localImagePaths = imagePaths.Take(60).ToArray();
 
             var localClient = new PaddleLocalOcrClient(ocrDevice);
+            TrackLocalOcrClient("候选筛选（small）", localClient);
             IReadOnlyDictionary<string, IReadOnlyList<string>> localResults =
                 await localClient.RecognizeBatchAsync(
                     localImagePaths,
                     localProgress,
                     LocalRetryTitleRatio(localLimitedRuleIds),
                     PaddleLocalOcrClient.DetectionMaxSideFor(selectedImageDirectory!), cancellationToken: ActiveToken);
-            var candidateResults = new Dictionary<string, IReadOnlyList<string>>(localResults, StringComparer.OrdinalIgnoreCase);
             foreach ((string failedPath, string error) in localClient.LastImageErrors)
-            {
-                candidateResults[failedPath] = [];
-                statusLabel.Text = $"本地 OCR 单图失败：{ShortPath(failedPath)}；{error}";
-            }
-            localResults = candidateResults;
+                RecordUnreadImage(failedPath, error);
+            localResults = CandidateTextMap(
+                localResults, localClient.LastImageErrors, localClient.LastInvalidImagePaths);
             await Task.Yield();
             var localCandidates = new List<RecognitionCandidate>();
             IReadOnlyList<OcrRule> completeIdentityRules = selectedRulePath is null
@@ -3186,12 +3569,23 @@ public sealed class MainForm : Form
                 foreach (LocalCandidatePlan plan in LocalCandidatePlanner.Build(
                     imagePaths, localResults, rules, issue, completeIdentityRules))
                 {
-                    OcrEvidenceIdentity sourceAtStart = OcrEvidenceIdentity.Capture(
-                        plan.Path, plan.Path, "candidate-source");
-                    string ocrPath = PrepareLocalCloudImage(
-                        selectedImageDirectory!, plan.Path, plan.Rules, ref templateCropFolder);
-                    OcrEvidenceIdentity creationIdentity = PinCreatedCandidateView(
-                        sourceAtStart, ocrPath);
+                    // 单张图片自己的读取/身份失败只丢这一条候选：其余图片继续，
+                    // 取消、GPU、模型与协议错误仍向上抛出。
+                    string ocrPath = plan.Path;
+                    OcrEvidenceIdentity? creationIdentity = null;
+                    if (!TryRunForSingleImage(() =>
+                        {
+                            OcrEvidenceIdentity sourceAtStart = OcrEvidenceIdentity.Capture(
+                                plan.Path, plan.Path, "candidate-source");
+                            ocrPath = PrepareLocalCloudImage(
+                                selectedImageDirectory!, plan.Path, plan.Rules, ref templateCropFolder);
+                            creationIdentity = PinCreatedCandidateView(sourceAtStart, ocrPath);
+                        }, out string? planError))
+                    {
+                        RemoveFailedCandidateView(plan.Path, ocrPath);
+                        RecordUnreadImage(plan.Path, planError!);
+                        continue;
+                    }
                     localCandidates.Add(new RecognitionCandidate(
                         plan.Path,
                         ocrPath,
@@ -3219,9 +3613,20 @@ public sealed class MainForm : Form
                         .ToArray();
                 }
                 if (matched.Count > 0)
-                    localCandidates.Add(new RecognitionCandidate(
-                        path, path, matched, true, "本地OCR", null, lines,
-                        BindPaddleEvidence(localClient, path, path, "candidate-small")));
+                {
+                    RecognitionCandidate? candidate = null;
+                    if (TryRunForSingleImage(() => candidate = new RecognitionCandidate(
+                            path, path, matched, true, "本地OCR", null, lines,
+                            BindPaddleEvidence(localClient, path, path, "candidate-small")),
+                        out string? candidateError))
+                    {
+                        localCandidates.Add(candidate!);
+                    }
+                    else
+                    {
+                        RecordUnreadImage(path, candidateError!);
+                    }
+                }
             }
             return new CandidateSelection(templateCandidates.Concat(localCandidates).ToArray(), templateCropFolder, "本地OCR");
         }
@@ -3231,6 +3636,57 @@ public sealed class MainForm : Form
                 try { Directory.Delete(templateCropFolder, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             throw;
         }
+    }
+
+    // 候选文字映射：每个单图错误都记录（缺失原因要用），但只有身份仍有效的普通
+    // OCR 失败才保留空文字候选交给云兜底；已被删除/占用/无权/识别期间已变化的路径
+    // 不得进入候选输入，否则后续身份读取会再次读盘失败并中断整轮。
+    internal static IReadOnlyDictionary<string, IReadOnlyList<string>> CandidateTextMap(
+        IReadOnlyDictionary<string, IReadOnlyList<string>> localResults,
+        IReadOnlyDictionary<string, string> imageErrors,
+        IReadOnlyCollection<string> invalidImagePaths)
+    {
+        var map = new Dictionary<string, IReadOnlyList<string>>(localResults, StringComparer.OrdinalIgnoreCase);
+        HashSet<string> unusable = invalidImagePaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (string unusablePath in unusable)
+            map.Remove(unusablePath);
+        foreach (string failedPath in imageErrors.Keys)
+        {
+            if (!unusable.Contains(failedPath))
+                map[failedPath] = [];
+        }
+        return map;
+    }
+
+    // 逐图保护：单张图片自身的读取/身份失败只丢这一张，其余异常（取消、GPU、
+    // 模型、协议）继续上抛。
+    internal static bool TryRunForSingleImage(Action action, out string? error)
+    {
+        try
+        {
+            action();
+            error = null;
+            return true;
+        }
+        catch (Exception exception) when (PaddleLocalOcrClient.IsSingleImageFailure(exception))
+        {
+            error = PaddleLocalOcrClient.MessageForSingleImageFailure(exception);
+            return false;
+        }
+    }
+
+    // 失败图自己创建的临时识别视图不留给后续候选使用。
+    private static void RemoveFailedCandidateView(string sourcePath, string viewPath)
+    {
+        if (viewPath.Equals(sourcePath, StringComparison.OrdinalIgnoreCase))
+            return;
+        try { File.Delete(viewPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+    }
+
+    private void RecordUnreadImage(string path, string error)
+    {
+        lastLocalImageReadErrors[path] = error;
+        statusLabel.Text = $"本地 OCR 单图失败：{ShortPath(path)}；{error}";
     }
 
     internal static IReadOnlyList<OcrRule> RulesForAlreadyRequestedCloudFallback(
@@ -3475,7 +3931,7 @@ public sealed class MainForm : Form
     }
 
 
-    private Task WaitForCloudResumeAsync(int current, int total, string path)
+    private async Task WaitForCloudResumeAsync(int current, int total, string path)
     {
         cloudResume = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         continueButton.Visible = true;
@@ -3483,7 +3939,19 @@ public sealed class MainForm : Form
         continueButton.Enabled = true;
         UseWaitCursor = false;
         statusLabel.Text = $"云 OCR 多次限流，已暂停在 {current}/{total}：{ShortPath(path)}。点击“继续云 OCR”从此处继续。";
-        return cloudResume.Task.WaitAsync(ActiveToken);
+        // 等待用户点“继续”的时间与识别速度无关：不计入均速，期间也不给倒计时。
+        recognitionStage.BeginWait();
+        UpdateRecognitionTiming();
+        var wait = Stopwatch.StartNew();
+        try
+        {
+            await cloudResume.Task.WaitAsync(ActiveToken);
+        }
+        finally
+        {
+            recognitionStage.AddExcludedWait(wait.Elapsed);
+            recognitionStage.EndWait();
+        }
     }
 
     private void ContinueCloudOcr(object? sender, EventArgs e)
@@ -3501,19 +3969,137 @@ public sealed class MainForm : Form
     {
         recognitionCompleted = completed;
         recognitionTotal = total;
+        SetContinuousProgress(completed, total);
+        UpdateRecognitionTiming();
+    }
+
+    private void SetContinuousProgress(int completed, int total)
+    {
         progressBar.MarqueeAnimationSpeed = 0;
         progressBar.Style = ProgressBarStyle.Continuous;
         progressBar.Maximum = Math.Max(1, total);
         progressBar.Value = Math.Clamp(completed, 0, progressBar.Maximum);
-        UpdateRecognitionTiming();
+    }
+
+    private void SetMarqueeProgress()
+    {
+        progressBar.Style = ProgressBarStyle.Marquee;
+        progressBar.MarqueeAnimationSpeed = 25;
     }
 
     private void SetIndeterminateProgress()
     {
         recognitionCompleted = 0;
         recognitionTotal = 0;
-        progressBar.Style = ProgressBarStyle.Marquee;
-        progressBar.MarqueeAnimationSpeed = 25;
+        SetMarqueeProgress();
+        UpdateRecognitionTiming();
+    }
+
+    /// <summary>声明一个新的复抓阶段，返回用于丢弃过期回调的令牌。</summary>
+    private int BeginRecognitionStage(string stage)
+    {
+        AccumulateStageElapsed();
+        recognitionExcludedWait += recognitionStage.ExcludedWait;
+        recognitionStageWatch.Restart();
+        recognitionStageSecondsWatch.Restart();
+        return recognitionStage.Begin(stage);
+    }
+
+    /// <summary>复抓阶段结束：让该阶段残留的回调失效，界面只保留总耗时。</summary>
+    private void EndRecognitionStage()
+    {
+        AccumulateStageElapsed();
+        recognitionExcludedWait += recognitionStage.ExcludedWait;
+        recognitionStage.End();
+        recognitionStageWatch.Reset();
+        recognitionStageSecondsWatch.Reset();
+    }
+
+    /// <summary>把当前阶段已经过的时间累计进阶段耗时表（切换阶段、结束阶段时调用）。</summary>
+    private void AccumulateStageElapsed()
+    {
+        if (!recognitionStageSecondsWatch.IsRunning || recognitionStage.StageName.Length == 0)
+            return;
+        recognitionStageSeconds[recognitionStage.StageName] =
+            recognitionStageSeconds.GetValueOrDefault(recognitionStage.StageName)
+            + recognitionStageSecondsWatch.Elapsed.TotalSeconds;
+        recognitionStageSecondsWatch.Restart();
+    }
+
+    /// <summary>诊断用的阶段耗时快照（含当前阶段未结算的部分），不改变运算中的计时。</summary>
+    private Dictionary<string, double> StageSecondsSnapshot()
+    {
+        var snapshot = new Dictionary<string, double>(StringComparer.Ordinal);
+        foreach ((string stage, double seconds) in recognitionStageSeconds)
+            snapshot[stage] = Math.Round(seconds, 3);
+        if (recognitionStageSecondsWatch.IsRunning && recognitionStage.StageName.Length > 0)
+            snapshot[recognitionStage.StageName] = Math.Round(
+                snapshot.GetValueOrDefault(recognitionStage.StageName)
+                + recognitionStageSecondsWatch.Elapsed.TotalSeconds,
+                3);
+        return snapshot;
+    }
+
+    /// <summary>
+    /// 本地 OCR 统计的沿用结构：一个客户端在本次任务里的阶段标识与实际计数。
+    /// </summary>
+    internal readonly record struct LocalOcrStageStat(
+        string Stage, int CacheHitCount, int InferenceCount, int PythonStartCount);
+
+    /// <summary>
+    /// 按阶段汇总本次任务的本地 OCR 客户端（同一实例只算一次，避免重复累计同一个客户端的自计数值）。
+    /// </summary>
+    internal static LocalOcrStageStat[] LocalOcrStageStatsFor(
+        IEnumerable<(string Stage, PaddleLocalOcrClient Client)> clients) => clients
+        .DistinctBy(entry => entry.Client)
+        .Select(entry => new LocalOcrStageStat(
+            entry.Stage, entry.Client.CacheHitCount, entry.Client.InferenceCount, entry.Client.WorkerStartCount))
+        .ToArray();
+
+    private LocalOcrStageStat[] LocalOcrStageStats() => LocalOcrStageStatsFor(localOcrClients);
+
+    private void TrackLocalOcrClient(string stage, PaddleLocalOcrClient client)
+    {
+        if (!localOcrClients.Any(entry => ReferenceEquals(entry.Client, client)))
+            localOcrClients.Add((stage, client));
+    }
+
+    /// <summary>
+    /// 本轮所有 Python worker 调用的阶段耗时（各阶段客户端按登记顺序合并），
+    /// 用于在诊断里区分启动/导入、模型初始化、推理与读写结果的开销；全缓存命中时为空数组。
+    /// </summary>
+    private PaddleTiming[] WorkerTimingSnapshot() => localOcrClients
+        .SelectMany(entry => entry.Client.WorkerTimings)
+        .ToArray();
+
+    /// <summary>
+    /// 报告复抓阶段进度：整批进度驱动进度条（total 为 0 时显示跑马灯），阶段进度只用于估算本阶段剩余；
+    /// 阶段内的限流/等待通过 <see cref="ExcludeStageWaitAsync"/> 累计扣除；过期令牌的报告直接丢弃。
+    /// </summary>
+    private void ReportRecognitionStage(
+        int token,
+        string stage,
+        int completed,
+        int total,
+        int stageCompleted,
+        int stageTotal)
+    {
+        bool switched = !string.Equals(recognitionStage.StageName, stage, StringComparison.Ordinal);
+        if (switched)
+            AccumulateStageElapsed();
+        if (!recognitionStage.Report(token, stage, completed, total, stageCompleted, stageTotal))
+            return;
+        if (switched)
+        {
+            recognitionStageWatch.Restart();
+            recognitionStageSecondsWatch.Restart();
+        }
+        recognitionCompleted = recognitionStage.Completed;
+        recognitionTotal = recognitionStage.Total;
+        if (recognitionStage.Total > 0)
+            SetContinuousProgress(recognitionStage.Completed, recognitionStage.Total);
+        else
+            SetMarqueeProgress();
         UpdateRecognitionTiming();
     }
 
@@ -3521,6 +4107,12 @@ public sealed class MainForm : Form
     {
         recognitionCompleted = 0;
         recognitionTotal = 0;
+        recognitionStage.End();
+        recognitionStageWatch.Reset();
+        recognitionStageSeconds.Clear();
+        recognitionStageSecondsWatch.Reset();
+        recognitionExcludedWait = TimeSpan.Zero;
+        localOcrClients.Clear();
         recognitionWatch.Restart();
         recognitionTimingLabel.Visible = true;
         recognitionTimer.Start();
@@ -3531,11 +4123,26 @@ public sealed class MainForm : Form
     {
         if (!recognitionWatch.IsRunning)
             return;
-        string remaining = recognitionCompleted > 0 && recognitionTotal > 0
-            ? FormatDuration(TimeSpan.FromSeconds(
-                recognitionWatch.Elapsed.TotalSeconds * Math.Max(0, recognitionTotal - recognitionCompleted) / recognitionCompleted))
-            : "计算中";
-        recognitionTimingLabel.Text = $"已用 {FormatDuration(recognitionWatch.Elapsed)} · 预计剩余 {remaining}";
+        string remaining = RemainingText();
+        recognitionTimingLabel.Text = recognitionStage.StageName.Length == 0
+            ? $"已用 {FormatDuration(recognitionWatch.Elapsed)} · 预计剩余 {remaining}"
+            : $"已用 {FormatDuration(recognitionWatch.Elapsed)} · {recognitionStage.StageName} · 本阶段预计剩余 {remaining}";
+    }
+
+    // 剩余时间只按当前阶段估算；主流程没有声明阶段时沿用整轮进度，保持原有显示。
+    private string RemainingText()
+    {
+        if (recognitionStage.IsWaiting)
+            return "无法估算";
+        if (recognitionStage.StageName.Length == 0)
+            return recognitionCompleted > 0 && recognitionTotal > 0
+                ? FormatDuration(TimeSpan.FromSeconds(Math.Max(0,
+                    recognitionWatch.Elapsed.TotalSeconds - recognitionStage.ExcludedWait.TotalSeconds)
+                    * Math.Max(0, recognitionTotal - recognitionCompleted) / recognitionCompleted))
+                : "无法估算";
+        return recognitionStage.EstimateRemaining(recognitionStageWatch.Elapsed) is { } estimate
+            ? FormatDuration(estimate)
+            : "无法估算";
     }
 
     private void StopRecognitionTiming()

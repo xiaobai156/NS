@@ -18,6 +18,24 @@ internal sealed record SummaryRowRecoveryRequest(string ImagePath, OcrRule Rule,
 
 internal sealed record SummaryRowRecoveryResult(string Value, IReadOnlyList<string> StripLines, string SourceHash);
 
+/// <summary>
+/// 给补读进度加上阶段前缀（定位/裁剪重读），便于界面区分；同步转发（不用 Progress&lt;T&gt; 的异步投递），
+/// 保证同一批回调的顺序与产生顺序一致。
+/// </summary>
+internal sealed class PrefixedProgress : IProgress<LocalOcrProgress>
+{
+    private readonly IProgress<LocalOcrProgress> inner;
+    private readonly string prefix;
+
+    internal PrefixedProgress(IProgress<LocalOcrProgress> inner, string prefix)
+    {
+        this.inner = inner;
+        this.prefix = prefix;
+    }
+
+    public void Report(LocalOcrProgress value) => inner.Report(value with { Stage = prefix + value.Stage });
+}
+
 /// <summary>Batch row recovery without combining authors, periods or image versions.</summary>
 internal static class SummaryRowRecovery
 {
@@ -35,9 +53,11 @@ internal static class SummaryRowRecovery
         int issue,
         double titleRatio,
         int? detectionMaxSide,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IProgress<LocalOcrProgress>? progress = null)
     {
-        var results = await RecoverOnceAsync(client, requests, catalog, issue, titleRatio, detectionMaxSide, cancellationToken);
+        var results = await RecoverOnceAsync(client, requests, catalog, issue, titleRatio, detectionMaxSide, cancellationToken,
+            progress: progress);
         if (detectionMaxSide is not null)
         {
             // 定位读带本组的 det-max（嫣然心水 960 = 0.55 横向压缩视图）；密集表
@@ -46,9 +66,17 @@ internal static class SummaryRowRecovery
             // 行条取值仍由标准 medium（1440）产出，不换取值来源。
             var remaining = requests.Where(request => !results.ContainsKey(request)).ToArray();
             if (remaining.Length > 0)
-                foreach (var result in await RecoverOnceAsync(client, remaining, catalog, issue, titleRatio, null, cancellationToken))
+                foreach (var result in await RecoverOnceAsync(client, remaining, catalog, issue, titleRatio, null, cancellationToken,
+                    progress: progress, locatePrefix: "定位（原图坐标）·"))
                     results[result.Key] = result.Value;
         }
+        var compactRequests = requests.Where(request => !results.ContainsKey(request)
+            && request.Kind == SummaryRowRecoveryKind.IssueZodiac
+            && request.Rule.Id == "杰少杀一肖" && request.Rule.Folder == "杰少").ToArray();
+        if (compactRequests.Length > 0)
+            foreach (var result in await RecoverOnceAsync(client, compactRequests, catalog, issue,
+                1.0, 960, cancellationToken, PaddleOcrModel.Small, progress, "定位（小模型）·"))
+                results[result.Key] = result.Value;
         return results;
     }
 
@@ -59,7 +87,10 @@ internal static class SummaryRowRecovery
         int issue,
         double titleRatio,
         int? detectionMaxSide,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        PaddleOcrModel locatorModel = PaddleOcrModels.LocalPrimary,
+        IProgress<LocalOcrProgress>? progress = null,
+        string locatePrefix = "定位·")
     {
         cancellationToken.ThrowIfCancellationRequested();
         var results = new Dictionary<SummaryRowRecoveryRequest, SummaryRowRecoveryResult>();
@@ -67,7 +98,8 @@ internal static class SummaryRowRecovery
             .Distinct(StringComparer.OrdinalIgnoreCase).Where(File.Exists).ToArray();
         if (sources.Length == 0)
             return results;
-        var located = await ReadBatchAsync(client, sources, titleRatio, detectionMaxSide, true, cancellationToken);
+        var located = await ReadBatchAsync(client, sources, titleRatio, detectionMaxSide, true, cancellationToken, locatorModel,
+            progress is null ? null : new PrefixedProgress(progress, locatePrefix));
         var pending = new List<(SummaryRowRecoveryRequest Request, string Path, OcrEvidenceIdentity Source,
             Func<IReadOnlyList<string>, string?> Parse)>();
         string folder = Path.Combine(Path.GetTempPath(), "OcrLineTool-NVIDIA-CUDA", "strips", Guid.NewGuid().ToString("N"));
@@ -79,6 +111,10 @@ internal static class SummaryRowRecovery
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     if (!located.TryGetValue(request.ImagePath, out var original))
+                        continue;
+                    if (locatorModel == PaddleOcrModel.Small
+                        && !RuleEngine.FindMatches(request.ImagePath, original.Lines, [request.Rule], catalog)
+                            .Any(rule => rule.Id == request.Rule.Id))
                         continue;
                     var source = new OcrEvidenceIdentity(request.ImagePath, request.ImagePath,
                         original.Evidence.SourceHash, original.Evidence.SourceHash, request.ViewId);
@@ -101,11 +137,21 @@ internal static class SummaryRowRecovery
                         }
                         else
                         {
-                            var band = ComputeIssueRowBand(original.Evidence.Items, issue);
+                            // Compact preprocessing changes only X. Its Y coordinates still belong
+                            // to the original image; never mix its rows with the separate header view.
+                            var items = locatorModel == PaddleOcrModel.Small
+                                ? original.Evidence.Items.Where(item => item.ViewId == "paddle/compact").ToArray()
+                                : original.Evidence.Items;
+                            var band = ComputeIssueRowBand(items, issue);
                             rect = band is null ? null : (0, band.Value.Top, 0, band.Value.Height);
                             parse = request.Kind == SummaryRowRecoveryKind.IssueNumbers
                                 ? lines => RuleEngine.ExtractFinalValue(lines, issue, request.Rule)
                                 : lines => RuleEngine.ExtractIssueRowZodiacFromStrip(lines, issue);
+                            if (request.Rule.Id == "杰少杀一肖" && request.Rule.Folder == "杰少")
+                                // This dense table prints the opening zodiac on the same row.
+                                // The rule parser separates that column; a second row is not safe.
+                                parse = lines => lines.Count(line => !string.IsNullOrWhiteSpace(line)) == 1
+                                    ? RuleEngine.ExtractFinalValue(lines, issue, request.Rule) : null;
                         }
                         if (rect is not { } bounds)
                             continue;
@@ -123,7 +169,8 @@ internal static class SummaryRowRecovery
             if (pending.Count == 0)
                 return results;
             var strips = await ReadBatchAsync(client, pending.Select(item => item.Path).ToArray(),
-                1.0, StripDetectionMaxSide, false, cancellationToken);
+                1.0, StripDetectionMaxSide, false, cancellationToken,
+                progress: progress is null ? null : new PrefixedProgress(progress, "裁剪重读·"));
             foreach (var item in pending)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -145,13 +192,15 @@ internal static class SummaryRowRecovery
 
     private static async Task<Dictionary<string, (IReadOnlyList<string> Lines, OcrEvidence Evidence)>> ReadBatchAsync(
         PaddleLocalOcrClient client, IReadOnlyList<string> paths, double titleRatio, int? detectionMaxSide,
-        bool useCache, CancellationToken cancellationToken)
+        bool useCache, CancellationToken cancellationToken,
+        PaddleOcrModel model = PaddleOcrModels.LocalPrimary,
+        IProgress<LocalOcrProgress>? progress = null)
     {
         try
         {
-            var texts = await client.RecognizeBatchAsync(paths, titleRatio: titleRatio,
+            var texts = await client.RecognizeBatchAsync(paths, progress, titleRatio: titleRatio,
                 detectionMaxSide: detectionMaxSide, useCache: useCache,
-                cancellationToken: cancellationToken, model: PaddleOcrModels.LocalPrimary);
+                cancellationToken: cancellationToken, model: model);
             return texts.Where(item => client.LastEvidence.ContainsKey(item.Key)).ToDictionary(
                 item => item.Key, item => (item.Value, client.LastEvidence[item.Key]), StringComparer.OrdinalIgnoreCase);
         }
@@ -163,7 +212,7 @@ internal static class SummaryRowRecovery
                 foreach (string path in paths)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    foreach (var item in await ReadBatchAsync(client, [path], titleRatio, detectionMaxSide, useCache, cancellationToken))
+                    foreach (var item in await ReadBatchAsync(client, [path], titleRatio, detectionMaxSide, useCache, cancellationToken, model, progress))
                         results[item.Key] = item.Value;
                 }
             return results;

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text.Json;
 using OcrLineTool;
 
@@ -112,6 +113,131 @@ public sealed class PaddleProcessTests
                 Assert.False(File.Exists(cachePath));
         }
         finally { DeleteIfExists(cachePath); }
+    }
+
+    [Fact]
+    public void ImageDigestStaysIdenticalAndHonoursCancellation()
+    {
+        string file = CreateTempPath("identity-digest", ".bin");
+        byte[] content = new byte[(2 * 1024 * 1024) + 17];
+        Random.Shared.NextBytes(content);
+        File.WriteAllBytes(file, content);
+        try
+        {
+            // 分块读取必须与整文件一次读取得到同一个摘要：缓存身份不能变。
+            Assert.Equal(
+                Convert.ToHexString(SHA256.HashData(content)),
+                LocalOcrIdentity.Image(file));
+
+            using var cancelled = new CancellationTokenSource();
+            cancelled.Cancel();
+            Assert.ThrowsAny<OperationCanceledException>(() => LocalOcrIdentity.Image(file, cancelled.Token));
+            Assert.ThrowsAny<OperationCanceledException>(() => LocalOcrIdentity.Pipeline(PaddleOcrModel.Small, cancelled.Token));
+        }
+        finally { DeleteIfExists(file); }
+    }
+
+    [Fact]
+    public void ImageDigestUsesContentNotSizeOrModificationTime()
+    {
+        string first = CreateTempPath("identity-a", ".bin");
+        string second = CreateTempPath("identity-b", ".bin");
+        try
+        {
+            File.WriteAllBytes(first, [1, 2, 3, 4]);
+            File.WriteAllBytes(second, [1, 2, 3, 5]);
+            File.SetLastWriteTimeUtc(second, File.GetLastWriteTimeUtc(first));
+            Assert.Equal(new FileInfo(first).Length, new FileInfo(second).Length);
+            Assert.NotEqual(LocalOcrIdentity.Image(first), LocalOcrIdentity.Image(second));
+
+            File.WriteAllBytes(second, [1, 2, 3, 4]);
+            File.SetLastWriteTimeUtc(second, File.GetLastWriteTimeUtc(first).AddSeconds(30));
+            Assert.Equal(LocalOcrIdentity.Image(first), LocalOcrIdentity.Image(second));
+        }
+        finally { DeleteIfExists(first); DeleteIfExists(second); }
+    }
+
+    [Fact]
+    public void DigestCancellationIsHonouredBetweenChunksAndNotOnlyAtEntry()
+    {
+        using var source = new CancellationTokenSource();
+        using var stream = new CancelAfterFirstChunkStream(source);
+
+        // 入口时令牌仍有效：只有分块循环内部的检查才能让第二次读块前抛取消。
+        Assert.ThrowsAny<OperationCanceledException>(() => LocalOcrIdentity.Image(stream, source.Token));
+
+        // 入口就取消同样抛取消，绝不能返回一个摘要值。
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+        Assert.ThrowsAny<OperationCanceledException>(() => LocalOcrIdentity.Image(stream, cancelled.Token));
+    }
+
+    [Fact]
+    public async Task CancellationAfterRecognitionThrowsInsteadOfRecordingSingleImageErrors()
+    {
+        string image = CreateImagePath();
+        string cache = CreateTempPath("cancel-after-recognition", ".json");
+        using var source = new CancellationTokenSource();
+        var runner = new FakeProcessRunner((info, _, _) =>
+        {
+            WriteBatchResult(info, new Dictionary<string, string> { [image] = "识别文字" });
+            // 识别进程已返回、复核尚未开始：此时取消必须让整批抛取消，
+            // 不能把这张图记成单图失败，也不能留下成功缓存。
+            source.Cancel();
+            return Task.FromResult(new ProcessResult(true, 0, "", ""));
+        });
+        try
+        {
+            var client = new PaddleLocalOcrClient(runner, cache);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.RecognizeBatchAsync(
+                [image], null, titleRatio: 1.0, detectionMaxSide: null, useCache: true,
+                cancellationToken: source.Token, model: PaddleOcrModel.Small));
+
+            Assert.Empty(client.LastImageErrors);
+            Assert.Empty(client.LastInvalidImagePaths);
+            Assert.False(File.Exists(cache), "取消后不能写出成功缓存。");
+        }
+        finally { DeleteIfExists(image); DeleteIfExists(cache); }
+    }
+
+    [Fact]
+    public void FingerprintAndInitialImageCheckRunInTheBackgroundWithTheBatchToken()
+    {
+        // 指纹是逐批一次的纯函数：同一模型两次一致，不同模型必须不同。
+        Assert.Equal(LocalOcrIdentity.Pipeline(PaddleOcrModel.Small), LocalOcrIdentity.Pipeline(PaddleOcrModel.Small));
+        Assert.NotEqual(LocalOcrIdentity.Pipeline(PaddleOcrModel.Small), LocalOcrIdentity.Pipeline(PaddleOcrModel.Medium));
+
+        // 模型指纹与逐图初始校验都必须交给后台线程并带上取消令牌：界面不在缓存校验阶段同步等读盘。
+        string source = File.ReadAllText(Path.Combine(
+            AppContext.BaseDirectory, "..", "..", "..", "..", "OcrLineTool.App", "PaddleLocalOcrClient.cs"));
+        string compact = string.Join(' ', source.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        Assert.Contains("await Task.Run( () => LocalOcrIdentity.Pipeline(model, cancellationToken), cancellationToken);", compact);
+        Assert.DoesNotContain("LocalOcrIdentity.Pipeline(model);", compact);
+        Assert.Contains("pending.Add(path); } }, cancellationToken);", compact);
+
+        // 识别后的身份复核与证据构造同样在后台并带令牌，且写缓存前再确认一次取消。
+        Assert.Contains("await Task.Run(() => { foreach (PaddleResult result in response.Results)", compact);
+        Assert.Contains(
+            "cancellationToken.ThrowIfCancellationRequested(); if (useCache) await WriteCacheAsync(cache, cancellationToken);",
+            compact);
+    }
+
+    [Fact]
+    public async Task CancelledBatchStopsBeforeStartingAnyWorker()
+    {
+        string image = CreateImagePath();
+        string cache = CreateTempPath("cancelled-cache", ".json");
+        var runner = new FakeProcessRunner((_, _, _) => Task.FromResult(new ProcessResult(true, 0, "", "")));
+        try
+        {
+            var client = new PaddleLocalOcrClient(runner, cache);
+            using var cancelled = new CancellationTokenSource();
+            cancelled.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => client.RecognizeBatchAsync([image], cancellationToken: cancelled.Token));
+            Assert.Empty(runner.Requests);
+        }
+        finally { DeleteIfExists(image); DeleteIfExists(cache); }
     }
 
     [Theory]
@@ -431,6 +557,62 @@ public sealed class PaddleProcessTests
     }
 
     [Fact]
+    public async Task WorkerTimingIsRecordedFromTheBatchResultAndStaysOptional()
+    {
+        string image = CreateImagePath();
+        string cache = CreateTempPath("worker-timing-cache", ".json");
+        string legacyCache = CreateTempPath("worker-timing-legacy", ".json");
+        var runner = new FakeProcessRunner((startInfo, _, _) =>
+        {
+            File.WriteAllText(OutputPath(startInfo), JsonSerializer.Serialize(new
+            {
+                results = new[] { new { path = image, texts = new[] { "第269期" } } },
+                timing = new
+                {
+                    paddle_import_seconds = 1.5,
+                    device_seconds = 0.25,
+                    paddleocr_import_seconds = 2.0,
+                    model_staging_seconds = 0.75,
+                    paddle_init_seconds = 6.5,
+                    inference_seconds = 3.25,
+                    worker_seconds_before_output = 14.0,
+                    image_count = 1,
+                    view_count = 1
+                }
+            }));
+            return Task.FromResult(new ProcessResult(true, 0, "", ""));
+        });
+        try
+        {
+            var client = new PaddleLocalOcrClient(runner, cache);
+            await client.RecognizeBatchAsync([image]);
+
+            PaddleTiming timing = Assert.Single(client.WorkerTimings);
+            Assert.Equal(0.75, timing.ModelStagingSeconds);
+            Assert.Equal(6.5, timing.PaddleInitSeconds);
+            Assert.Equal(14.0, timing.WorkerSecondsBeforeOutput);
+            Assert.Equal(1, timing.ImageCount);
+
+            // 没有 timing 的返回（旧版 worker）：不报错，也不记伪数据。
+            var legacy = new PaddleLocalOcrClient(
+                new FakeProcessRunner((startInfo, _, _) =>
+                {
+                    WriteBatchResult(startInfo, new Dictionary<string, string> { [image] = "第269期" });
+                    return Task.FromResult(new ProcessResult(true, 0, "", ""));
+                }),
+                legacyCache);
+            await legacy.RecognizeBatchAsync([image]);
+            Assert.Empty(legacy.WorkerTimings);
+        }
+        finally
+        {
+            DeleteIfExists(image);
+            DeleteIfExists(cache);
+            DeleteIfExists(legacyCache);
+        }
+    }
+
+    [Fact]
     public async Task RecognizeBatchAsyncReprocessesAfterCorruptCache()
     {
         string imagePath = CreateImagePath();
@@ -600,6 +782,144 @@ public sealed class PaddleProcessTests
         finally { DeleteIfExists(cachePath); }
     }
 
+    [Fact]
+    public async Task DeletedImageIsIsolatedAndTheRestOfTheBatchStillRuns()
+    {
+        string kept = CreateImagePath();
+        string removed = CreateImagePath();
+        string other = CreateImagePath();
+        string cache = CreateTempPath("isolate-deleted", ".json");
+        var texts = new Dictionary<string, string> { [kept] = "one", [other] = "two" };
+        var requested = new List<string>();
+        var runner = new FakeProcessRunner((info, _, _) =>
+        {
+            RecordRequestedImages(info, requested);
+            WriteBatchResult(info, texts);
+            return Task.FromResult(new ProcessResult(true, 0, "", ""));
+        });
+        File.Delete(removed);
+
+        try
+        {
+            var client = new PaddleLocalOcrClient(runner, cache);
+            IReadOnlyDictionary<string, IReadOnlyList<string>> result =
+                await client.RecognizeBatchAsync([kept, removed, other]);
+
+            Assert.Equal(["one"], result[kept]);
+            Assert.Equal(["two"], result[other]);
+            Assert.False(result.ContainsKey(removed));
+            Assert.Equal("图片已被删除或移动，无法读取，已跳过该图片。", client.LastImageErrors[removed]);
+            Assert.Contains(removed, client.LastInvalidImagePaths);
+            Assert.DoesNotContain(kept, client.LastInvalidImagePaths);
+            Assert.False(client.LastEvidence.ContainsKey(removed));
+            Assert.DoesNotContain(removed, requested);
+            AssertNoCacheEntryFor(cache, removed);
+        }
+        finally { DeleteIfExists(kept); DeleteIfExists(other); DeleteIfExists(cache); }
+    }
+
+    [Fact]
+    public async Task ReadableImageThatOcrFailsKeepsItsCloudFallbackInsteadOfLookingUnreadable()
+    {
+        string failed = CreateImagePath();
+        string kept = CreateImagePath();
+        string cache = CreateTempPath("isolate-ocr-error", ".json");
+        var requested = new List<string>();
+        var runner = new FakeProcessRunner((info, _, _) =>
+        {
+            RecordRequestedImages(info, requested);
+            var results = new List<object>
+            {
+                new { path = failed, error = "识别失败：图像内容异常" },
+                new { path = kept, texts = new[] { "one" } }
+            };
+            File.WriteAllText(OutputPath(info), JsonSerializer.Serialize(new { results }));
+            return Task.FromResult(new ProcessResult(true, 0, "", ""));
+        });
+
+        try
+        {
+            var client = new PaddleLocalOcrClient(runner, cache);
+            IReadOnlyDictionary<string, IReadOnlyList<string>> result =
+                await client.RecognizeBatchAsync([failed, kept]);
+
+            Assert.Equal(["one"], result[kept]);
+            Assert.False(result.ContainsKey(failed));
+            Assert.Equal("识别失败：图像内容异常", client.LastImageErrors[failed]);
+            // 文件本身可读，只是这次 OCR 没读出字：这张图仍要能进候选、走云兜底。
+            Assert.DoesNotContain(failed, client.LastInvalidImagePaths);
+            Assert.Contains(failed, requested);
+        }
+        finally { DeleteIfExists(failed); DeleteIfExists(kept); DeleteIfExists(cache); }
+    }
+
+    [Fact]
+    public async Task LockedImageIsIsolatedAndTheRestOfTheBatchStillRuns()
+    {
+        string locked = CreateImagePath();
+        string kept = CreateImagePath();
+        string cache = CreateTempPath("isolate-locked", ".json");
+        var texts = new Dictionary<string, string> { [kept] = "value" };
+        var requested = new List<string>();
+        var runner = new FakeProcessRunner((info, _, _) =>
+        {
+            RecordRequestedImages(info, requested);
+            WriteBatchResult(info, texts);
+            return Task.FromResult(new ProcessResult(true, 0, "", ""));
+        });
+
+        try
+        {
+            using (new FileStream(locked, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                var client = new PaddleLocalOcrClient(runner, cache);
+                IReadOnlyDictionary<string, IReadOnlyList<string>> result =
+                    await client.RecognizeBatchAsync([locked, kept]);
+
+                Assert.Equal(["value"], result[kept]);
+                Assert.False(result.ContainsKey(locked));
+                Assert.Equal("图片被其他程序占用，已跳过该图片。", client.LastImageErrors[locked]);
+                Assert.Contains(locked, client.LastInvalidImagePaths);
+                Assert.DoesNotContain(locked, requested);
+                AssertNoCacheEntryFor(cache, locked);
+            }
+        }
+        finally { DeleteIfExists(locked); DeleteIfExists(kept); DeleteIfExists(cache); }
+    }
+
+    [Fact]
+    public async Task ImageChangedDuringRecognitionIsRejectedInsteadOfCarryingStaleText()
+    {
+        string changed = CreateImagePath();
+        string stable = CreateImagePath();
+        string cache = CreateTempPath("isolate-changed", ".json");
+        // 同样的长度和修改时间，只有内容不同：只有真正内容校验才能发现变化。
+        DateTime originalWriteTime = File.GetLastWriteTimeUtc(changed);
+        var texts = new Dictionary<string, string> { [changed] = "stale", [stable] = "fresh" };
+        var runner = new FakeProcessRunner((info, _, _) =>
+        {
+            WriteBatchResult(info, texts);
+            File.WriteAllBytes(changed, [9, 9, 9]);
+            File.SetLastWriteTimeUtc(changed, originalWriteTime);
+            return Task.FromResult(new ProcessResult(true, 0, "", ""));
+        });
+        try
+        {
+            var client = new PaddleLocalOcrClient(runner, cache);
+            IReadOnlyDictionary<string, IReadOnlyList<string>> result =
+                await client.RecognizeBatchAsync([changed, stable]);
+
+            Assert.Equal(["fresh"], result[stable]);
+            Assert.False(result.ContainsKey(changed));
+            Assert.Equal("图片在识别过程中发生变化，请重新识别。", client.LastImageErrors[changed]);
+            Assert.Contains(changed, client.LastInvalidImagePaths);
+            Assert.DoesNotContain(stable, client.LastInvalidImagePaths);
+            Assert.False(client.LastEvidence.ContainsKey(changed));
+            AssertNoCacheEntryFor(cache, changed);
+        }
+        finally { DeleteIfExists(changed); DeleteIfExists(stable); DeleteIfExists(cache); }
+    }
+
     private static string CreateImagePath()
     {
         string path = CreateTempPath("paddle-image", ".png");
@@ -644,12 +964,72 @@ public sealed class PaddleProcessTests
         File.WriteAllText(OutputPath(startInfo), JsonSerializer.Serialize(new { error = message }));
     }
 
+    private static void RecordRequestedImages(ProcessStartInfo startInfo, List<string> requested)
+    {
+        lock (requested)
+            requested.AddRange(File.ReadAllLines(ArgumentValue(startInfo.Arguments, "--list")));
+    }
+
+    private static void WriteBatchResult(ProcessStartInfo startInfo, IReadOnlyDictionary<string, string> texts)
+    {
+        var results = new List<object>();
+        foreach (string path in File.ReadAllLines(ArgumentValue(startInfo.Arguments, "--list")))
+        {
+            if (texts.TryGetValue(path, out string? text))
+                results.Add(new { path, texts = new[] { text } });
+        }
+        File.WriteAllText(OutputPath(startInfo), JsonSerializer.Serialize(new { results }));
+    }
+
+    private static void AssertNoCacheEntryFor(string cachePath, string imagePath)
+    {
+        Assert.True(File.Exists(cachePath), "缓存文件应保留其余成功图片的条目。");
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(cachePath));
+        Assert.DoesNotContain(document.RootElement.EnumerateArray(),
+            entry => entry.GetProperty("Key").GetString()!.Contains(imagePath, StringComparison.OrdinalIgnoreCase));
+    }
+
     private static string CacheKey(string imagePath, double titleRatio, int? detectionMaxSide, PaddleOcrModel model)
     {
         MethodInfo method = typeof(PaddleLocalOcrClient).GetMethod(
             "CacheKeyForModel",
             BindingFlags.NonPublic | BindingFlags.Static)!;
         return (string)method.Invoke(null, [imagePath, titleRatio, detectionMaxSide, model])!;
+    }
+
+    // 只在第一个数据块之后取消的流：让「分块循环内部的取消检查」在没有 sleep、没有大文件的
+    // 前提下确定性地触发——第一块总是读成功，第二轮循环必须先检查取消。
+    private sealed class CancelAfterFirstChunkStream(CancellationTokenSource source) : Stream
+    {
+        private bool served;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (served)
+                return 0;
+            served = true;
+            buffer.AsSpan(offset, count).Clear();
+            source.Cancel();
+            return count;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     private sealed class FakeProcessRunner(

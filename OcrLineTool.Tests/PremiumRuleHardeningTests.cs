@@ -198,8 +198,10 @@ public sealed class PremiumRuleHardeningTests
     public void StrictModeComesFromCatalogDefaultOrAnExplicitRuleOverride()
     {
         string directory = ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory);
+        // 「配置文件」目录里还放模板、分发规则、云缓存和界面设置：用程序自己的判定挑规则表
+        // （识别过一次的批次会在该目录留下云OCR缓存）。
         foreach (string path in Directory.EnumerateFiles(directory, "*.json")
-            .Where(path => !path.EndsWith(".templates.json") && !path.EndsWith("分发规则.json")))
+            .Where(path => RuleCatalog.IsRuleCatalogFile(Path.GetFileName(path))))
         {
             bool hardenedCatalog = Path.GetFileName(path) is "新澳高级会员.json" or "新澳六合彩资料.json" or "黄大仙新澳.json" or "蜻蜓一套骁腾.json";
             foreach (OcrRule rule in RuleCatalog.Load(path))

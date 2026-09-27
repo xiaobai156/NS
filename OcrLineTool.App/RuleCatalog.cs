@@ -150,15 +150,20 @@ public static class RuleCatalog
             !char.IsWhiteSpace(character) &&
             character is not '-' and not '_' and not '－' and not '＿'));
 
+    // 「配置文件」目录里除了规则表，还放模板、分发规则、云缓存和界面设置；只有这里返回
+    // true 的文件才是规则表。目录扫描一律走这个判定，不要再各写一份过滤条件。
+    internal static bool IsRuleCatalogFile(string fileName) =>
+        !fileName.EndsWith(".templates.json", StringComparison.OrdinalIgnoreCase) &&
+        !fileName.EndsWith("分发规则.json", StringComparison.OrdinalIgnoreCase) &&
+        !fileName.StartsWith("云OCR缓存_", StringComparison.OrdinalIgnoreCase) &&
+        !fileName.Equals("界面设置.json", StringComparison.OrdinalIgnoreCase);
+
     private static IEnumerable<RuleFileCandidate> EnumerateRuleFiles(string configurationDirectory)
     {
         foreach (string path in Directory.EnumerateFiles(configurationDirectory, "*.json"))
         {
             string fileName = Path.GetFileName(path);
-            if (fileName.EndsWith(".templates.json", StringComparison.OrdinalIgnoreCase) ||
-                fileName.EndsWith("分发规则.json", StringComparison.OrdinalIgnoreCase) ||
-                fileName.StartsWith("云OCR缓存_", StringComparison.OrdinalIgnoreCase) ||
-                fileName.Equals("界面设置.json", StringComparison.OrdinalIgnoreCase))
+            if (!IsRuleCatalogFile(fileName))
                 continue;
 
             string stem = Path.GetFileNameWithoutExtension(path);

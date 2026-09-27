@@ -137,6 +137,23 @@ public sealed class PaddleScriptTests
     }
 
     [Fact]
+    public void ReportsStageTimingsThatCarryOnlySecondsAndCounts()
+    {
+        string script = File.ReadAllText(ScriptPath);
+
+        Assert.Contains("_PROCESS_START = time.perf_counter()", script);
+        Assert.Contains("paddle_import_seconds", script);
+        Assert.Contains("device_seconds", script);
+        Assert.Contains("paddleocr_import_seconds", script);
+        Assert.Contains("model_staging_seconds", script);
+        Assert.Contains("paddle_init_seconds", script);
+        Assert.Contains("inference_seconds", script);
+        Assert.Contains("worker_seconds_before_output", script);
+        // timing 只由阶段秒数与两个计数组成：不得夹带识别原文、密钥或请求正文。
+        Assert.Contains("\"timing\": {**phases, \"image_count\": len(paths), \"view_count\": view_count}", script);
+    }
+
+    [Fact]
     public void ParsesProgressLineIncludingWindowsPath()
     {
         bool parsed = PaddleLocalOcrClient.TryParseProgress(

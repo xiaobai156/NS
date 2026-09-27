@@ -1,5 +1,7 @@
 using OcrLineTool;
 using System.Reflection;
+using System.Text;
+using System.Text.Json;
 
 namespace OcrLineTool.Tests;
 
@@ -163,7 +165,7 @@ public sealed class MainFormTests
             var rules = RuleCatalog.Load(RuleCatalog.PathForFolder(AppContext.BaseDirectory, directory));
             var ids = rules.Select(rule => rule.Id).ToHashSet(StringComparer.Ordinal);
             var task = (Task)typeof(MainForm).GetMethod("SelectCandidatesAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
-                .Invoke(form, [rules, 245, retry, ids, null])!;
+                .Invoke(form, [rules, 245, retry, ids, null, null])!;
             await task;
             object selection = task.GetType().GetProperty("Result")!.GetValue(task)!;
             string name = (string)selection.GetType().GetProperty("DisplayName")!.GetValue(selection)!;
@@ -306,6 +308,66 @@ public sealed class MainFormTests
         var otherGroup = (IReadOnlySet<string>)policy.Invoke(form,
             [new[] { new OcrRule("王者九点禁一肖", "生肖", "王者肖肖") }])!;
         Assert.Empty(otherGroup);
+    }
+
+    [Fact]
+    public void RetryMissingAcceptsTheRulesOwnFolderIncludingSubfoldersOnly()
+    {
+        var rule = new OcrRule("杰少", "生肖", "杰少杀一肖", null, "原创杰少", "杰少");
+
+        // 期行补读（分位/号码）只在作者自己的资料夹里找，作者目录下多级子目录仍算同一作者。
+        Assert.True(MainForm.AllowsSummaryRowRecoveryCandidate(
+            @"C:\图片\9.2-嫣然心水\杰少\图.jpg", rule, SummaryRowRecoveryKind.IssueZodiac));
+        Assert.True(MainForm.AllowsSummaryRowRecoveryCandidate(
+            @"C:\图片\9.2-嫣然心水\杰少\2026\09\图.jpg", rule, SummaryRowRecoveryKind.IssueNumbers));
+        Assert.False(MainForm.AllowsSummaryRowRecoveryCandidate(
+            @"C:\图片\9.2-嫣然心水\其他\图.jpg", rule, SummaryRowRecoveryKind.IssueZodiac));
+        Assert.False(MainForm.AllowsSummaryRowRecoveryCandidate(
+            @"C:\图片\9.2-嫣然心水\杰少备份\图.jpg", rule, SummaryRowRecoveryKind.IssueNumbers));
+
+        // 横带/右侧栏补读本来就按行形状认卡，不受资料夹过滤影响。
+        Assert.True(MainForm.AllowsSummaryRowRecoveryCandidate(
+            @"C:\图片\9.2-嫣然心水\其他\图.jpg", rule, SummaryRowRecoveryKind.Summary));
+        Assert.True(MainForm.AllowsSummaryRowRecoveryCandidate(
+            @"C:\图片\9.2-嫣然心水\其他\图.jpg", rule, SummaryRowRecoveryKind.RightBlock));
+    }
+
+    [Fact]
+    public void UnreadImagesKeepTheirOwnMissingReasonInsteadOfNotFound()
+    {
+        var rule = new OcrRule("杰少", "生肖", "杰少杀一肖", null, "原创杰少", "杰少");
+        IReadOnlyDictionary<string, string> ownFolder = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\图片\9.2-嫣然心水\杰少\图.jpg"] = "图片被其他程序占用，已跳过该图片。"
+        };
+
+        Assert.Equal(
+            "图片读取失败：图片被其他程序占用，已跳过该图片。",
+            MainForm.UnreadImageReason(rule, ownFolder));
+
+        // 别的资料夹读不出来不能算到该规则头上；规则自己没有资料夹身份时不猜；没有失败图片时保持原因为 null。
+        Assert.Null(MainForm.UnreadImageReason(rule, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\图片\9.2-嫣然心水\其他\图.jpg"] = "图片已被删除或移动，无法读取，已跳过该图片。"
+        }));
+        Assert.Null(MainForm.UnreadImageReason(new OcrRule("南国挽心", "生肖"), ownFolder));
+        Assert.Null(MainForm.UnreadImageReason(rule, new Dictionary<string, string>()));
+    }
+
+    [Fact]
+    public void UnreadImagesInTheSameFolderAreReportedTogether()
+    {
+        var rule = new OcrRule("杰少", "生肖", "杰少杀一肖", null, "原创杰少", "杰少");
+        IReadOnlyDictionary<string, string> unread = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [@"C:\图片\9.2-嫣然心水\杰少\a.jpg"] = "图片被其他程序占用，已跳过该图片。",
+            [@"C:\图片\9.2-嫣然心水\杰少\b.jpg"] = "图片被其他程序占用，已跳过该图片。",
+            [@"C:\图片\9.2-嫣然心水\杰少\2026\c.jpg"] = "图片已被删除或移动，无法读取，已跳过该图片。"
+        };
+
+        Assert.Equal(
+            "图片读取失败（本资料夹 2 张）：图片被其他程序占用，已跳过该图片。；图片已被删除或移动，无法读取，已跳过该图片。",
+            MainForm.UnreadImageReason(rule, unread));
     }
 
     [Fact]
@@ -508,6 +570,157 @@ public sealed class MainFormTests
 
         typeof(MainForm).GetMethod("StopRecognitionTiming", flags)!.Invoke(form, null);
         Assert.StartsWith("总耗时", timing.Text);
+    }
+
+    [Fact]
+    public void RetryStageProgressIsPerStageAndStaleCallbacksAreIgnored()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        using var form = new MainForm { Size = new Size(1100, 700) };
+        var timing = (Label)typeof(MainForm).GetField("recognitionTimingLabel", flags)!.GetValue(form)!;
+        object progressBar = typeof(MainForm).GetField("progressBar", flags)!.GetValue(form)!;
+        int ProgressValue() => (int)progressBar.GetType().GetProperty("Value")!.GetValue(progressBar)!;
+        int ProgressMaximum() => (int)progressBar.GetType().GetProperty("Maximum")!.GetValue(progressBar)!;
+        MethodInfo begin = typeof(MainForm).GetMethod("BeginRecognitionStage", flags)!;
+        MethodInfo report = typeof(MainForm).GetMethod("ReportRecognitionStage", flags)!;
+        MethodInfo update = typeof(MainForm).GetMethod("UpdateRecognitionTiming", flags)!;
+
+        typeof(MainForm).GetMethod("StartRecognitionTiming", flags)!.Invoke(form, null);
+        int cloudToken = (int)begin.Invoke(form, ["复抓：云兜底"])!;
+        // 十个候选里八个本机补齐后，云阶段只剩两张：进度分母是真正要问云的数量，不是全部候选。
+        report.Invoke(form, [cloudToken, "复抓：云兜底", 1, 2, 1, 2]);
+
+        Assert.Contains("复抓：云兜底", timing.Text);
+        Assert.Contains("本阶段预计剩余", timing.Text);
+        Assert.DoesNotContain("无法估算", timing.Text);
+        Assert.Equal(2, ProgressMaximum());
+        Assert.Equal(1, ProgressValue());
+
+        // 加载模型/缓存校验这类阶段不参与本阶段均速：没有样本时不给倒计时。
+        report.Invoke(form, [cloudToken, "复抓：云兜底·缓存校验", 1, 2, 0, 0]);
+        Assert.Contains("无法估算", timing.Text);
+
+        // 限流等待与等待手动继续期间同样不给倒计时（等待时间单独累计）。
+        MethodInfo beginWait = typeof(MainForm).GetMethod("ExcludeStageWaitAsync", flags)!;
+        Assert.False(beginWait.IsStatic);
+        report.Invoke(form, [cloudToken, "复抓：云兜底", 1, 2, 1, 2]);
+        var pause = new TaskCompletionSource<bool>();
+        Task wait = (Task)beginWait.Invoke(form, [pause.Task])!;
+        Assert.Contains("无法估算", timing.Text);
+        pause.SetResult(true);
+        Assert.True(SpinWait.SpinUntil(() => wait.IsCompleted, TimeSpan.FromSeconds(5)), "限流等待应结束");
+        update.Invoke(form, null);
+        Assert.DoesNotContain("无法估算", timing.Text);
+
+        // 阶段结束后的旧回调不得再改状态。
+        typeof(MainForm).GetMethod("EndRecognitionStage", flags)!.Invoke(form, null);
+        report.Invoke(form, [cloudToken, "复抓：云兜底", 2, 2, 2, 2]);
+        update.Invoke(form, null);
+
+        Assert.Equal(1, ProgressValue());
+        Assert.DoesNotContain("复抓：", timing.Text);
+        typeof(MainForm).GetMethod("StopRecognitionTiming", flags)!.Invoke(form, null);
+    }
+
+    [Fact]
+    public void CloudRetryStatusKeepsImageCountAndRequestCountSeparate()
+    {
+        string text = MainForm.CloudRetryStatusText("主云 甲", 1, 2, 3, @"C:\抓图\嫣然心水\杰少\a.jpg");
+
+        Assert.Contains("第 1/2 张", text);
+        Assert.Contains("已发云请求 3 次", text);
+        Assert.Contains("a.jpg", text);
+    }
+
+    [Fact]
+    public void RetryCloudStageCountsOnlyTheCandidatesThatReachTheCloud()
+    {
+        string source = File.ReadAllText(Path.Combine(
+            AppContext.BaseDirectory, "..", "..", "..", "..", "OcrLineTool.App", "MainForm.cs"));
+
+        // 云阶段的分母只能是本轮真正要问云的候选（本机阶段补齐的候选不算云任务量）。
+        Assert.Contains("int cloudTotal = cloudRetryCandidates.Length;", source);
+        Assert.DoesNotContain("ReportRecognitionStage(cloudStageToken, \"复抓：云兜底\", 0, selection.Candidates.Count", source);
+        // 限流等待与等待手动继续不能计入阶段均速。
+        Assert.Contains("await ExcludeStageWaitAsync(", source);
+    }
+
+    [Fact]
+    public void EveryDiagnosticWriteGoesThroughTheSharedNonThrowingWriter()
+    {
+        string source = File.ReadAllText(Path.Combine(
+            AppContext.BaseDirectory, "..", "..", "..", "..", "OcrLineTool.App", "MainForm.cs"));
+        int writes = source.Split("await OcrDiagnostics.TryWriteAsync(").Length - 1;
+
+        // 本地主识别、开始识别、复抓成功、复抓中止都走同一个写入口；状态文案不再直接拼接路径。
+        Assert.True(writes >= 4, $"诊断写入口只有 {writes} 处");
+        Assert.DoesNotContain("诊断：{diagnosticPath}", source);
+        Assert.Contains("OcrDiagnostics.StatusSuffix(", source);
+    }
+
+    [Fact]
+    public async Task RetryAbortDiagnosticRecordsTheRealStatusWithoutClaimingSuccess()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        using var form = new MainForm();
+        string directory = Path.Combine(Path.GetTempPath(), "ocr-retry-abort-" + Guid.NewGuid().ToString("N"));
+        typeof(MainForm).GetField("selectedImageDirectory", flags)!.SetValue(form, directory);
+        typeof(MainForm).GetField("lastIssue", flags)!.SetValue(form, 269);
+        string path = ResultFilePaths.ForDiagnostic(AppContext.BaseDirectory, directory, 269);
+        byte[]? previous = File.Exists(path) ? File.ReadAllBytes(path) : null;
+        try
+        {
+            await (Task)typeof(MainForm).GetMethod("ReportRetryAbortAsync", flags)!.Invoke(
+                form, ["已取消", "task-1", DateTimeOffset.Now, 4, MainForm.RetryAbortReason.Cancelled])!;
+
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path, Encoding.UTF8));
+            Assert.Equal("已取消", document.RootElement.GetProperty("status").GetString());
+            Assert.False(document.RootElement.GetProperty("published").GetBoolean());
+            Assert.Equal(4, document.RootElement.GetProperty("cloud_request_count").GetInt32());
+            // 中止诊断只写安全分类，不写异常原文。
+            Assert.Equal("取消", document.RootElement.GetProperty("error").GetString());
+            Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("error_code").ValueKind);
+            var status = (Label)typeof(MainForm).GetField("statusLabel", flags)!.GetValue(form)!;
+            Assert.Contains($"诊断：{path}", status.Text);
+        }
+        finally
+        {
+            if (previous is null)
+                File.Delete(path);
+            else
+                File.WriteAllBytes(path, previous);
+        }
+    }
+
+    [Fact]
+    public void StartingATaskClearsThePreviousLocalOcrLedger()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        using var form = new MainForm { Size = new Size(1100, 700) };
+        var ledger = (List<(string Stage, PaddleLocalOcrClient Client)>)typeof(MainForm)
+            .GetField("localOcrClients", flags)!.GetValue(form)!;
+
+        ledger.Add(("候选筛选（small）", new PaddleLocalOcrClient(LocalOcrDevice.Cpu)));
+        Assert.Single(ledger);
+
+        typeof(MainForm).GetMethod("StartRecognitionTiming", flags)!.Invoke(form, null);
+
+        // 新任务从空台账开始，否则上一轮的启动/缓存/推理次数会混进本轮诊断（C4）。
+        Assert.Empty(ledger);
+    }
+
+    [Fact]
+    public void RetryDiagnosticModeDistinguishesTheLocalPathFromTheCloudPath()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        using var form = new MainForm();
+        var mode = typeof(MainForm).GetProperty("RetryDiagnosticMode", flags)!;
+
+        typeof(MainForm).GetField("retryUsesLocalOcr", flags)!.SetValue(form, true);
+        Assert.Equal("复抓（本机优先 → 云兜底）", mode.GetValue(form));
+
+        typeof(MainForm).GetField("retryUsesLocalOcr", flags)!.SetValue(form, false);
+        Assert.Equal("复抓（云 OCR）", mode.GetValue(form));
     }
 
     [Fact]

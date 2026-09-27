@@ -129,7 +129,7 @@ public sealed class TemplateSelectionTests
                 typeof(MainForm).GetField("imagePaths", flags)!
                     .SetValue(form, new[] { ImagePath, Path.Combine(folder, "must-not-enter-local-ocr.png") });
                 var task = (Task)typeof(MainForm).GetMethod("SelectCandidatesAsync", flags)!
-                    .Invoke(form, [Rules, 318, retry, Rules.Select(rule => rule.Id).ToHashSet(StringComparer.Ordinal), null])!;
+                    .Invoke(form, [Rules, 318, retry, Rules.Select(rule => rule.Id).ToHashSet(StringComparer.Ordinal), null, null])!;
                 await task;
                 object result = Get(task, "Result");
                 cropFolder = (string?)result.GetType().GetProperty("TemporaryCropFolder")!.GetValue(result);

@@ -74,6 +74,46 @@ public sealed class RuleEngineTests
         Assert.Null(RuleEngine.ExtractFinalValue(["245期禁肖统计表", $"{name}禁兔"], 245, rule));
     }
 
+    [Theory]
+    [InlineData(@"C:\图片\9.2-嫣然心水\杰少\图.jpg", true)]
+    [InlineData(@"C:\图片\9.2-嫣然心水\杰少\2026\图.jpg", true)]
+    [InlineData(@"C:\图片\9.2-嫣然心水\杰少\2026\09\图.jpg", true)]
+    [InlineData(@"C:\图片\9.2-嫣然心水\杰少团队\图.jpg", false)]
+    [InlineData(@"C:\图片\9.2-嫣然心水\杰少备份\图.jpg", false)]
+    [InlineData(@"C:\图片\9.2-嫣然心水\其他\图.jpg", false)]
+    [InlineData(@"C:\图片\9.2-嫣然心水\图.jpg", false)]
+    public void MatchesRuleFolderAcceptsOnlyExactAncestorSegments(string imagePath, bool expected)
+    {
+        var rule = new OcrRule("杰少", "生肖", "杰少杀一肖", null, "原创杰少", "杰少");
+
+        Assert.Equal(expected, RuleEngine.MatchesRuleFolder(imagePath, rule));
+    }
+
+    [Fact]
+    public void MatchesRuleFolderFallsBackToTheKeywordAndRejectsEmptyFolders()
+    {
+        Assert.True(RuleEngine.MatchesRuleFolder(
+            @"C:\图片\9.2-嫣然心水\南国挽心\2026\图.jpg", new OcrRule("南国挽心", "生肖")));
+        Assert.False(RuleEngine.MatchesRuleFolder(
+            @"C:\图片\9.2-嫣然心水\其他\图.jpg", new OcrRule("南国挽心", "生肖")));
+        Assert.False(RuleEngine.MatchesRuleFolder(@"C:\图片\图.jpg", new OcrRule("", "生肖")));
+    }
+
+    [Fact]
+    public void NestedAuthorSubfolderIsTheSameCandidateAsTheAuthorFolder()
+    {
+        var rule = new OcrRule("杰少", "生肖", "杰少杀一肖", null, "原创杰少", "杰少");
+        string[] card = ["原创杰少", "{245期}新澳杀①肖狗开猫50准"];
+
+        Assert.Equal(rule, Assert.Single(RuleEngine.FindMatches(@"C:\图片\9.2-嫣然心水\杰少\图.jpg", card, [rule])));
+
+        // 作者目录下多级子目录仍是同一作者；同级他人与「作者+后缀」目录不能借道。
+        Assert.Equal(rule, Assert.Single(RuleEngine.FindMatches(
+            @"C:\图片\9.2-嫣然心水\杰少\2026\09\图.jpg", card, [rule])));
+        Assert.Empty(RuleEngine.FindMatches(@"C:\图片\9.2-嫣然心水\杰少备份\图.jpg", card, [rule]));
+        Assert.Empty(RuleEngine.FindMatches(@"C:\图片\9.2-嫣然心水\其他\图.jpg", card, [rule]));
+    }
+
     [Fact]
     public void MatchesKeywordsAgainstLocalOcrText()
     {
@@ -980,6 +1020,161 @@ public sealed class RuleEngineTests
         Assert.Equal(
             "已找到候选图片和246期文字，但未通过12个两位数号码校验（要求01-49且不重复）",
             RuleEngine.DescribeExtractionFailure(["246期 01 02 03"], 246, rule));
+    }
+
+    [Fact]
+    public void DirectionFailureCountsOnlyTheTargetRowInsteadOfTheWholeImage()
+    {
+        var rule = new OcrRule("藏宝库", "方位", "藏宝九肖");
+
+        Assert.Equal(
+            "已找到246期文字，但未通过3个不同方位字校验（识别到2个，去重后2个）",
+            RuleEngine.DescribeExtractionFailure(["245期东肖西肖南肖", "246期东肖西肖"], 246, rule));
+    }
+
+    [Fact]
+    public void DirectionFailureReportsWhenTheTargetRowHasNoDirectionCharacters()
+    {
+        var rule = new OcrRule("藏宝库", "方位", "藏宝九肖");
+
+        Assert.Equal(
+            "已找到246期文字，但当期目标字段未识别到3个不同方位字",
+            RuleEngine.DescribeExtractionFailure(["245期东肖西肖南肖", "246期藏宝库九肖"], 246, rule));
+    }
+
+    [Fact]
+    public void SeasonFailureUsesTheThreeSeasonCharactersNotNineZodiacs()
+    {
+        var rule = new OcrRule("四季生肖", "四季", "白小姐四季");
+
+        Assert.Equal(
+            "已找到246期文字，但未通过3个不同四季字校验（识别到2个，去重后2个）",
+            RuleEngine.DescribeExtractionFailure(["245期春夏秋冬", "246期春夏季"], 246, rule));
+    }
+
+    [Fact]
+    public void ZodiacFailureCountsOnlyTheTargetIssueBlock()
+    {
+        var rule = new OcrRule("九肖中特", "九肖", "68老大");
+
+        Assert.Equal(
+            "已找到246期文字，但未通过9个不同生肖校验（识别到3个，去重后3个）",
+            RuleEngine.DescribeExtractionFailure(
+                ["245期九肖中特蛇狗马兔牛蛇鼠虎羊", "246期九肖中特蛇狗马"], 246, rule));
+    }
+
+    [Fact]
+    public void FailureCountsTheRowTheExtractorExaminedWhenNoPeriodCharacterIsPrinted()
+    {
+        var rule = new OcrRule("九肖中特", "九肖", "68老大");
+
+        // 合并单元格的期号可以没有「期」字，提取流程按这种行建候选，诊断必须数同一行；
+        // 退回更窄的「期」字边界就会让失败原因和提取器实际检查的字段对不上。
+        Assert.Equal(
+            "已找到246期文字，但未通过9个不同生肖校验（识别到3个，去重后3个）",
+            RuleEngine.DescribeExtractionFailure(["【246】九肖中特蛇狗马"], 246, rule));
+    }
+
+    [Fact]
+    public void StrictRuleStaysUnlocatedWhenItsBlockBoundaryCannotBeSliced()
+    {
+        var rule = new OcrRule("九肖中特", "九肖", "68老大", StrictIssueBlock: true);
+
+        // 严格卡按 IssueBlockRegex 切块取值，切不出目标块时只报定不了位，不拿旁栏凑数。
+        Assert.Equal(
+            "已找到246期文字，但无法确定当期目标字段，未通过9个不同生肖校验",
+            RuleEngine.DescribeExtractionFailure(["【246】九肖中特蛇狗马"], 246, rule));
+    }
+
+    [Fact]
+    public void IssueFailureCountsTheAuthorsOwnSectionInsteadOfTheNeighbouringKillRow()
+    {
+        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");
+        string[] lines = ["原创杰少", "269期 杀①肖 马", "九肖", "269期 九肖 鼠牛虎兔龙蛇马羊"];
+
+        // 该卡本期九肖只印了 8 个，作者自己的栏目内就是 8；不能数到上面的「杀①肖」栏。
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 269, rule));
+        Assert.Equal(
+            "已找到269期文字，但未通过9个不同生肖校验（识别到8个，去重后8个）",
+            RuleEngine.DescribeExtractionFailure(lines, 269, rule));
+    }
+
+    [Fact]
+    public void IssueFailureStillPointsAtTheAuthorsSectionWhenTheRowsAreSwapped()
+    {
+        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");
+        string[] lines = ["原创杰少", "九肖", "269期 九肖 鼠牛虎兔龙蛇马羊", "269期 杀①肖 马"];
+
+        Assert.Equal(
+            "已找到269期文字，但未通过9个不同生肖校验（识别到8个，去重后8个）",
+            RuleEngine.DescribeExtractionFailure(lines, 269, rule));
+    }
+
+    [Fact]
+    public void IssueFailureIgnoresTheHistoryIssueInTheSameSection()
+    {
+        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");
+        string[] lines =
+        [
+            "原创杰少",
+            "九肖",
+            "269期 九肖 鼠牛虎兔龙蛇马羊",
+            "268期 九肖 鼠牛虎兔龙蛇马羊鸡狗"
+        ];
+
+        // 上一期在同一栏目里印了完整九肖，也只统计目标期那一行。
+        Assert.Equal(
+            "已找到269期文字，但未通过9个不同生肖校验（识别到8个，去重后8个）",
+            RuleEngine.DescribeExtractionFailure(lines, 269, rule));
+    }
+
+    [Fact]
+    public void CompleteSectionRowStillSucceedsWithTheNeighbouringRowsPresent()
+    {
+        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");
+        string[] lines = ["原创杰少", "269期 杀①肖 马", "九肖", "269期 九肖 鼠牛虎兔龙蛇马羊鸡"];
+
+        Assert.Equal("鼠牛虎兔龙蛇马羊鸡", RuleEngine.ExtractFinalValue(lines, 269, rule));
+    }
+
+    [Fact]
+    public void TwoDifferentCompleteAnswersInTheOwnSectionStillConflict()
+    {
+        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");
+        string[] lines =
+        [
+            "原创杰少",
+            "九肖",
+            "269期 九肖 鼠牛虎兔龙蛇马羊鸡",
+            "269期 九肖 鼠牛虎兔龙蛇马羊猴"
+        ];
+
+        RuleExtractionResult result = RuleEngine.ExtractFinalResult(lines, 269, rule);
+        Assert.Equal(RuleExtractionStatus.Conflict, result.Status);
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public void IssueFailureDoesNotBorrowFromAnotherRowWhenTheOwnSectionIsMissing()
+    {
+        var rule = new OcrRule("杰少九肖", "九肖", "杰少九肖", "九肖", "原创杰少", "资料A");
+
+        // 目标栏目整段缺失时只报定不了位，绝不退回去数同图旁的「杀①肖」行。
+        Assert.Equal(
+            "已找到269期文字，但无法确定当期目标字段，未通过9个不同生肖校验",
+            RuleEngine.DescribeExtractionFailure(["269期 杀①肖 马"], 269, rule));
+    }
+
+    [Fact]
+    public void FailureSaysTheTargetFieldIsAmbiguousWhenTwoIndependentRowsCarryTheSameIssue()
+    {
+        var rule = new OcrRule("九肖中特", "九肖", "68老大");
+
+        // 同一期两条互不相邻的目标行无法唯一定位，只能报定不了位，绝不把两行拼起来数。
+        Assert.Equal(
+            "已找到246期文字，但无法确定当期目标字段，未通过9个不同生肖校验",
+            RuleEngine.DescribeExtractionFailure(
+                ["246期九肖中特蛇狗马", "边框文字", "246期九肖中特蛇狗鸡"], 246, rule));
     }
 
     [Fact]

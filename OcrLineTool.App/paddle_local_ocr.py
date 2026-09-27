@@ -5,10 +5,14 @@ import json
 import os
 import shutil
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
+
+# 阶段耗时的零点：解释器启动与本文件导入完成之后（外部可用总墙钟时间反推解释器启动开销）。
+_PROCESS_START = time.perf_counter()
 
 os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
 MODEL_NAMES = {
@@ -252,9 +256,20 @@ def main() -> int:
     parser.add_argument("--compact-folder")
     args = parser.parse_args()
 
+    phases: dict[str, float] = {}
+    mark = time.perf_counter()
+
+    def _lap(name: str) -> None:
+        nonlocal mark
+        now = time.perf_counter()
+        phases[name] = round(now - mark, 3)
+        mark = now
+
     try:
         import paddle
+        _lap("paddle_import_seconds")
         _configure_device(args.device)
+        _lap("device_seconds")
     except Exception as exc:
         backend = "NVIDIA CUDA" if args.device.lower() == "gpu:0" else "CPU"
         _write_error(args.output, f"无法初始化{backend} PaddlePaddle：{exc}")
@@ -262,6 +277,7 @@ def main() -> int:
 
     try:
         from paddleocr import PaddleOCR
+        _lap("paddleocr_import_seconds")
     except Exception as exc:
         _write_error(args.output, f"无法加载 PaddleOCR：{exc}")
         return 2
@@ -269,6 +285,7 @@ def main() -> int:
     try:
         detection_model, recognition_model = MODEL_NAMES[args.model]
         model_root = _prepare_model_root((detection_model, recognition_model))
+        _lap("model_staging_seconds")
         detection_dir = model_root / detection_model if (model_root / detection_model).is_dir() else None
         recognition_dir = model_root / recognition_model if (model_root / recognition_model).is_dir() else None
         model_dirs = {}
@@ -293,6 +310,7 @@ def main() -> int:
             text_det_limit_side_len=args.det_max_side,
             text_det_limit_type="max" if args.det_max_side else None,
         )
+        _lap("paddle_init_seconds")
     except Exception as exc:
         backend = "NVIDIA CUDA" if args.device.lower() == "gpu:0" else "CPU"
         _write_error(args.output, f"无法初始化{backend} PaddleOCR：{exc}")
@@ -302,6 +320,8 @@ def main() -> int:
         paths = [line.rstrip("\n") for line in source if line.rstrip("\n")]
 
     results = []
+    inference_seconds = 0.0
+    view_count = 0
     for index, path in enumerate(paths, start=1):
         try:
             if args.compact_folder and any(
@@ -330,7 +350,10 @@ def main() -> int:
             texts = []
             items = []
             for source, view_id in sources:
+                view_started = time.perf_counter()
                 prediction = ocr.predict(source)
+                inference_seconds += time.perf_counter() - view_started
+                view_count += 1
                 if prediction:
                     first = prediction[0]
                     view_items = _prediction_items(first, view_id)
@@ -350,8 +373,18 @@ def main() -> int:
         finally:
             print(f"OCR_PROGRESS|{index}|{len(paths)}|{path}", flush=True)
 
+    # 阶段耗时随结果一起返回：只记秒数与计数，不含密钥、请求正文或任何识别原文。
+    phases["inference_seconds"] = round(inference_seconds, 3)
+    phases["worker_seconds_before_output"] = round(time.perf_counter() - _PROCESS_START, 3)
     with open(args.output, "w", encoding="utf-8") as output:
-        json.dump({"results": results}, output, ensure_ascii=False)
+        json.dump(
+            {
+                "results": results,
+                "timing": {**phases, "image_count": len(paths), "view_count": view_count},
+            },
+            output,
+            ensure_ascii=False,
+        )
     return 0
 
 
