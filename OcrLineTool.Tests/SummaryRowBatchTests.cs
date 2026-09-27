@@ -172,8 +172,10 @@ public sealed class SummaryRowBatchTests
         public bool FailFirstBatch { get; set; }
         public Action? OnStrips { get; set; }
 
-        public Task<ProcessResult> RunAsync(ProcessStartInfo info, Action<string>? output, CancellationToken token)
+        public Task<ProcessResult> RunAsync(
+            ProcessStartInfo info, Action<string>? output, CancellationToken token, Action? reportStarted)
         {
+            reportStarted?.Invoke();
             string Argument(string name) => Regex.Match(info.Arguments, name + " \"([^\"]+)\"").Groups[1].Value;
             string[] paths = File.ReadAllLines(Argument("--list"));
             Inputs.Add(paths);

@@ -194,8 +194,10 @@ public sealed class AuditPipelineRegressionTests
 
     private sealed class ErrorRunner : IProcessRunner
     {
-        public Task<ProcessResult> RunAsync(ProcessStartInfo startInfo, Action<string>? output, CancellationToken cancellationToken)
+        public Task<ProcessResult> RunAsync(
+            ProcessStartInfo startInfo, Action<string>? output, CancellationToken cancellationToken, Action? reportStarted)
         {
+            reportStarted?.Invoke();
             string path = System.Text.RegularExpressions.Regex.Match(startInfo.Arguments, "--output \"(?<path>[^\"]+)\"").Groups["path"].Value;
             System.IO.File.WriteAllText(path, JsonSerializer.Serialize(new { error = "无法启用 NVIDIA CUDA 设备" }));
             return Task.FromResult(new ProcessResult(true, 3, "", ""));
@@ -206,8 +208,10 @@ public sealed class AuditPipelineRegressionTests
     {
         internal string Arguments { get; private set; } = string.Empty;
 
-        public Task<ProcessResult> RunAsync(ProcessStartInfo startInfo, Action<string>? output, CancellationToken cancellationToken)
+        public Task<ProcessResult> RunAsync(
+            ProcessStartInfo startInfo, Action<string>? output, CancellationToken cancellationToken, Action? reportStarted)
         {
+            reportStarted?.Invoke();
             Arguments = startInfo.Arguments;
             string listPath = System.Text.RegularExpressions.Regex.Match(
                 startInfo.Arguments, "--list \\\"(?<path>[^\\\"]+)\\\"").Groups["path"].Value;

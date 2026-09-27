@@ -54,8 +54,10 @@ public sealed class SummaryRowRecoveryTests
     private sealed class RecoveryErrorRunner(string route, int failAt, string kind) : IProcessRunner
     {
         public int Calls { get; private set; }
-        public Task<ProcessResult> RunAsync(ProcessStartInfo info, Action<string>? output, CancellationToken token)
+        public Task<ProcessResult> RunAsync(
+            ProcessStartInfo info, Action<string>? output, CancellationToken token, Action? reportStarted)
         {
+            reportStarted?.Invoke();
             if (++Calls == failAt)
                 throw kind switch
                 {

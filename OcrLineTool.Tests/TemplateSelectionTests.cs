@@ -72,6 +72,55 @@ public sealed class TemplateSelectionTests
         await Assert.ThrowsAsync<OcrException>(() => fixture.SelectAsync());
     }
 
+    // 匹配完成之后、候选身份捕获之前图片才失效：只丢这一张，其余候选保留，
+    // 完整性状态跟着实际候选走，不能继续报成完整命中。
+    [Fact]
+    public async Task ImageLostAfterMatchingOnlyDropsItsOwnTemplateCandidate()
+    {
+        using var fixture = new SelectionFixture(complete: true);
+        object selection = await fixture.SelectAsync(checkpoint: path =>
+        {
+            if (path.Equals(fixture.SecondImagePath, StringComparison.OrdinalIgnoreCase))
+                File.Delete(path);
+        });
+
+        object candidate = Assert.Single(((IEnumerable)Get(selection, "Candidates")).Cast<object>());
+        Assert.Equal(fixture.ImagePath, Get(candidate, "SourcePath"));
+        Assert.Equal(["已匹配"], ((IReadOnlyList<OcrRule>)Get(candidate, "Rules")).Select(rule => rule.Id));
+        string display = (string)Get(selection, "DisplayName");
+        Assert.NotEqual("标题模板", display);
+        Assert.Contains("待手动复抓", display);
+    }
+
+    // 模板全部命中但候选全部创建失败：与「模板未命中」同等对待，不得报成部分命中。
+    [Fact]
+    public async Task DroppingEveryTemplateCandidateIsNotReportedAsPartialMatch()
+    {
+        using var fixture = new SelectionFixture(complete: true);
+        object selection = await fixture.SelectAsync(checkpoint: path => File.Delete(path));
+
+        Assert.Empty(((IEnumerable)Get(selection, "Candidates")).Cast<object>());
+        string display = (string)Get(selection, "DisplayName");
+        Assert.Contains("未命中", display);
+        Assert.DoesNotContain("部分命中", display);
+    }
+
+    // 逐图隔离只吞图片读取/身份失败：取消与 GPU 故障必须继续向任务入口传播。
+    [Fact]
+    public async Task TemplateCandidateIsolationStillPropagatesCancellationAndGpuFaults()
+    {
+        using (var cancelled = new SelectionFixture(complete: true))
+            await Assert.ThrowsAsync<OperationCanceledException>(() => cancelled.SelectAsync(
+                checkpoint: _ => throw new OperationCanceledException()));
+
+        using (var gpu = new SelectionFixture(complete: true))
+        {
+            OcrException failure = await Assert.ThrowsAsync<OcrException>(() => gpu.SelectAsync(
+                checkpoint: _ => throw new OcrException("GPU 不可用", PaddleLocalOcrClient.CudaUnavailableCode)));
+            Assert.Equal(PaddleLocalOcrClient.CudaUnavailableCode, failure.Code);
+        }
+    }
+
     private static object Get(object value, string name) => value.GetType().GetProperty(name)!.GetValue(value)!;
 
     private sealed class SelectionFixture : IDisposable
@@ -79,13 +128,16 @@ public sealed class TemplateSelectionTests
         private readonly string folder = Path.Combine(Path.GetTempPath(), "ocr-selection-" + Guid.NewGuid().ToString("N"));
         private readonly byte[] originalCatalog;
         private readonly string group;
+        private readonly bool complete;
         private string? cropFolder;
         public string CatalogPath { get; }
         public string ImagePath => Path.Combine(folder, "matched.png");
+        public string SecondImagePath => Path.Combine(folder, "second.png");
         public OcrRule[] Rules { get; }
 
-        public SelectionFixture(bool premium = false, bool strict = false)
+        public SelectionFixture(bool premium = false, bool strict = false, bool complete = false)
         {
+            this.complete = complete;
             group = premium ? "新澳高级会员" : "新澳六合彩资料";
             CatalogPath = VisualTemplateMatcher.ConfigPath(AppContext.BaseDirectory, group);
             bool configuredStrict = RuleCatalog.Load(Path.Combine(
@@ -103,19 +155,31 @@ public sealed class TemplateSelectionTests
                 graphics.FillRectangle(Brushes.Red, 0, 570, 800, 30);
                 bitmap.Save(ImagePath, System.Drawing.Imaging.ImageFormat.Png);
             }
+            if (complete)
+            {
+                using var bitmap = new Bitmap(800, 600);
+                using var graphics = Graphics.FromImage(bitmap);
+                graphics.Clear(Color.White);
+                graphics.FillRectangle(Brushes.Black, 60, 108, 680, 12);
+                graphics.FillRectangle(Brushes.Black, 240, 145, 320, 22);
+                graphics.FillRectangle(Brushes.Red, 0, 570, 800, 30);
+                bitmap.Save(SecondImagePath, System.Drawing.Imaging.ImageFormat.Png);
+            }
             string fingerprint = VisualTemplateMatcher.CreateFingerprint(ImagePath);
-            string opposite = Convert.ToHexString(Convert.FromHexString(fingerprint).Select(value => (byte)~value).ToArray());
+            string second = complete
+                ? VisualTemplateMatcher.CreateFingerprint(SecondImagePath)
+                : Convert.ToHexString(Convert.FromHexString(fingerprint).Select(value => (byte)~value).ToArray());
             var catalog = new VisualTemplateSet(1, group, 1,
             [
                 new("已匹配", ["已匹配"], fingerprint, 0.25, 0.55),
-                new("未匹配", ["未匹配"], opposite, 0.25, 0.55)
+                new("未匹配", ["未匹配"], second, 0.25, 0.55)
             ]);
             if (strict)
                 catalog.Templates.RemoveAt(1);
             File.WriteAllText(CatalogPath, JsonSerializer.Serialize(catalog));
         }
 
-        public async Task<object> SelectAsync(bool retry = false)
+        public async Task<object> SelectAsync(bool retry = false, Action<string>? checkpoint = null)
         {
             using var form = new MainForm();
             var context = SynchronizationContext.Current;
@@ -127,7 +191,10 @@ public sealed class TemplateSelectionTests
                     .SetValue(form, Path.Combine(folder, "9.2-" + group));
                 // If fallback regresses, this absent file fails CacheKey before any model starts.
                 typeof(MainForm).GetField("imagePaths", flags)!
-                    .SetValue(form, new[] { ImagePath, Path.Combine(folder, "must-not-enter-local-ocr.png") });
+                    .SetValue(form, complete
+                        ? new[] { ImagePath, SecondImagePath }
+                        : new[] { ImagePath, Path.Combine(folder, "must-not-enter-local-ocr.png") });
+                MainForm.TemplateCandidateCheckpoint = checkpoint;
                 var task = (Task)typeof(MainForm).GetMethod("SelectCandidatesAsync", flags)!
                     .Invoke(form, [Rules, 318, retry, Rules.Select(rule => rule.Id).ToHashSet(StringComparer.Ordinal), null, null])!;
                 await task;
@@ -137,6 +204,7 @@ public sealed class TemplateSelectionTests
             }
             finally
             {
+                MainForm.TemplateCandidateCheckpoint = null;
                 SynchronizationContext.SetSynchronizationContext(context);
             }
         }

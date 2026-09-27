@@ -61,6 +61,12 @@ internal sealed class RecognitionStageTracker
     }
 
     /// <summary>
+    /// 该令牌是否仍属于当前阶段；无副作用，供调用方在产生界面/计时副作用之前判断，
+    /// 避免只为丢弃过期回调就先结算旧阶段耗时或改写控件。
+    /// </summary>
+    internal bool IsCurrent(int token) => token == stageToken;
+
+    /// <summary>
     /// 记录一次阶段进度。返回 false 表示该报告属于已过期阶段，调用方不得用它更新界面。
     /// <paramref name="completed"/> / <paramref name="total"/> 是整批进度，<paramref name="stageCompleted"/> /
     /// <paramref name="stageTotal"/> 是本阶段用于估算剩余的单位数；<paramref name="stageTotal"/> 为 0 表示无法估算。

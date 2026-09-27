@@ -45,11 +45,12 @@ public sealed class DeviceHardwareTests(ITestOutputHelper output)
 
     private sealed class HardwareRunner(LocalOcrDevice device) : IProcessRunner
     {
-        public Task<ProcessResult> RunAsync(ProcessStartInfo info, Action<string>? progress, CancellationToken token)
+        public Task<ProcessResult> RunAsync(
+            ProcessStartInfo info, Action<string>? progress, CancellationToken token, Action? reportStarted)
         {
             // Hide the GPU in a fresh CPU worker, without touching the parent process or other tasks.
             if (device == LocalOcrDevice.Cpu) info.Environment["CUDA_VISIBLE_DEVICES"] = "-1";
-            return new SystemProcessRunner().RunAsync(info, progress, token);
+            return new SystemProcessRunner().RunAsync(info, progress, token, reportStarted);
         }
     }
 

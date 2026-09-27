@@ -89,7 +89,7 @@ public sealed class OcrDiagnosticsTests : IDisposable
             "嫣然心水", 269, "复抓（本机优先 → 云兜底）", "GPU", "task-1", DateTimeOffset.Now,
             "失败", reason, 3, 1.5, 10.25,
             new Dictionary<string, double> { ["复抓本机 OCR：识别"] = 4.5 },
-            [new MainForm.LocalOcrStageStat("候选筛选（small）", 7, 9, 2)],
+            [new MainForm.LocalOcrStageStat("候选筛选（small）", 7, 12, 9, 2)],
             []);
 
         string? error = await OcrDiagnostics.TryWriteAsync(path, payload);
@@ -108,6 +108,10 @@ public sealed class OcrDiagnosticsTests : IDisposable
             .GetProperty("复抓本机 OCR：识别").GetDouble());
         // 中止诊断同样要带本次任务已发生的阶段计数，否则「复抓为什么慢」会被读成 0 次启动。
         Assert.Equal(2, document.RootElement.GetProperty("python_start_count").GetInt32());
+        // 计划推理 12 张、确认进入推理 9 张：两个数分开写，并标出统计不完整，不把未知当 0。
+        Assert.Equal(9, document.RootElement.GetProperty("inference_count").GetInt32());
+        Assert.Equal(12, document.RootElement.GetProperty("inference_planned_count").GetInt32());
+        Assert.True(document.RootElement.GetProperty("inference_incomplete").GetBoolean());
         Assert.Equal("候选筛选（small）", document.RootElement.GetProperty("local_ocr_stages")[0]
             .GetProperty("Stage").GetString());
     }

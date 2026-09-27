@@ -51,11 +51,15 @@ public sealed class AuditSessionRegressionTests
         foreach (string argument in new[] { "-NoProfile", "-NonInteractive", "-Command", "[Console]::WriteLine($PID); Start-Sleep -Seconds 60" })
             info.ArgumentList.Add(argument);
         using var cancellation = new CancellationTokenSource();
+        int started = 0;
         Task<ProcessResult> task = new SystemProcessRunner().RunAsync(info,
-            line => { if (int.TryParse(line.Trim(), out int pid)) pidReady.TrySetResult(pid); }, cancellation.Token);
+            line => { if (int.TryParse(line.Trim(), out int pid)) pidReady.TrySetResult(pid); }, cancellation.Token,
+            () => Interlocked.Increment(ref started));
         try
         {
             int pid = await pidReady.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            // 进程已经真的起来了：取消之后这一次启动仍然必须记在账上（第3项口径：启动事件不因取消回滚）。
+            Assert.Equal(1, Volatile.Read(ref started));
             cancellation.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task.WaitAsync(TimeSpan.FromSeconds(20)));
             bool exited;

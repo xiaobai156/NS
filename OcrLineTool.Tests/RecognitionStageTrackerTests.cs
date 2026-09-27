@@ -32,6 +32,32 @@ public sealed class RecognitionStageTrackerTests
     }
 
     [Fact]
+    public void ExpiredTokensAreRejectedWithoutTouchingTheCurrentStage()
+    {
+        var tracker = new RecognitionStageTracker();
+        int first = tracker.Begin("第一阶段");
+        int second = tracker.Begin("第二阶段");
+        Assert.True(tracker.IsCurrent(second));
+        Assert.False(tracker.IsCurrent(first));
+
+        tracker.Report(second, "第二阶段", 2, 4, 2, 4);
+        tracker.AddExcludedWait(TimeSpan.FromSeconds(3));
+        tracker.BeginWait();
+
+        // 无副作用的有效性判断：过期令牌被拒时当前阶段的名称/进度/等待累计都不动。
+        Assert.False(tracker.IsCurrent(first));
+        Assert.Equal("第二阶段", tracker.StageName);
+        Assert.Equal(2, tracker.Completed);
+        Assert.Equal(4, tracker.Total);
+        Assert.Equal(TimeSpan.FromSeconds(3), tracker.ExcludedWait);
+        Assert.True(tracker.IsWaiting);
+
+        tracker.End();
+        Assert.False(tracker.IsCurrent(second));
+        Assert.False(tracker.IsCurrent(first));
+    }
+
+    [Fact]
     public void CompletedCountsNeverExceedTheirTotals()
     {
         var tracker = new RecognitionStageTracker();

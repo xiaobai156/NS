@@ -240,6 +240,218 @@ public sealed class PaddleProcessTests
         finally { DeleteIfExists(image); DeleteIfExists(cache); }
     }
 
+    [Fact]
+    public async Task PlannedInferenceImagesAreNotCountedBeforeTheWorkerConfirmsInference()
+    {
+        string imagePath = CreateImagePath();
+        string cachePath = CreateTempPath("census-confirm", ".json");
+        var runner = new FakeProcessRunner((startInfo, reportOutput, _) =>
+        {
+            WriteResult(startInfo, imagePath, ["识别结果"]);
+            // 解码失败/没进 predict 的图片只会有处理进度，不会有 OCR_INFER。
+            reportOutput?.Invoke($"OCR_PROGRESS|1|1|{imagePath}");
+            return Task.FromResult(new ProcessResult(true, 0, "", ""));
+        });
+
+        try
+        {
+            var client = new PaddleLocalOcrClient(runner, cachePath);
+            await client.RecognizeBatchAsync([imagePath], useCache: false);
+
+            Assert.Equal(1, client.PlannedImageCount);
+            Assert.Equal(1, client.WorkerStartCount);
+            Assert.Equal(0, client.InferenceCount);
+        }
+        finally
+        {
+            DeleteIfExists(imagePath);
+            DeleteIfExists(cachePath);
+        }
+    }
+
+    [Fact]
+    public async Task WorkerThatNeverLaunchesKeepsStartAndInferenceCountsAtZero()
+    {
+        string imagePath = CreateImagePath();
+        var runner = new FakeProcessRunner((_, _, _) =>
+            Task.FromResult(new ProcessResult(false, -1, "", "")));
+
+        try
+        {
+            var client = new PaddleLocalOcrClient(runner, CreateTempPath("census-nostart", ".json"));
+
+            OcrException exception = await Assert.ThrowsAsync<OcrException>(() =>
+                client.RecognizeBatchAsync([imagePath], useCache: false));
+
+            Assert.Equal("无法启动本机 Python/PaddleOCR。", exception.Message);
+            Assert.Equal(0, client.WorkerStartCount);
+            Assert.Equal(0, client.InferenceCount);
+        }
+        finally
+        {
+            DeleteIfExists(imagePath);
+        }
+    }
+
+    [Fact]
+    public async Task ConfirmedWorkerStartSurvivesCancellationWhileInferenceStaysUnconfirmed()
+    {
+        string imagePath = CreateImagePath();
+        try
+        {
+            var client = new PaddleLocalOcrClient(
+                new StartedThenCancelledRunner(), CreateTempPath("census-cancel", ".json"));
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                client.RecognizeBatchAsync([imagePath], useCache: false));
+
+            // 进程真的起来过就算 1 次启动，取消不回滚；取消前没有 OCR_INFER，推理数仍然是 0。
+            Assert.Equal(1, client.WorkerStartCount);
+            Assert.Equal(1, client.PlannedImageCount);
+            Assert.Equal(0, client.InferenceCount);
+        }
+        finally
+        {
+            DeleteIfExists(imagePath);
+        }
+    }
+
+    [Fact]
+    public async Task RepeatedInferenceEventsForOneImageCountOnceAndForeignPathsAreIgnored()
+    {
+        string imagePath = CreateImagePath();
+        string foreignPath = CreateImagePath();
+        var runner = new FakeProcessRunner((startInfo, reportOutput, _) =>
+        {
+            WriteResult(startInfo, imagePath, ["识别结果"]);
+            // 一张图的多个识别视图只算一张；不属于本批清单的路径不得计入。
+            reportOutput?.Invoke($"OCR_INFER|{imagePath}");
+            reportOutput?.Invoke($"OCR_INFER|{imagePath}");
+            reportOutput?.Invoke($"OCR_INFER|{foreignPath}");
+            return Task.FromResult(new ProcessResult(true, 0, "", ""));
+        });
+
+        try
+        {
+            var client = new PaddleLocalOcrClient(runner, CreateTempPath("census-dedupe", ".json"));
+            await client.RecognizeBatchAsync([imagePath], useCache: false);
+
+            Assert.Equal(1, client.InferenceCount);
+        }
+        finally
+        {
+            DeleteIfExists(imagePath);
+            DeleteIfExists(foreignPath);
+        }
+    }
+
+    [Fact]
+    public async Task BatchProgressSeparatesNonCachedWorkFromTheCacheInclusiveTotal()
+    {
+        string cachedImage = CreateImagePath();
+        string pendingImage = CreateImagePath();
+        string cachePath = CreateTempPath("batch-baseline", ".json");
+        string key = CacheKey(cachedImage, 1.0, null, PaddleOcrModel.Small);
+        File.WriteAllText(cachePath, JsonSerializer.Serialize(new[]
+        {
+            new { key, texts = new[] { "缓存结果" }, date = CredentialSchedule.TodayInBeijing() }
+        }));
+        var progress = new RecordingProgress();
+        var runner = new FakeProcessRunner((startInfo, reportOutput, _) =>
+        {
+            WriteResult(startInfo, pendingImage, ["识别结果"]);
+            reportOutput?.Invoke($"OCR_PROGRESS|1|1|{pendingImage}");
+            return Task.FromResult(new ProcessResult(true, 0, "", ""));
+        });
+
+        try
+        {
+            var client = new PaddleLocalOcrClient(runner, cachePath);
+            await client.RecognizeBatchAsync([cachedImage, pendingImage], progress);
+
+            // 整批进度含缓存命中（2/2），估速样本只算这一批真正处理的图片（1/1）。
+            LocalOcrProgress item = Assert.Single(
+                progress.Snapshot(), entry => entry.Stage == "正在使用本机 PaddleOCR 识别……");
+            Assert.Equal(2, item.Completed);
+            Assert.Equal(2, item.Total);
+            Assert.Equal(1, item.BatchCompleted);
+            Assert.Equal(1, item.BatchTotal);
+        }
+        finally
+        {
+            DeleteIfExists(cachedImage);
+            DeleteIfExists(pendingImage);
+            DeleteIfExists(cachePath);
+        }
+    }
+
+    [Fact]
+    public async Task EachBatchDeterminesItsOwnCacheBaseline()
+    {
+        string imagePath = CreateImagePath();
+        string cachePath = CreateTempPath("batch-reset", ".json");
+        var progress = new RecordingProgress();
+        var runner = new FakeProcessRunner((startInfo, reportOutput, _) =>
+        {
+            WriteResult(startInfo, imagePath, ["识别结果"]);
+            reportOutput?.Invoke($"OCR_PROGRESS|1|1|{imagePath}");
+            return Task.FromResult(new ProcessResult(true, 0, "", ""));
+        });
+
+        try
+        {
+            var client = new PaddleLocalOcrClient(runner, cachePath);
+            await client.RecognizeBatchAsync([imagePath], progress);
+            int firstBatch = progress.Snapshot()
+                .Count(entry => entry.Stage == "正在使用本机 PaddleOCR 识别……");
+            Assert.Equal(1, firstBatch);
+
+            // 第二批全部命中缓存：本批没有任何非缓存样本，不会沿用第一批的速度样本继续倒计时。
+            await client.RecognizeBatchAsync([imagePath], progress);
+
+            Assert.Equal(
+                firstBatch,
+                progress.Snapshot().Count(entry => entry.Stage == "正在使用本机 PaddleOCR 识别……"));
+            Assert.Equal(1, client.CacheHitCount);
+            Assert.Equal(1, client.PlannedImageCount);
+        }
+        finally
+        {
+            DeleteIfExists(imagePath);
+            DeleteIfExists(cachePath);
+        }
+    }
+
+    [Fact]
+    public async Task FullyCachedBatchCountsNoWorkerStartAndNoInference()
+    {
+        string imagePath = CreateImagePath();
+        string cachePath = CreateTempPath("census-cache", ".json");
+        string key = CacheKey(imagePath, 1.0, null, PaddleOcrModel.Small);
+        File.WriteAllText(cachePath, JsonSerializer.Serialize(new[]
+        {
+            new { key, texts = new[] { "缓存结果" }, date = CredentialSchedule.TodayInBeijing() }
+        }));
+        var runner = new FakeProcessRunner((_, _, _) =>
+            throw new InvalidOperationException("A cache hit must not start Python."));
+
+        try
+        {
+            var client = new PaddleLocalOcrClient(runner, cachePath);
+            await client.RecognizeBatchAsync([imagePath]);
+
+            Assert.Equal(1, client.CacheHitCount);
+            Assert.Equal(0, client.PlannedImageCount);
+            Assert.Equal(0, client.WorkerStartCount);
+            Assert.Equal(0, client.InferenceCount);
+        }
+        finally
+        {
+            DeleteIfExists(imagePath);
+            DeleteIfExists(cachePath);
+        }
+    }
+
     [Theory]
     [InlineData(PaddleOcrModel.Small, "small")]
     [InlineData(PaddleOcrModel.Medium, "medium")]
@@ -1040,10 +1252,48 @@ public sealed class PaddleProcessTests
         public async Task<ProcessResult> RunAsync(
             ProcessStartInfo startInfo,
             Action<string>? reportStandardOutputLine,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            Action? reportStarted)
         {
             Requests.Add(startInfo);
-            return await handler(startInfo, reportStandardOutputLine, cancellationToken);
+            ProcessResult result = await handler(startInfo, reportStandardOutputLine, cancellationToken);
+            // 只有真的启动了进程才通知调用方；Started=false 的假运行器与启动异常一样计 0 次启动。
+            if (result.Started)
+                reportStarted?.Invoke();
+            return result;
+        }
+    }
+
+    /// <summary>同步收集进度：Progress&lt;T&gt; 会把回调异步投递到测试上下文，断言时可能还在路上。</summary>
+    private sealed class RecordingProgress : IProgress<LocalOcrProgress>
+    {
+        private readonly List<LocalOcrProgress> items = [];
+
+        public void Report(LocalOcrProgress value)
+        {
+            lock (items)
+                items.Add(value);
+        }
+
+        public LocalOcrProgress[] Snapshot()
+        {
+            lock (items)
+                return [.. items];
+        }
+    }
+
+    /// <summary>模拟“进程已经启动、随后被取消”：启动通知必须已经发出，取消不回滚这一次启动。</summary>
+    private sealed class StartedThenCancelledRunner : IProcessRunner
+    {
+        public async Task<ProcessResult> RunAsync(
+            ProcessStartInfo startInfo,
+            Action<string>? reportStandardOutputLine,
+            CancellationToken cancellationToken,
+            Action? reportStarted)
+        {
+            reportStarted?.Invoke();
+            await Task.Yield();
+            throw new OperationCanceledException();
         }
     }
 }

@@ -315,6 +315,47 @@ public sealed class RetryBatchTests
     }
 
     [Fact]
+    public void RecoveryWorkloadUsesTheNonCachedBatchProgressInsteadOfCacheInclusiveTotals()
+    {
+        // 10 张里 8 张命中缓存：总进度 9/10 只说明整批处理进度，估速样本必须是本批真正处理的 1/2。
+        Assert.Equal((1, 2), MainForm.RecoveryStageWorkload(
+            new LocalOcrProgress(9, 10, @"C:\图\a.png", "定位·正在使用本机 PaddleOCR 识别……")
+            {
+                BatchCompleted = 1,
+                BatchTotal = 2
+            }, countable: true));
+
+        // 加载模型、缓存校验只是准备动作，不给估速样本（界面显示“无法估算”）。
+        Assert.Equal((0, 0), MainForm.RecoveryStageWorkload(
+            new LocalOcrProgress(0, 10, string.Empty, "定位·正在加载本地模型……"), countable: false));
+
+        // 全缓存命中：整批有进度，但本批没有非缓存样本，同样不能伪造倒计时。
+        Assert.Equal((0, 0), MainForm.RecoveryStageWorkload(
+            new LocalOcrProgress(10, 10, @"C:\图\a.png", "定位·正在使用本机 PaddleOCR 识别……"),
+            countable: true));
+    }
+
+    [Fact]
+    public void CachedImagesDoNotInflateTheRecoveryEta()
+    {
+        var tracker = new RecognitionStageTracker();
+        int token = tracker.Begin("复抓补读：本机 OCR");
+        var item = new LocalOcrProgress(9, 10, @"C:\图\a.png", "定位·正在使用本机 PaddleOCR 识别……")
+        {
+            BatchCompleted = 1,
+            BatchTotal = 2
+        };
+        (int workCompleted, int workTotal) = MainForm.RecoveryStageWorkload(item, countable: true);
+        tracker.Report(token, "复抓补读：本机 OCR·定位", item.Completed, item.Total, workCompleted, workTotal);
+
+        // 整批进度仍是 9/10（含 8 张缓存）；均速按 1/2 算：10 秒处理 1 张，还剩 1 张 → 10 秒
+        // （旧口径把 9/10 当样本会算出约 1 秒）。
+        Assert.Equal(9, tracker.Completed);
+        Assert.Equal(10, tracker.Total);
+        Assert.Equal(TimeSpan.FromSeconds(10), tracker.EstimateRemaining(TimeSpan.FromSeconds(10)));
+    }
+
+    [Fact]
     public async Task LocalOcrStageStatsCountEachStageOnceAndKeepItsLabel()
     {
         string[] images = [CreateTempImage("a.png"), CreateTempImage("b.png")];
@@ -363,9 +404,11 @@ public sealed class RetryBatchTests
         public Task<ProcessResult> RunAsync(
             ProcessStartInfo startInfo,
             Action<string>? reportStandardOutputLine,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            Action? reportStarted)
         {
             Requests.Add(startInfo);
+            reportStarted?.Invoke();
             string listPath = ArgumentValue(startInfo.Arguments, "--list");
             string outputPath = ArgumentValue(startInfo.Arguments, "--output");
             string[] paths = File.ReadAllLines(listPath, Encoding.UTF8)
@@ -378,6 +421,10 @@ public sealed class RetryBatchTests
                 items = Array.Empty<object>()
             });
             File.WriteAllText(outputPath, JsonSerializer.Serialize(new { results }));
+            // 真脚本在每张图片第一次进 predict 前报一次 OCR_INFER：假运行器也照做，
+            // 否则统计到的是“进度行”而不是“实际进入推理的图片”。
+            foreach (string path in paths)
+                reportStandardOutputLine?.Invoke($"OCR_INFER|{path}");
             reportStandardOutputLine?.Invoke($"OCR_PROGRESS|1|{paths.Length}|{paths[0]}");
             return Task.FromResult(new ProcessResult(true, 0, string.Empty, string.Empty));
         }

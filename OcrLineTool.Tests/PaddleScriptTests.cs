@@ -191,6 +191,42 @@ public sealed class PaddleScriptTests
         Assert.Equal(LocalOcrProgress.Empty, progress);
     }
 
+    [Fact]
+    public void EmitsOneInferenceEventPerImageRightBeforePredicting()
+    {
+        string script = File.ReadAllText(ScriptPath);
+
+        Assert.Contains("OCR_INFER|", script);
+        // 事件必须在第一次 predict 之前出现：它是「真的开始推理」的证据，不是处理进度。
+        Assert.True(
+            script.IndexOf("OCR_INFER|", StringComparison.Ordinal)
+            < script.IndexOf("ocr.predict(", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ParsesInferenceEventIncludingWindowsPath()
+    {
+        bool parsed = PaddleLocalOcrClient.TryParseInferenceImage(
+            @"OCR_INFER|C:\Users\Administrator\Desktop\结果\小苹果\241.jpg", out string path);
+
+        Assert.True(parsed);
+        Assert.Equal(@"C:\Users\Administrator\Desktop\结果\小苹果\241.jpg", path);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("Creating model: PP-OCRv6_small_det")]
+    [InlineData("OCR_INFER|")]
+    [InlineData("OCR_INFER|   ")]
+    [InlineData("OCR_PROGRESS|1|2|C:\\image.png")]
+    public void RejectsOrdinaryOrMalformedInferenceLine(string line)
+    {
+        bool parsed = PaddleLocalOcrClient.TryParseInferenceImage(line, out string path);
+
+        Assert.False(parsed);
+        Assert.Equal(string.Empty, path);
+    }
+
     private static string ScriptPath => Path.Combine(
         ResultFilePaths.RuntimeDirectory(AppContext.BaseDirectory),
         "paddle_local_ocr.py");

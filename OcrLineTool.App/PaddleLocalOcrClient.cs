@@ -10,6 +10,15 @@ namespace OcrLineTool;
 public sealed record LocalOcrProgress(int Completed, int Total, string Path, string Stage)
 {
     public static readonly LocalOcrProgress Empty = new(0, 0, string.Empty, string.Empty);
+
+    /// <summary>
+    /// 本次 RecognizeBatchAsync 调用内非缓存图片的处理量（已完成）。整批进度 <see cref="Completed"/> 含缓存命中，
+    /// 不能当估速样本；缓存基线随每次调用各自重新确定，调用方不需要（也不能）用累计缓存数推算。
+    /// </summary>
+    public int BatchCompleted { get; init; }
+
+    /// <summary>本次调用内非缓存图片总数；为 0 表示本次没有可用于估算剩余时间的样本。</summary>
+    public int BatchTotal { get; init; }
 }
 
 public enum PaddleOcrModel
@@ -26,10 +35,15 @@ public static class PaddleOcrModels
 
 internal interface IProcessRunner
 {
+    /// <summary>
+    /// <paramref name="reportStarted"/> 在 <c>Process.Start()</c> 返回 true 后立刻调用一次：调用方据此
+    /// 记录“确实启动过”，即使随后取消、非零退出或读结果失败也不会被抹掉；启动失败与启动异常不调用。
+    /// </summary>
     Task<ProcessResult> RunAsync(
         ProcessStartInfo startInfo,
         Action<string>? reportStandardOutputLine,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        Action? reportStarted);
 }
 
 internal sealed record ProcessResult(
@@ -43,11 +57,14 @@ internal sealed class SystemProcessRunner : IProcessRunner
     public async Task<ProcessResult> RunAsync(
         ProcessStartInfo startInfo,
         Action<string>? reportStandardOutputLine,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action? reportStarted)
     {
         using var process = new Process { StartInfo = startInfo };
         if (!process.Start())
             return new ProcessResult(false, -1, string.Empty, string.Empty);
+
+        reportStarted?.Invoke();
 
         Task<string> standardErrorTask = process.StandardError.ReadToEndAsync(cancellationToken);
         Task<string> standardOutputTask = reportStandardOutputLine is null
@@ -112,10 +129,24 @@ public sealed class PaddleLocalOcrClient
     // 普通 OCR 失败（文件仍可读）不在此列，仍保留给云兜底。
     public IReadOnlyCollection<string> LastInvalidImagePaths => invalidImagePaths;
 
-    // 诊断用的累计计数（只统计，不参与识别、缓存与校验）：全缓存命中时 WorkerStartCount 不增。
-    internal int CacheHitCount { get; private set; }
-    internal int InferenceCount { get; private set; }
-    internal int WorkerStartCount { get; private set; }
+    // 诊断用的累计计数（只统计，不参与识别、缓存与校验）：全部按“已确认事件”记账，
+    // 计划量与实际发生量分开命名，不把待处理量当成实际推理量，也不把未知补成 0。
+    private int cacheHitCount;
+    private int plannedImageCount;
+    private int inferenceCount;
+    private int workerStartCount;
+
+    /// <summary>确认命中缓存的图片数。</summary>
+    internal int CacheHitCount => cacheHitCount;
+
+    /// <summary>本客户端计划交给 Python 推理的图片数（缓存未命中的待处理量）。</summary>
+    internal int PlannedImageCount => plannedImageCount;
+
+    /// <summary>确认进入 <c>ocr.predict</c> 的图片数（Python 逐图事件，按路径去重，多视图只算一张）。</summary>
+    internal int InferenceCount => inferenceCount;
+
+    /// <summary>确认启动成功的 OCR worker 进程数（自检进程不计；启动失败或启动异常计 0）。</summary>
+    internal int WorkerStartCount => workerStartCount;
 
     // worker 自报的阶段耗时（每次 Python 调用一条，只含秒数与计数）。
     private readonly List<PaddleTiming> workerTimings = new();
@@ -234,8 +265,8 @@ public sealed class PaddleLocalOcrClient
             }
         }, cancellationToken);
 
-        CacheHitCount += cached.Count;
-        InferenceCount += pending.Count;
+        cacheHitCount += cached.Count;
+        plannedImageCount += pending.Count;
 
         for (int index = 0; index < cached.Count; index++)
         {
@@ -258,19 +289,20 @@ public sealed class PaddleLocalOcrClient
             try
             {
                 int workerCount = WorkerCountFor(pending.Count);
-                WorkerStartCount += workerCount;
                 int cpuThreads = workerCount == 1 ? 6 : 3;
-                var jobs = new List<(string ListPath, string OutputPath)>();
+                var jobs = new List<(string ListPath, string OutputPath, HashSet<string> Allowed)>();
                 for (int worker = 0; worker < workerCount; worker++)
                 {
                     string[] chunk = pending.Where((_, index) => index % workerCount == worker).ToArray();
                     string listPath = Path.Combine(tempFolder, $"images-{worker}.txt");
                     string outputPath = Path.Combine(tempFolder, $"result-{worker}.json");
                     await File.WriteAllLinesAsync(listPath, chunk, new UTF8Encoding(false), cancellationToken);
-                    jobs.Add((listPath, outputPath));
+                    jobs.Add((listPath, outputPath, new HashSet<string>(chunk, StringComparer.OrdinalIgnoreCase)));
                 }
 
                 int completed = 0;
+                var inferredImages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                object inferenceLock = new();
                 await Task.WhenAll(jobs.Select(job => RunPaddleAsync(
                     scriptPath, job.ListPath, job.OutputPath, cpuThreads, titleRatio, detectionMaxSide, model, item =>
                     {
@@ -279,10 +311,28 @@ public sealed class PaddleLocalOcrClient
                             cached.Count + current,
                             imagePaths.Count,
                             item.Path,
-                            "正在使用本机 PaddleOCR 识别……"));
-                    }, cancellationToken)));
+                            "正在使用本机 PaddleOCR 识别……")
+                        {
+                            // 非缓存处理量：这一批的缓存基线就是 cached.Count，不需要调用方累计推算。
+                            BatchCompleted = Math.Min(current, pending.Count),
+                            BatchTotal = pending.Count
+                        });
+                    },
+                    // 推理图片数只认 worker 自己报告的“进入 predict”事件：只接受本清单内的路径并去重，
+                    // 图片解码失败或进程来不及报告都不会被算成已推理；并发 worker 下计数仍要线程安全。
+                    inferredPath =>
+                    {
+                        lock (inferenceLock)
+                        {
+                            if (job.Allowed.Contains(inferredPath) && inferredImages.Add(inferredPath))
+                                inferenceCount++;
+                        }
+                    },
+                    // worker 进程启动成功才算一次启动：取消、非零退出、结果不可读都不回收这一次。
+                    () => Interlocked.Increment(ref workerStartCount),
+                    cancellationToken)));
 
-                foreach ((string _, string outputPath) in jobs)
+                foreach ((_, string outputPath, _) in jobs)
                 {
                     PaddleResponse response;
                     try
@@ -393,7 +443,7 @@ public sealed class PaddleLocalOcrClient
         ProcessResult result;
         try
         {
-            result = await processRunner.RunAsync(startInfo, null, cancellationToken);
+            result = await processRunner.RunAsync(startInfo, null, cancellationToken, null);
         }
         catch (Win32Exception)
         {
@@ -418,6 +468,8 @@ public sealed class PaddleLocalOcrClient
         int? detectionMaxSide,
         PaddleOcrModel model,
         Action<LocalOcrProgress> reportProgress,
+        Action<string> reportInferenceImage,
+        Action reportWorkerStarted,
         CancellationToken cancellationToken)
     {
         string detectionArgument = detectionMaxSide is int maxSide
@@ -449,8 +501,11 @@ public sealed class PaddleLocalOcrClient
                 {
                     if (TryParseProgress(line, out LocalOcrProgress item))
                         reportProgress(item);
+                    else if (TryParseInferenceImage(line, out string inferredPath))
+                        reportInferenceImage(inferredPath);
                 },
-                cancellationToken);
+                cancellationToken,
+                reportWorkerStarted);
         }
         catch (Win32Exception)
         {
@@ -499,6 +554,25 @@ public sealed class PaddleLocalOcrClient
             return false;
 
         progress = new LocalOcrProgress(completed, total, parts[3], "正在使用本机 PaddleOCR 识别……");
+        return true;
+    }
+
+    /// <summary>
+    /// 解析 Python 的“进入推理”事件（每张图片首次调用 <c>ocr.predict</c> 前一行，多视图只报一次）。
+    /// 只有这个事件能证明图片真的进了推理；<see cref="TryParseProgress"/> 的进度行在解码失败时也会输出。
+    /// </summary>
+    public static bool TryParseInferenceImage(string line, out string path)
+    {
+        const string prefix = "OCR_INFER|";
+        path = string.Empty;
+        if (!line.StartsWith(prefix, StringComparison.Ordinal))
+            return false;
+
+        string candidate = line[prefix.Length..].Trim();
+        if (candidate.Length == 0)
+            return false;
+
+        path = candidate;
         return true;
     }
 

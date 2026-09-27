@@ -349,6 +349,9 @@ def main() -> int:
                 sources = [(path, "original")]
             texts = []
             items = []
+            # 真正的“进入推理”事件：每张图片只在第一次 predict 前报一次（多视图仍算一张），
+            # 解码失败在到达这里之前就抛出，不会发出本事件。
+            print(f"OCR_INFER|{path}", flush=True)
             for source, view_id in sources:
                 view_started = time.perf_counter()
                 prediction = ocr.predict(source)

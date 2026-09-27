@@ -1129,6 +1129,73 @@ public sealed class RuleEngineTests
     }
 
     [Fact]
+    public void IssueFailureCountsOnlyTheAnswerFieldBeforeTheOpeningResultOnTheSameRow()
+    {
+        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");
+        string[] lines = ["原创杰少", "269期 杀①肖 马", "九肖", "269期 九肖 鼠牛虎兔龙蛇马羊 开猴49准"];
+
+        // 同一行后面的「开猴49准」是上期开奖，不是本题答案：正文只有 8 个，诊断必须也数 8。
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 269, rule));
+        Assert.Equal(
+            "已找到269期文字，但未通过9个不同生肖校验（识别到8个，去重后8个）",
+            RuleEngine.DescribeExtractionFailure(lines, 269, rule));
+    }
+
+    [Fact]
+    public void IssueFailureCountsOnlyTheAnswerFieldWhenTheOpeningResultIsOnItsOwnRow()
+    {
+        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");
+        string[] lines =
+        [
+            "原创杰少",
+            "269期 杀①肖 马",
+            "九肖",
+            "269期 九肖 鼠牛虎兔龙蛇马羊",
+            "开猴49准"
+        ];
+
+        // 开奖换行印刷和同一行结果一致：答案字段仍是 8 个。
+        Assert.Equal(
+            "已找到269期文字，但未通过9个不同生肖校验（识别到8个，去重后8个）",
+            RuleEngine.DescribeExtractionFailure(lines, 269, rule));
+    }
+
+    [Fact]
+    public void OpeningZodiacRepeatingAnAnswerZodiacDoesNotRaiseTheReportedCount()
+    {
+        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");
+        string[] lines = ["原创杰少", "269期 杀①肖 马", "九肖", "269期 九肖 鼠牛虎兔龙蛇马猴 开猴49准"];
+
+        // 正文 8 个字里已经有「猴」，开奖再印一次猴既不加原始数也不加去重数。
+        Assert.Equal(
+            "已找到269期文字，但未通过9个不同生肖校验（识别到8个，去重后8个）",
+            RuleEngine.DescribeExtractionFailure(lines, 269, rule));
+    }
+
+    [Fact]
+    public void CompleteAnswerRowWithATrailingOpeningResultStillSucceeds()
+    {
+        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");
+        string[] lines = ["原创杰少", "269期 杀①肖 马", "九肖", "269期 九肖 鼠牛虎兔龙蛇马羊鸡 开猴49准"];
+
+        Assert.Equal("鼠牛虎兔龙蛇马羊鸡", RuleEngine.ExtractFinalValue(lines, 269, rule));
+    }
+
+    [Fact]
+    public void AllowOpeningRowCardKeepsItsOpeningRowAnswerAndReportsItWhole()
+    {
+        var rule = new OcrRule("九肖来钱", "九肖", "白小姐来钱", StrictIssueBlock: true, AllowOpeningRow: true);
+        string[] lines = ["246期 开:鼠牛虎兔龙蛇马羊鸡 开猴49准"];
+
+        // 行首的「开:」是这一行自己的结构标记，剥掉后再按开奖截断：值完整保留，
+        // 诊断同样数到 9 个，不会把整行从第一个「开」处砍成空字段。
+        Assert.Equal("鼠牛虎兔龙蛇马羊鸡", RuleEngine.ExtractFinalValue(lines, 246, rule));
+        Assert.Equal(
+            "已找到246期文字，但未通过9个不同生肖校验（识别到9个，去重后9个）",
+            RuleEngine.DescribeExtractionFailure(lines, 246, rule));
+    }
+
+    [Fact]
     public void CompleteSectionRowStillSucceedsWithTheNeighbouringRowsPresent()
     {
         var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");

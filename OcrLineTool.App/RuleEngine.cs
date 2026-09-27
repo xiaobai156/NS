@@ -2314,6 +2314,16 @@ public static class RuleEngine
     // 定位不到、或存在多个互相独立的目标字段时返回 null，由调用方报告「无法确定当期目标
     // 字段」，绝不拿同图旁栏、历史期或开奖段的字凑数。无期号卡（IgnoreIssue）整张卡即
     // 目标字段，身份已由候选/模板确定。
+    // 失败原因统计的答案字段边界：与提取流程共用同一套「开奖结果之后不是答案」的规则。
+    // AllowOpeningRow 卡行首的「开:」是这一行自己的结构标记（ExtractStrictTableValue
+    // 也是先剥掉再截断），普通规则的开奖行在切块阶段已被跳过，这里只负责行内边界。
+    private static string AnswerFieldBoundary(string field, OcrRule rule)
+    {
+        if (rule.AllowOpeningRow)
+            field = Regex.Replace(field.TrimStart(), @"^开\s*[:：]?\s*", string.Empty);
+        return BeforeOpeningResult(field);
+    }
+
     private static string? LocateIssueCandidateField(string[] lines, int issue, OcrRule rule)
     {
         if (rule.IgnoreIssue)
@@ -2346,7 +2356,9 @@ public static class RuleEngine
             if (own.Length > 0)
                 maximal = own;
         }
-        string[] fields = maximal.Select(Normalize).Distinct(StringComparer.Ordinal).ToArray();
+        string[] fields = maximal
+            .Select(candidate => Normalize(AnswerFieldBoundary(candidate, rule)))
+            .Distinct(StringComparer.Ordinal).ToArray();
         return fields.Length == 1 ? fields[0] : null;
     }
 
@@ -2372,7 +2384,7 @@ public static class RuleEngine
                 continue;
             if (rule.Folder == "公式杀料" && !FormulaBlockAppliesToRule(block, rule))
                 continue;
-            blocks.Add(block);
+            blocks.Add(AnswerFieldBoundary(block, rule));
         }
         return blocks.Count == 1 ? blocks[0] : null;
     }

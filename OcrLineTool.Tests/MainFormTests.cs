@@ -365,9 +365,192 @@ public sealed class MainFormTests
             [@"C:\图片\9.2-嫣然心水\杰少\2026\c.jpg"] = "图片已被删除或移动，无法读取，已跳过该图片。"
         };
 
+        // 三张图、两种错误：张数按失败图片路径算（3 张），错误文字只去重用于合并提示（2 种）。
         Assert.Equal(
-            "图片读取失败（本资料夹 2 张）：图片被其他程序占用，已跳过该图片。；图片已被删除或移动，无法读取，已跳过该图片。",
+            "图片读取失败（本资料夹 3 张）：图片被其他程序占用，已跳过该图片。；图片已被删除或移动，无法读取，已跳过该图片。",
             MainForm.UnreadImageReason(rule, unread));
+
+        // 三张图、同一种错误：仍然报 3 张，错误描述只列一次。
+        IReadOnlyDictionary<string, string> sameError = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [@"C:\图片\9.2-嫣然心水\杰少\a.jpg"] = "图片被其他程序占用，已跳过该图片。",
+            [@"C:\图片\9.2-嫣然心水\杰少\b.jpg"] = "图片被其他程序占用，已跳过该图片。",
+            [@"C:\图片\9.2-嫣然心水\杰少\2026\c.jpg"] = "图片被其他程序占用，已跳过该图片。"
+        };
+        Assert.Equal(
+            "图片读取失败（本资料夹 3 张）：图片被其他程序占用，已跳过该图片。",
+            MainForm.UnreadImageReason(rule, sameError));
+
+        // 只有大小写不同的同一路径只算一张（Windows 路径不区分大小写）。
+        IReadOnlyDictionary<string, string> caseOnly = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [@"C:\图片\9.2-嫣然心水\杰少\A.JPG"] = "图片被其他程序占用，已跳过该图片。",
+            [@"C:\图片\9.2-嫣然心水\杰少\a.jpg"] = "图片被其他程序占用，已跳过该图片。"
+        };
+        Assert.Equal(
+            "图片读取失败：图片被其他程序占用，已跳过该图片。",
+            MainForm.UnreadImageReason(rule, caseOnly));
+    }
+
+    [Fact]
+    public void StaleStageReportLeavesStatusProgressAndStageTimingUntouched()
+    {
+        using var form = CreateUiTestForm(
+            Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), _ => { });
+        Type type = typeof(MainForm);
+        const BindingFlags instance = BindingFlags.Instance | BindingFlags.NonPublic;
+        var begin = type.GetMethod("BeginRecognitionStage", instance)!;
+        var report = type.GetMethod("ReportRecognitionStage", instance)!;
+        var setStatus = type.GetMethod("SetStageStatus", instance)!;
+        var status = (Label)type.GetField("statusLabel", instance)!.GetValue(form)!;
+        var timing = (Label)type.GetField("recognitionTimingLabel", instance)!.GetValue(form)!;
+        var progress = type.GetField("progressBar", instance)!.GetValue(form)!;
+        PropertyInfo progressValue = progress.GetType().GetProperty("Value")!;
+        var tracker = (RecognitionStageTracker)type.GetField("recognitionStage", instance)!.GetValue(form)!;
+        var seconds = (Dictionary<string, double>)type.GetField("recognitionStageSeconds", instance)!.GetValue(form)!;
+        var secondsWatch = (System.Diagnostics.Stopwatch)
+            type.GetField("recognitionStageSecondsWatch", instance)!.GetValue(form)!;
+
+        int stale = (int)begin.Invoke(form, ["第一阶段"])!;
+        report.Invoke(form, [stale, "第一阶段", 3, 10, 3, 10]);
+        int current = (int)begin.Invoke(form, ["第二阶段"])!;
+        report.Invoke(form, [current, "第二阶段", 1, 20, 1, 20]);
+
+        status.Text = "稳定状态";
+        timing.Text = "稳定计时";
+        progressValue.SetValue(progress, 5);
+        seconds["第二阶段"] = 1.5;
+        Thread.Sleep(50);
+        double settledBefore = seconds["第二阶段"];
+        TimeSpan elapsedBefore = secondsWatch.Elapsed;
+
+        // 上一阶段排队到现在的回调必须完全无效：状态文字、进度条、阶段耗时表、秒表都不能被改动。
+        report.Invoke(form, [stale, "第一阶段·旧标签", 9, 10, 9, 10]);
+        setStatus.Invoke(form, [stale, "过期回调不得写入"]);
+
+        Assert.Equal("稳定状态", status.Text);
+        Assert.Equal("稳定计时", timing.Text);
+        Assert.Equal(5, (int)progressValue.GetValue(progress)!);
+        Assert.Equal("第二阶段", tracker.StageName);
+        Assert.Equal(1, tracker.Completed);
+        Assert.Equal(20, tracker.Total);
+        Assert.Equal(settledBefore, seconds["第二阶段"]);
+        Assert.True(secondsWatch.Elapsed >= elapsedBefore, "过期报告不得结算旧阶段耗时或重启秒表");
+
+        // 当前阶段的报告仍然照常生效。
+        report.Invoke(form, [current, "第二阶段", 2, 20, 2, 20]);
+        setStatus.Invoke(form, [current, "当前阶段状态"]);
+        Assert.Equal("当前阶段状态", status.Text);
+        Assert.Equal(2, tracker.Completed);
+        Assert.True(tracker.IsCurrent(current));
+    }
+
+    [Fact]
+    public void CallbacksFromAFinishedOrReplacedRunAreNotCurrent()
+    {
+        using var form = CreateUiTestForm(
+            Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), _ => { });
+        Type type = typeof(MainForm);
+        const BindingFlags instance = BindingFlags.Instance | BindingFlags.NonPublic;
+        var isCurrent = type.GetMethod("IsCurrentRun", instance)!;
+        var cancellation = type.GetField("activeCancellation", instance)!;
+
+        // 任务进行中：本次任务捕获的令牌有效。
+        using var run = new CancellationTokenSource();
+        cancellation.SetValue(form, run);
+        Assert.True((bool)isCurrent.Invoke(form, [run.Token])!);
+
+        // 取消后：仍在同一任务上，但已取消的旧回调不再算当前。
+        run.Cancel();
+        Assert.False((bool)isCurrent.Invoke(form, [run.Token])!);
+
+        // 开始新任务（换令牌源）后旧任务令牌立即失效。
+        using var next = new CancellationTokenSource();
+        cancellation.SetValue(form, next);
+        Assert.False((bool)isCurrent.Invoke(form, [run.Token])!);
+        Assert.True((bool)isCurrent.Invoke(form, [next.Token])!);
+
+        // 任务结束（activeCancellation 置空）后旧回调同样失效。
+        cancellation.SetValue(form, null);
+        Assert.False((bool)isCurrent.Invoke(form, [next.Token])!);
+    }
+
+    [Fact]
+    public async Task AutomaticRateLimitBackoffIsExcludedFromStageSpeedButKeptOnTheWallClock()
+    {
+        using var form = CreateUiTestForm(
+            Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), _ => { });
+        Type type = typeof(MainForm);
+        const BindingFlags instance = BindingFlags.Instance | BindingFlags.NonPublic;
+        var tracker = (RecognitionStageTracker)type.GetField("recognitionStage", instance)!.GetValue(form)!;
+        var status = (Label)type.GetField("statusLabel", instance)!.GetValue(form)!;
+        type.GetMethod("BeginRecognitionStage", instance)!.Invoke(form, ["复抓：云兜底"]);
+        MethodInfo retry = type.GetMethod("RecognizeWithCloudRetryAsync", instance)!
+            .MakeGenericMethod(typeof(string));
+        var credential = new OcrCredential(OcrProvider.Baidu, "test", "unused", "unused");
+
+        int calls = 0;
+        Func<Task<string>> request = () =>
+        {
+            calls++;
+            if (calls == 1)
+                throw new OcrException("百度 OCR 错误", "18");
+            return Task.FromResult("云结果");
+        };
+
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var pending = (Task<string>)retry.Invoke(form, [credential, 1, 1, @"C:\图\a.png", request])!;
+        string result = await pending;
+        watch.Stop();
+
+        Assert.Equal("云结果", result);
+        Assert.Equal(2, calls);
+        Assert.Contains("复抓触发限流：2 秒后重试 1/1", status.Text);
+        // 墙钟照走，但 2 秒退避全部从估速耗时里扣除，且等待状态已复位。
+        Assert.True(watch.Elapsed >= TimeSpan.FromSeconds(2), watch.Elapsed.ToString());
+        Assert.True(tracker.ExcludedWait >= TimeSpan.FromSeconds(2), tracker.ExcludedWait.ToString());
+        Assert.False(tracker.IsWaiting);
+    }
+
+    [Fact]
+    public void RetryBatchProgressKeepsItsOwnPhaseBaselineAndTotal()
+    {
+        var firstBatch = new LocalOcrProgress(1, 3, @"C:\图\a.png", "正在使用本机 PaddleOCR 识别……")
+        {
+            BatchCompleted = 1,
+            BatchTotal = 3
+        };
+        var secondBatch = new LocalOcrProgress(2, 6, @"C:\图\b.png", "正在使用本机 PaddleOCR 识别……")
+        {
+            BatchCompleted = 1,
+            BatchTotal = 2
+        };
+
+        var first = MainForm.RetryBatchStageReport("提取候选", 0, 3, firstBatch);
+        Assert.Equal("复抓本机 OCR：提取候选·识别", first.Stage);
+        Assert.Equal(1, first.Completed);
+        Assert.Equal(3, first.Total);
+        Assert.Equal(1, first.StageCompleted);
+        Assert.Equal(3, first.StageTotal);
+        Assert.Contains("提取候选", first.Status);
+
+        // 第二批的阶段名/基线/总量都是本批传入的：上一批的延迟回调不会披上新批次标签或算错已完成数。
+        var second = MainForm.RetryBatchStageReport("原图复读", 4, 6, secondBatch);
+        Assert.Equal("复抓本机 OCR：原图复读·识别", second.Stage);
+        Assert.Equal(6, second.Completed);
+        Assert.Equal(6, second.Total);
+        Assert.Contains("原图复读", second.Status);
+
+        // 加载模型与缓存校验不产生估速样本（StageTotal = 0）。
+        var loading = MainForm.RetryBatchStageReport(
+            "原图复读", 4, 6, new LocalOcrProgress(0, 6, string.Empty, "正在加载本地 OCR 模型……"));
+        Assert.Equal("复抓本机 OCR：原图复读·加载模型", loading.Stage);
+        Assert.Equal(0, loading.StageTotal);
+        var cache = MainForm.RetryBatchStageReport(
+            "原图复读", 4, 6, new LocalOcrProgress(2, 6, string.Empty, "正在检查本地 OCR 缓存……"));
+        Assert.Equal("复抓本机 OCR：原图复读·缓存校验", cache.Stage);
+        Assert.Equal(6, cache.Completed);
+        Assert.Equal(0, cache.StageTotal);
     }
 
     [Fact]
