@@ -115,13 +115,10 @@ public static class GroupResultFormatter
             return "二肖";
         if (type == "缺两肖")
             return "二肖";
-        // 四季型资料（白小姐四季）与方位型资料（藏宝九肖）的值落库时都已按属性表还原成
-        // 九个生肖，与九肖同档。
-        if (type is "九肖" or "四季" or "方位")
+        // 四季型资料（白小姐四季）、方位型资料（藏宝九肖）与琴棋书画型资料（会员琴棋）的值
+        // 落库时都已按属性表还原成九个生肖，与九肖同档。
+        if (type is "九肖" or "四季" or "方位" or "琴棋书画")
             return "九肖";
-        // 琴棋书画型资料输出三个属性字，不属于任何生肖数量档。
-        if (type == "琴棋书画")
-            return "其他";
         if (type is "五行" or "单五行")
             return "五行";
         if (type == "合")

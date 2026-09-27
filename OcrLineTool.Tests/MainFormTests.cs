@@ -445,6 +445,41 @@ public sealed class MainFormTests
         Assert.True(tracker.IsCurrent(current));
     }
 
+    // 收尾必须停掉跑马灯、让阶段令牌失效：否则识别结束后进度条会一直动（用户实测现象）。
+    [Fact]
+    public void StopRecognitionTimingStopsTheProgressMarqueeAndInvalidatesTheStage()
+    {
+        using var form = CreateUiTestForm(
+            Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), _ => { });
+        const BindingFlags instance = BindingFlags.Instance | BindingFlags.NonPublic;
+        var begin = typeof(MainForm).GetMethod("BeginRecognitionStage", instance)!;
+        var report = typeof(MainForm).GetMethod("ReportRecognitionStage", instance)!;
+        var stop = typeof(MainForm).GetMethod("StopRecognitionTiming", instance)!;
+        object progress = typeof(MainForm).GetField("progressBar", instance)!.GetValue(form)!;
+        PropertyInfo style = progress.GetType().GetProperty("Style")!;
+        PropertyInfo speed = progress.GetType().GetProperty("MarqueeAnimationSpeed")!;
+        var tracker = (RecognitionStageTracker)
+            typeof(MainForm).GetField("recognitionStage", instance)!.GetValue(form)!;
+
+        typeof(MainForm).GetMethod("StartRecognitionTiming", instance)!.Invoke(form, null);
+        // 手动复抓缺失最后一步就是这么报的：分母为 0 → 进度条切跑马灯。
+        int token = (int)begin.Invoke(form, ["复抓：保存结果"])!;
+        report.Invoke(form, [token, "复抓：保存结果", 0, 0, 0, 0]);
+        Assert.Equal(ProgressBarStyle.Marquee, (ProgressBarStyle)style.GetValue(progress)!);
+        Assert.True((int)speed.GetValue(progress)! > 0);
+
+        stop.Invoke(form, null);
+
+        Assert.Equal(ProgressBarStyle.Continuous, (ProgressBarStyle)style.GetValue(progress)!);
+        Assert.Equal(0, (int)speed.GetValue(progress)!);
+        Assert.False(tracker.IsCurrent(token));
+
+        // 收尾之后残留的回调不能再把界面切回跑马灯。
+        report.Invoke(form, [token, "复抓：保存结果", 0, 0, 0, 0]);
+        Assert.Equal(ProgressBarStyle.Continuous, (ProgressBarStyle)style.GetValue(progress)!);
+        Assert.Equal(0, (int)speed.GetValue(progress)!);
+    }
+
     [Fact]
     public void CallbacksFromAFinishedOrReplacedRunAreNotCurrent()
     {

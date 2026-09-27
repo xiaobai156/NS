@@ -2419,19 +2419,24 @@ public static class RuleEngine
         if (rule.Type.StartsWith("号码:", StringComparison.Ordinal)
             && int.TryParse(rule.Type.AsSpan("号码:".Length), out int count))
             return $"已找到候选图片和{issue}期文字，但未通过{count}个两位数号码校验（要求01-49且不重复）";
-        if (rule.Type is "九肖" or "四季" or "方位")
+        if (rule.Type is "九肖" or "四季" or "方位" or "琴棋书画")
         {
             // 输入契约才是印在卡上的字数：九肖=9 个不同生肖；方位=3 个不同方位字；
-            // 四季=3 个不同四季字。它们落库前都被属性表还原成九个生肖，那是输出契约。
+            // 四季=3 个不同四季字；琴棋书画=3 个不同琴棋书画字。它们落库前都被属性表还原成
+            // 九个生肖，那是输出契约。
             (string printedCharacters, int required, string unit) = rule.Type switch
             {
                 "方位" => ("东西南北", 3, "个不同方位字"),
                 "四季" => (ZodiacAttributes.FamilyCharacters("四季"), 3, "个不同四季字"),
+                "琴棋书画" => ("琴棋书画", 3, "个不同琴棋书画字"),
                 _ => (Zodiac, 9, "个不同生肖"),
             };
-            string? field = rule.Type == "方位"
-                ? TreasureDirectionRows(lines, issue).FirstOrDefault()
-                : LocateIssueCandidateField(lines, issue, rule);
+            string? field = rule.Type switch
+            {
+                "方位" => TreasureDirectionRows(lines, issue).FirstOrDefault(),
+                "琴棋书画" => MemberArtsPayloads(lines, issue).FirstOrDefault(),
+                _ => LocateIssueCandidateField(lines, issue, rule),
+            };
             // 目标字段定位不到时只报定不了位，不拿整张图的历期文字凑总数/去重数。
             if (field is null)
                 return $"已找到{issue}期文字，但无法确定当期目标字段，未通过{required}{unit}校验";
@@ -2742,9 +2747,30 @@ public static class RuleEngine
     // 两个不同的完整答案按冲突处理。
     private static string? ExtractMemberArts(string[] lines, int issue)
     {
+        var values = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string payload in MemberArtsPayloads(lines, issue))
+        {
+            if (!Regex.IsMatch(payload, @"^(?:[琴棋书画]肖){3}$"))
+                continue;
+            string value = payload.Replace("肖", "");
+            if (value.Distinct().Count() != 3)
+                continue;
+            // 琴棋书画与生肖的对应关系只在 ZodiacAttributes 的属性表里存一份，别处不要另抄。
+            // 三个属性字按卡面顺序展开成九个生肖，与四季/方位一样按「恰好 9 个不同生肖」落库。
+            string expanded = string.Concat(value.Select(art =>
+                ZodiacAttributes.TryGetZodiacs(art.ToString(), out string zodiacs) ? zodiacs : string.Empty));
+            if (expanded.Length == 9 && expanded.Distinct().Count() == 9)
+                values.Add(expanded);
+        }
+        return values.Count switch { 0 => null, 1 => values.Single(), _ => ConflictMarker };
+    }
+
+    // 会员琴棋的当期字段（「会员特供」后续那一段）：提取与失败原因共用同一段定位，
+    // 诊断不再另数一遍整张图的属性字。
+    private static IEnumerable<string> MemberArtsPayloads(string[] lines, int issue)
+    {
         string text = Regex.Replace(SimplifyOcrText(string.Concat(lines)), @"\s+", "")
             .Replace('書', '书').Replace('畫', '画');
-        var values = new HashSet<string>(StringComparer.Ordinal);
         foreach (Match period in Regex.Matches(text, $@"(?<!\d){issue}期"))
         {
             string block = text[(period.Index + period.Length)..];
@@ -2753,14 +2779,8 @@ public static class RuleEngine
             if (!block.StartsWith("会员特供", StringComparison.Ordinal))
                 continue;
             string payload = Regex.Replace(block, @"^会员特供[:：]?", "");
-            payload = Regex.Split(payload, @"开|開|[鼠牛虎兔龙龍蛇马馬羊猴鸡雞狗猪豬][0-9]")[0];
-            if (!Regex.IsMatch(payload, @"^(?:[琴棋书画]肖){3}$"))
-                continue;
-            string value = payload.Replace("肖", "");
-            if (value.Distinct().Count() == 3)
-                values.Add(value);
+            yield return Regex.Split(payload, @"开|開|[鼠牛虎兔龙龍蛇马馬羊猴鸡雞狗猪豬][0-9]")[0];
         }
-        return values.Count switch { 0 => null, 1 => values.Single(), _ => ConflictMarker };
     }
 
     private static string? ExtractTreasureDirections(string[] lines, int issue, OcrRule rule)
@@ -3421,14 +3441,10 @@ public static class RuleEngine
             return value.Length == 2 && value.All(Zodiac.Contains) && value.Distinct().Count() == 2;
         if (rule.Type == "缺两肖")
             return value.Length == 2 && value.All(Zodiac.Contains) && value.Distinct().Count() == 2;
-        if (rule.Type is "九肖" or "四季" or "方位")
+        if (rule.Type is "九肖" or "四季" or "方位" or "琴棋书画")
             return value.Length == 9 && value.All(Zodiac.Contains) && value.Distinct().Count() == 9;
-        // 方位型资料（藏宝九肖）和四季型资料（白小姐四季）落库时都已按属性表还原成九个生肖，
-        // 校验与九肖一致；方位/四季的字符不再落库。
-        if (rule.Type == "琴棋书画")
-            return value.Length == 3 && value.All("琴棋书画".Contains) && value.Distinct().Count() == 3;
-        if (rule.Type == "方位")
-            return value.Length == 3 && value.All("东西南北".Contains) && value.Distinct().Count() == 3;
+        // 方位型资料（藏宝九肖）、四季型资料（白小姐四季）和琴棋书画型资料（会员琴棋）落库时
+        // 都已按属性表还原成九个生肖，校验与九肖一致；印在卡上的属性字不再落库。
         if (rule.Type == "统计生肖")
             return value.Length > 0 && value.Length <= Zodiac.Length && value.All(Zodiac.Contains)
                 && value.Distinct().Count() == value.Length;

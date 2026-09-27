@@ -2612,7 +2612,6 @@ public sealed class MainForm : Form
             {
                 try { Directory.Delete(temporaryCropFolder, recursive: true); } catch { }
             }
-            EndRecognitionStage();
             StopRecognitionTiming();
             SetBusy(false);
             RefreshCredentialLabel();
@@ -4259,6 +4258,11 @@ public sealed class MainForm : Form
         recognitionTimer.Stop();
         recognitionWatch.Stop();
         recognitionTimingLabel.Text = $"总耗时 {FormatDuration(recognitionWatch.Elapsed)}";
+        // 收尾的唯一出口：先让阶段令牌失效，否则残留回调还能写界面；再把跑马灯停回确定进度，
+        // 否则 DarkProgressBar 的 marqueeTimer 会一直动到下次识别。进度值保持最后一次确定值，
+        // 不伪造 100%（正常跑完本来就打满，取消/失败则冻结在最后一次确定值）。
+        EndRecognitionStage();
+        SetContinuousProgress(progressBar.Value, progressBar.Maximum);
     }
 
     private static string FormatDuration(TimeSpan duration)

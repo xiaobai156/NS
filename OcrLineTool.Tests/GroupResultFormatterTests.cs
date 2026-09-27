@@ -65,6 +65,17 @@ public sealed class GroupResultFormatterTests
             GroupResultFormatter.Format(rules, ["羊猪鸡马蛇兔猴牛狗 跑狗"]));
     }
 
+    // 会员琴棋落库时已按属性表还原成九个生肖，与九肖同档（不再是「其他」）。
+    [Fact]
+    public void GroupsMemberArtsResultsWithNineZodiacResults()
+    {
+        OcrRule[] rules = [new("琴棋书画", "琴棋书画", "会员琴棋")];
+
+        Assert.Equal(
+            ["【九肖】", "鼠牛狗虎龙马羊猴猪 会员琴棋"],
+            GroupResultFormatter.Format(rules, ["鼠牛狗虎龙马羊猴猪 会员琴棋"]));
+    }
+
     [Fact]
     public void GroupsStatisticZodiacResultsWithOneZodiacResults()
     {
