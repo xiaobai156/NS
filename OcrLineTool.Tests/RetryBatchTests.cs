@@ -336,6 +336,18 @@ public sealed class RetryBatchTests
     }
 
     [Fact]
+    public void RetryProgressUsesAPlaceholderWhenRecognitionHasNoCurrentImage()
+    {
+        // Worker preparation/progress messages may not carry an image path.
+        // Formatting that status must not call Path APIs with an empty string.
+        (string status, _, _, _, _, _) = MainForm.RetryBatchStageReport(
+            "定位", 0, 1,
+            new LocalOcrProgress(0, 1, string.Empty, "定位·正在使用本机 PaddleOCR 识别……"));
+
+        Assert.EndsWith(" · -", status, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CachedImagesDoNotInflateTheRecoveryEta()
     {
         var tracker = new RecognitionStageTracker();

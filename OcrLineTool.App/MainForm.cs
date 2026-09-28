@@ -4296,6 +4296,9 @@ public sealed class MainForm : Form
 
     private static string ShortPath(string path)
     {
+        if (string.IsNullOrWhiteSpace(path))
+            return "-";
+
         string relative = Path.GetRelativePath(FixedImageDirectory, path);
         return relative.StartsWith("..", StringComparison.Ordinal) ? Path.GetFileName(path) : relative;
     }
