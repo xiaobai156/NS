@@ -400,7 +400,7 @@ public sealed class VisualTemplateMatcherTests
     }
 
     [Fact]
-    public void PremiumProductionCatalogCoversAllTwelveRulesWithDedicatedFingerprintRegions()
+    public void PremiumProductionCatalogCoversAllThirteenRulesWithDedicatedFingerprintRegions()
     {
         string[] expectedRuleIds =
         [
@@ -416,14 +416,15 @@ public sealed class VisualTemplateMatcherTests
             "祥瑞阁二肖",
             "藏宝九肖",
             "会员暴打",
-            "会员琴棋"
+            "会员琴棋",
+            "大赢家琴棋"
         ];
         VisualTemplateSet catalog = VisualTemplateMatcher.Load(
             VisualTemplateMatcher.ConfigPath(
                 AppContext.BaseDirectory, @"C:\结果\新澳高级会员"));
 
         Assert.Equal("新澳高级会员", catalog.Folder);
-        Assert.Equal(13, catalog.Templates.Count);
+        Assert.Equal(14, catalog.Templates.Count);
         Assert.Equal(
             expectedRuleIds.Order(StringComparer.Ordinal),
             catalog.Templates.SelectMany(item => item.RuleIds).Order(StringComparer.Ordinal));
@@ -436,8 +437,12 @@ public sealed class VisualTemplateMatcherTests
         });
         Assert.All(
             catalog.Templates.Where(template =>
-                template.Id is not "会员特供杀十码" and not "表弟" and not "翩翩公子尾" and not "会员琴棋"),
+                template.Id is not "会员特供杀十码" and not "表弟" and not "翩翩公子尾"
+                    and not "会员琴棋" and not "大赢家琴棋"),
             template => Assert.Equal(0.41, template.CropBottomWidthRatio));
+        Assert.Equal(
+            0.36,
+            Assert.Single(catalog.Templates, template => template.Id == "大赢家琴棋").CropBottomWidthRatio);
         Assert.Equal(
             0.45,
             Assert.Single(catalog.Templates, template => template.Id == "表弟").CropBottomWidthRatio);

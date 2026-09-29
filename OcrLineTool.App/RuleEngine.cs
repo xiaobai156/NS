@@ -2434,7 +2434,7 @@ public static class RuleEngine
             string? field = rule.Type switch
             {
                 "方位" => TreasureDirectionRows(lines, issue).FirstOrDefault(),
-                "琴棋书画" => MemberArtsPayloads(lines, issue).FirstOrDefault(),
+                "琴棋书画" => MemberArtsPayloads(lines, issue, rule).FirstOrDefault(),
                 _ => LocateIssueCandidateField(lines, issue, rule),
             };
             // 目标字段定位不到时只报定不了位，不拿整张图的历期文字凑总数/去重数。
@@ -2549,7 +2549,7 @@ public static class RuleEngine
         if (verticalZodiac is not null)
             return verticalZodiac;
         if (rule.Type == "琴棋书画")
-            return ExtractMemberArts(lines, issue);
+            return ExtractMemberArts(lines, issue, rule);
         string? treasureDirection = ExtractTreasureDirections(lines, issue, rule);
         if (treasureDirection is not null)
             return treasureDirection;
@@ -2745,10 +2745,10 @@ public static class RuleEngine
     // 本期必须恰好印三个不同方位，多/少/重复一律缺失；
     // 同期在图上出现多次（表头“263期开…”、数据行“263期”）时只认形状完整的切片，
     // 两个不同的完整答案按冲突处理。
-    private static string? ExtractMemberArts(string[] lines, int issue)
+    private static string? ExtractMemberArts(string[] lines, int issue, OcrRule rule)
     {
         var values = new HashSet<string>(StringComparer.Ordinal);
-        foreach (string payload in MemberArtsPayloads(lines, issue))
+        foreach (string payload in MemberArtsPayloads(lines, issue, rule))
         {
             if (!Regex.IsMatch(payload, @"^(?:[琴棋书画]肖){3}$"))
                 continue;
@@ -2765,10 +2765,16 @@ public static class RuleEngine
         return values.Count switch { 0 => null, 1 => values.Single(), _ => ConflictMarker };
     }
 
-    // 会员琴棋的当期字段（「会员特供」后续那一段）：提取与失败原因共用同一段定位，
+    // 会员琴棋与大赢家琴棋是两张不同的卡，当期行上印的字段名也不同（「会员特供」/「赢家举荐」）：
+    // 定位前缀按规则取，别的规则仍走「会员特供」，行为不变。
+    private static string MemberArtsFieldPrefix(OcrRule rule) =>
+        rule.Id == "大赢家琴棋" ? "赢家举荐" : "会员特供";
+
+    // 会员琴棋/大赢家琴棋的当期字段（前缀字后的那一段）：提取与失败原因共用同一段定位，
     // 诊断不再另数一遍整张图的属性字。
-    private static IEnumerable<string> MemberArtsPayloads(string[] lines, int issue)
+    private static IEnumerable<string> MemberArtsPayloads(string[] lines, int issue, OcrRule rule)
     {
+        string prefix = MemberArtsFieldPrefix(rule);
         string text = Regex.Replace(SimplifyOcrText(string.Concat(lines)), @"\s+", "")
             .Replace('書', '书').Replace('畫', '画');
         foreach (Match period in Regex.Matches(text, $@"(?<!\d){issue}期"))
@@ -2776,9 +2782,9 @@ public static class RuleEngine
             string block = text[(period.Index + period.Length)..];
             block = Regex.Split(block, @"(?<!\d)\d+期")[0];
             // Opening banner is not a member field; never borrow the legend above the table.
-            if (!block.StartsWith("会员特供", StringComparison.Ordinal))
+            if (!block.StartsWith(prefix, StringComparison.Ordinal))
                 continue;
-            string payload = Regex.Replace(block, @"^会员特供[:：]?", "");
+            string payload = block[prefix.Length..].TrimStart(':', '：');
             yield return Regex.Split(payload, @"开|開|[鼠牛虎兔龙龍蛇马馬羊猴鸡雞狗猪豬][0-9]")[0];
         }
     }
