@@ -189,13 +189,21 @@ public sealed class RuleEngineTests
             new("华林", "尾", "华林尾", RequiredKeyword: "华林", Folder: "华林"),
             new("华林", "色单双", "华林半波", RequiredKeyword: "华林", Folder: "华林")
         ];
-        string image = Path.Combine("C:\\结果", "华林", "sample.jpg");
+        string[] lines = ["243期杀虎💝杀绿双💝杀9尾💝"];
 
-        IReadOnlyList<OcrRule> actual = RuleEngine.FindMatches(
-            image,
-            ["243期杀虎💝杀绿双💝杀9尾💝"],
-            rules);
+        // 其他群：目录本身就是身份，无标题卡照旧入选。
+        IReadOnlyList<OcrRule> otherGroup = RuleEngine.FindMatches(
+            Path.Combine("C:\\结果", "华林", "sample.jpg"), lines, rules);
+        Assert.Equal(["华林肖", "华林尾", "华林半波"], otherGroup.Select(rule => rule.Id));
 
+        // 嫣然心水：组内守卫强制要求卡面印资料名，无标题卡必须显式开启目录身份才认。
+        string image = Path.Combine("C:\\结果", "9.29-嫣然心水", "华林", "sample.jpg");
+        Assert.Empty(RuleEngine.FindMatches(image, lines, rules, rules));
+
+        OcrRule[] optedIn = rules
+            .Select(rule => rule with { AllowFolderIdentity = true, AllowValueWithoutKeyword = true })
+            .ToArray();
+        IReadOnlyList<OcrRule> actual = RuleEngine.FindMatches(image, lines, optedIn, optedIn);
         Assert.Equal(["华林肖", "华林尾", "华林半波"], actual.Select(rule => rule.Id));
     }
 

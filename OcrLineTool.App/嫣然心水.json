@@ -468,6 +468,8 @@
       "type": "生肖",
       "label": "华林肖",
       "required_keyword": "华林",
+      "allow_folder_identity": true,
+      "allow_value_without_keyword": true,
       "folder": "华林"
     },
     {
@@ -475,6 +477,8 @@
       "type": "尾",
       "label": "华林尾",
       "required_keyword": "华林",
+      "allow_folder_identity": true,
+      "allow_value_without_keyword": true,
       "folder": "华林"
     },
     {
@@ -482,6 +486,8 @@
       "type": "色单双",
       "label": "华林半波",
       "required_keyword": "华林",
+      "allow_folder_identity": true,
+      "allow_value_without_keyword": true,
       "folder": "华林"
     },
     {
@@ -496,6 +502,8 @@
       "keyword": "小雨婷",
       "type": "生肖",
       "required_keyword": "小雨婷",
+      "allow_folder_identity": true,
+      "allow_value_without_keyword": true,
       "folder": "小雨婷"
     },
     {

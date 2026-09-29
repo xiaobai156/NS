@@ -122,6 +122,76 @@ public sealed class YanranRealImageTests(ITestOutputHelper output)
         string[] lines = GroupResultFormatter.Format(rules, RuleEngine.FormatOutput(rules, values));
         await File.WriteAllLinesAsync(Path.Combine(report, device + "-results.txt"), lines);
     }
+
+    // 272 期实测：华林（肖/尾/半波）与小雨婷的卡不印资料名，靠子文件夹身份认卡。
+    [YanranRealImageTheory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public async Task TitlelessHualinAndXiaoyutingCardsProduceIssue272Values(int deviceNumber)
+    {
+        string root = Environment.GetEnvironmentVariable("OCR_YANRAN_SAMPLE_DIRECTORY")!;
+        string report = Environment.GetEnvironmentVariable("OCR_YANRAN_REPORT_DIRECTORY")!;
+        var device = (LocalOcrDevice)deviceNumber;
+        Directory.CreateDirectory(report);
+        var expected = new Dictionary<string, (string File, string Value)>
+        {
+            ["华林肖"] = ("20260929_123603_aaa2aa2d_88154.jpg", "马"),
+            ["华林半波"] = ("20260929_123603_aaa2aa2d_88154.jpg", "绿单"),
+            ["华林尾"] = ("20260929_123603_aaa2aa2d_88154.jpg", "5尾"),
+            ["小雨婷"] = ("20260929_123809_aaa2aa2d_88187.jpg", "龙")
+        };
+        var catalog = RuleCatalog.Load(Path.Combine(
+            ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
+        OcrRule[] rules = catalog.Where(rule => expected.ContainsKey(rule.Id)).ToArray();
+        string[] paths = rules.Select(rule => rule.Folder!).Distinct()
+            .SelectMany(folder => Directory.GetFiles(Path.Combine(root, folder), "*.jpg"))
+            .Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(12));
+        var client = new PaddleLocalOcrClient(new SystemProcessRunner(),
+            Path.Combine(report, device + "-unused-cache.json"), device);
+        var small = await client.RecognizeBatchAsync(paths, useCache: false,
+            detectionMaxSide: PaddleLocalOcrClient.DetectionMaxSideFor(root), cancellationToken: timeout.Token);
+        Assert.Empty(client.LastImageErrors);
+
+        var plans = LocalCandidatePlanner.Build(paths, small, rules, 272, catalog);
+        foreach (var rule in rules)
+        {
+            var plan = Assert.Single(plans, plan => plan.Rules.Any(item => item.Id == rule.Id));
+            output.WriteLine($"{device} candidate {rule.Id}: {Path.GetFileName(plan.Path)}");
+            Assert.Equal(expected[rule.Id].File, Path.GetFileName(plan.Path));
+        }
+
+        // 旧配置（未开启目录身份）在同一批图上一条都选不出来——本次修复的直接证据。
+        OcrRule[] previous = rules.Select(rule => rule with
+        {
+            AllowFolderIdentity = false,
+            AllowValueWithoutKeyword = false
+        }).ToArray();
+        Assert.Empty(LocalCandidatePlanner.Build(paths, small, previous, 272, catalog));
+
+        await client.RecognizeBatchAsync(plans.Select(plan => plan.Path).Distinct().ToArray(),
+            useCache: false, model: PaddleOcrModel.Medium, cancellationToken: timeout.Token);
+        Assert.Empty(client.LastImageErrors);
+        await File.WriteAllTextAsync(Path.Combine(report, device + "-hualin-evidence.json"), JsonSerializer.Serialize(
+            client.LastEvidence.Select(pair => new { Path = pair.Key, Evidence = pair.Value, Tokens = pair.Value.TokenItems })));
+        var values = new ResultValues(StringComparer.Ordinal);
+        var ledger = new ResultEvidenceLedger();
+        foreach (var plan in plans)
+        {
+            var evidence = client.LastEvidence[plan.Path].Bind(
+                OcrEvidenceIdentity.Capture(plan.Path, plan.Path, "local-primary/medium"));
+            MainForm.AddExtractedEvidenceValues(evidence, plan.Rules, 272, values, ledger);
+        }
+        Assert.Empty(values.Conflicts);
+        foreach (var rule in rules)
+        {
+            output.WriteLine($"{device} result {rule.Id}: {values.GetValueOrDefault(rule.Id, "MISSING")}, source={Path.GetFileName(ledger.Records[rule.Id].SourcePath)}");
+            Assert.Equal(expected[rule.Id].Value, values.GetValueOrDefault(rule.Id));
+            Assert.Equal(expected[rule.Id].File, Path.GetFileName(ledger.Records[rule.Id].SourcePath));
+        }
+        await File.WriteAllLinesAsync(Path.Combine(report, device + "-hualin-results.txt"),
+            GroupResultFormatter.Format(rules, RuleEngine.FormatOutput(rules, values)));
+    }
 }
 
 public sealed class YanranRealImageTheoryAttribute : TheoryAttribute

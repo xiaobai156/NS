@@ -1,4 +1,4 @@
-﻿using OcrLineTool;
+using OcrLineTool;
 using Xunit;
 
 namespace OcrLineTool.Tests;
@@ -44,6 +44,40 @@ public sealed class YanranStrictMatchingTests
         Assert.Empty(RuleEngine.FindMatches(
             @"C:\结果\9.10-嫣然心水\木桃\sample.jpg",
             ["253期杀猪开??"], [laba], catalog));
+    }
+
+    // 华林（肖/尾/半波）与小雨婷的卡面不印资料名（272 期实测 88154/88187），
+    // 只在子文件夹里靠备注归类；组内守卫要求卡面关键字，所以这两份必须显式开启
+    // 目录身份，否则一律报「未找到对应图片」。
+    [Fact]
+    public void TitlelessHualinAndXiaoyutingCardsUseTheirFolderIdentity()
+    {
+        OcrRule[] catalog = Rules();
+        OcrRule[] hualin = [Rule("华林肖"), Rule("华林尾"), Rule("华林半波")];
+        string hualinImage = @"C:\结果\9.29-嫣然心水\华林\sample.jpg";
+
+        Assert.Equal(["华林肖", "华林尾", "华林半波"],
+            RuleEngine.FindMatches(
+                hualinImage,
+                ["250期杀兔💗杀兰双9杀1尾💗14", "272期杀马💗杀绿单💗杀5尾💗"],
+                hualin, catalog).Select(rule => rule.Id));
+        // 同文件夹里印着别人资料名的卡不入选（华林夹里同时放着一张沁园春的卡）。
+        Assert.Empty(RuleEngine.FindMatches(
+            hualinImage,
+            ["269❤沁园春❤杀【马兔】开鸡", "272❤沁园春❤杀【鸡鼠】开"],
+            hualin, catalog));
+
+        OcrRule xiaoyuting = Rule("小雨婷");
+        string xiaoyutingImage = @"C:\结果\9.29-嫣然心水\小雨婷\sample.jpg";
+        Assert.Single(RuleEngine.FindMatches(
+            xiaoyutingImage,
+            ["271期禁【牛】开猴✅", "272期禁【龙】开猫✅"],
+            [xiaoyuting], catalog));
+        // 小雨婷夹里的小苹果卡仍然是别人的。
+        Assert.Empty(RuleEngine.FindMatches(
+            xiaoyutingImage,
+            ["新澳杀一肖 小苹果心水", "272期杀一肖蛇开"],
+            [xiaoyuting], catalog));
     }
 
     [Fact]
