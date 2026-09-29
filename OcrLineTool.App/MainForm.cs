@@ -1377,9 +1377,12 @@ public sealed class MainForm : Form
                     missingReasons[failedRuleId] = failureReason;
                 outputLines = RuleEngine.FormatOutput(rules, values, missingReasons);
             }
+            IReadOnlyDictionary<string, string> concludedLines = RefreshConcludedValueLines(groupOutputPath);
             string[] groupLines = GroupResultFormatter.Format(
                 rules,
-                PreserveDistributedMarkers(groupOutputPath, outputLines));
+                PreserveDistributedMarkers(
+                    groupOutputPath,
+                    GroupResultFormatter.ReapplyConcludedValueLines(outputLines, rules, concludedLines)));
             await AtomicFile.WriteAllLinesAsync(groupOutputPath, groupLines, new UTF8Encoding(true));
             string? diagnosticError = await OcrDiagnostics.TryWriteAsync(
                 diagnosticPath,
@@ -1830,9 +1833,12 @@ public sealed class MainForm : Form
                     missingReasons[failedRuleId] = failureReason;
                 outputLines = RuleEngine.FormatOutput(rules, values, missingReasons);
             }
+            IReadOnlyDictionary<string, string> concludedLines = RefreshConcludedValueLines(groupOutputPath);
             string[] groupLines = GroupResultFormatter.Format(
                 rules,
-                PreserveDistributedMarkers(groupOutputPath, outputLines));
+                PreserveDistributedMarkers(
+                    groupOutputPath,
+                    GroupResultFormatter.ReapplyConcludedValueLines(outputLines, rules, concludedLines)));
             await AtomicFile.WriteAllLinesAsync(groupOutputPath, groupLines, new UTF8Encoding(true));
             string? diagnosticError = await OcrDiagnostics.TryWriteAsync(
                 diagnosticPath,

@@ -339,8 +339,12 @@ internal static class OcrEvidenceLayout
         {
             List<OcrLineEvidence>? row = rows.FirstOrDefault(candidate =>
             {
-                double center = candidate.Average(value => value.Box!.CenterY);
-                double height = candidate.Average(value => Math.Max(1, value.Box!.Height));
+                // Anchor on the row's first (topmost) cell: a running average
+                // drifts upward as lower cells join and eventually swallows the
+                // next table row, gluing a previous row's value in front of the
+                // issue row's own value.
+                double center = candidate[0].Box!.CenterY;
+                double height = Math.Max(1, candidate[0].Box!.Height);
                 return Math.Abs(center - item.Box!.CenterY) <= Math.Max(3, Math.Min(height, Math.Max(1, item.Box.Height)) * 0.55);
             });
             if (row is null) rows.Add([item]);
