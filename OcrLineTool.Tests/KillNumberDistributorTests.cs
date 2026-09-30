@@ -874,18 +874,18 @@ public sealed class ResultDistributorTests
         Assert.Single(ReadSourceLabels("大围分发规则.json", "新澳六合彩资料"), label => label == "时点半");
         Assert.Single(ReadSourceLabels("杀数字分发规则.json", "新澳六合彩资料"), label => label == "小马哥");
         Assert.Equal(["天空杀"], ReadSourceLabels("杀数字分发规则.json", "新澳高手"));
-        Assert.Equal(["公式杀两肖肖"], ReadSourceLabels("二肖分发规则.json", "蜻蜓一套骁腾"));
+        Assert.Equal(["公式杀两肖肖"], ReadSourceLabels("二肖分发规则.json", "蜻蜓一套"));
         Assert.Equal(
             ["战狼八戒", "完美两肖", "绿格子双杀"],
             ReadSourceLabels("二肖分发规则.json", "黄大仙新澳"));
         Assert.Equal(["高手头头", "亚太一头", "战澳头", "斩杀一头"], ReadSourceLabels("头分发规则.json", "新澳高手"));
-        Assert.Equal(["黑字杀头"], ReadSourceLabels("头分发规则.json", "蜻蜓一套骁腾"));
-        Assert.Equal(["黑字杀行"], ReadSourceLabels("五行分发规则.json", "蜻蜓一套骁腾"));
-        Assert.Equal(["黑字杀合"], ReadSourceLabels("合分发规则.json", "蜻蜓一套骁腾"));
-        Assert.Equal(["公式杀两尾尾"], ReadSourceLabels("尾分发规则.json", "蜻蜓一套骁腾"));
-        Assert.Equal(["红蜻蜓", "骁腾"], ReadSourceLabels("生肖分发规则.json", "蜻蜓一套骁腾"));
-        Assert.Equal(["神奇宇宙"], ReadSourceLabels("半波分发规则.json", "蜻蜓一套骁腾"));
-        Assert.Equal(["墨羽", "骁腾杀肖"], ReadSourceLabels("肖分发规则.json", "蜻蜓一套骁腾"));
+        Assert.Equal(["黑字杀头"], ReadSourceLabels("头分发规则.json", "蜻蜓一套"));
+        Assert.Equal(["黑字杀行"], ReadSourceLabels("五行分发规则.json", "蜻蜓一套"));
+        Assert.Equal(["黑字杀合"], ReadSourceLabels("合分发规则.json", "蜻蜓一套"));
+        Assert.Equal(["公式杀两尾尾"], ReadSourceLabels("尾分发规则.json", "蜻蜓一套"));
+        Assert.Equal(["红蜻蜓"], ReadSourceLabels("生肖分发规则.json", "蜻蜓一套"));
+        Assert.Equal(["神奇宇宙"], ReadSourceLabels("半波分发规则.json", "蜻蜓一套"));
+        Assert.Equal(["墨羽"], ReadSourceLabels("肖分发规则.json", "蜻蜓一套"));
     }
 
     [Fact]

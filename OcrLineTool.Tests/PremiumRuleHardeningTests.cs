@@ -203,7 +203,7 @@ public sealed class PremiumRuleHardeningTests
         foreach (string path in Directory.EnumerateFiles(directory, "*.json")
             .Where(path => RuleCatalog.IsRuleCatalogFile(Path.GetFileName(path))))
         {
-            bool hardenedCatalog = Path.GetFileName(path) is "新澳高级会员.json" or "新澳六合彩资料.json" or "黄大仙新澳.json" or "蜻蜓一套骁腾.json";
+            bool hardenedCatalog = Path.GetFileName(path) is "新澳高级会员.json" or "新澳六合彩资料.json" or "黄大仙新澳.json" or "蜻蜓一套.json";
             foreach (OcrRule rule in RuleCatalog.Load(path))
             {
                 bool explicitYanranStrict = Path.GetFileName(path) == "嫣然心水.json" && rule.Id == "小骚货";

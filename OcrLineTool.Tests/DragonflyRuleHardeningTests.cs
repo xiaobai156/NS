@@ -5,7 +5,7 @@ namespace OcrLineTool.Tests;
 public sealed class DragonflyRuleHardeningTests
 {
     private static IReadOnlyList<OcrRule> Rules => RuleCatalog.Load(Path.Combine(
-        ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "蜻蜓一套骁腾.json"));
+        ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "蜻蜓一套.json"));
 
     public static TheoryData<string, string, string> Samples => new()
     {
@@ -16,15 +16,13 @@ public sealed class DragonflyRuleHardeningTests
         { "公式杀两尾尾", "（平4-2-D2+正3）=杀31尾√", "3尾+1尾" },
         { "红蜻蜓", "红蜻蜓必中⑨肖【马龙虎鼠牛猪兔蛇羊】开00准", "马龙虎鼠牛猪兔蛇羊" },
         { "神奇宇宙", "神秘宇宙绝杀半波【红单】开00准", "红单" },
-        { "墨羽", "墨羽尘曦精杀一肖【鸡】开00准", "鸡" },
-        { "骁腾杀肖", "杀一肖《鸡》开:发00准", "鸡" },
-        { "骁腾", "九肖[鼠牛虎龙蛇马羊猴猪]发00准", "鼠牛虎龙蛇马羊猴猪" }
+        { "墨羽", "墨羽尘曦精杀一肖【鸡】开00准", "鸡" }
     };
 
     [Fact]
     public void CatalogHardensEveryConfirmedRuleAndUsesTheCurrentTitles()
     {
-        Assert.Equal(10, Rules.Count);
+        Assert.Equal(8, Rules.Count);
         Assert.All(Rules, rule => Assert.True(rule.StrictIssueBlock));
         Assert.Equal("红蜻蜓必中⑨肖", Assert.Single(Rules, rule => rule.Id == "红蜻蜓").Keyword);
         Assert.Equal("神秘宇宙绝杀半波", Assert.Single(Rules, rule => rule.Id == "神奇宇宙").Keyword);

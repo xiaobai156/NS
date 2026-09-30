@@ -137,26 +137,24 @@ public sealed class RuleCatalogTests
     public void LoadsTheDragonflyGroupWithStrictSubfolderRules()
     {
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
-            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "蜻蜓一套骁腾.json"));
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "蜻蜓一套.json"));
 
-        Assert.Equal(10, rules.Count);
+        Assert.Equal(8, rules.Count);
         Assert.Equal(
-            new[] { "各种杀", "各种杀", "各种杀", "公式杀料", "公式杀料", "一套组合拳", "一套组合拳", "一套组合拳", "骁腾系列", "骁腾系列" },
+            new[] { "各种杀", "各种杀", "各种杀", "公式杀料", "公式杀料", "一套组合拳", "一套组合拳", "一套组合拳" },
             rules.Select(rule => rule.Folder));
         Assert.DoesNotContain(rules, rule => rule.Id == "绿格子双杀");
         Assert.Contains(rules, rule => rule.Id == "红蜻蜓" && rule.Type == "九肖");
         Assert.Contains(rules, rule => rule.Id == "神奇宇宙" && rule.Type == "色单双");
         Assert.Contains(rules, rule => rule.Id == "墨羽" && rule.Type == "生肖");
-        Assert.Contains(rules, rule => rule.Id == "骁腾杀肖" && rule.Type == "生肖" && rule.Folder == "骁腾系列");
-        Assert.Contains(rules, rule => rule.Id == "骁腾" && rule.Type == "九肖" && rule.Folder == "骁腾系列");
     }
 
     [Fact]
     public void FormulaRulesUseTheirLockedFolderWhenTheImageHasNoTitle()
     {
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
-            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "蜻蜓一套骁腾.json"));
-        string image = Path.Combine("C:\\结果", "蜻蜓一套骁腾", "公式杀料", "sample.jpg");
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "蜻蜓一套.json"));
+        string image = Path.Combine("C:\\结果", "蜻蜓一套", "公式杀料", "sample.jpg");
         IReadOnlyList<OcrRule> actual = RuleEngine.FindMatches(
             image,
             ["244期（平2-2-D2+正3）=杀15尾", "244期（平2*4+特-D4+平3+正E1-2）=杀狗猴√"],
@@ -179,8 +177,8 @@ public sealed class RuleCatalogTests
     public void BlackKillRowUsesItsLockedFolderWhenTheHeaderIsMissed()
     {
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
-            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "蜻蜓一套骁腾.json"));
-        string image = Path.Combine("C:\\结果", "蜻蜓一套骁腾", "各种杀", "sample.jpg");
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "蜻蜓一套.json"));
+        string image = Path.Combine("C:\\结果", "蜻蜓一套", "各种杀", "sample.jpg");
         IReadOnlyList<OcrRule> actual = RuleEngine.FindMatches(
             image,
             ["244期土03合开：？00准"],

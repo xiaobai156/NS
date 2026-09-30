@@ -10,10 +10,10 @@ public sealed class PostClosureSafetyTests
         "九宫寻肖", "生肖", "九宫格肖肖",
         AllowNearbyValue: true, StrictIssueBlock: true);
 
-    private static OcrRule XiaotengRule() => new(
-        "骁腾杀一肖", "生肖", "骁腾杀肖",
-        RequiredKeyword: "杀一肖", Folder: "骁腾系列",
-        AllowNearbyValue: true, StrictIssueBlock: true);
+    private static OcrRule DragonflyFramedRule() => new(
+        "墨羽尘曦", "生肖", "墨羽",
+        RequiredKeyword: "墨羽尘曦", Folder: "一套组合拳",
+        StrictIssueBlock: true);
 
     [Fact]
     public void StrictNearbyZodiacStopsAtTheNextBareFourDigitIssue()
@@ -45,7 +45,7 @@ public sealed class PostClosureSafetyTests
     public void StrictDragonflySingleValueRejectsTwoLeadingFramesAsConflict()
     {
         RuleExtractionResult result = RuleEngine.ExtractFinalResult(
-            ["246期骁腾杀一肖《虎》《兔》"], 246, XiaotengRule());
+            ["246期墨羽尘曦杀一肖《虎》《兔》"], 246, DragonflyFramedRule());
         Assert.Equal(RuleExtractionStatus.Conflict, result.Status);
         Assert.Null(result.Value);
     }
@@ -54,7 +54,7 @@ public sealed class PostClosureSafetyTests
     public void StrictDragonflyRepeatedMarkerWithDifferentValuesIsConflict()
     {
         RuleExtractionResult result = RuleEngine.ExtractFinalResult(
-            ["246期骁腾杀一肖《虎》骁腾杀一肖《兔》"], 246, XiaotengRule());
+            ["246期墨羽尘曦杀一肖《虎》墨羽尘曦杀一肖《兔》"], 246, DragonflyFramedRule());
         Assert.Equal(RuleExtractionStatus.Conflict, result.Status);
         Assert.Null(result.Value);
     }
@@ -63,14 +63,14 @@ public sealed class PostClosureSafetyTests
     public void StrictDragonflyRepeatedMarkerWithSameValueRemainsOneSuccess()
     {
         Assert.Equal("虎", RuleEngine.ExtractFinalValue(
-            ["246期骁腾杀一肖《虎》骁腾杀一肖《虎》"], 246, XiaotengRule()));
+            ["246期墨羽尘曦杀一肖《虎》墨羽尘曦杀一肖《虎》"], 246, DragonflyFramedRule()));
     }
 
     [Fact]
     public void StrictDragonflySingleValueKeepsOneFramedValue()
     {
         Assert.Equal("虎", RuleEngine.ExtractFinalValue(
-            ["246期骁腾杀一肖《虎》"], 246, XiaotengRule()));
+            ["246期墨羽尘曦杀一肖《虎》"], 246, DragonflyFramedRule()));
     }
 
     [Fact]

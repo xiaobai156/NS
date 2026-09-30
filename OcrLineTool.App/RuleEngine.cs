@@ -2282,8 +2282,7 @@ public static class RuleEngine
     private static IEnumerable<string> RejectCrossIssueNearbyValue(IEnumerable<string> source, int issue, OcrRule rule)
     {
         string[] lines = source.ToArray();
-        if (!rule.StrictIssueBlock || !rule.AllowNearbyValue
-            || (rule.Id, rule.Folder, rule.Type) == ("骁腾杀肖", "骁腾系列", "生肖"))
+        if (!rule.StrictIssueBlock || !rule.AllowNearbyValue)
             return lines;
         int target = Array.FindIndex(lines, line => ContainsIssue(line, issue));
         if (target < 0)
@@ -2545,9 +2544,6 @@ public static class RuleEngine
             return ExtractStrictTableValue(Regex.Replace(text.Trim(), "^" + heading, ""), rule);
         }
         MatchCollection periods = IssueBlockRegex.Matches(text);
-        string? verticalZodiac = ExtractVerticalIssueZodiac(lines, issue, rule);
-        if (verticalZodiac is not null)
-            return verticalZodiac;
         if (rule.Type == "琴棋书画")
             return ExtractMemberArts(lines, issue, rule);
         string? treasureDirection = ExtractTreasureDirections(lines, issue, rule);
@@ -2557,7 +2553,7 @@ public static class RuleEngine
         // Reviewed wrapped cards are handled below by TryExtractWrappedCardRow,
         // which consumes explicit neighbouring physical rows instead of TakeLast
         // data from an earlier issue.
-        if (rule.AllowNearbyValue && rule.Type == "生肖" && rule.Id != "骁腾杀肖")
+        if (rule.AllowNearbyValue && rule.Type == "生肖")
         {
             // This reviewed poster family owns its nearby-value parser. If that
             // parser cannot prove a value inside the selected issue block, stay
@@ -2817,45 +2813,6 @@ public static class RuleEngine
         };
     }
 
-    private static string? ExtractVerticalIssueZodiac(string[] lines, int issue, OcrRule rule)
-    {
-        if (rule.Folder != "骁腾系列" || rule.Type != "生肖" || !rule.AllowNearbyValue)
-            return null;
-
-        int headingIndex = Array.FindIndex(lines,
-            line => Normalize(line).Contains(Normalize(rule.RequiredKeyword ?? rule.Keyword), StringComparison.Ordinal));
-        int issueLabelIndex = headingIndex < 0 ? -1 : Array.FindIndex(lines, headingIndex + 1,
-            line => Regex.IsMatch(Normalize(line), "^期{2,}$"));
-        if (issueLabelIndex < 0)
-            return null;
-
-        string[] digitRows = lines.Skip(issueLabelIndex + 1)
-            .Select(line => Regex.Replace(line, @"\s+", ""))
-            .TakeWhile(line => Regex.IsMatch(line, @"^\d+$"))
-            .Take(6)
-            .ToArray();
-        if (digitRows.Length == 0 || digitRows.Any(row => row.Length != digitRows[0].Length))
-            return null;
-
-        int width = digitRows[0].Length;
-        string[] zodiacRows = lines.Skip(headingIndex + 1).Take(issueLabelIndex - headingIndex - 1)
-            .Select(line => Regex.Replace(SimplifyOcrText(line), @"\s+", ""))
-            .Where(line => line.Length == width && Regex.IsMatch(line, $"^[{Zodiac}]+$"))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        if (zodiacRows.Length != 1)
-            return null;
-
-        var values = new List<char>();
-        for (int column = 0; column < width; column++)
-        {
-            string issueText = string.Concat(digitRows.Reverse().Select(row => row[column]));
-            if (int.TryParse(issueText, out int actualIssue) && actualIssue == issue)
-                values.Add(zodiacRows[0][column]);
-        }
-        return values.Count == 0 ? null : values.Count == 1 ? values[0].ToString() : ConflictMarker;
-    }
-
     private static string? ExtractLeadingSplitNumberTable(
         string text, MatchCollection periods, int issue, OcrRule rule)
     {
@@ -2975,7 +2932,7 @@ public static class RuleEngine
             if (block.Length == 0)
                 return null;
         }
-        else if (rule.Folder is "各种杀" or "公式杀料" or "一套组合拳" or "骁腾系列" or "综合")
+        else if (rule.Folder is "各种杀" or "公式杀料" or "一套组合拳" or "综合")
         {
             block = ExtractDragonflyPayload(Regex.Replace(block, @"\s+", ""), rule);
             if (block == ConflictMarker)
@@ -3128,7 +3085,7 @@ public static class RuleEngine
             if (!rule.DedupeNumbers
                 && rule.Id is not ("藏宝十二码" or "雷锋" or "杀料五码")
                 && rule.Folder is not ("68" or "香奈儿" or "战狼" or "红人馆"
-                    or "各种杀" or "公式杀料" or "一套组合拳" or "骁腾系列")
+                    or "各种杀" or "公式杀料" or "一套组合拳")
                 && Regex.IsMatch(rawContainerBlock, @"[【\[（(]"))
             {
                 string raw = Regex.Replace(rawContainerBlock.Trim(), "^" + prefix + @"\s*", "");
@@ -3265,8 +3222,6 @@ public static class RuleEngine
             "红蜻蜓" => @"红蜻蜓必中(?:⑨|9)肖",
             "神奇宇宙" => @"神秘宇宙绝杀半波",
             "墨羽" => @"墨羽尘曦(?:精)?杀一肖",
-            "骁腾杀肖" => $@"杀一(?:肖|(?=《[{Zodiac}]》))",
-            "骁腾" => @"九肖",
             _ => "(?!)"
         };
         MatchCollection markers = Regex.Matches(block, pattern, RegexOptions.Singleline);

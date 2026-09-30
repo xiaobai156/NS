@@ -309,22 +309,6 @@ public sealed class LocalCandidatePlannerTests
     }
 
     [Fact]
-    public void FindsXiaotengKillZodiacWhenTheTitleAndCurrentIssueValueAreSplit()
-    {
-        OcrRule rule = Assert.Single(LoadRules("蜻蜓一套骁腾.json"), rule => rule.Id == "骁腾杀肖");
-        string image = Path.Combine("C:\\结果", "骁腾系列", "杀肖.jpg");
-        var results = new Dictionary<string, IReadOnlyList<string>>
-        {
-            [image] = ["横财杀喜肖", "245期：杀一肖《马》开：牛18准", "246期：杀一肖", "《龙》开：發00准"]
-        };
-
-        LocalCandidatePlan plan = Assert.Single(LocalCandidatePlanner.Build([image], results, [rule]));
-
-        Assert.Equal(image, plan.Path);
-        Assert.Equal(rule, Assert.Single(plan.Rules));
-    }
-
-    [Fact]
     public void FindsYongBuQiKillHeadUsingTheActualCardTitle()
     {
         OcrRule rule = Assert.Single(LoadRules("嫣然心水.json"), rule => rule.Id == "永卟弃杀头");

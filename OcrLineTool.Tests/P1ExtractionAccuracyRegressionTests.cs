@@ -62,7 +62,7 @@ public sealed class P1ExtractionAccuracyRegressionTests
     {
         Assert.Equal("鸡牛", RuleEngine.ExtractFinalValue(
             ["251期 (1+1)=杀【狗猴】；最终=杀【鸡牛】"], 251,
-            Rule("蜻蜓一套骁腾", "公式杀两肖肖")));
+            Rule("蜻蜓一套", "公式杀两肖肖")));
     }
 
     [Fact]

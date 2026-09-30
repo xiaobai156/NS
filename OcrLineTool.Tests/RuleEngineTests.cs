@@ -407,7 +407,7 @@ public sealed class RuleEngineTests
             new OcrRule("公式杀两肖", "生肖组合", "公式杀两肖肖", Folder: "公式杀料"),
             new OcrRule("公式杀两尾", "尾数组合", "公式杀两尾尾", Folder: "公式杀料")
         };
-        string image = Path.Combine("C:\\结果", "蜻蜓一套骁腾", "公式杀料", "sample.jpg");
+        string image = Path.Combine("C:\\结果", "蜻蜓一套", "公式杀料", "sample.jpg");
 
         IReadOnlyList<OcrRule> actual = RuleEngine.FindMatches(
             image,
@@ -986,27 +986,6 @@ public sealed class RuleEngineTests
 
         Assert.Equal("羊", RuleEngine.ExtractFinalValue(
             ["羊", "第246期", "六合彩大赛马会*六合彩*赛马会大六合彩"], 246, rule));
-    }
-
-    [Fact]
-    public void ExtractsXiaotengKillZodiacFromVerticalCloudOcrColumns()
-    {
-        string[] lines =
-        [
-            "准准准准准准准准准准准准", "921275799180", "331110240210",
-            "龙猪猴羊虎虎龙马狗狗牛發", "肖降", "横财杀一肖", "財源液滚", "回富",
-            "开开开开开开开开开开开开", "》》》》》》》》》》》》", "天降横財",
-            "鸡马牛虎龙鸡猪鼠猪兔马龙", "才貝", "肖肖肖肖肖肖肖肖肖肖肖肖",
-            "杀杀杀杀杀杀杀杀杀杀杀杀", "黄金万两", "□□□□□□□□□□□□□□□",
-            "期期期期期期期期期期期期", "456789012356", "333333444444", "222222222222"
-        ];
-        var rule = new OcrRule(
-            "骁腾杀一肖", "生肖", "骁腾杀肖", RequiredKeyword: "杀一肖",
-            Folder: "骁腾系列", AllowNearbyValue: true, StrictIssueBlock: true);
-
-        Assert.Equal("龙", RuleEngine.ExtractFinalValue(lines, 246, rule));
-        Assert.Equal("马", RuleEngine.ExtractFinalValue(lines, 245, rule));
-        Assert.Null(RuleEngine.ExtractFinalValue(lines, 244, rule));
     }
 
     [Fact]
