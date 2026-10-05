@@ -66,6 +66,73 @@ public sealed class HuangdaxianRuleHardeningTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BaoYeReadsRecordedLocalAndCloudTextWithLaiOpening(bool cloud)
+    {
+        OcrRule rule = Assert.Single(Rules, rule => rule.Id == "68宝爷");
+        // Recorded OCR of 20261005_185016_44adf36a_186721.jpg, checked against
+        // the original image: the second row's answer is 牛, followed by 来√.
+        string[] lines = cloud
+            ? ["资", "料", "公", "平", "公", "正", "对", "错", "不", "\u001e",
+               "队278期宝爷杀一肖牛来", "\u001e", "改新澳资料料", "\u001e",
+               "6 8团队原创之宝", "\u001e", "68", "\u001e",
+               "团277期宝爷杀一肖龙来猴六", "\u001e",
+               "期期实战招女欢迎各位原创大神", "\u001e", "团队", "\u001e",
+               "八", "\u001e", "团队招男"]
+            : ["68", "团队", "68团队原创之宝爷", "团队资料", "277期",
+               "宝爷杀一肖【龙】来猴", "六八团队", "278期", "宝爷杀一肖【牛】来√",
+               "公平", "招男", "公正", "招女", "期期实战", "欢迎各位", "对错不改",
+               "原创大神", "新澳资料"];
+
+        Assert.Equal("牛", RuleEngine.ExtractValue(lines, 278, rule));
+        Assert.Equal("牛", RuleEngine.ExtractFinalValue(lines, 278, rule));
+        Assert.Equal("龙", RuleEngine.ExtractFinalValue(lines, 277, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 279, rule));
+    }
+
+    [Theory]
+    [InlineData(7, "鼠", "来√")]
+    [InlineData(279, "兔", "来猴×")]
+    [InlineData(1001, "蛇", "来？00")]
+    public void BaoYeLaiOpeningUsesDynamicIssueAndValue(int issue, string zodiac, string opening)
+    {
+        OcrRule rule = Assert.Single(Rules, rule => rule.Id == "68宝爷");
+        string[] lines = ["68团队原创之宝爷", $"{issue - 1}期宝爷杀一肖【鸡】来牛√",
+            $"{issue}期宝爷杀一肖【{zodiac}】{opening}", "公平公正", "新澳资料"];
+
+        Assert.Equal(zodiac, RuleEngine.ExtractFinalValue(lines, issue, rule));
+        Assert.Equal([$"{zodiac} 68宝爷"], RuleEngine.FormatOutput([rule],
+            new Dictionary<string, string> { [rule.Id] = RuleEngine.ExtractFinalValue(lines, issue, rule)! }));
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, issue + 1, rule));
+    }
+
+    [Theory]
+    [InlineData("【牛兔】来猴√")]
+    [InlineData("【牛牛】来猴√")]
+    [InlineData("【?】来牛√")]
+    [InlineData("【牛?】来猴√")]
+    [InlineData("【牛A】来猴√")]
+    [InlineData("【牛】兔来猴√")]
+    [InlineData("【牛】【兔】来猴√")]
+    [InlineData("【牛来兔】")]
+    [InlineData("【】来牛√")]
+    public void BaoYeLaiOpeningCannotHideInvalidAnswersOrSupplyAnAnswer(string payload)
+    {
+        OcrRule rule = Assert.Single(Rules, rule => rule.Id == "68宝爷");
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["68团队原创之宝爷", $"279期宝爷杀一肖{payload}"], 279, rule));
+    }
+
+    [Fact]
+    public void BaoYeDifferentCompleteAnswersForSameIssueRemainConflict()
+    {
+        OcrRule rule = Assert.Single(Rules, rule => rule.Id == "68宝爷");
+        string[] lines = ["279期宝爷杀一肖【牛】来猴√", "279期宝爷杀一肖【兔】来√"];
+        Assert.Equal(RuleExtractionStatus.Conflict, RuleEngine.ExtractFinalResult(lines, 279, rule).Status);
+    }
+
     [Fact]
     public void ZhanLangJiuDianDeduplicatesPrintedDuplicates()
     {

@@ -3336,6 +3336,14 @@ public static class RuleEngine
         if (!marker.Success)
             return string.Empty;
         string payload = block[(marker.Index + marker.Length)..];
+        if (rule.Id == "68宝爷")
+        {
+            // This card prints 来 before the opening result. Require a complete
+            // answer before it; 来 inside a broken answer must not truncate it.
+            Match answer = Regex.Match(payload, $@"\A(?<answer>【[{Zodiac}]】|[{Zodiac}])来");
+            if (answer.Success)
+                return answer.Groups["answer"].Value;
+        }
         if (rule.Id == "68凯哥")
             payload = Regex.Split(payload, @"来")[0];
         if (rule.Id == "香奈肖肖")
