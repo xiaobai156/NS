@@ -102,6 +102,7 @@ public sealed class MainForm : Form
     };
     private readonly System.Windows.Forms.Timer dateTimer = new() { Interval = 60_000 };
     private readonly System.Windows.Forms.Timer folderRefreshTimer = new() { Interval = 2_000 };
+    private readonly System.Windows.Forms.Timer automaticLocalOcrTimer = new() { Interval = 2_000 };
     private readonly System.Windows.Forms.Timer recognitionTimer = new() { Interval = 1_000 };
     private readonly Stopwatch recognitionWatch = new();
     // 复抓按阶段显示进度：阶段计时独立于总耗时，阶段切换或阶段结束都会让旧阶段的回调失效。
@@ -139,6 +140,10 @@ public sealed class MainForm : Form
     private LocalOcrDevice ocrDevice;
     private TableLayoutPanel? settingsContent;
     private bool closeWhenIdle;
+    private bool automaticLocalOcrRunning;
+    private bool automaticOcrDiscoveryRunning;
+    private bool settingsDialogOpen;
+    private readonly AutomaticOcrReadiness automaticOcrReadiness = new();
     private CancellationTokenSource? activeCancellation;
     private CancellationToken ActiveToken => activeCancellation?.Token ?? CancellationToken.None;
 
@@ -219,7 +224,10 @@ public sealed class MainForm : Form
         RefreshFolderList(null, EventArgs.Empty);
         folderRefreshTimer.Tick += RefreshFolderList;
         folderRefreshTimer.Start();
+        automaticLocalOcrTimer.Tick += async (_, _) => await TryStartVisibleAutomaticLocalOcrAsync();
+        automaticLocalOcrTimer.Start();
         recognitionTimer.Tick += (_, _) => UpdateRecognitionTiming();
+        _ = TryStartVisibleAutomaticLocalOcrAsync();
     }
 
     private static Control BuildAppHeader()
@@ -988,7 +996,7 @@ public sealed class MainForm : Form
         await RunLocalPrimaryRecognitionAsync();
     }
 
-    private async Task RunLocalPrimaryRecognitionAsync()
+    private async Task RunLocalPrimaryRecognitionAsync(bool allowCloudFallback = true, bool automatic = false)
     {
         int issue = Decimal.ToInt32(issueInput.Value);
         string? temporaryCropFolder = null;
@@ -1065,7 +1073,7 @@ public sealed class MainForm : Form
                 // N 卡版本没有 CUDA 时必须停止，不能把整批任务伪装成云 OCR 完成。
                 throw;
             }
-            catch (OcrException exception)
+            catch (OcrException exception) when (allowCloudFallback)
             {
                 statusLabel.Text = $"本地主识别失败，准备云 OCR 兜底：{exception.Message}";
             }
@@ -1114,12 +1122,15 @@ public sealed class MainForm : Form
             if (detectedIssue is not null)
             {
                 statusLabel.Text = $"已停止：图片主要为 {detectedIssue}期，软件当前选择 {issue}期。";
-                MessageBox.Show(
-                    this,
-                    $"软件当前选择：{issue}期{Environment.NewLine}本地 OCR 前10张图片主要识别到：{detectedIssue}期{Environment.NewLine}图片期数与软件期数不一致，已停止本地主识别。请修改期数后重新开始。",
-                    "期数不一致",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
+                if (!automatic)
+                {
+                    MessageBox.Show(
+                        this,
+                        $"软件当前选择：{issue}期{Environment.NewLine}本地 OCR 前10张图片主要识别到：{detectedIssue}期{Environment.NewLine}图片期数与软件期数不一致，已停止本地主识别。请修改期数后重新开始。",
+                        "期数不一致",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                }
                 return;
             }
 
@@ -1139,7 +1150,8 @@ public sealed class MainForm : Form
                     AddCloudRule(candidate.SourcePath, candidate.OcrPath, rule);
             }
 
-            var cloudCandidates = cloudRulesByPath
+            var cloudCandidates = allowCloudFallback
+                ? cloudRulesByPath
                 .Select(item =>
                 {
                     IReadOnlyList<OcrRule> candidateRules = item.Value;
@@ -1158,7 +1170,8 @@ public sealed class MainForm : Form
                         LocalLines = lines ?? []
                     };
                 })
-                .ToArray();
+                .ToArray()
+                : [];
 
             // 新模式的兜底必须按本模式的原图/杰少压缩图重新请求，不能复用旧模式的裁剪云缓存。
             lastCloudOcrResults = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
@@ -1414,7 +1427,10 @@ public sealed class MainForm : Form
             lastEvidenceLedger = evidenceLedger;
             lastIssue = issue;
             SetProgress(1, 1);
-            statusLabel.Text = $"本地主识别完成{(rules.Count == values.Count ? "" : "，但有缺失")}：目录 {imagePaths.Length} 张，本地优先，云 OCR 兜底 {cloudRequests} 次，提取 {values.Count} 条，缺失 {rules.Count - values.Count} 条，已写群结果（未自动分流）。群TXT：{groupOutputPath}；{OcrDiagnostics.StatusSuffix(diagnosticPath, diagnosticError)}";
+            string fallbackText = allowCloudFallback
+                ? $"云 OCR 兜底 {cloudRequests} 次"
+                : "未调用云 OCR";
+            statusLabel.Text = $"本地主识别完成{(rules.Count == values.Count ? "" : "，但有缺失")}：目录 {imagePaths.Length} 张，本地优先，{fallbackText}，提取 {values.Count} 条，缺失 {rules.Count - values.Count} 条，已写群结果（未自动分流）。群TXT：{groupOutputPath}；{OcrDiagnostics.StatusSuffix(diagnosticPath, diagnosticError)}";
         }
         catch (OperationCanceledException)
         {
@@ -1423,18 +1439,21 @@ public sealed class MainForm : Form
         catch (OcrException exception) when (PaddleLocalOcrClient.IsCudaUnavailable(exception))
         {
             statusLabel.Text = "GPU 本地 OCR 不可用，请在“设置”中手动切换 CPU。";
-            MessageBox.Show(this, exception.Message, "GPU 不可用", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            if (!automatic)
+                MessageBox.Show(this, exception.Message, "GPU 不可用", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
         catch (OcrException exception)
         {
             statusLabel.Text = "本地主识别失败。";
-            MessageBox.Show(this, exception.Message, "本地主识别失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            if (!automatic)
+                MessageBox.Show(this, exception.Message, "本地主识别失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
         catch (Exception exception)
         {
             OperationLog.AppendException(AppContext.BaseDirectory, "本地主识别", RuleCatalog.BaseGroupName(selectedImageDirectory ?? ""), issue, exception);
             statusLabel.Text = "本地主识别失败。";
-            MessageBox.Show(this, "发生未预期错误，请关闭软件后重试。", "本地主识别失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            if (!automatic)
+                MessageBox.Show(this, "发生未预期错误，请关闭软件后重试。", "本地主识别失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally
         {
@@ -1445,6 +1464,187 @@ public sealed class MainForm : Form
             StopRecognitionTiming();
             SetBusy(false);
             RefreshCredentialLabel();
+        }
+    }
+
+    private async Task TryStartVisibleAutomaticLocalOcrAsync()
+    {
+        if (isBusy || automaticLocalOcrRunning || automaticOcrDiscoveryRunning || settingsDialogOpen || IsDisposed)
+            return;
+
+        AutoLocalOcrSettings settings = AutoLocalOcrSettings.Load(AppContext.BaseDirectory);
+        if (!settings.Enabled)
+        {
+            automaticOcrReadiness.Clear();
+            return;
+        }
+
+        automaticOcrDiscoveryRunning = true;
+        try
+        {
+            var skipped = new List<string>();
+            IReadOnlyList<(string Folder, string Group, string Signature)> visible =
+                await Task.Run(() => FindVisibleAutomaticGroups(
+                    AppContext.BaseDirectory, imageRootDirectory, skipped.Add));
+            AutoLocalOcrSettings latestSettings = AutoLocalOcrSettings.Load(AppContext.BaseDirectory);
+            if (IsDisposed || isBusy || automaticLocalOcrRunning || settingsDialogOpen || !latestSettings.Enabled)
+                return;
+            settings = latestSettings;
+            // The scan and rule loading run in the background. Start the one-minute
+            // stability window from the moment the complete snapshot is available,
+            // not from before the scan began.
+            DateTime now = CredentialSchedule.NowInBeijing();
+
+            if (skipped.Count > 0)
+                statusLabel.Text = skipped[^1];
+
+            automaticOcrReadiness.KeepOnly(visible.Select(item => item.Folder)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase));
+
+            foreach ((string folder, string group, string signature) in visible)
+            {
+                if (settings.HasRunToday(group, now))
+                    continue;
+
+                if (!automaticOcrReadiness.IsStable(folder, signature, now))
+                {
+                    statusLabel.Text = $"自动本地 OCR 等待图片稳定：{group}（还需满 1 分钟）";
+                    continue;
+                }
+
+                if (isBusy || automaticLocalOcrRunning || settingsDialogOpen ||
+                    !settings.TryClaimVisibleGroup(group, now))
+                    continue;
+
+                try
+                {
+                    settings.Save(AppContext.BaseDirectory);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    statusLabel.Text = "自动本地 OCR 执行记录保存失败，已跳过本次任务。";
+                    return;
+                }
+
+                automaticLocalOcrRunning = true;
+                _ = RunAutomaticLocalOcrAsync(folder, group);
+                return;
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or OcrException)
+        {
+            statusLabel.Text = "自动本地 OCR 扫描资料群失败，稍后自动重试。";
+        }
+        finally
+        {
+            automaticOcrDiscoveryRunning = false;
+        }
+    }
+
+    internal static IReadOnlyList<(string Folder, string Group, string Signature)> FindVisibleAutomaticGroups(
+        string appDirectory,
+        string imageRootDirectory,
+        Action<string>? onSkip = null)
+    {
+        string[] folders;
+        try
+        {
+            folders = ImageFolderScanner.ListSubfolders(imageRootDirectory);
+        }
+        catch (Exception exception) when (exception is OcrException or IOException or UnauthorizedAccessException or JsonException)
+        {
+            return [];
+        }
+
+        IReadOnlyDictionary<string, string> groups;
+        try
+        {
+            groups = RuleCatalog.GroupNamesForFolders(appDirectory, folders);
+        }
+        catch (Exception exception) when (exception is OcrException or IOException or UnauthorizedAccessException or JsonException)
+        {
+            return [];
+        }
+
+        var visible = new List<(string Folder, string Group, string Signature)>();
+        foreach (string folder in folders)
+        {
+            string? matchedGroup = null;
+            try
+            {
+                string group = groups[folder];
+                matchedGroup = group;
+                if (!AutoLocalOcrSettings.IsVisibleAutomaticGroup(group))
+                    continue;
+
+                string rulePath = RuleCatalog.PathForFolder(appDirectory, folder);
+                string[] imagePaths = ImageFolderScanner.Scan(folder);
+                if (imagePaths.Length == 0 || !File.Exists(rulePath))
+                    continue;
+
+                _ = RuleCatalog.Load(rulePath);
+                visible.Add((folder, group, BuildImageSignature(imagePaths)));
+            }
+            catch (Exception exception) when (exception is OcrException or IOException or UnauthorizedAccessException or JsonException or ArgumentException or KeyNotFoundException or FormatException)
+            {
+                onSkip?.Invoke($"自动本地 OCR 已跳过 {matchedGroup ?? Path.GetFileName(folder)}：图片或规则不可用。健康群仍会继续检查。");
+            }
+        }
+        return visible;
+    }
+
+    private static string BuildImageSignature(IEnumerable<string> imagePaths)
+    {
+        var builder = new StringBuilder();
+        foreach (string path in imagePaths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
+        {
+            FileInfo info = new(path);
+            builder.Append(path).Append('|')
+                .Append(info.Length).Append('|')
+                .Append(info.LastWriteTimeUtc.Ticks).Append('\n');
+        }
+        return builder.ToString();
+    }
+
+    private async Task RunAutomaticLocalOcrAsync(string folder, string group)
+    {
+        try
+        {
+            string[] paths = ImageFolderScanner.Scan(folder);
+            selectedImageDirectory = folder;
+            selectedRulePath = RuleCatalog.PathForFolder(AppContext.BaseDirectory, folder);
+            imagePaths = paths;
+            folderNameLabel.Text = Path.GetFileName(folder);
+            folderList.SelectedIndex = Array.FindIndex(
+                folderList.Items.Cast<DirectoryInfo>().Select(item => item.FullName).ToArray(),
+                path => path.Equals(folder, StringComparison.OrdinalIgnoreCase));
+            ClearRetryState();
+            LoadExistingGroupResult();
+            if (paths.Length == 0 || !File.Exists(selectedRulePath))
+            {
+                statusLabel.Text = $"自动本地 OCR 已跳过：{group} 没有可识别图片或规则文件。";
+                return;
+            }
+
+            ShowPreview(paths[0]);
+            SetProgress(0, paths.Length);
+            statusLabel.Text = $"自动本地 OCR：{group}";
+            await RunLocalPrimaryRecognitionAsync(allowCloudFallback: true, automatic: true);
+        }
+        catch (OcrException exception)
+        {
+            statusLabel.Text = $"自动本地 OCR 失败：{group}；{exception.Message}";
+        }
+        catch (Exception exception)
+        {
+            OperationLog.AppendException(AppContext.BaseDirectory, "自动本地 OCR", group,
+                Decimal.ToInt32(issueInput.Value), exception);
+            statusLabel.Text = $"自动本地 OCR 失败：{group}。";
+        }
+        finally
+        {
+            automaticLocalOcrRunning = false;
+            RefreshFolderResultMarkers();
         }
     }
 
@@ -3950,28 +4150,39 @@ public sealed class MainForm : Form
 
     private void OpenSettings(object? sender, EventArgs e)
     {
-        using var dialog = new SettingsForm(new UiSettings(showRecognizeButton, retryUsesLocalOcr, ocrDevice));
-        if (dialog.ShowDialog(this) != DialogResult.OK)
+        if (settingsDialogOpen || isBusy || automaticLocalOcrRunning || automaticOcrDiscoveryRunning)
             return;
 
+        settingsDialogOpen = true;
         try
         {
-            UiSettings.Save(AppContext.BaseDirectory, dialog.Result);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            statusLabel.Text = "设置保存失败，未应用更改。";
-            MessageBox.Show(this, exception.Message, "设置保存失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
+            using var dialog = new SettingsForm(new UiSettings(showRecognizeButton, retryUsesLocalOcr, ocrDevice), AppContext.BaseDirectory);
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+                return;
 
-        ApplyShowRecognizeButton(dialog.Result.ShowRecognizeButton);
-        retryUsesLocalOcr = dialog.Result.RetryUsesLocalOcr;
-        ocrDevice = dialog.Result.OcrDevice;
-        string deviceName = ocrDevice == LocalOcrDevice.Gpu ? "GPU" : "CPU";
-        statusLabel.Text = showRecognizeButton
-            ? $"已显示“开始识别”按钮；本地 OCR 使用{deviceName}，手动复抓使用{(retryUsesLocalOcr ? "本地 OCR" : "云 OCR")}。"
-            : $"已隐藏“开始识别”按钮；本地 OCR 使用{deviceName}，手动复抓使用{(retryUsesLocalOcr ? "本地 OCR" : "云 OCR")}。";
+            try
+            {
+                UiSettings.Save(AppContext.BaseDirectory, dialog.Result);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                statusLabel.Text = "设置保存失败，未应用更改。";
+                MessageBox.Show(this, exception.Message, "设置保存失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            ApplyShowRecognizeButton(dialog.Result.ShowRecognizeButton);
+            retryUsesLocalOcr = dialog.Result.RetryUsesLocalOcr;
+            ocrDevice = dialog.Result.OcrDevice;
+            string deviceName = ocrDevice == LocalOcrDevice.Gpu ? "GPU" : "CPU";
+            statusLabel.Text = showRecognizeButton
+                ? $"已显示“开始识别”按钮；本地 OCR 使用{deviceName}，手动复抓使用{(retryUsesLocalOcr ? "本地 OCR" : "云 OCR")}。"
+                : $"已隐藏“开始识别”按钮；本地 OCR 使用{deviceName}，手动复抓使用{(retryUsesLocalOcr ? "本地 OCR" : "云 OCR")}。";
+        }
+        finally
+        {
+            settingsDialogOpen = false;
+        }
     }
 
     internal void ApplyShowRecognizeButton(bool visible)
@@ -4461,6 +4672,7 @@ public sealed class MainForm : Form
             activeCancellation = null;
             dateTimer.Dispose();
             folderRefreshTimer.Dispose();
+            automaticLocalOcrTimer.Dispose();
             recognitionTimer.Dispose();
             preview.Image?.Dispose();
         }

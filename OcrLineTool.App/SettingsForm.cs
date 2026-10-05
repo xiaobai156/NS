@@ -90,12 +90,27 @@ internal sealed class SettingsForm : Form
 
     private readonly Button saveButton = new DarkButton() { Text = "保存" };
     private readonly Button cancelButton = new DarkButton() { Text = "取消" };
+    private readonly CheckBox autoVisibleLocalOcrCheckBox = new()
+    {
+        Name = "autoVisibleLocalOcr",
+        Text = "资料群出现后自动本地主识别（五个群，图片稳定 1 分钟后执行）",
+        AutoSize = true,
+        ForeColor = MainForm.PrimaryText,
+        BackColor = MainForm.CardBackground,
+        FlatStyle = FlatStyle.Flat,
+        AccessibleName = "资料群出现后自动本地主识别"
+    };
+    private readonly string appDirectory;
 
     internal UiSettings Result { get; private set; }
 
-    internal SettingsForm(UiSettings current)
+    internal SettingsForm(UiSettings current) : this(current, AppContext.BaseDirectory) { }
+
+    internal SettingsForm(UiSettings current, string appDirectory)
     {
+        this.appDirectory = appDirectory;
         Result = current;
+        autoVisibleLocalOcrCheckBox.Checked = AutoLocalOcrSettings.Load(appDirectory).Enabled;
         showRecognizeCheckBox.Checked = current.ShowRecognizeButton;
         retryLocalOcrRadio.Checked = current.RetryUsesLocalOcr;
         retryCloudOcrRadio.Checked = !current.RetryUsesLocalOcr;
@@ -112,19 +127,20 @@ internal sealed class SettingsForm : Form
         ForeColor = MainForm.PrimaryText;
         Font = new Font("Microsoft YaHei UI", 10F);
         AutoScaleMode = AutoScaleMode.Dpi;
-        ClientSize = new Size(620, 390);
+        ClientSize = new Size(620, 440);
 
         var layout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 6,
+            RowCount = 7,
             Padding = new Padding(20, 18, 20, 18),
             BackColor = MainForm.WindowBackground,
             Margin = Padding.Empty
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
@@ -177,6 +193,16 @@ internal sealed class SettingsForm : Form
         localOcrHost.Controls.Add(localOcrGpuRadio);
         localOcrHost.Controls.Add(localOcrCpuRadio);
 
+        var autoHost = new Panel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = MainForm.CardBackground,
+            Padding = new Padding(12, 5, 12, 5),
+            Margin = Padding.Empty
+        };
+        autoVisibleLocalOcrCheckBox.Location = new Point(12, 6);
+        autoHost.Controls.Add(autoVisibleLocalOcrCheckBox);
+
         var buttonHost = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -196,6 +222,19 @@ internal sealed class SettingsForm : Form
         };
         saveButton.Click += (_, _) =>
         {
+            try
+            {
+                AutoLocalOcrSettings autoSettings = AutoLocalOcrSettings.Load(appDirectory);
+                autoSettings.Enabled = autoVisibleLocalOcrCheckBox.Checked;
+                autoSettings.Save(appDirectory);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                MessageBox.Show(this, exception.Message, "自动本地 OCR 设置保存失败",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             Result = new UiSettings(
                 showRecognizeCheckBox.Checked,
                 retryLocalOcrRadio.Checked,
@@ -210,8 +249,9 @@ internal sealed class SettingsForm : Form
         layout.Controls.Add(checkHost, 0, 1);
         layout.Controls.Add(retryHost, 0, 2);
         layout.Controls.Add(localOcrHost, 0, 3);
-        layout.Controls.Add(hintLabel, 0, 4);
-        layout.Controls.Add(buttonHost, 0, 5);
+        layout.Controls.Add(autoHost, 0, 4);
+        layout.Controls.Add(hintLabel, 0, 5);
+        layout.Controls.Add(buttonHost, 0, 6);
         Controls.Add(layout);
         AcceptButton = saveButton;
         CancelButton = cancelButton;

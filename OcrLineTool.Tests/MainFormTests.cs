@@ -1488,7 +1488,9 @@ public sealed class MainFormTests
     public void SettingsDialogReturnsTheChosenVisibility()
     {
         using var dialog = new SettingsForm(new UiSettings(false));
-        CheckBox box = Assert.Single(Descendants(dialog).OfType<CheckBox>());
+        CheckBox box = Assert.Single(
+            Descendants(dialog).OfType<CheckBox>(),
+            candidate => candidate.Name == "showRecognizeButton");
         Assert.False(box.Checked);
 
         box.Checked = true;
