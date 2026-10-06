@@ -7,6 +7,86 @@ namespace OcrLineTool.Tests;
 public sealed class YanranRealImageTests(ITestOutputHelper output)
 {
     [YanranRealImageTheory]
+    [InlineData(1)]
+    public async Task SharedTailAndSummaryAuthorUseFreshGpuOcr(int deviceNumber)
+    {
+        string root = Environment.GetEnvironmentVariable("OCR_YANRAN_SAMPLE_DIRECTORY")!;
+        string report = Environment.GetEnvironmentVariable("OCR_YANRAN_REPORT_DIRECTORY")!;
+        Directory.CreateDirectory(report);
+        var catalog = RuleCatalog.Load(Path.Combine(
+            ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
+        OcrRule[] rules = catalog.Where(rule => rule.Id is "紫燕儿尾" or "月来月好").ToArray();
+        var expected = new Dictionary<string, (string File, string Value)>
+        {
+            ["紫燕儿尾"] = ("20261006_124422_aaa2aa2d_90968.jpg", "1尾"),
+            ["月来月好"] = ("20261006_190855_aaa2aa2d_91155.jpg", "猴")
+        };
+        string[] paths = rules.Select(rule => rule.Folder!).Distinct()
+            .SelectMany(folder => Directory.GetFiles(Path.Combine(root, folder), "*.jpg"))
+            .Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        var initialHashes = paths.ToDictionary(path => path, path => LocalOcrIdentity.Image(path));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+        var client = new PaddleLocalOcrClient(new SystemProcessRunner(),
+            Path.Combine(report, "fresh-gpu-cache.json"), (LocalOcrDevice)deviceNumber);
+        var small = await client.RecognizeBatchAsync(paths, useCache: false,
+            detectionMaxSide: PaddleLocalOcrClient.DetectionMaxSideFor(root), cancellationToken: timeout.Token);
+        await File.WriteAllTextAsync(Path.Combine(report, "small.json"), JsonSerializer.Serialize(small));
+        Assert.Empty(client.LastImageErrors);
+        var plans = LocalCandidatePlanner.Build(paths, small, rules, 279, catalog);
+        foreach (var rule in rules)
+        {
+            var plan = Assert.Single(plans, plan => plan.Rules.Any(item => item.Id == rule.Id));
+            Assert.Equal(expected[rule.Id].File, Path.GetFileName(plan.Path));
+            output.WriteLine($"GPU selected {rule.Id}: {Path.GetFileName(plan.Path)}");
+        }
+        await client.RecognizeBatchAsync(plans.Select(plan => plan.Path).ToArray(),
+            useCache: false, model: PaddleOcrModel.Medium, cancellationToken: timeout.Token);
+        Assert.Empty(client.LastImageErrors);
+        var evidence = client.LastEvidence.ToDictionary(pair => pair.Key, pair => pair.Value.Bind(
+            OcrEvidenceIdentity.Capture(pair.Key, pair.Key, "local-primary/medium")));
+        await File.WriteAllTextAsync(Path.Combine(report, "medium.json"), JsonSerializer.Serialize(evidence));
+        var values = new ResultValues(StringComparer.Ordinal);
+        var ledger = new ResultEvidenceLedger();
+        foreach (var plan in plans)
+            MainForm.AddExtractedEvidenceValues(evidence[plan.Path], plan.Rules, 279, values, ledger);
+        Assert.Empty(values.Conflicts);
+
+        OcrRule monthly = rules.Single(rule => rule.Id == "月来月好");
+        if (!values.ContainsKey(monthly.Id))
+        {
+            string source = Assert.Single(plans, plan => plan.Rules.Any(rule => rule.Id == monthly.Id)).Path;
+            var request = new SummaryRowRecoveryRequest(source, monthly, SummaryRowRecoveryKind.Summary);
+            var recovery = await SummaryRowRecovery.TryRecoverBatchAsync(client, [request], catalog, 279,
+                1.0, PaddleLocalOcrClient.DetectionMaxSideFor(root), timeout.Token);
+            await File.WriteAllTextAsync(Path.Combine(report, "summary-recovery.json"), JsonSerializer.Serialize(
+                recovery.Select(pair => new { Request = pair.Key, Result = pair.Value })));
+            SummaryRowRecoveryResult recovered = Assert.Single(recovery).Value;
+            Assert.Equal(initialHashes[source], recovered.SourceHash);
+            Assert.Equal("猴", recovered.Value);
+            Assert.Equal(recovered.Value,
+                RuleEngine.ExtractSummaryRowZodiacFromStrip(recovered.StripLines, monthly, catalog));
+            values.Add(monthly.Id, recovered.Value);
+            output.WriteLine($"GPU {monthly.Id} own row: {string.Join(" / ", recovered.StripLines)}");
+        }
+        foreach (var rule in rules)
+        {
+            Assert.Equal(expected[rule.Id].Value, values.GetValueOrDefault(rule.Id));
+            output.WriteLine($"GPU result {rule.Id}: {values[rule.Id]}");
+        }
+        OcrRule tail = rules.Single(rule => rule.Id == "紫燕儿尾");
+        var tailEvidence = evidence[Assert.Single(plans, plan => plan.Rules.Any(rule => rule.Id == tail.Id)).Path];
+        Assert.Equal("0尾", RuleEngine.ExtractFinalValue(tailEvidence, 278, tail));
+        Assert.Equal("3尾", RuleEngine.ExtractFinalValue(tailEvidence, 275, tail));
+        Assert.Null(RuleEngine.ExtractFinalValue(tailEvidence, 280, tail));
+        Assert.All(initialHashes, pair => Assert.Equal(pair.Value, LocalOcrIdentity.Image(pair.Key)));
+        await File.WriteAllTextAsync(Path.Combine(report, "results.json"), JsonSerializer.Serialize(new
+        {
+            Device = "gpu:0", Issue = 279, Values = values, Sources = initialHashes,
+            AdditionalTailChecks = new { Issue278 = "0尾", Issue275 = "3尾", Issue280 = "MISSING" }
+        }, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    [YanranRealImageTheory]
     [InlineData(0)]
     [InlineData(1)]
     public async Task ZiyanerTailUsesTheTitlelessRealCard(int deviceNumber)

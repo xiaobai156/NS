@@ -8,6 +8,40 @@ namespace OcrLineTool.Tests;
 
 public sealed class SummaryRowBatchTests
 {
+    [Fact]
+    public async Task NamesWithoutZhengReachCropRecoveryAndTheEvidenceLedger()
+    {
+        using var files = new BatchFixture(SummaryRowRecoveryKind.Summary);
+        files.Runner.OmitLocatorZheng = true;
+        files.Runner.OnStrips = () =>
+        {
+            foreach (string path in files.Runner.Inputs[^1])
+            {
+                using var crop = new Bitmap(path);
+                Assert.Equal(80, crop.Height); // 0.8 * 50-pixel pitch, enlarged 2x.
+            }
+        };
+        var recovered = await SummaryRowRecovery.TryRecoverBatchAsync(files.Client, files.Requests,
+            files.Rules, 267, 1, null, default);
+        Assert.Equal(2, files.Runner.Inputs.Count);
+        Assert.Equal(2, recovered.Count);
+        var values = new ResultValues(StringComparer.Ordinal);
+        var ledger = new ResultEvidenceLedger();
+        foreach (var (request, result) in recovered)
+        {
+            var identity = new OcrEvidenceIdentity(request.ImagePath, request.ImagePath,
+                result.SourceHash, result.SourceHash, request.ViewId);
+            identity.EnsureCurrent();
+            ledger.Observe(values, request.Rule, result.Value,
+                OcrEvidence.FromLines(request.ImagePath, result.StripLines, request.ViewId).Bind(identity));
+            Assert.Equal(result.SourceHash, ledger.Records[request.Rule.Id].SourceHash);
+            Assert.Equal(request.ViewId, ledger.Records[request.Rule.Id].ViewId);
+        }
+        Assert.Empty(values.Conflicts);
+        Assert.Equal("虎", values[files.Requests[0].Rule.Id]);
+        Assert.Equal("羊", values[files.Requests[1].Rule.Id]);
+    }
+
     [Theory]
     [InlineData((int)SummaryRowRecoveryKind.Summary, false)]
     [InlineData((int)SummaryRowRecoveryKind.IssueZodiac, false)]
@@ -170,6 +204,7 @@ public sealed class SummaryRowBatchTests
         public List<string> Arguments { get; } = [];
         public bool RequireStandardDetection { get; set; }
         public bool FailFirstBatch { get; set; }
+        public bool OmitLocatorZheng { get; set; }
         public Action? OnStrips { get; set; }
 
         public Task<ProcessResult> RunAsync(
@@ -205,6 +240,8 @@ public sealed class SummaryRowBatchTests
                         SummaryRowRecoveryKind.IssueNumbers => [index == 0 ? "267期禁01.02.03" : "267期禁04.05.06"],
                         _ => [index == 0 ? "267期禁虎" : "267期禁羊"]
                     };
+                if (!strips && OmitLocatorZheng)
+                    texts = texts.Select(text => text.Replace(" 正正正", "", StringComparison.Ordinal)).ToArray();
                 var items = texts.Select((text, row) => new { text, box = new[] { 20, 100 + row * 50, 180, 24 }, confidence = 0.99, viewId = "original" });
                 return new { path, texts, items };
             }).Reverse().ToArray();

@@ -223,16 +223,33 @@ internal static class SummaryRowRecovery
         ? !PaddleLocalOcrClient.IsCudaUnavailable(ocr)
         : exception is IOException or UnauthorizedAccessException;
 
-    private static (int Top, int Height)? ComputeSummaryBand(IReadOnlyList<OcrLineEvidence> items, OcrRule rule)
+    internal static (int Top, int Height)? ComputeSummaryBand(IReadOnlyList<OcrLineEvidence> items, OcrRule rule)
     {
         string own = RuleCatalog.NormalizeGroupName(rule.Keyword);
         string label = string.IsNullOrWhiteSpace(rule.Label) ? string.Empty : RuleCatalog.NormalizeGroupName(rule.Label);
-        OcrLineEvidence[] rows = items.Where(item => item.Box is not null && item.Text.Contains('正', StringComparison.Ordinal)).ToArray();
-        if (rows.Length < 2)
+        // Circled 正 marks are optional OCR observations, not author identity.
+        // Locate the unique horizontal name and measure aligned author rows;
+        // a merged vertical zodiac column must never influence the row pitch.
+        OcrLineEvidence[] ownRows = items.Where(item => item.Box is { Height: > 0 } box
+            && box.Width > box.Height
+            && ContainsName(RuleCatalog.NormalizeGroupName(item.Text), own, label)).ToArray();
+        if (ownRows.Length != 1)
             return null;
-        int[] centers = rows.Select(item => (int)Math.Round(item.Box!.CenterY)).Order().ToArray();
-        OcrLineEvidence[] ownRows = rows.Where(item => ContainsName(RuleCatalog.NormalizeGroupName(item.Text), own, label)).ToArray();
-        return ownRows.Length == 1 ? ComputeBand(centers, (int)Math.Round(ownRows[0].Box!.CenterY)) : null;
+        OcrLineEvidence anchor = ownRows[0];
+        OcrBox ownBox = anchor.Box!;
+        int targetCenter = (int)Math.Round(ownBox.CenterY);
+        int[] centers = items.Where(item => item.Box is { Height: > 0 } box
+            && item.ViewId == anchor.ViewId && box.Width > box.Height
+            && box.Height >= ownBox.Height / 2d && box.Height <= ownBox.Height * 2d
+            && Math.Abs((long)box.X - ownBox.X) <= ownBox.Height
+            && item.Text.Count(char.IsLetter) >= 2)
+            .Select(item => (int)Math.Round(item.Box!.CenterY)).Distinct().Order().ToArray();
+        if (MedianPitch(centers) is not { } pitch)
+            return null;
+        int nearestGap = centers.Where(center => center != targetCenter)
+            .Select(center => Math.Abs(center - targetCenter)).Min();
+        int half = (int)Math.Floor(Math.Min(pitch, nearestGap) * BandHalfPitch);
+        return half >= 4 ? (Math.Max(0, targetCenter - half), half * 2) : null;
     }
 
     internal static (int X, int Y, int Width, int Height)? ComputeRightBlockRect(IReadOnlyList<OcrLineEvidence> items, int issue)

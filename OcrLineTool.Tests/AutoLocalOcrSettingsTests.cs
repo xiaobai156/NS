@@ -2,6 +2,62 @@ namespace OcrLineTool.Tests;
 
 public sealed class AutoLocalOcrSettingsTests
 {
+    [Theory]
+    [InlineData("success")]
+    [InlineData("failed")]
+    [InlineData("running")]
+    public void ExecutedGroupsNeverAppearAsWaitingEvenWhenTheirImagesChange(string status)
+    {
+        DateOnly today = new(2026, 10, 6);
+        DateTime now = today.ToDateTime(new TimeOnly(12, 0));
+        var settings = new AutoLocalOcrSettings { Enabled = true };
+        string[] groups = ["新澳六合彩资料", "新澳高手", "新澳高级会员", "蜻蜓一套", "黄大仙新澳"];
+        foreach (string group in groups)
+        {
+            settings.TryBeginVisibleGroup($"10.6-{group}", group, today, now);
+            if (status != "running")
+                settings.RecordVisibleGroupResult($"10.6-{group}", group, today, status == "success", now);
+        }
+        var changed = groups.Select(group => ($"10.6-{group}", group, "new-image-signature")).ToArray();
+
+        Assert.Empty(MainForm.PendingAutomaticGroups(settings, changed, now.AddSeconds(1)));
+        Assert.Equal("自动本地 OCR：当前没有待执行群。", MainForm.AutomaticWaitingStatus(
+            "自动本地 OCR 等待图片稳定：黄大仙新澳（还需满 1 分钟）", null));
+        Assert.All(settings.Executions.Values, execution => Assert.Equal(1, execution.Attempts));
+    }
+
+    [Fact]
+    public void OnlyUnattemptedCurrentDateGroupsEnterTheStabilityWindow()
+    {
+        DateTime now = new(2026, 10, 6, 12, 0, 0);
+        var settings = new AutoLocalOcrSettings { Enabled = true };
+        (string Folder, string Group, string Signature)[] visible =
+        [
+            ("10.5-新澳高手", "新澳高手", "old"),
+            ("10.7-新澳高手", "新澳高手", "future"),
+            ("10.6-嫣然心水", "嫣然心水", "excluded"),
+            ("10.6-黄大仙新澳", "黄大仙新澳", "current")
+        ];
+        var pending = Assert.Single(MainForm.PendingAutomaticGroups(settings, visible, now));
+        var readiness = new AutomaticOcrReadiness();
+        Assert.False(readiness.IsStable(pending.Folder, pending.Signature, now));
+        Assert.True(readiness.IsStable(pending.Folder, pending.Signature, now.AddMinutes(1)));
+        Assert.Equal("自动本地 OCR 等待图片稳定：黄大仙新澳（还需满 1 分钟）",
+            MainForm.AutomaticWaitingStatus("识别完成", pending.Group));
+        settings.Enabled = false;
+        Assert.Empty(MainForm.PendingAutomaticGroups(settings, visible, now));
+    }
+
+    [Theory]
+    [InlineData("识别完成")]
+    [InlineData("自动本地 OCR 执行记录保存失败，已跳过本次任务。")]
+    [InlineData("自动本地 OCR 执行失败，当日不再自动重试。")]
+    [InlineData("云 OCR 限流，请继续云 OCR。")]
+    public void ClearingAnObsoleteWaitDoesNotEraseOtherStatusMessages(string status)
+    {
+        Assert.Equal(status, MainForm.AutomaticWaitingStatus(status, null));
+    }
+
     [Fact]
     public void VisibleAutomaticSwitchDefaultsOffAndRoundTrips()
     {

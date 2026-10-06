@@ -177,6 +177,14 @@ public static class RuleEngine
             // 规定行格式的图；水印/标题不再单独构成入选，杂格式的统计卡不入选。
             if (rule.RequireRowStructure)
                 return MatchesRequiredRowFormat(lines, rule);
+            // The shared 紫燕儿 card contains both zodiac and tail sections.
+            // Small may split/drop the last character of 杀一尾. This is only
+            // candidate identity; medium must still read the complete field.
+            bool sharedTailIdentity = guardForeignIdentity && rule.AllowFolderIdentity
+                && rule.Type == "尾" && rule.Section == "杀一尾"
+                && Normalize(rule.Keyword) == "紫燕儿"
+                && ContainsKeywordExact(text, Normalize(rule.Keyword))
+                && Regex.IsMatch(text, @"(?<!\d)\d{1,6}期杀(?:一|1)?[0-9]尾");
             // A rule that only matches fuzzily must not steal a sibling
             // material's card when that sibling matches the image exactly.
             // 例外：靠文件夹+行形状认卡的无标题规则（爱晚亭杀肖）——同夹水印会让
@@ -186,6 +194,7 @@ public static class RuleEngine
             if (hasCompleteIdentityCatalog
                 && !exactIdentityIds.Contains(rule.Id)
                 && !(rule.AllowFolderIdentity && rule.MatchByRowStructure)
+                && !sharedTailIdentity
                 && HasExactSiblingIdentity(rule, expectedFolder, identityRules, exactIdentityIds))
             {
                 return false;
@@ -214,6 +223,7 @@ public static class RuleEngine
                 && !RequiredKeywordMatches(text, requiredKeyword, rule))
                 return false;
             if (rule.RequiredKeywordsAny is { Count: > 0 }
+                && !sharedTailIdentity
                 && !rule.RequiredKeywordsAny.Any(value => RequiredKeywordMatches(text, value, rule)))
                 return false;
             if (guardForeignIdentity && rule.AllowFolderIdentity)

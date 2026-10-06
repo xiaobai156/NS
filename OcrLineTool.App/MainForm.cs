@@ -1481,6 +1481,7 @@ public sealed class MainForm : Form
         if (!settings.Enabled)
         {
             automaticOcrReadiness.Clear();
+            statusLabel.Text = AutomaticWaitingStatus(statusLabel.Text, null);
             return;
         }
 
@@ -1492,7 +1493,15 @@ public sealed class MainForm : Form
                 await Task.Run(() => FindVisibleAutomaticGroups(
                     AppContext.BaseDirectory, imageRootDirectory, skipped.Add));
             AutoLocalOcrSettings latestSettings = AutoLocalOcrSettings.Load(AppContext.BaseDirectory);
-            if (IsDisposed || isBusy || automaticLocalOcrRunning || settingsDialogOpen || !latestSettings.Enabled)
+            if (IsDisposed)
+                return;
+            if (!latestSettings.Enabled)
+            {
+                automaticOcrReadiness.Clear();
+                statusLabel.Text = AutomaticWaitingStatus(statusLabel.Text, null);
+                return;
+            }
+            if (isBusy || automaticLocalOcrRunning || settingsDialogOpen)
                 return;
             settings = latestSettings;
             // The scan and rule loading run in the background. Start the one-minute
@@ -1504,20 +1513,19 @@ public sealed class MainForm : Form
             if (skipped.Count > 0)
                 statusLabel.Text = skipped[^1];
 
-            automaticOcrReadiness.KeepOnly(visible.Select(item => item.Folder)
+            // Executed groups (including failures) must not start a stability
+            // observation or appear as pending after image changes/restarts.
+            var pending = PendingAutomaticGroups(settings, visible, now);
+            automaticOcrReadiness.KeepOnly(pending.Select(item => item.Folder)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase));
 
-            foreach ((string folder, string group, string signature) in visible)
+            string? waitingGroup = null;
+            foreach ((string folder, string group, string signature) in pending)
             {
                 DateOnly executionDate = AutoLocalOcrSettings.DateForFolder(folder, today);
-                // A dated folder belongs to that calendar day. Never let an old
-                // folder consume today's automatic run after a restart or scan.
-                if (executionDate != today)
-                    continue;
-
                 if (!automaticOcrReadiness.IsStable(folder, signature, now))
                 {
-                    statusLabel.Text = $"自动本地 OCR 等待图片稳定：{group}（还需满 1 分钟）";
+                    waitingGroup ??= group;
                     continue;
                 }
 
@@ -1539,6 +1547,8 @@ public sealed class MainForm : Form
                 _ = RunAutomaticLocalOcrAsync(folder, group, executionDate);
                 return;
             }
+            if (skipped.Count == 0)
+                statusLabel.Text = AutomaticWaitingStatus(statusLabel.Text, waitingGroup);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or OcrException)
         {
@@ -1548,6 +1558,25 @@ public sealed class MainForm : Form
         {
             automaticOcrDiscoveryRunning = false;
         }
+    }
+
+    internal static IReadOnlyList<(string Folder, string Group, string Signature)> PendingAutomaticGroups(
+        AutoLocalOcrSettings settings,
+        IReadOnlyList<(string Folder, string Group, string Signature)> visible,
+        DateTime nowInBeijing)
+    {
+        DateOnly today = DateOnly.FromDateTime(nowInBeijing);
+        return visible.Where(item => AutoLocalOcrSettings.DateForFolder(item.Folder, today) == today
+            && settings.CanAttemptVisibleGroup(item.Folder, item.Group, today, nowInBeijing)).ToArray();
+    }
+
+    internal static string AutomaticWaitingStatus(string currentStatus, string? waitingGroup)
+    {
+        const string prefix = "自动本地 OCR 等待图片稳定：";
+        if (waitingGroup is not null)
+            return $"{prefix}{waitingGroup}（还需满 1 分钟）";
+        return currentStatus.StartsWith(prefix, StringComparison.Ordinal)
+            ? "自动本地 OCR：当前没有待执行群。" : currentStatus;
     }
 
     internal static IReadOnlyList<(string Folder, string Group, string Signature)> FindVisibleAutomaticGroups(
