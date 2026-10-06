@@ -114,7 +114,7 @@ public sealed class AutoLocalOcrSettingsTests
     }
 
     [Fact]
-    public void FailedRunRetriesAfterFiveMinutesAndStopsAfterThreeAttempts()
+    public void FailedRunIsLockedForTheDateWithoutAutomaticRetry()
     {
         DateOnly today = new(2026, 10, 6);
         DateTime first = today.ToDateTime(new TimeOnly(12, 0));
@@ -123,14 +123,11 @@ public sealed class AutoLocalOcrSettingsTests
         Assert.True(settings.TryBeginVisibleGroup("10.6-新澳高手", "新澳高手", today, first));
         settings.RecordVisibleGroupResult("10.6-新澳高手", "新澳高手", today, success: false, first);
         Assert.False(settings.CanAttemptVisibleGroup(
-            "10.6-新澳高手", "新澳高手", today, first.AddMinutes(4).AddSeconds(59)));
-        Assert.True(settings.CanAttemptVisibleGroup(
             "10.6-新澳高手", "新澳高手", today, first.AddMinutes(5)));
-
-        Assert.True(settings.TryBeginVisibleGroup("10.6-新澳高手", "新澳高手", today, first.AddMinutes(5)));
-        settings.RecordVisibleGroupResult("10.6-新澳高手", "新澳高手", today, success: false, first.AddMinutes(5));
-        Assert.True(settings.TryBeginVisibleGroup("10.6-新澳高手", "新澳高手", today, first.AddMinutes(10)));
-        settings.RecordVisibleGroupResult("10.6-新澳高手", "新澳高手", today, success: false, first.AddMinutes(10));
+        Assert.False(settings.TryBeginVisibleGroup(
+            "10.6-新澳高手", "新澳高手", today, first.AddHours(1)));
+        Assert.Equal("failed", settings.Executions.Single().Value.Status);
+        Assert.Null(settings.Executions.Single().Value.NextRetryAt);
         Assert.False(settings.CanAttemptVisibleGroup(
             "10.6-新澳高手", "新澳高手", today, first.AddHours(1)));
     }

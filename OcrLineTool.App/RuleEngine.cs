@@ -3068,6 +3068,11 @@ public static class RuleEngine
         }
         if (rule.Id == "杀料五码")
         {
+            // OCR may duplicate the card's leading "杀→" label (for example
+            // "杀→杀→猪虎羊猴狗08 23 29 33 48").  The repeated label is
+            // structural noise, not a sixth field value; remove only leading
+            // kill markers before validating the five zodiac/number pairs.
+            block = Regex.Replace(block.Trim(), @"^(?:杀\s*)+", string.Empty);
             Match mixed = Regex.Match(block, $@"^(?:[{Zodiac}]\s*){{5}}(?<numbers>[0-9\s]+)$");
             if (!mixed.Success)
                 return null;

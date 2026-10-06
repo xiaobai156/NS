@@ -1542,7 +1542,7 @@ public sealed class MainForm : Form
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or OcrException)
         {
-            statusLabel.Text = "自动本地 OCR 扫描资料群失败，稍后自动重试。";
+            statusLabel.Text = "自动本地 OCR 扫描资料群失败，本轮未启动任务。";
         }
         finally
         {
@@ -1664,7 +1664,7 @@ public sealed class MainForm : Form
                     CredentialSchedule.NowInBeijing());
                 settings.Save(AppContext.BaseDirectory);
                 if (!succeeded && !statusLabel.Text.StartsWith("GPU 本地 OCR 不可用", StringComparison.Ordinal))
-                    statusLabel.Text = $"自动本地 OCR 未完成：{group}；5 分钟后自动重试（最多 3 次）。";
+                    statusLabel.Text = $"自动本地 OCR 未完成：{group}；当天不再自动重试，可手动复抓。";
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
             {

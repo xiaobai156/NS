@@ -229,6 +229,25 @@ public sealed class MacauRuleHardeningTests
         }
     }
 
+    [Fact]
+    public void KillFiveAcceptsRepeatedKillArrowLabelsBeforeTheFiveZodiacs()
+    {
+        var rule = Rule("杀料五码");
+        string[] lines =
+        [
+            "277期杀→杀→羊龍虎雞馬",
+            "\u001E",
+            "杀料网杀5肖5码",
+            "\u001E",
+            "279期杀→杀→猪虎羊猴狗08 23 29 33 48开??",
+            "\u001E",
+            "276期杀→狗猪牛猴兔0609 20 40 47虎14中"
+        ];
+
+        Assert.Equal("08 23 29 33 48", RuleEngine.ExtractValue(lines, 279, rule));
+        Assert.Equal("08 23 29 33 48", RuleEngine.ExtractFinalValue(lines, 279, rule));
+    }
+
     [Theory]
     [InlineData("宝典尾", "一尾绝杀→8 8 7 8 8")]
     [InlineData("帅铁", "帅铁杀一肖【马牛】")]

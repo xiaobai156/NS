@@ -12,6 +12,8 @@ internal sealed class AutoLocalOcrExecution
     public string Folder { get; set; } = string.Empty;
     public string Status { get; set; } = "failed";
     public int Attempts { get; set; }
+    // Kept for backwards-compatible settings files; automatic OCR no longer
+    // schedules another attempt after a failed run.
     public DateTimeOffset? NextRetryAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
@@ -19,8 +21,6 @@ internal sealed class AutoLocalOcrExecution
 internal sealed class AutoLocalOcrSettings
 {
     private const string DateFormat = "yyyy-MM-dd";
-    internal static readonly TimeSpan RetryDelay = TimeSpan.FromMinutes(5);
-    internal const int MaxAttempts = 3;
     private const int RetainedDays = 7;
 
     private static readonly Regex FullDatePrefix = new(
@@ -114,7 +114,7 @@ internal sealed class AutoLocalOcrSettings
         if (!IsVisibleAutomaticGroup(groupName))
             return true;
         DateOnly today = DateOnly.FromDateTime(nowInBeijing);
-        return HasSuccessfulExecution(groupName, today);
+        return HasExecution(groupName, today);
     }
 
     internal bool CanAttemptVisibleGroup(
@@ -124,14 +124,9 @@ internal sealed class AutoLocalOcrSettings
             return false;
 
         string key = ExecutionKey(executionDate, groupName);
-        if (!Executions.TryGetValue(key, out AutoLocalOcrExecution? execution))
-            return true;
-        if (string.Equals(execution.Status, "success", StringComparison.OrdinalIgnoreCase) ||
-            execution.Attempts >= MaxAttempts)
-            return false;
-
-        DateTimeOffset now = BeijingOffset(nowInBeijing);
-        return execution.NextRetryAt is null || execution.NextRetryAt <= now;
+        // One automatic attempt per date/group. Failed runs remain visible in
+        // the log and can be handled by the user's manual retry action.
+        return !Executions.ContainsKey(key);
     }
 
     internal bool TryBeginVisibleGroup(
@@ -151,7 +146,7 @@ internal sealed class AutoLocalOcrSettings
         execution.Folder = folder;
         execution.Status = "running";
         execution.Attempts++;
-        execution.NextRetryAt = now.Add(RetryDelay);
+        execution.NextRetryAt = null;
         execution.UpdatedAt = now;
         Executions[key] = execution;
         return true;
@@ -175,9 +170,7 @@ internal sealed class AutoLocalOcrSettings
         };
         execution.Folder = folder;
         execution.Status = success ? "success" : "failed";
-        execution.NextRetryAt = success || execution.Attempts >= MaxAttempts
-            ? null
-            : now.Add(RetryDelay);
+        execution.NextRetryAt = null;
         execution.UpdatedAt = now;
         Executions[key] = execution;
     }
@@ -189,9 +182,8 @@ internal sealed class AutoLocalOcrSettings
         return TryBeginVisibleGroup(groupName, groupName, date, nowInBeijing);
     }
 
-    private bool HasSuccessfulExecution(string groupName, DateOnly date) =>
-        Executions.TryGetValue(ExecutionKey(date, groupName), out AutoLocalOcrExecution? execution) &&
-        string.Equals(execution.Status, "success", StringComparison.OrdinalIgnoreCase);
+    private bool HasExecution(string groupName, DateOnly date) =>
+        Executions.ContainsKey(ExecutionKey(date, groupName));
 
     private void RemoveExcludedGroups()
     {
