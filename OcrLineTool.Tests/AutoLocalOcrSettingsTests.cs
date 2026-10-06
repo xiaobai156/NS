@@ -87,4 +87,118 @@ public sealed class AutoLocalOcrSettingsTests
         }
     }
 
+    [Fact]
+    public void SuccessfulRunIsLockedByFolderDateAndGroupAcrossRestarts()
+    {
+        string directory = Directory.CreateTempSubdirectory("ocr-auto-local-execution-").FullName;
+        try
+        {
+            DateOnly today = new(2026, 10, 6);
+            DateTime now = today.ToDateTime(new TimeOnly(12, 0));
+            var settings = new AutoLocalOcrSettings { Enabled = true };
+
+            Assert.True(settings.TryBeginVisibleGroup("10.6-新澳高级会员", "新澳高级会员", today, now));
+            settings.RecordVisibleGroupResult("10.6-新澳高级会员", "新澳高级会员", today, success: true, now);
+            settings.Save(directory, today);
+
+            AutoLocalOcrSettings reloaded = AutoLocalOcrSettings.Load(directory, today);
+            Assert.False(reloaded.CanAttemptVisibleGroup(
+                "10.6-新澳高级会员", "新澳高级会员", today, now.AddDays(1)));
+            Assert.True(reloaded.CanAttemptVisibleGroup(
+                "10.7-新澳高级会员", "新澳高级会员", today.AddDays(1), now.AddDays(1)));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void FailedRunRetriesAfterFiveMinutesAndStopsAfterThreeAttempts()
+    {
+        DateOnly today = new(2026, 10, 6);
+        DateTime first = today.ToDateTime(new TimeOnly(12, 0));
+        var settings = new AutoLocalOcrSettings { Enabled = true };
+
+        Assert.True(settings.TryBeginVisibleGroup("10.6-新澳高手", "新澳高手", today, first));
+        settings.RecordVisibleGroupResult("10.6-新澳高手", "新澳高手", today, success: false, first);
+        Assert.False(settings.CanAttemptVisibleGroup(
+            "10.6-新澳高手", "新澳高手", today, first.AddMinutes(4).AddSeconds(59)));
+        Assert.True(settings.CanAttemptVisibleGroup(
+            "10.6-新澳高手", "新澳高手", today, first.AddMinutes(5)));
+
+        Assert.True(settings.TryBeginVisibleGroup("10.6-新澳高手", "新澳高手", today, first.AddMinutes(5)));
+        settings.RecordVisibleGroupResult("10.6-新澳高手", "新澳高手", today, success: false, first.AddMinutes(5));
+        Assert.True(settings.TryBeginVisibleGroup("10.6-新澳高手", "新澳高手", today, first.AddMinutes(10)));
+        settings.RecordVisibleGroupResult("10.6-新澳高手", "新澳高手", today, success: false, first.AddMinutes(10));
+        Assert.False(settings.CanAttemptVisibleGroup(
+            "10.6-新澳高手", "新澳高手", today, first.AddHours(1)));
+    }
+
+    [Fact]
+    public void ExecutionLogKeepsOnlyTheMostRecentSevenDates()
+    {
+        string directory = Directory.CreateTempSubdirectory("ocr-auto-local-prune-").FullName;
+        try
+        {
+            DateOnly today = new(2026, 10, 6);
+            var settings = new AutoLocalOcrSettings { Enabled = true };
+            foreach (int offset in Enumerable.Range(-8, 10))
+            {
+                DateOnly date = today.AddDays(offset);
+                DateTime now = date.ToDateTime(new TimeOnly(12, 0));
+                settings.TryBeginVisibleGroup($"{date:MM.dd}-新澳高手", "新澳高手", date, now);
+                settings.RecordVisibleGroupResult($"{date:MM.dd}-新澳高手", "新澳高手", date, true, now);
+            }
+
+            settings.Save(directory, today);
+            AutoLocalOcrSettings reloaded = AutoLocalOcrSettings.Load(directory, today);
+
+            Assert.Equal(7, reloaded.Executions.Count);
+            Assert.DoesNotContain(reloaded.Executions.Values, item => item.Date == "2026-09-29");
+            Assert.Contains(reloaded.Executions.Values, item => item.Date == "2026-09-30");
+            Assert.Contains(reloaded.Executions.Values, item => item.Date == "2026-10-06");
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData("10.6-新澳高级会员", "2026-10-06")]
+    [InlineData("2026-10-06-新澳高级会员", "2026-10-06")]
+    [InlineData("新澳高级会员", "2026-10-06")]
+    public void FolderDateUsesRecognizableDateWrapperOrFallback(
+        string folder, string expected)
+    {
+        DateOnly fallback = new(2026, 10, 6);
+        Assert.Equal(expected, AutoLocalOcrSettings.DateForFolder(folder, fallback).ToString("yyyy-MM-dd"));
+    }
+
+    [Fact]
+    public void LegacyLastRunDatesAreIgnoredSoStaleClaimsDoNotBlockRun()
+    {
+        string directory = Directory.CreateTempSubdirectory("ocr-auto-local-migrate-").FullName;
+        try
+        {
+            File.WriteAllText(
+                AutoLocalOcrSettings.PathFor(directory),
+                "{\"Enabled\":true,\"LastRunDates\":{\"新澳高手\":\"2026-10-06\",\"嫣然心水\":\"2026-10-06\"}}");
+
+            AutoLocalOcrSettings settings = AutoLocalOcrSettings.Load(directory, new DateOnly(2026, 10, 6));
+
+            Assert.Empty(settings.Executions);
+            Assert.True(settings.CanAttemptVisibleGroup(
+                "10.6-新澳六合彩资料", "新澳六合彩资料", new DateOnly(2026, 10, 6),
+                new DateTime(2026, 10, 6, 12, 0, 0)));
+            settings.Save(directory, new DateOnly(2026, 10, 6));
+            Assert.DoesNotContain("LastRunDates", File.ReadAllText(AutoLocalOcrSettings.PathFor(directory)));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
 }
