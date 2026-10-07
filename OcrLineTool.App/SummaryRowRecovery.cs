@@ -142,7 +142,9 @@ internal static class SummaryRowRecovery
                             var items = locatorModel == PaddleOcrModel.Small
                                 ? original.Evidence.Items.Where(item => item.ViewId == "paddle/compact").ToArray()
                                 : original.Evidence.Items;
-                            var band = ComputeIssueRowBand(items, issue);
+                            var band = request.Rule.RequireRowStructure
+                                ? ComputeNumberTableRowBand(original.Evidence.TokenItems ?? items, issue)
+                                : ComputeIssueRowBand(items, issue);
                             rect = band is null ? null : (0, band.Value.Top, 0, band.Value.Height);
                             parse = request.Kind == SummaryRowRecoveryKind.IssueNumbers
                                 ? lines => RuleEngine.ExtractFinalValue(lines, issue, request.Rule)
@@ -177,8 +179,13 @@ internal static class SummaryRowRecovery
                 try
                 {
                     item.Source.EnsureCurrent();
-                    if (strips.TryGetValue(item.Path, out var strip) && item.Parse(strip.Lines) is { } value)
-                        results[item.Request] = new SummaryRowRecoveryResult(value, strip.Lines, item.Source.SourceHash);
+                    if (strips.TryGetValue(item.Path, out var strip))
+                    {
+                        var lines = item.Request.Rule.RequireRowStructure
+                            ? RuleEngine.RowCandidateLines(strip.Evidence) : strip.Lines;
+                        if (item.Parse(lines) is { } value)
+                            results[item.Request] = new SummaryRowRecoveryResult(value, lines, item.Source.SourceHash);
+                    }
                 }
                 catch (Exception exception) when (IsRecoverableError(exception)) { }
             }
@@ -261,6 +268,31 @@ internal static class SummaryRowRecovery
         int top = Math.Max(0, box.Y - 2);
         int x = Math.Max(0, box.X - 4);
         return (x, top, 0, Math.Max(24, box.Height) + 4);
+    }
+
+    // Number tables keep all cells on the same physical row. A single issue
+    // anchor is enough; unreadable historical rows are not needed for pitch.
+    internal static (int Top, int Height)? ComputeNumberTableRowBand(IReadOnlyList<OcrLineEvidence> items, int issue)
+    {
+        var targets = items.Where(item => item.Box is { Height: > 0 }
+            && RuleEngine.LineContainsIssue(item.Text, issue)).ToArray();
+        if (targets.Length != 1)
+            return null;
+        OcrLineEvidence target = targets[0];
+        OcrBox anchor = target.Box!;
+        var row = items.Where(item => item.ViewId == target.ViewId && item.Box is { Height: > 0 } box
+            && box.Height <= anchor.Height * 2
+            && Math.Abs(box.CenterY - anchor.CenterY) <= anchor.Height * 0.5).ToArray();
+        if (row.Any(item => RuleEngine.FindIssues([item.Text]).Any(number => number != issue)))
+            return null;
+        int top = Math.Max(0, row.Min(item => item.Box!.Y) - 4);
+        int bottom = row.Max(item => item.Box!.Bottom) + 4;
+        // Do not crop another period into this row, including very tight tables.
+        if (items.Any(item => item.ViewId == target.ViewId && item.Box is { } box
+            && RuleEngine.FindIssues([item.Text]).Any(number => number != issue)
+            && box.Bottom > top && box.Y < bottom))
+            return null;
+        return (top, bottom - top);
     }
 
     // Period rows are the anchors; values may be below the period but never reach the next period.

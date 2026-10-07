@@ -8,6 +8,39 @@ public sealed class October7RealImageTests(ITestOutputHelper output)
 {
     [October7RealImageFact]
     [Trait("Category", "CUDA")]
+    public async Task AiwantingMediumReviewAndRowCropUseOriginalPixels()
+    {
+        string samples = Environment.GetEnvironmentVariable("OCR_OCT7_SAMPLES")!;
+        string report = Environment.GetEnvironmentVariable("OCR_OCT7_REPORT")!;
+        Directory.CreateDirectory(report);
+        var rules = RuleCatalog.Load(Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
+        var rule = rules.Single(item => item.Id == "爱晚亭");
+        string folder = Path.Combine(samples, "10.7-嫣然心水", "爱晚亭");
+        string[] paths = Directory.GetFiles(folder, "*.jpg").Order().ToArray();
+        string source = Path.Combine(folder, "20261007_185942_aaa2aa2d_91542.jpg");
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(8));
+        var client = new PaddleLocalOcrClient(new SystemProcessRunner(), Path.Combine(report, "review-cache.json"), LocalOcrDevice.Gpu);
+        // Explicitly exercise the production path taken when small has no candidate.
+        // Medium still receives all five original sibling images, never fixture text.
+        var plans = await LocalCandidatePlanner.ReviewRowCandidatesAsync(paths, [], [rule], rules, 280, client, timeout.Token);
+        Assert.Empty(client.LastImageErrors);
+        Assert.Equal(source, Assert.Single(plans).Path);
+        var evidence = client.LastEvidence[source];
+        Assert.Equal("35 32 44 42 37", RuleEngine.ExtractFinalValue(evidence, 280, rule));
+        await File.WriteAllTextAsync(Path.Combine(report, "review-evidence.json"), JsonSerializer.Serialize(client.LastEvidence));
+        var request = new SummaryRowRecoveryRequest(source, rule, SummaryRowRecoveryKind.IssueNumbers);
+        var recovered = await SummaryRowRecovery.TryRecoverBatchAsync(client, [request], rules, 280, 1, null, timeout.Token);
+        Assert.Equal("35 32 44 42 37", Assert.Single(recovered).Value.Value);
+        await File.WriteAllTextAsync(Path.Combine(report, "review-and-strip.json"), JsonSerializer.Serialize(new
+        {
+            OriginalSiblingImages = paths.Length, Plans = plans,
+            Value = RuleEngine.ExtractFinalValue(evidence, 280, rule), Strip = recovered[request]
+        }, new JsonSerializerOptions { WriteIndented = true }));
+        output.WriteLine("Real GPU medium review selected the number table among its siblings; actual row crop reread passed.");
+    }
+
+    [October7RealImageFact]
+    [Trait("Category", "CUDA")]
     public async Task HongrenguanAndAiwantingUseConfirmedSourceCards()
     {
         string samples = Environment.GetEnvironmentVariable("OCR_OCT7_SAMPLES")!;

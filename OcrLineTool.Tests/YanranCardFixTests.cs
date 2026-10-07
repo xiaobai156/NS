@@ -367,7 +367,7 @@ public sealed class YanranCardFixTests
         Assert.Null(RuleEngine.ExtractFinalValue(["258期: 34.35.12.03.50.开00"], 258, rule));
         Assert.Null(RuleEngine.ExtractFinalValue(["257期: 29.30.07.04.06.开鼠07"], 258, rule));
 
-        // 认卡：整表不足 5 行整行 → 不当候选；目标行残缺但其它行正常 → 候选成立但取值缺失。
+        // 无标题纯四码表不当候选；目标行残缺但其它行证明五码身份 → 候选成立但取值缺失。
         string[] tooFewRows =
         [
             "255期：31.29.22.14.开猪44",
@@ -412,8 +412,8 @@ public sealed class YanranCardFixTests
         Assert.Contains(rule, RuleEngine.FindMatches(path, rows, [rule], Rules));
         Assert.Equal("35 32 44 42 37", RuleEngine.ExtractFinalValue(rows, 280, rule));
         Assert.Null(RuleEngine.ExtractFinalValue(rows, 271, rule));
-        Assert.DoesNotContain(rule, RuleEngine.FindMatches(path, rows.Skip(1), [rule], Rules));
-        Assert.DoesNotContain(rule, RuleEngine.FindMatches(path,
+        Assert.Contains(rule, RuleEngine.FindMatches(path, rows.Skip(1), [rule], Rules));
+        Assert.Contains(rule, RuleEngine.FindMatches(path,
             rows.Select(line => line.Replace("34.35.40.30.2", "34.35.40.30.")
                 .Replace("32.30.14.16.1", "32.30.14.16.")
                 .Replace("34.33.08.04.0", "34.33.08.04.")

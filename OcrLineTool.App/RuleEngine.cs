@@ -176,7 +176,8 @@ public static class RuleEngine
             // 复核卡（require_row_structure）：第一关子文件夹已过，第二关必须是
             // 规定行格式的图；水印/标题不再单独构成入选，杂格式的统计卡不入选。
             if (rule.RequireRowStructure)
-                return MatchesRequiredRowFormat(lines, rule);
+                return !presentIdentities.Any(value => value != Normalize(rule.Keyword))
+                    && MatchesRequiredRowFormat(lines, rule);
             // The shared 紫燕儿 card contains both zodiac and tail sections.
             // Small may split/drop the last character of 杀一尾. This is only
             // candidate identity; medium must still read the complete field.
@@ -329,7 +330,7 @@ public static class RuleEngine
             : null;
     }
 
-    private static IEnumerable<int> FindIssues(IEnumerable<string> lines)
+    internal static IEnumerable<int> FindIssues(IEnumerable<string> lines)
     {
         foreach (string line in lines)
         {
@@ -625,43 +626,46 @@ public static class RuleEngine
         int expected = RequiredRowCount(rule);
         if (expected <= 0)
             return false;
-        int rows = 0;
-        int clippedRows = 0;
-        bool watermarkedFiveNumberCard = rule.Id == "爱晚亭" && expected == 5
-            && ContainsKeywordExact(Normalize(string.Concat(lines)), Normalize(rule.Keyword));
-        foreach (string line in lines)
-        {
-            if (TryParseRequiredRow(line, out _, out _, out int count) && count == expected)
-                rows++;
-            else if (watermarkedFiveNumberCard)
-            {
-                // The vertical author watermark can hide the final digit of
-                // historical rows. Four intact pairs plus one clipped digit
-                // still prove the five-column card, not a four-number table.
-                string body = Regex.Split(SimplifyOcrText(line), @"开|開|√|×|✗|✓")[0];
-                if (Regex.IsMatch(body,
-                    @"^\s*\d{3}期\s*[:：]?\s*(?:(?:0[1-9]|[1-4][0-9])[.,，、;；\s]+){4}\d\s*$"))
-                    clippedRows++;
-            }
-        }
-        return rows >= 5 || rows > 0 && rows + clippedRows >= 5;
+        string text = Normalize(string.Concat(lines));
+        if (IsNumberStatisticsCard(text))
+            return false;
+        // Folder identity plus a single complete issue row establishes this table.
+        // History and watermark visibility must not gate the current clear row.
+        if (lines.Any(line => TryParseRequiredRow(line, out _, out string[] numbers, out int count)
+            && count == expected && numbers.Distinct(StringComparer.Ordinal).Count() == expected))
+            return true;
+        // An explicit author/kill-number title can identify a damaged table before
+        // medium reads its values. This is selection only, never value repair.
+        return ContainsKeywordExact(text, Normalize(rule.Keyword)) && text.Contains("杀码", StringComparison.Ordinal)
+            && lines.Any(line => Regex.IsMatch(SimplifyOcrText(line), @"^\s*\d{3}\s*期\s*[:：]?\s*\d"));
     }
+
+    private static bool IsNumberStatisticsCard(string text) =>
+        text.Contains("计算结果", StringComparison.Ordinal) || text.Contains("统计总", StringComparison.Ordinal)
+        || text.Contains("万能猫", StringComparison.Ordinal) || Regex.IsMatch(text, @"[【\[]\d+次[】\]]");
+
+    internal static IReadOnlyList<string> RowCandidateLines(OcrEvidence evidence) =>
+        evidence.HasCompleteGeometry
+            ? evidence.Lines.Concat(BuildRowMajorReading(evidence.TokenItems ?? evidence.Items)).ToArray()
+            : evidence.Lines;
 
     // 取值：只从目标期号所在的那一行取，必须恰好 N 个（01～49、不重复）。
     private static string? ExtractRequiredRowValue(string[] lines, int issue, OcrRule rule)
     {
         int expected = RequiredRowCount(rule);
-        if (expected <= 0)
+        if (expected <= 0 || IsNumberStatisticsCard(Normalize(string.Concat(lines))))
             return null;
+        var observed = new HashSet<string>(ResultValues.NumberSetComparer);
         foreach (string line in lines)
         {
             if (!TryParseRequiredRow(line, out int rowIssue, out string[] numbers, out int count)
                 || rowIssue != issue
                 || count != expected)
                 continue;
-            return FormatNumbers(numbers, expected);
+            if (FormatNumbers(numbers, expected) is { } value)
+                observed.Add(value);
         }
-        return null;
+        return observed.Count > 1 ? ConflictMarker : observed.SingleOrDefault();
     }
 
     private static bool MatchesValueShape(string value, string type)

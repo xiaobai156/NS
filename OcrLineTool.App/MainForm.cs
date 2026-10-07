@@ -1135,6 +1135,10 @@ public sealed class MainForm : Form
             }
 
             var cloudRulesByPath = new Dictionary<(string SourcePath, string OcrPath), List<OcrRule>>();
+            // Confirmed number tables reread their current physical row before cloud fallback.
+            await RecoverSummaryRowValuesAsync(
+                rules.Where(rule => rule.RequireRowStructure).ToArray(), values, evidenceLedger,
+                new Dictionary<string, string>(StringComparer.Ordinal), candidates, issue, ActiveToken);
             void AddCloudRule(string sourcePath, string ocrPath, OcrRule rule)
             {
                 var key = (sourcePath, ocrPath);
@@ -1367,7 +1371,7 @@ public sealed class MainForm : Form
             ApplyGapFillNotes(gapFillNotes, missingReasons);
 
             await RecoverSummaryRowValuesAsync(
-                rules, values, evidenceLedger, missingReasons,
+                rules.Where(rule => !rule.RequireRowStructure).ToArray(), values, evidenceLedger, missingReasons,
                 candidates.Concat(cloudCandidates).ToArray(), issue, ActiveToken);
 
             ActiveToken.ThrowIfCancellationRequested();
@@ -2544,7 +2548,12 @@ public sealed class MainForm : Form
             // 复抓默认“本机优先”：先按本地主识别的顺序用本机 medium 出值
             //（裁剪图 → 原图），仍缺失的规则再走云兜底。
             if (retryUsesLocalOcr)
+            {
                 await RetryMissingByLocalOcrAsync(selection.Candidates, lastIssue, ActiveToken);
+                await RecoverSummaryRowValuesAsync(
+                    missingRules.Where(rule => rule.RequireRowStructure).ToArray(), lastValues,
+                    lastEvidenceLedger, lastMissingReasons, selection.Candidates, lastIssue, ActiveToken);
+            }
 
             OcrCredential initialCredential = credentialSelector.SelectedIndex <= 0
                 ? CredentialSchedule.DescribeDate(CredentialSchedule.TodayInBeijing())
@@ -2756,7 +2765,7 @@ public sealed class MainForm : Form
             // (for example the period column of a number card). Best-effort local
             // row recovery runs here exactly like in the main recognition flow.
             await RecoverSummaryRowValuesAsync(
-                lastRules, lastValues, lastEvidenceLedger, lastMissingReasons,
+                lastRules.Where(rule => !retryUsesLocalOcr || !rule.RequireRowStructure).ToArray(), lastValues, lastEvidenceLedger, lastMissingReasons,
                 selection.Candidates, lastIssue, ActiveToken);
 
             ActiveToken.ThrowIfCancellationRequested();
@@ -3228,7 +3237,7 @@ public sealed class MainForm : Form
         {
             foreach (OcrRule rule in selected)
             {
-                if (values.ContainsKey(rule.Id))
+                if (values.ContainsKey(rule.Id) || ResultValues.IsConflict(values, rule.Id))
                     continue;
                 RecognitionCandidate? candidate = candidates.FirstOrDefault(
                     item => item.Rules.Any(candidateRule => candidateRule.Id == rule.Id));
@@ -3870,9 +3879,27 @@ public sealed class MainForm : Form
             bool isYanran = RuleCatalog.IsGroupFolder(selectedImageDirectory!, "嫣然心水");
             if (isYanran)
             {
-                foreach (LocalCandidatePlan plan in LocalCandidatePlanner.Build(
-                    imagePaths, localResults, rules, issue, completeIdentityRules))
+                IReadOnlyList<LocalCandidatePlan> plans = LocalCandidatePlanner.Build(
+                    imagePaths, localResults, rules, issue, completeIdentityRules);
+                var reviewClient = new PaddleLocalOcrClient(ocrDevice);
+                TrackLocalOcrClient("选图复核（medium）", reviewClient);
+                IReadOnlyList<LocalCandidatePlan> reviewedPlans = [];
+                try
                 {
+                    reviewedPlans = await LocalCandidatePlanner.ReviewRowCandidatesAsync(
+                        localImagePaths.Where(localResults.ContainsKey).ToArray(), plans, rules,
+                        completeIdentityRules, issue, reviewClient, cancellationToken,
+                        new PrefixedProgress(localProgress, "选图复核·"));
+                }
+                catch (OcrException exception) when (!PaddleLocalOcrClient.IsCudaUnavailable(exception))
+                {
+                    statusLabel.Text = "选图复核未完成：" + exception.Message;
+                }
+                foreach ((string failedPath, string error) in reviewClient.LastImageErrors)
+                    RecordUnreadImage(failedPath, error);
+                foreach (LocalCandidatePlan plan in plans.Concat(reviewedPlans))
+                {
+                    bool reviewed = reviewedPlans.Contains(plan);
                     // 单张图片自己的读取/身份失败只丢这一条候选：其余图片继续，
                     // 取消、GPU、模型与协议错误仍向上抛出。
                     string ocrPath = plan.Path;
@@ -3895,10 +3922,12 @@ public sealed class MainForm : Form
                         ocrPath,
                         plan.Rules,
                         plan.IsPrimary,
-                        (plan.IsPrimary ? "本地OCR首选" : "本地OCR备选") + (ocrPath == plan.Path ? "" : "（杰少密集表横向压缩整图）"),
+                        (reviewed ? "中模型选图复核" : plan.IsPrimary ? "本地OCR首选" : "本地OCR备选") + (ocrPath == plan.Path ? "" : "（杰少密集表横向压缩整图）"),
                         null,
-                        localResults.TryGetValue(plan.Path, out IReadOnlyList<string>? planLines) ? planLines : [],
-                        BindPaddleEvidence(localClient, plan.Path, plan.Path, "candidate-small"),
+                        reviewed ? reviewClient.LastEvidence[plan.Path].Lines
+                            : localResults.TryGetValue(plan.Path, out IReadOnlyList<string>? planLines) ? planLines : [],
+                        BindPaddleEvidence(reviewed ? reviewClient : localClient, plan.Path, plan.Path,
+                            reviewed ? "candidate-medium" : "candidate-small"),
                         creationIdentity));
                 }
                 return new CandidateSelection(templateCandidates.Concat(localCandidates).ToArray(), templateCropFolder, "本地OCR");

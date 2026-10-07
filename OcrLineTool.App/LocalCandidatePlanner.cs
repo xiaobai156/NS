@@ -7,6 +7,34 @@ public sealed record LocalCandidatePlan(
 
 public static class LocalCandidatePlanner
 {
+    // Only unresolved row-table rules receive this review, within their own folder.
+    // Returned plans are added after normal selection so a review cannot change
+    // a sibling zodiac rule's original small-model candidate.
+    internal static async Task<IReadOnlyList<LocalCandidatePlan>> ReviewRowCandidatesAsync(
+        IReadOnlyList<string> imagePaths,
+        IReadOnlyList<LocalCandidatePlan> selected,
+        IReadOnlyList<OcrRule> rules,
+        IReadOnlyList<OcrRule> catalog,
+        int issue,
+        PaddleLocalOcrClient client,
+        CancellationToken cancellationToken,
+        IProgress<LocalOcrProgress>? progress = null)
+    {
+        var pending = rules.Where(rule => rule.RequireRowStructure
+            && !selected.Any(plan => plan.Rules.Any(item => item.Id == rule.Id))).ToArray();
+        string[] paths = imagePaths.Where(path => RuleCatalog.PathBelongsToGroup(path, "嫣然心水")
+            && pending.Any(rule => RuleEngine.MatchesRuleFolder(path, rule))).ToArray();
+        if (paths.Length == 0)
+            return [];
+        await client.RecognizeBatchAsync(paths, progress, titleRatio: 1,
+            model: PaddleOcrModels.LocalPrimary, cancellationToken: cancellationToken);
+        var results = client.LastEvidence
+            .Where(pair => !client.LastImageErrors.ContainsKey(pair.Key)
+                && !client.LastInvalidImagePaths.Contains(pair.Key, StringComparer.OrdinalIgnoreCase))
+            .ToDictionary(pair => pair.Key, pair => RuleEngine.RowCandidateLines(pair.Value), StringComparer.OrdinalIgnoreCase);
+        return Build(paths, results, pending, issue, catalog);
+    }
+
     public static IReadOnlyList<LocalCandidatePlan> Build(
         IReadOnlyList<string> imagePaths,
         IReadOnlyDictionary<string, IReadOnlyList<string>> localResults,
