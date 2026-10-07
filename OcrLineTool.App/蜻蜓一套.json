@@ -9,6 +9,7 @@
     { "keyword": "公式杀两肖", "type": "生肖组合", "label": "公式杀两肖肖", "folder": "公式杀料" },
     { "keyword": "公式杀两尾", "type": "尾数组合", "label": "公式杀两尾尾", "folder": "公式杀料" },
     { "keyword": "红蜻蜓必中⑨肖", "type": "九肖", "label": "红蜻蜓", "section": "必中⑨肖", "required_keyword": "红蜻蜓必中⑨肖", "folder": "一套组合拳", "allowNearbyValue": true },
+    { "keyword": "红蜻蜓绝杀一肖", "type": "生肖", "label": "红蜻蜓杀一肖", "section": "绝杀一肖", "required_keyword": "红蜻蜓绝杀一肖", "folder": "一套组合拳" },
     { "keyword": "神秘宇宙绝杀半波", "type": "色单双", "label": "神奇宇宙", "required_keyword": "神秘宇宙绝杀半波", "folder": "一套组合拳" },
     { "keyword": "墨羽尘曦", "type": "生肖", "label": "墨羽", "required_keyword": "墨羽尘曦", "folder": "一套组合拳" }
   ]

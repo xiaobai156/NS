@@ -5,6 +5,12 @@ namespace OcrLineTool;
 /// <summary>Successful values and sticky conflicts for one recognition run.</summary>
 internal sealed class ResultValues : Dictionary<string, string>
 {
+    // Validated number fields represent a set; keep the first printed order
+    // while comparing alternative OCR readings with the existing semantics.
+    internal static IEqualityComparer<string> NumberSetComparer { get; } = EqualityComparer<string>.Create(
+        (left, right) => left == right || left is not null && right is not null && Canonical(left) == Canonical(right),
+        value => StringComparer.Ordinal.GetHashCode(Canonical(value)));
+
     internal HashSet<string> Conflicts { get; } = new(StringComparer.Ordinal);
     internal ResultValues(IEqualityComparer<string> comparer) : base(comparer) { }
     internal ResultValues(IDictionary<string, string> source, IEqualityComparer<string> comparer) : base(source, comparer)

@@ -401,6 +401,27 @@ public sealed class YanranCardFixTests
     }
 
     [Fact]
+    public void AiWantingWatermarkedHistoryDoesNotDiscardClearCurrentRow()
+    {
+        OcrRule rule = Rule("爱晚亭");
+        string path = @"C:\图片\10.7-嫣然心水\爱晚亭\card.jpg";
+        string[] rows = ["爱晚亭", "271期：34.35.40.30.2", "272期:32.30.14.16.1",
+            "273期：34.33.08.04.0", "274期：35.32.31.19.2", "275期：34.36.05.04.0",
+            "278期：06.05.11.31.33.开蛇02", "279期：32.34.31.38.36.开鸡10",
+            "280期：35.32.44.42.37.开00"];
+        Assert.Contains(rule, RuleEngine.FindMatches(path, rows, [rule], Rules));
+        Assert.Equal("35 32 44 42 37", RuleEngine.ExtractFinalValue(rows, 280, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(rows, 271, rule));
+        Assert.DoesNotContain(rule, RuleEngine.FindMatches(path, rows.Skip(1), [rule], Rules));
+        Assert.DoesNotContain(rule, RuleEngine.FindMatches(path,
+            rows.Select(line => line.Replace("34.35.40.30.2", "34.35.40.30.")
+                .Replace("32.30.14.16.1", "32.30.14.16.")
+                .Replace("34.33.08.04.0", "34.33.08.04.")
+                .Replace("35.32.31.19.2", "35.32.31.19.")
+                .Replace("34.36.05.04.0", "34.36.05.04.")), [rule], Rules));
+    }
+
+    [Fact]
     public void JianDanAiStripNeedsTargetIssueAndOneZodiac()
     {
         Assert.Equal("牛", RuleEngine.ExtractRightBlockZodiacFromStrip(["258期禁牛"], 258));

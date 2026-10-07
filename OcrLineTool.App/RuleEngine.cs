@@ -619,19 +619,32 @@ public static class RuleEngine
             ? count
             : 0;
 
-    // 认卡：子文件夹内必须至少有 5 行是规定数量的整行（不多不少）。
+    // 认卡只决定是否送 medium，残缺旧行绝不能补成最终业务值。
     private static bool MatchesRequiredRowFormat(string[] lines, OcrRule rule)
     {
         int expected = RequiredRowCount(rule);
         if (expected <= 0)
             return false;
         int rows = 0;
+        int clippedRows = 0;
+        bool watermarkedFiveNumberCard = rule.Id == "爱晚亭" && expected == 5
+            && ContainsKeywordExact(Normalize(string.Concat(lines)), Normalize(rule.Keyword));
         foreach (string line in lines)
         {
             if (TryParseRequiredRow(line, out _, out _, out int count) && count == expected)
                 rows++;
+            else if (watermarkedFiveNumberCard)
+            {
+                // The vertical author watermark can hide the final digit of
+                // historical rows. Four intact pairs plus one clipped digit
+                // still prove the five-column card, not a four-number table.
+                string body = Regex.Split(SimplifyOcrText(line), @"开|開|√|×|✗|✓")[0];
+                if (Regex.IsMatch(body,
+                    @"^\s*\d{3}期\s*[:：]?\s*(?:(?:0[1-9]|[1-4][0-9])[.,，、;；\s]+){4}\d\s*$"))
+                    clippedRows++;
+            }
         }
-        return rows >= 5;
+        return rows >= 5 || rows > 0 && rows + clippedRows >= 5;
     }
 
     // 取值：只从目标期号所在的那一行取，必须恰好 N 个（01～49、不重复）。
@@ -1745,9 +1758,11 @@ public static class RuleEngine
     public static RuleExtractionResult ExtractFinalResult(OcrEvidence evidence, int issue, OcrRule rule)
     {
         ArgumentNullException.ThrowIfNull(evidence);
-        var observed = new HashSet<string>(StringComparer.Ordinal);
+        IEqualityComparer<string> comparer = rule.Type.StartsWith("号码:", StringComparison.Ordinal)
+            ? ResultValues.NumberSetComparer : StringComparer.Ordinal;
+        var observed = new HashSet<string>(comparer);
         bool conflict = false;
-        var anchoredObserved = new HashSet<string>(StringComparer.Ordinal);
+        var anchoredObserved = new HashSet<string>(comparer);
         bool anchoredConflict = false;
         bool hasAnchoredIdentity = false;
         foreach (IGrouping<string, OcrLineEvidence> region in evidence.Items
@@ -1773,7 +1788,7 @@ public static class RuleEngine
                         conflict = true;
                     continue;
                 }
-                var atomic = new HashSet<string>(StringComparer.Ordinal);
+                var atomic = new HashSet<string>(comparer);
                 foreach (OcrLineEvidence item in items)
                 {
                     RuleExtractionResult itemResult = ExtractFinalResult(new[] { item.Text }, issue, rule);
@@ -2476,14 +2491,16 @@ public static class RuleEngine
     // nearby/prefix extraction when a complete issue block fails validation.
     private static string? ExtractStrictIssueBlock(string[] lines, int issue, OcrRule rule)
     {
-        var values = new HashSet<string>(StringComparer.Ordinal);
+        IEqualityComparer<string> comparer = rule.Type.StartsWith("号码:", StringComparison.Ordinal)
+            ? ResultValues.NumberSetComparer : StringComparer.Ordinal;
+        var values = new HashSet<string>(comparer);
         int reviewedExpectedCount = 0;
         bool reviewedSplitRule = SplitIssueNumberRuleIds.Contains(rule.Id)
             && rule.Type.StartsWith("号码:", StringComparison.Ordinal)
             && int.TryParse(rule.Type.AsSpan("号码:".Length), out reviewedExpectedCount);
         if (reviewedSplitRule)
         {
-            var reviewed = new HashSet<string>(StringComparer.Ordinal);
+            var reviewed = new HashSet<string>(comparer);
             bool reviewedLeftCellProven = false;
             for (int index = 0; index < lines.Length; index++)
             {
@@ -3235,6 +3252,7 @@ public static class RuleEngine
             "绿格子双杀" => @"绝杀2肖",
             "公式杀两肖肖" or "公式杀两尾尾" => @"[=＝]杀",
             "红蜻蜓" => @"红蜻蜓必中(?:⑨|9)肖",
+            "红蜻蜓杀一肖" => @"红蜻蜓绝杀一肖",
             "神奇宇宙" => @"神秘宇宙绝杀半波",
             "墨羽" => @"墨羽尘曦(?:精)?杀一肖",
             _ => "(?!)"

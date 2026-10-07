@@ -884,8 +884,34 @@ public sealed class ResultDistributorTests
         Assert.Equal(["黑字杀合"], ReadSourceLabels("合分发规则.json", "蜻蜓一套"));
         Assert.Equal(["公式杀两尾尾"], ReadSourceLabels("尾分发规则.json", "蜻蜓一套"));
         Assert.Equal(["红蜻蜓"], ReadSourceLabels("生肖分发规则.json", "蜻蜓一套"));
+        Assert.Equal(["红蜻蜓杀一肖"], ReadSourceLabels("肖新增分发规则.json", "蜻蜓一套"));
         Assert.Equal(["神奇宇宙"], ReadSourceLabels("半波分发规则.json", "蜻蜓一套"));
         Assert.Equal(["墨羽"], ReadSourceLabels("肖分发规则.json", "蜻蜓一套"));
+    }
+
+    [Fact]
+    public async Task RedDragonflyOneZodiacUsesOnlyTheNewZodiacRoute()
+    {
+        string folder = CreateTempFolder();
+        try
+        {
+            string target = Path.Combine(folder, "280期-肖-新增.txt");
+            await File.WriteAllTextAsync(target, "已有数据\r\n\r\n生肖次数排行榜\r\n原统计\r\n");
+            string config = Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "肖新增分发规则.json");
+            string[] lines = ["蛇 红蜻蜓杀一肖", "猪兔鸡猴马牛羊龙鼠 红蜻蜓", "蛇牛 红蜻蜓杀一肖",
+                "缺失（未识别到当期目标数据） 红蜻蜓杀一肖"];
+            var written = await ResultDistributor.DistributeAsync(@"C:\图片\10.7-蜻蜓一套", 280, lines, folder, config);
+            Assert.Equal("蛇 红蜻蜓杀一肖", Assert.Single(written));
+            string text = await File.ReadAllTextAsync(target);
+            Assert.Equal("已有数据\r\n蛇 红蜻蜓杀一肖\r\n\r\n生肖次数排行榜\r\n原统计\r\n", text);
+            await ResultDistributor.DistributeAsync(@"C:\图片\10.7-蜻蜓一套", 280, lines, folder, config);
+            Assert.Equal(text, await File.ReadAllTextAsync(target));
+            Assert.Empty(await ResultDistributor.DistributeAsync(@"C:\图片\10.7-蜻蜓一套备份", 280, lines, folder, config));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
     }
 
     [Fact]
