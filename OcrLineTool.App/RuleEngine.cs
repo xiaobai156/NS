@@ -1762,6 +1762,10 @@ public static class RuleEngine
     public static RuleExtractionResult ExtractFinalResult(OcrEvidence evidence, int issue, OcrRule rule)
     {
         ArgumentNullException.ThrowIfNull(evidence);
+        if (rule.Id == "龙王杀两肖" && rule.Type == "生肖组合" &&
+            ZodiacIconMatcher.TryExtractPair(evidence, issue) is string iconValue)
+            return RuleExtractionResult.Success(iconValue);
+
         IEqualityComparer<string> comparer = rule.Type.StartsWith("号码:", StringComparison.Ordinal)
             ? ResultValues.NumberSetComparer : StringComparer.Ordinal;
         var observed = new HashSet<string>(comparer);

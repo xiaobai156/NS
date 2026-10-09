@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "templates": [
+    { "zodiac": "鼠", "file": "鼠.png" },
+    { "zodiac": "牛", "file": "牛.png" },
+    { "zodiac": "虎", "file": "虎.png" },
+    { "zodiac": "兔", "file": "兔.png" },
+    { "zodiac": "兔", "file": "兔_蓝底.png" },
+    { "zodiac": "龙", "file": "龙.png" },
+    { "zodiac": "蛇", "file": "蛇.png" },
+    { "zodiac": "马", "file": "马.png" },
+    { "zodiac": "羊", "file": "羊.png" },
+    { "zodiac": "羊", "file": "羊_蓝底.png" },
+    { "zodiac": "猴", "file": "猴.png" },
+    { "zodiac": "鸡", "file": "鸡.png" },
+    { "zodiac": "狗", "file": "狗.png" },
+    { "zodiac": "猪", "file": "猪.png" }
+  ]
+}

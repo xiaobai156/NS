@@ -390,6 +390,17 @@
       "FingerprintBottomWidthRatio": null
     },
     {
+      "Id": "\u9F99\u738B\u6740\u4E24\u8096",
+      "RuleIds": [
+        "\u9F99\u738B\u6740\u4E24\u8096"
+      ],
+      "Fingerprint": "F9C7CDF96AF7CFAFFBCFFFFFFFFFFF6DC3EDFFFFFFFFF597E03E7FFFFFFFF787EC7F6FF7BFDDBB1FECCF37F7BB5FD71FACCB26D5AB99E71BACCB26752B19E6178CCB62D31B1CE65F8C5B62951B1CC72F9C4B6AD36914C73F954B6665D91CC63F8D6774CC592CCE7FACCF678CD10CCE7FACCB7528690EC657ADCA356C633ED667",
+      "CropTopWidthRatio": 0.1125,
+      "CropBottomWidthRatio": 0.4025,
+      "FingerprintTopWidthRatio": null,
+      "FingerprintBottomWidthRatio": null
+    },
+    {
       "Id": "\u9F99\u738B",
       "RuleIds": [
         "\u9F99\u738B"

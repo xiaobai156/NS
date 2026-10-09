@@ -351,8 +351,8 @@ public sealed class VisualTemplateMatcherTests
             VisualTemplateMatcher.ConfigPath(AppContext.BaseDirectory));
 
         Assert.Equal("新澳六合彩资料", catalog.Folder);
-        Assert.Equal(102, catalog.Templates.Count);
-        Assert.Equal(105, catalog.Templates.SelectMany(item => item.RuleIds).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(103, catalog.Templates.Count);
+        Assert.Equal(106, catalog.Templates.SelectMany(item => item.RuleIds).Distinct(StringComparer.Ordinal).Count());
         Assert.Contains(catalog.Templates, item =>
             item.RuleIds.SequenceEqual(["祖师公肖", "祖师公尾"], StringComparer.Ordinal));
         Assert.Contains(catalog.Templates, item =>
@@ -383,6 +383,9 @@ public sealed class VisualTemplateMatcherTests
         VisualTemplateDefinition dragonKing = Assert.Single(catalog.Templates, item =>
             item.Id == "龙王" && item.RuleIds.SequenceEqual(["龙王"], StringComparer.Ordinal));
         Assert.InRange(dragonKing.CropBottomWidthRatio, 0.45, 0.47);
+        VisualTemplateDefinition dragonKingZodiac = Assert.Single(catalog.Templates, item =>
+            item.Id == "龙王杀两肖" && item.RuleIds.SequenceEqual(["龙王杀两肖"], StringComparer.Ordinal));
+        Assert.InRange(dragonKingZodiac.CropBottomWidthRatio, 0.40, 0.41);
         Assert.DoesNotContain(catalog.Templates, item =>
             item.Id == "龙王36码" || item.RuleIds.Contains("龙王36码", StringComparer.Ordinal));
         Assert.True(
