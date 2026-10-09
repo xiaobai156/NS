@@ -8,6 +8,8 @@ public sealed class ZodiacIconMatcherTests
 {
     private const string Source =
         @"C:\Users\Administrator\Desktop\每天工具\飞机抓图\结果\10.9-新澳六合彩资料\全部图片\20261009_173121_02b811f3_651057.jpg";
+    private const string HistoricalSource =
+        @"C:\Users\Administrator\AppData\Local\Temp\codex-clipboard-eecae8d4-9cef-4025-ab05-9dda0168ec85.jpg";
 
     [Fact]
     public void DragonKingTwoZodiacRuleUsesTheFixedIconCard()
@@ -67,5 +69,24 @@ public sealed class ZodiacIconMatcherTests
         {
             try { File.Delete(cropPath); } catch (IOException) { }
         }
+    }
+
+    [Fact]
+    public void WhiteRabbitDoesNotShiftRowsOrFallBackToAdjacentIssue()
+    {
+        if (!File.Exists(HistoricalSource))
+            return;
+
+        OcrRule rule = RuleCatalog.Load(Path.Combine(
+            ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "新澳六合彩资料.json"))
+            .Single(item => item.Id == "龙王杀两肖");
+        string[] rows = Enumerable.Range(187, 14)
+            .Reverse()
+            .Select(issue => $"{issue}期")
+            .ToArray();
+        OcrEvidence evidence = OcrEvidence.FromLines(HistoricalSource, rows);
+
+        Assert.Equal("兔蛇", RuleEngine.ExtractFinalValue(evidence, 190, rule));
+        Assert.Equal("牛虎", RuleEngine.ExtractFinalValue(evidence, 191, rule));
     }
 }

@@ -14,9 +14,12 @@ public static class ZodiacIconMatcher
 {
     private const int NormalizedWidth = 55;
     private const int NormalizedHeight = 42;
+    private const int IconCropHeight = 42;
+    private const int ForegroundPadding = 2;
     private const double FirstCellCenter = 0.4325;
     private const double SecondCellCenter = 0.5095;
     private const double CellWidth = 0.07;
+    private const double GridLineCoverage = 0.65;
     private static readonly object CacheLock = new();
     private static string? cachedConfigPath;
     private static IReadOnlyList<IconTemplate>? cachedTemplates;
@@ -24,7 +27,7 @@ public static class ZodiacIconMatcher
     private sealed record IconTemplate(string Zodiac, byte[] Pixels);
     private sealed record IconTemplateConfig(string Zodiac, string File);
     private sealed record IconTemplateCatalog(IconTemplateConfig[] Templates);
-    private sealed record YellowRow(int Top, int Bottom)
+    private sealed record CardRow(int Top, int Bottom, bool IsGridRow = false)
     {
         public int Center => (Top + Bottom) / 2;
     }
@@ -46,11 +49,11 @@ public static class ZodiacIconMatcher
         try
         {
             using var image = new Bitmap(evidence.SourcePath);
-            IReadOnlyList<YellowRow> rows = FindRows(image);
+            IReadOnlyList<CardRow> rows = FindRows(image);
             if (rows.Count == 0)
                 return null;
 
-            YellowRow? row = FindTargetRow(image, evidence, issue, rows);
+            CardRow? row = FindTargetRow(image, evidence, issue, rows);
             if (row is null)
                 return null;
 
@@ -91,7 +94,7 @@ public static class ZodiacIconMatcher
                         Path.GetDirectoryName(configPath)!,
                         item.File.Replace('/', Path.DirectorySeparatorChar));
                     using var image = new Bitmap(path);
-                    loaded.Add(new IconTemplate(item.Zodiac, Normalize(image)));
+                    loaded.Add(new IconTemplate(item.Zodiac, NormalizeForeground(image)));
                 }
 
                 cachedConfigPath = configPath;
@@ -107,7 +110,47 @@ public static class ZodiacIconMatcher
         }
     }
 
-    private static IReadOnlyList<YellowRow> FindRows(Bitmap image)
+    private static IReadOnlyList<CardRow> FindRows(Bitmap image)
+    {
+        IReadOnlyList<CardRow> gridRows = FindGridRows(image);
+        return gridRows.Count >= 2 ? gridRows : FindYellowRows(image);
+    }
+
+    private static IReadOnlyList<CardRow> FindGridRows(Bitmap image)
+    {
+        int startY = (int)Math.Round(image.Height * 0.15);
+        var active = new List<int>();
+        for (int y = startY; y < image.Height; y++)
+        {
+            int bright = 0;
+            for (int x = 0; x < image.Width; x++)
+                if (IsGridLinePixel(image.GetPixel(x, y)))
+                    bright++;
+            if (bright >= image.Width * GridLineCoverage)
+                active.Add(y);
+        }
+
+        var boundaries = new List<(int Top, int Bottom)>();
+        foreach (int y in active)
+        {
+            if (boundaries.Count == 0 || y - boundaries[^1].Bottom > 2)
+                boundaries.Add((y, y));
+            else
+                boundaries[^1] = (boundaries[^1].Top, y);
+        }
+
+        var rows = new List<CardRow>();
+        for (int index = 0; index + 1 < boundaries.Count; index++)
+        {
+            int top = boundaries[index].Bottom + 1;
+            int bottom = boundaries[index + 1].Top - 1;
+            if (bottom - top >= IconCropHeight)
+                rows.Add(new CardRow(top, bottom, true));
+        }
+        return rows;
+    }
+
+    private static IReadOnlyList<CardRow> FindYellowRows(Bitmap image)
     {
         int startY = (int)Math.Round(image.Height * 0.15);
         int[] centers =
@@ -132,20 +175,31 @@ public static class ZodiacIconMatcher
                 active.Add(y);
         }
 
-        var rows = new List<YellowRow>();
+        var rows = new List<CardRow>();
         foreach (int y in active)
         {
             if (rows.Count == 0 || y - rows[^1].Bottom > 3)
-                rows.Add(new YellowRow(y, y));
+                rows.Add(new CardRow(y, y));
             else
                 rows[^1] = rows[^1] with { Bottom = y };
         }
         return rows.Where(row => row.Bottom - row.Top >= 8).ToArray();
     }
 
-    private static Rectangle[] CellRectangles(Bitmap image, YellowRow row)
+    private static Rectangle[] CellRectangles(Bitmap image, CardRow row)
     {
         int width = Math.Max(12, (int)Math.Round(image.Width * CellWidth));
+        if (row.IsGridRow)
+        {
+            int gridTop = Math.Max(0, row.Top);
+            int gridBottom = Math.Min(image.Height, row.Bottom + 1);
+            return
+            [
+                CellRectangle(image.Width, FirstCellCenter, width, gridTop, gridBottom),
+                CellRectangle(image.Width, SecondCellCenter, width, gridTop, gridBottom)
+            ];
+        }
+
         int padY = Math.Max(2, (int)Math.Round(image.Width * 0.006));
         int top = Math.Max(0, row.Top - padY);
         int bottom = Math.Min(image.Height, row.Bottom + padY + 1);
@@ -154,7 +208,7 @@ public static class ZodiacIconMatcher
         // case instead of stretching a partial scan band.
         if (bottom - top < 24)
         {
-            int height = Math.Max(42, (int)Math.Round(image.Width * 0.06));
+            int height = Math.Max(IconCropHeight, (int)Math.Round(image.Width * 0.06));
             top = Math.Max(0, row.Center - height / 2);
             bottom = Math.Min(image.Height, top + height);
         }
@@ -172,11 +226,11 @@ public static class ZodiacIconMatcher
         return new Rectangle(left, top, width, Math.Max(1, bottom - top));
     }
 
-    private static YellowRow? FindTargetRow(
+    private static CardRow? FindTargetRow(
         Bitmap source,
         OcrEvidence evidence,
         int issue,
-        IReadOnlyList<YellowRow> rows)
+        IReadOnlyList<CardRow> rows)
     {
         // The source is a fixed card and OCR may run on a top crop. Issue order
         // therefore gives a safer row identity than translating crop-local Y
@@ -188,8 +242,8 @@ public static class ZodiacIconMatcher
             .Distinct()
             .OrderByDescending(value => value)
             .ToArray();
-        int index = issues.Length == 0 ? -1 : issues[0] - issue;
-        if (index >= 0 && index < rows.Count)
+        int index = issues.Length < 2 ? -1 : issues[0] - issue;
+        if (issues.Length >= 2 && rows.Count >= issues.Length && index >= 0 && index < rows.Count)
             return rows[index];
 
         // If an OCR provider emits only a bare target token, retain a geometry
@@ -202,7 +256,7 @@ public static class ZodiacIconMatcher
             return null;
 
         double[] candidateY = positioned.Select(box => box.CenterY).ToArray();
-        (YellowRow Row, double Distance) best = candidateY
+        (CardRow Row, double Distance) best = candidateY
             .SelectMany(y => rows.Select(row => (Row: row, Distance: Math.Abs(row.Center - y))))
             .OrderBy(item => item.Distance)
             .First();
@@ -223,22 +277,142 @@ public static class ZodiacIconMatcher
         if (cell.Width < 8 || cell.Height < 8)
             return null;
 
-        byte[] pixels = Normalize(image, cell);
-        var ordered = templates
-            .Select(template => (Template: template, Score: Difference(pixels, template.Pixels)))
+        if (cell.Height > IconCropHeight)
+        {
+            (string Zodiac, double Score)[] fullRow = RankCandidate(cell);
+            if (IsConfident(fullRow))
+                return fullRow[0].Zodiac;
+        }
+
+        var bestByZodiac = new Dictionary<string, double>(StringComparer.Ordinal);
+        int maxTop = Math.Max(cell.Top, cell.Bottom - IconCropHeight);
+        int step = cell.Height > IconCropHeight ? 2 : 1;
+        for (int top = cell.Top; top <= maxTop; top += step)
+        {
+            int height = Math.Min(IconCropHeight, cell.Bottom - top);
+            if (height < 8)
+                continue;
+
+            foreach ((string Zodiac, double Score) item in RankCandidate(
+                         new Rectangle(cell.X, top, cell.Width, height)))
+            {
+                if (!bestByZodiac.TryGetValue(item.Zodiac, out double previous) || item.Score < previous)
+                    bestByZodiac[item.Zodiac] = item.Score;
+            }
+        }
+
+        var ordered = bestByZodiac
+            .Select(item => (Zodiac: item.Key, Score: item.Value))
             .OrderBy(item => item.Score)
             .ToArray();
         if (ordered.Length == 0)
             return null;
-        double margin = ordered.Length < 2 ? double.MaxValue : ordered[1].Score - ordered[0].Score;
-        return ordered[0].Score <= 42 && margin >= 4 ? ordered[0].Template.Zodiac : null;
+        return IsConfident(ordered) ? ordered[0].Zodiac : null;
+
+        (string Zodiac, double Score)[] RankCandidate(Rectangle candidate)
+        {
+            byte[] pixels = NormalizeForeground(image, candidate);
+            return templates.GroupBy(
+                         template => template.Zodiac,
+                         StringComparer.Ordinal)
+                .Select(group => (Zodiac: group.Key, Score: group
+                    .Select(template => Difference(pixels, template.Pixels))
+                    .Min()))
+                .OrderBy(item => item.Score)
+                .ToArray();
+        }
+
+        static bool IsConfident((string Zodiac, double Score)[] scores)
+        {
+            if (scores.Length == 0)
+                return false;
+            double margin = scores.Length < 2 ? double.MaxValue : scores[1].Score - scores[0].Score;
+            // Background-independent matching still varies with screenshot scale;
+            // a clear margin is required so an uncertain cell stays missing.
+            return scores[0].Score <= 60 && margin >= 4.5;
+        }
     }
+
+    private static bool IsGridLinePixel(Color color) =>
+        color.R >= 190 && color.G >= 190 && color.B >= 190;
 
     private static bool IsYellow(Color color) =>
         color.R >= 220 && color.G >= 175 && color.B <= 140;
 
     private static byte[] Normalize(Bitmap source) =>
         Normalize(source, new Rectangle(0, 0, source.Width, source.Height));
+
+    private static byte[] NormalizeForeground(Bitmap source) =>
+        NormalizeForeground(source, new Rectangle(0, 0, source.Width, source.Height));
+
+    private static byte[] NormalizeForeground(Bitmap source, Rectangle sourceRect)
+    {
+        Rectangle bounded = Rectangle.Intersect(
+            new Rectangle(0, 0, source.Width, source.Height),
+            sourceRect);
+        if (bounded.Width < 2 || bounded.Height < 2)
+            return Normalize(source, bounded);
+
+        int left = bounded.Right;
+        int top = bounded.Bottom;
+        int right = bounded.Left - 1;
+        int bottom = bounded.Top - 1;
+        for (int y = bounded.Top; y < bounded.Bottom; y++)
+        for (int x = bounded.Left; x < bounded.Right; x++)
+        {
+            if (!IsForegroundPixel(source.GetPixel(x, y)))
+                continue;
+            left = Math.Min(left, x);
+            top = Math.Min(top, y);
+            right = Math.Max(right, x);
+            bottom = Math.Max(bottom, y);
+        }
+
+        if (right < left || bottom < top)
+            return Normalize(source, bounded);
+
+        const int padding = ForegroundPadding;
+        left = Math.Max(bounded.Left, left - padding);
+        top = Math.Max(bounded.Top, top - padding);
+        right = Math.Min(bounded.Right - 1, right + padding);
+        bottom = Math.Min(bounded.Bottom - 1, bottom + padding);
+
+        var normalized = new Bitmap(
+            NormalizedWidth,
+            NormalizedHeight,
+            PixelFormat.Format24bppRgb);
+        using (Graphics graphics = Graphics.FromImage(normalized))
+        {
+            graphics.Clear(Color.White);
+            graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            graphics.DrawImage(
+                source,
+                new Rectangle(0, 0, NormalizedWidth, NormalizedHeight),
+                new Rectangle(left, top, right - left + 1, bottom - top + 1),
+                GraphicsUnit.Pixel);
+        }
+
+        var pixels = new byte[NormalizedWidth * NormalizedHeight * 3];
+        int index = 0;
+        for (int y = 0; y < NormalizedHeight; y++)
+        for (int x = 0; x < NormalizedWidth; x++)
+        {
+            Color color = normalized.GetPixel(x, y);
+            if (!IsForegroundPixel(color))
+                color = Color.White;
+            pixels[index++] = color.R;
+            pixels[index++] = color.G;
+            pixels[index++] = color.B;
+        }
+        normalized.Dispose();
+        return pixels;
+    }
+
+    private static bool IsForegroundPixel(Color color)
+    {
+        double luminance = 0.299 * color.R + 0.587 * color.G + 0.114 * color.B;
+        return luminance < 175;
+    }
 
     private static byte[] Normalize(Bitmap source, Rectangle sourceRect)
     {
