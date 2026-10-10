@@ -161,7 +161,8 @@
       "required_keyword": "紫燕儿",
       "label": "紫燕儿杀一肖",
       "section": "紫燕儿",
-      "folder": "紫燕儿"
+      "folder": "紫燕儿",
+      "allow_folder_identity": true
     },
     {
       "keyword": "紫燕儿",
@@ -246,10 +247,12 @@
       "folder": "玩不转"
     },
     {
-      "keyword": "大哥6688",
+      "keyword": "大哥",
       "type": "生肖",
-      "required_keyword": "大哥6688",
-      "folder": "大哥"
+      "label": "大哥6688",
+      "required_keyword": "大哥",
+      "folder": "大哥",
+      "allow_folder_identity": true
     },
     {
       "keyword": "大酒窝",

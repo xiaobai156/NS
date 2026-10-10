@@ -173,6 +173,10 @@ public static class RuleEngine
             bool folderMatches = MatchesRuleFolder(imagePath, rule);
             if (!folderMatches)
                 return string.IsNullOrWhiteSpace(rule.Folder) && MatchesText(text, rule);
+            if (guardForeignIdentity && YanranAuthorCards.Supports(rule))
+                return !presentIdentities.Any(value => value != Normalize(rule.Keyword))
+                    && YanranAuthorCards.HasIdentity(lines, rule)
+                    && YanranAuthorCards.HasRows(lines, rule);
             // 复核卡（require_row_structure）：第一关子文件夹已过，第二关必须是
             // 规定行格式的图；水印/标题不再单独构成入选，杂格式的统计卡不入选。
             if (rule.RequireRowStructure)
@@ -833,6 +837,13 @@ public static class RuleEngine
     private static string? ExtractZiyanerKillZodiac(
         string[] lines, int issue, OcrRule rule)
     {
+        // A vertical name may be read as 紫燕 ... 儿, with data rows between.
+        // The watermark establishes ownership without becoming a section boundary.
+        if (YanranAuthorCards.HasIdentity(lines, rule))
+        {
+            RuleExtractionResult result = YanranAuthorCards.Extract(lines, issue, rule);
+            return result.Status == RuleExtractionStatus.Conflict ? ConflictMarker : result.Value;
+        }
         int sectionStart = LocateSectionStart(lines, rule.Section);
         if (sectionStart < 0)
             return null;
@@ -943,6 +954,13 @@ public static class RuleEngine
             lines = SplitInlineIssueRows(lines);
         if (rule.Id is "欧阳半波" or "紫燕儿杀一肖")
             lines = NormalizeSplitIssueDigits(lines);
+        if (rule.Id is "君军两肖" or "君军两尾" or "君军合" or "大哥6688")
+        {
+            if (requireCloudKeyword && !YanranAuthorCards.HasIdentity(lines, rule))
+                return null;
+            RuleExtractionResult result = YanranAuthorCards.Extract(lines, issue, rule);
+            return result.Status == RuleExtractionStatus.Conflict ? ConflictMarker : result.Value;
+        }
         if (rule.Id == "欧阳半波")
         {
             string? halfWave = ExtractOuyangHalfWaveRow(lines, issue, rule);
@@ -1762,6 +1780,31 @@ public static class RuleEngine
     public static RuleExtractionResult ExtractFinalResult(OcrEvidence evidence, int issue, OcrRule rule)
     {
         ArgumentNullException.ThrowIfNull(evidence);
+        if (!rule.IgnoreIssue)
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(issue);
+        if (YanranAuthorCards.Supports(rule)
+            && RuleCatalog.PathBelongsToGroup(evidence.SourcePath, "嫣然心水")
+            && evidence.HasCompleteGeometry)
+        {
+            if (!MatchesRuleFolder(evidence.SourcePath, rule))
+                return RuleExtractionResult.Missing;
+            var values = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var view in (evidence.TokenItems ?? evidence.Items).GroupBy(item => item.ViewId))
+            {
+                OcrLineEvidence[] items = view.Where(item => !string.IsNullOrWhiteSpace(item.Text)).ToArray();
+                if (items.Length == 0 || items.Any(item => item.Box is null)
+                    || !YanranAuthorCards.HasIdentity(items.Select(item => item.Text).ToArray(), rule))
+                    continue;
+                RuleExtractionResult result = YanranAuthorCards.Extract(
+                    BuildRowMajorReading(items).ToArray(), issue, rule, allowWrappedField: false);
+                if (result.Status == RuleExtractionStatus.Conflict)
+                    return result;
+                if (result.Value is not null)
+                    values.Add(result.Value);
+            }
+            return values.Count > 1 ? RuleExtractionResult.Conflict
+                : values.Count == 1 ? RuleExtractionResult.Success(values.Single()) : RuleExtractionResult.Missing;
+        }
         if (rule.Id == "藏宝杀一肖" && rule.Type == "生肖")
             return ToExtractionResult(ZodiacIconMatcher.TryExtractSingle(evidence, issue));
         if (rule.Id == "龙王杀两肖" && rule.Type == "生肖组合" &&

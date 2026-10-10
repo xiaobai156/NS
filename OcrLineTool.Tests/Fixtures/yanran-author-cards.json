@@ -1,0 +1,2681 @@
+[
+  {
+    "File": "20261010_113828_aaa2aa2d_92572.jpg",
+    "Folder": "大哥",
+    "SourceSha256": "882DCFC9D22B869ECC927FA18A05A4628A7D8B51BE1ED88F5905A08BDD8B8950",
+    "SmallLines": [
+      "新澳彩新澳彩杀肖",
+      "249期杀肖",
+      "(猪)",
+      "开23对",
+      "250期杀肖",
+      "(猴)",
+      "开14对",
+      "251期杀肖",
+      "(狗)",
+      "开30对",
+      "252期杀肖",
+      "(虎)",
+      "开22对",
+      "253期杀肖",
+      "(牛)",
+      "开16对",
+      "254期杀肖",
+      "(羊)",
+      "开02对",
+      "255期杀肖",
+      "(猴)",
+      "开44对",
+      "256期杀消",
+      "(牛)",
+      "开01对",
+      "257期杀肖",
+      "(蛇)",
+      "开07对",
+      "258期杀肖",
+      "(羊)",
+      "开46对",
+      "259期杀肖",
+      "(羊)",
+      "开22对",
+      "260期杀肖",
+      "(鸡)",
+      "开20对",
+      "开24对",
+      "哥",
+      "262期杀",
+      "268期杀肖",
+      "(兔)",
+      "开40X",
+      "269期杀肖",
+      "(兔)",
+      "开22对",
+      "270期杀肖",
+      "(鼠)",
+      "开19X",
+      "271期杀肖",
+      "(猪)",
+      "开35对",
+      "272期杀肖",
+      "(马)",
+      "开02对",
+      "273期杀肖",
+      "(鼠)",
+      "开05对",
+      "274期杀肖",
+      "(牛)",
+      "开33对",
+      "275期杀肖",
+      "(猪)",
+      "开17对",
+      "276期杀消",
+      "(鸡)",
+      "开14对",
+      "281期杀肖",
+      "(羊)",
+      "开15对",
+      "282期杀肖",
+      "(羊)",
+      "开23对",
+      "283期杀肖",
+      "(牛)",
+      "开啥？？"
+    ],
+    "MediumItems": [
+      {
+        "Text": "新澳彩新澳彩杀肖",
+        "Box": {
+          "X": 45,
+          "Y": 0,
+          "Width": 322,
+          "Height": 36
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "249期杀肖",
+        "Box": {
+          "X": 44,
+          "Y": 73,
+          "Width": 154,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(猪)",
+        "Box": {
+          "X": 210,
+          "Y": 73,
+          "Width": 67,
+          "Height": 39
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开23对",
+        "Box": {
+          "X": 286,
+          "Y": 74,
+          "Width": 105,
+          "Height": 36
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "250期杀肖",
+        "Box": {
+          "X": 44,
+          "Y": 110,
+          "Width": 153,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(猴)",
+        "Box": {
+          "X": 208,
+          "Y": 108,
+          "Width": 70,
+          "Height": 43
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开14对",
+        "Box": {
+          "X": 285,
+          "Y": 110,
+          "Width": 107,
+          "Height": 39
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "251期杀肖",
+        "Box": {
+          "X": 44,
+          "Y": 148,
+          "Width": 153,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(狗)",
+        "Box": {
+          "X": 209,
+          "Y": 145,
+          "Width": 68,
+          "Height": 43
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开30对",
+        "Box": {
+          "X": 284,
+          "Y": 145,
+          "Width": 109,
+          "Height": 42
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "252期杀肖",
+        "Box": {
+          "X": 44,
+          "Y": 185,
+          "Width": 153,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(虎)",
+        "Box": {
+          "X": 208,
+          "Y": 183,
+          "Width": 70,
+          "Height": 43
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开22对",
+        "Box": {
+          "X": 285,
+          "Y": 185,
+          "Width": 107,
+          "Height": 39
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "253期杀肖",
+        "Box": {
+          "X": 44,
+          "Y": 223,
+          "Width": 153,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(牛)",
+        "Box": {
+          "X": 208,
+          "Y": 221,
+          "Width": 70,
+          "Height": 42
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开16对",
+        "Box": {
+          "X": 286,
+          "Y": 222,
+          "Width": 107,
+          "Height": 40
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "254期杀肖",
+        "Box": {
+          "X": 44,
+          "Y": 260,
+          "Width": 153,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(羊)",
+        "Box": {
+          "X": 208,
+          "Y": 258,
+          "Width": 70,
+          "Height": 42
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开02对",
+        "Box": {
+          "X": 286,
+          "Y": 260,
+          "Width": 107,
+          "Height": 39
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "255期杀肖",
+        "Box": {
+          "X": 45,
+          "Y": 299,
+          "Width": 151,
+          "Height": 35
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(猴)",
+        "Box": {
+          "X": 208,
+          "Y": 296,
+          "Width": 70,
+          "Height": 42
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开44对",
+        "Box": {
+          "X": 286,
+          "Y": 297,
+          "Width": 107,
+          "Height": 39
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "256期杀消",
+        "Box": {
+          "X": 44,
+          "Y": 335,
+          "Width": 154,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(牛)",
+        "Box": {
+          "X": 208,
+          "Y": 333,
+          "Width": 70,
+          "Height": 43
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开01对",
+        "Box": {
+          "X": 284,
+          "Y": 332,
+          "Width": 109,
+          "Height": 42
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "257期杀肖",
+        "Box": {
+          "X": 44,
+          "Y": 372,
+          "Width": 153,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(蛇)",
+        "Box": {
+          "X": 208,
+          "Y": 370,
+          "Width": 70,
+          "Height": 43
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开07对",
+        "Box": {
+          "X": 286,
+          "Y": 372,
+          "Width": 107,
+          "Height": 39
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "258期杀肖",
+        "Box": {
+          "X": 45,
+          "Y": 411,
+          "Width": 151,
+          "Height": 35
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(羊)",
+        "Box": {
+          "X": 208,
+          "Y": 407,
+          "Width": 70,
+          "Height": 43
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开46对",
+        "Box": {
+          "X": 285,
+          "Y": 409,
+          "Width": 107,
+          "Height": 39
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "259期杀肖",
+        "Box": {
+          "X": 44,
+          "Y": 447,
+          "Width": 153,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(羊)",
+        "Box": {
+          "X": 208,
+          "Y": 445,
+          "Width": 70,
+          "Height": 43
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开22对",
+        "Box": {
+          "X": 286,
+          "Y": 447,
+          "Width": 107,
+          "Height": 39
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "260期杀肖",
+        "Box": {
+          "X": 45,
+          "Y": 486,
+          "Width": 151,
+          "Height": 35
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(鸡)",
+        "Box": {
+          "X": 210,
+          "Y": 484,
+          "Width": 71,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开20对",
+        "Box": {
+          "X": 286,
+          "Y": 485,
+          "Width": 105,
+          "Height": 36
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "261期杀肖",
+        "Box": {
+          "X": 45,
+          "Y": 524,
+          "Width": 154,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(猪)",
+        "Box": {
+          "X": 202,
+          "Y": 524,
+          "Width": 80,
+          "Height": 33
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开24对",
+        "Box": {
+          "X": 276,
+          "Y": 524,
+          "Width": 113,
+          "Height": 32
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "哥",
+        "Box": {
+          "X": 275,
+          "Y": 543,
+          "Width": 237,
+          "Height": 237
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "262期杀",
+        "Box": {
+          "X": 44,
+          "Y": 561,
+          "Width": 127,
+          "Height": 36
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "263",
+        "Box": {
+          "X": 42,
+          "Y": 597,
+          "Width": 64,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "264期杀",
+        "Box": {
+          "X": 43,
+          "Y": 635,
+          "Width": 130,
+          "Height": 36
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "265期",
+        "Box": {
+          "X": 41,
+          "Y": 672,
+          "Width": 118,
+          "Height": 39
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "266",
+        "Box": {
+          "X": 42,
+          "Y": 710,
+          "Width": 64,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "267期杀肖",
+        "Box": {
+          "X": 44,
+          "Y": 749,
+          "Width": 162,
+          "Height": 35
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(猪)开40对",
+        "Box": {
+          "X": 203,
+          "Y": 746,
+          "Width": 189,
+          "Height": 40
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "268期杀肖",
+        "Box": {
+          "X": 45,
+          "Y": 786,
+          "Width": 155,
+          "Height": 35
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(兔)开40X",
+        "Box": {
+          "X": 203,
+          "Y": 783,
+          "Width": 183,
+          "Height": 41
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "269期杀肖",
+        "Box": {
+          "X": 44,
+          "Y": 821,
+          "Width": 154,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(兔)",
+        "Box": {
+          "X": 208,
+          "Y": 819,
+          "Width": 72,
+          "Height": 42
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开22对",
+        "Box": {
+          "X": 285,
+          "Y": 822,
+          "Width": 106,
+          "Height": 36
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "270期杀肖",
+        "Box": {
+          "X": 45,
+          "Y": 860,
+          "Width": 151,
+          "Height": 35
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(鼠)",
+        "Box": {
+          "X": 208,
+          "Y": 857,
+          "Width": 70,
+          "Height": 42
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开19X",
+        "Box": {
+          "X": 287,
+          "Y": 859,
+          "Width": 98,
+          "Height": 37
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "271期杀肖",
+        "Box": {
+          "X": 43,
+          "Y": 896,
+          "Width": 154,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(猪)",
+        "Box": {
+          "X": 208,
+          "Y": 894,
+          "Width": 69,
+          "Height": 43
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开35对",
+        "Box": {
+          "X": 284,
+          "Y": 893,
+          "Width": 109,
+          "Height": 42
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "272期杀肖",
+        "Box": {
+          "X": 44,
+          "Y": 933,
+          "Width": 153,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(马)",
+        "Box": {
+          "X": 208,
+          "Y": 931,
+          "Width": 69,
+          "Height": 43
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开02对",
+        "Box": {
+          "X": 286,
+          "Y": 933,
+          "Width": 107,
+          "Height": 39
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "273期杀肖",
+        "Box": {
+          "X": 44,
+          "Y": 971,
+          "Width": 153,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(鼠)",
+        "Box": {
+          "X": 208,
+          "Y": 969,
+          "Width": 69,
+          "Height": 43
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开05对",
+        "Box": {
+          "X": 285,
+          "Y": 970,
+          "Width": 107,
+          "Height": 39
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "274期杀肖",
+        "Box": {
+          "X": 44,
+          "Y": 1008,
+          "Width": 153,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(牛)",
+        "Box": {
+          "X": 208,
+          "Y": 1006,
+          "Width": 70,
+          "Height": 43
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开33对",
+        "Box": {
+          "X": 286,
+          "Y": 1008,
+          "Width": 107,
+          "Height": 39
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "275期杀肖",
+        "Box": {
+          "X": 44,
+          "Y": 1045,
+          "Width": 153,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(猪)",
+        "Box": {
+          "X": 208,
+          "Y": 1043,
+          "Width": 70,
+          "Height": 43
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开17对",
+        "Box": {
+          "X": 286,
+          "Y": 1045,
+          "Width": 107,
+          "Height": 39
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "276期杀消",
+        "Box": {
+          "X": 44,
+          "Y": 1083,
+          "Width": 154,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(鸡)",
+        "Box": {
+          "X": 208,
+          "Y": 1081,
+          "Width": 70,
+          "Height": 42
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开14对",
+        "Box": {
+          "X": 286,
+          "Y": 1082,
+          "Width": 107,
+          "Height": 40
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "281期杀肖",
+        "Box": {
+          "X": 44,
+          "Y": 1120,
+          "Width": 153,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(羊)",
+        "Box": {
+          "X": 208,
+          "Y": 1118,
+          "Width": 69,
+          "Height": 43
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开15对",
+        "Box": {
+          "X": 286,
+          "Y": 1120,
+          "Width": 107,
+          "Height": 39
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "282期杀肖",
+        "Box": {
+          "X": 44,
+          "Y": 1158,
+          "Width": 153,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(羊)",
+        "Box": {
+          "X": 208,
+          "Y": 1156,
+          "Width": 71,
+          "Height": 42
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开23对",
+        "Box": {
+          "X": 286,
+          "Y": 1158,
+          "Width": 105,
+          "Height": 36
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "283期杀肖",
+        "Box": {
+          "X": 45,
+          "Y": 1197,
+          "Width": 152,
+          "Height": 35
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(牛)",
+        "Box": {
+          "X": 209,
+          "Y": 1195,
+          "Width": 69,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开啥？？",
+        "Box": {
+          "X": 285,
+          "Y": 1195,
+          "Width": 119,
+          "Height": 39
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      }
+    ],
+    "CloudItems": []
+  },
+  {
+    "File": "20261010_113829_aaa2aa2d_92573.jpg",
+    "Folder": "大哥",
+    "SourceSha256": "7117548CCC2496B75F067FB1C68E4518F3D0C0DD9B4407E89C4D5B84F7868465",
+    "SmallLines": [
+      "缘来如此【新澳门】综合料",
+      "《新澳门杀一肖》",
+      "274期杀一肖【鼠】开33√",
+      "275期杀一肖",
+      "【猴】开17√",
+      "276期杀一肖",
+      "【猪】开14√",
+      "277期杀一肖",
+      "【虎】开11√",
+      "278期杀一肖",
+      "【兔】开02√",
+      "279期杀一肖",
+      "【羊】开10√",
+      "280期杀一肖",
+      "【鸡】开15√",
+      "281期杀一肖",
+      "【鸡】开10错",
+      "282期杀一肖",
+      "【猪】开23√",
+      "283期杀一肖【龙】开00√",
+      "缘来如此",
+      "276期示一尾【5】开14√",
+      "277期杀一尾【0】开11√",
+      "278期杀一尾【8】开02√",
+      "279期杀一尾【5】开10√",
+      "280期杀一尾【2】开15√",
+      "281期杀一尾【7】开10√",
+      "282期杀一尾【8】开23√",
+      "283期杀一尾【3】开00√",
+      "《新澳门平特一肖》",
+      "283期平特一肖【虎】送兔开10√"
+    ],
+    "MediumItems": [],
+    "CloudItems": []
+  },
+  {
+    "File": "20261010_113807_aaa2aa2d_92568.jpg",
+    "Folder": "君君",
+    "SourceSha256": "C98AD1D414322FB1C9C970ABD42C1E2D18A9301A9F981268D171B90B23595D4D",
+    "SmallLines": [
+      "258期:杀【猪】开鸡46√",
+      "259期:杀【鼠】开鸡22√",
+      "260期:杀【鼠】开猪20√",
+      "-10中10一",
+      "261期:杀【猪】开羊24√",
+      "262期:杀【鸡】开牛30√",
+      "263期:杀【鼠】开狗09√",
+      "264期:杀【羊】开狗21√",
+      "265期:杀【龙】开马49√",
+      "266期:杀【牛】开猪08√",
+      "267期:杀【羊】开兔40√",
+      "268期:杀【狗】开兔40√",
+      "玩不转",
+      "272期:杀【蛇】开蛇02×",
+      "273期:杀【牛】开虎05√",
+      "274期:杀【马】开狗33√",
+      "275期:杀【虎】开虎17×",
+      "276期:杀【狗】开蛇14√",
+      "277期:杀【牛】开猴11√",
+      "278期:杀【狗】开蛇02√",
+      "279期:杀【马】开鸡10√",
+      "280期:杀【狗】开龙15√",
+      "10中8",
+      "281期:杀【鸡】开鸡10x",
+      "282期:杀【龙】开猴23√",
+      "283期:杀【龙】开?"
+    ],
+    "MediumItems": [],
+    "CloudItems": []
+  },
+  {
+    "File": "20261010_113808_aaa2aa2d_92569.jpg",
+    "Folder": "君君",
+    "SourceSha256": "2008A9580FA300D76C7FE5A0824E9F9D39495EE1B9981D19BB4FFBBFDEF38AAF",
+    "SmallLines": [
+      "∠8U期米鸡+龙X升15龙",
+      "281期杀虎+鸡X开10鸡",
+      "282期杀羊+龙开23猴",
+      "283期杀鸡+蛇开",
+      "杀一尾",
+      "273期杀1+4尾开05",
+      "274期杀8+7尾开33",
+      "275期杀7+5尾开17",
+      "276期杀5+4X尾开14",
+      "君",
+      "277期杀8+4尾开11",
+      "278期杀1+5尾开02",
+      "279期杀1+6尾开10",
+      "280期杀2+1尾开15",
+      "281期杀7+0X尾开10",
+      "282期杀2+3X尾开23",
+      "军",
+      "283期杀8+0尾开",
+      "杀一合",
+      "273期杀09合开05",
+      "274期杀08合开33",
+      "275期杀09合开17",
+      "276期杀07合开14",
+      "277期杀06合开11",
+      "278期杀05合开02",
+      "279期杀01合开10",
+      "280期杀08合开15",
+      "281期杀05合开10",
+      "282期杀11合开23",
+      "283期杀02合开"
+    ],
+    "MediumItems": [
+      {
+        "Text": "28U期米X鸡+龙X升15龙",
+        "Box": {
+          "X": 79,
+          "Y": 5,
+          "Width": 289,
+          "Height": 20
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "281期杀虎+鸡X开10鸡",
+        "Box": {
+          "X": 77,
+          "Y": 39,
+          "Width": 289,
+          "Height": 27
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "282期杀羊+龙开23猴",
+        "Box": {
+          "X": 78,
+          "Y": 81,
+          "Width": 273,
+          "Height": 27
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "283期杀鸡+蛇开",
+        "Box": {
+          "X": 77,
+          "Y": 119,
+          "Width": 211,
+          "Height": 27
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "杀一尾",
+        "Box": {
+          "X": 74,
+          "Y": 190,
+          "Width": 93,
+          "Height": 37
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "273期杀1+4尾开05",
+        "Box": {
+          "X": 78,
+          "Y": 275,
+          "Width": 247,
+          "Height": 27
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "274期杀8+7尾开33",
+        "Box": {
+          "X": 76,
+          "Y": 314,
+          "Width": 250,
+          "Height": 30
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "275期杀7+5尾开17",
+        "Box": {
+          "X": 76,
+          "Y": 356,
+          "Width": 249,
+          "Height": 30
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "276期杀5+4X尾开14",
+        "Box": {
+          "X": 77,
+          "Y": 400,
+          "Width": 268,
+          "Height": 27
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "君",
+        "Box": {
+          "X": 459,
+          "Y": 396,
+          "Width": 146,
+          "Height": 151
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "277期杀8+4尾开11",
+        "Box": {
+          "X": 76,
+          "Y": 440,
+          "Width": 248,
+          "Height": 30
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "278期杀1+5尾开02",
+        "Box": {
+          "X": 76,
+          "Y": 481,
+          "Width": 250,
+          "Height": 30
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "279期杀1+6尾开10",
+        "Box": {
+          "X": 77,
+          "Y": 525,
+          "Width": 248,
+          "Height": 27
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "280期杀2+1尾开15",
+        "Box": {
+          "X": 77,
+          "Y": 566,
+          "Width": 248,
+          "Height": 27
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "281期杀7+0X尾开10",
+        "Box": {
+          "X": 77,
+          "Y": 606,
+          "Width": 266,
+          "Height": 30
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "282期杀2+3X尾开23",
+        "Box": {
+          "X": 77,
+          "Y": 650,
+          "Width": 267,
+          "Height": 27
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "军",
+        "Box": {
+          "X": 462,
+          "Y": 675,
+          "Width": 142,
+          "Height": 147
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "283期杀8+0尾开",
+        "Box": {
+          "X": 77,
+          "Y": 688,
+          "Width": 215,
+          "Height": 28
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "杀一合",
+        "Box": {
+          "X": 74,
+          "Y": 759,
+          "Width": 93,
+          "Height": 37
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "273期杀09合开05",
+        "Box": {
+          "X": 76,
+          "Y": 842,
+          "Width": 234,
+          "Height": 30
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "274期杀08合开33",
+        "Box": {
+          "X": 78,
+          "Y": 885,
+          "Width": 232,
+          "Height": 27
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "275期杀09合开17",
+        "Box": {
+          "X": 77,
+          "Y": 927,
+          "Width": 232,
+          "Height": 27
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "276期杀07合开14",
+        "Box": {
+          "X": 76,
+          "Y": 967,
+          "Width": 235,
+          "Height": 30
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "277期杀06合开11",
+        "Box": {
+          "X": 76,
+          "Y": 1009,
+          "Width": 232,
+          "Height": 30
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "278期杀05合开02",
+        "Box": {
+          "X": 77,
+          "Y": 1052,
+          "Width": 232,
+          "Height": 27
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "279期杀01合开10",
+        "Box": {
+          "X": 77,
+          "Y": 1094,
+          "Width": 232,
+          "Height": 27
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "280期杀08合开15",
+        "Box": {
+          "X": 76,
+          "Y": 1135,
+          "Width": 233,
+          "Height": 27
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "281期杀05合开10",
+        "Box": {
+          "X": 76,
+          "Y": 1175,
+          "Width": 233,
+          "Height": 30
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "282期杀11合开23",
+        "Box": {
+          "X": 77,
+          "Y": 1219,
+          "Width": 232,
+          "Height": 27
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "283期杀02合开",
+        "Box": {
+          "X": 76,
+          "Y": 1255,
+          "Width": 200,
+          "Height": 24
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      }
+    ],
+    "CloudItems": []
+  },
+  {
+    "File": "20261010_113904_aaa2aa2d_92576.jpg",
+    "Folder": "紫燕儿",
+    "SourceSha256": "2C8D1A53EDFCFE611C48766464B69FED354812457976AD74996C62B55D67704E",
+    "SmallLines": [
+      "264期:新奥杀",
+      "牛羊狗",
+      "【兔】",
+      "√",
+      "265期:新奥杀",
+      ">>>>>>>>>>>X>>>>X>",
+      "266期:新奥杀",
+      "267期:新奥杀",
+      "268期:新奥杀",
+      "269期:新奥杀",
+      "272期：新奥杀",
+      "274期:新奥杀",
+      "紫燕儿",
+      "277期:新奥杀",
+      "278期:新奥杀",
+      "279期:新奥杀",
+      "280期:新奥杀",
+      "281期：新奥杀",
+      "282期:新奥杀",
+      "【兔】",
+      "283期:新奥杀",
+      "【龙】",
+      "268期:杀一尾",
+      "更",
+      "【9尾】",
+      ">>>>>>>>>>>>>>>",
+      "269期:杀",
+      "270期:杀",
+      "271期:杀",
+      "273期:杀",
+      "275期:杀",
+      "276期：杀",
+      "277期:杀",
+      "278期:杀",
+      "279期:杀",
+      "280期:杀",
+      "281期:杀",
+      "【7尾】",
+      "282期:杀",
+      "【2尾】"
+    ],
+    "MediumItems": [
+      {
+        "Text": "264期:新奥杀",
+        "Box": {
+          "X": 56,
+          "Y": 1,
+          "Width": 180,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【兔】√",
+        "Box": {
+          "X": 239,
+          "Y": 0,
+          "Width": 110,
+          "Height": 40
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "265期:新奥杀",
+        "Box": {
+          "X": 55,
+          "Y": 34,
+          "Width": 182,
+          "Height": 37
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猪】√",
+        "Box": {
+          "X": 232,
+          "Y": 34,
+          "Width": 116,
+          "Height": 40
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "266期:新奥杀",
+        "Box": {
+          "X": 56,
+          "Y": 71,
+          "Width": 181,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【虎】√",
+        "Box": {
+          "X": 232,
+          "Y": 69,
+          "Width": 116,
+          "Height": 40
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "267期:新奥杀",
+        "Box": {
+          "X": 56,
+          "Y": 106,
+          "Width": 181,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鸡】√",
+        "Box": {
+          "X": 236,
+          "Y": 103,
+          "Width": 112,
+          "Height": 40
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "268期:新奥杀",
+        "Box": {
+          "X": 56,
+          "Y": 140,
+          "Width": 180,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【马】√",
+        "Box": {
+          "X": 237,
+          "Y": 138,
+          "Width": 111,
+          "Height": 39
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "269期:新奥杀",
+        "Box": {
+          "X": 56,
+          "Y": 175,
+          "Width": 180,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【兔】√",
+        "Box": {
+          "X": 240,
+          "Y": 170,
+          "Width": 110,
+          "Height": 43
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "270期:新奥杀",
+        "Box": {
+          "X": 55,
+          "Y": 209,
+          "Width": 180,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛】√",
+        "Box": {
+          "X": 239,
+          "Y": 204,
+          "Width": 111,
+          "Height": 44
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "271期:新奥杀",
+        "Box": {
+          "X": 56,
+          "Y": 243,
+          "Width": 181,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【马】√",
+        "Box": {
+          "X": 239,
+          "Y": 239,
+          "Width": 111,
+          "Height": 44
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "272期:新奥杀",
+        "Box": {
+          "X": 56,
+          "Y": 278,
+          "Width": 180,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【兔】√",
+        "Box": {
+          "X": 239,
+          "Y": 273,
+          "Width": 111,
+          "Height": 44
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "273期:新奥杀",
+        "Box": {
+          "X": 55,
+          "Y": 311,
+          "Width": 181,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鸡】√",
+        "Box": {
+          "X": 235,
+          "Y": 308,
+          "Width": 115,
+          "Height": 43
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "274期:新奥杀",
+        "Box": {
+          "X": 56,
+          "Y": 346,
+          "Width": 181,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【羊】√",
+        "Box": {
+          "X": 237,
+          "Y": 344,
+          "Width": 111,
+          "Height": 40
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "紫燕",
+        "Box": {
+          "X": 405,
+          "Y": 363,
+          "Width": 187,
+          "Height": 357
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "275期:新奥杀",
+        "Box": {
+          "X": 56,
+          "Y": 381,
+          "Width": 181,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【龙】√",
+        "Box": {
+          "X": 240,
+          "Y": 378,
+          "Width": 108,
+          "Height": 40
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "276期:新奥杀",
+        "Box": {
+          "X": 56,
+          "Y": 415,
+          "Width": 181,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【蛇】×",
+        "Box": {
+          "X": 235,
+          "Y": 411,
+          "Width": 114,
+          "Height": 43
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "277期:新奥杀",
+        "Box": {
+          "X": 56,
+          "Y": 450,
+          "Width": 180,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鸡】√",
+        "Box": {
+          "X": 240,
+          "Y": 445,
+          "Width": 110,
+          "Height": 44
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "278期:新奥杀",
+        "Box": {
+          "X": 56,
+          "Y": 484,
+          "Width": 180,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【狗】√",
+        "Box": {
+          "X": 240,
+          "Y": 482,
+          "Width": 109,
+          "Height": 40
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "279期:新奥杀",
+        "Box": {
+          "X": 55,
+          "Y": 518,
+          "Width": 181,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鼠】√",
+        "Box": {
+          "X": 239,
+          "Y": 515,
+          "Width": 111,
+          "Height": 43
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "280期:新奥杀",
+        "Box": {
+          "X": 56,
+          "Y": 553,
+          "Width": 181,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【兔】√",
+        "Box": {
+          "X": 238,
+          "Y": 551,
+          "Width": 110,
+          "Height": 39
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "281期:新奥杀",
+        "Box": {
+          "X": 56,
+          "Y": 587,
+          "Width": 181,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鸡】X",
+        "Box": {
+          "X": 236,
+          "Y": 585,
+          "Width": 111,
+          "Height": 40
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "282期:新奥杀",
+        "Box": {
+          "X": 56,
+          "Y": 622,
+          "Width": 181,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【兔】√",
+        "Box": {
+          "X": 236,
+          "Y": 618,
+          "Width": 111,
+          "Height": 40
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "283期:新奥杀",
+        "Box": {
+          "X": 56,
+          "Y": 656,
+          "Width": 182,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【龙】",
+        "Box": {
+          "X": 222,
+          "Y": 656,
+          "Width": 84,
+          "Height": 36
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "儿",
+        "Box": {
+          "X": 411,
+          "Y": 671,
+          "Width": 175,
+          "Height": 196
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "268期:杀一尾",
+        "Box": {
+          "X": 56,
+          "Y": 725,
+          "Width": 191,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【9尾】√",
+        "Box": {
+          "X": 232,
+          "Y": 724,
+          "Width": 133,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "269期:杀一尾【3尾】√",
+        "Box": {
+          "X": 55,
+          "Y": 758,
+          "Width": 310,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "270期:杀一尾【4尾】√",
+        "Box": {
+          "X": 54,
+          "Y": 791,
+          "Width": 312,
+          "Height": 41
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "271期:杀一尾【8尾】√",
+        "Box": {
+          "X": 54,
+          "Y": 825,
+          "Width": 312,
+          "Height": 41
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "272期:杀一尾【9尾】√",
+        "Box": {
+          "X": 53,
+          "Y": 857,
+          "Width": 314,
+          "Height": 44
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "273期:杀一尾【4尾】",
+        "Box": {
+          "X": 55,
+          "Y": 896,
+          "Width": 274,
+          "Height": 37
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "274期:杀一尾【1尾】",
+        "Box": {
+          "X": 54,
+          "Y": 929,
+          "Width": 272,
+          "Height": 40
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "275期:杀一尾【3尾】",
+        "Box": {
+          "X": 55,
+          "Y": 965,
+          "Width": 271,
+          "Height": 37
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "√",
+        "Box": {
+          "X": 326,
+          "Y": 965,
+          "Width": 37,
+          "Height": 36
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "276期:杀一尾【1尾】",
+        "Box": {
+          "X": 54,
+          "Y": 996,
+          "Width": 272,
+          "Height": 41
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "277期:杀一尾",
+        "Box": {
+          "X": 56,
+          "Y": 1035,
+          "Width": 184,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【3尾】",
+        "Box": {
+          "X": 222,
+          "Y": 1035,
+          "Width": 103,
+          "Height": 35
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "√",
+        "Box": {
+          "X": 330,
+          "Y": 1035,
+          "Width": 32,
+          "Height": 32
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "278期:杀一尾",
+        "Box": {
+          "X": 56,
+          "Y": 1069,
+          "Width": 183,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【0尾】",
+        "Box": {
+          "X": 222,
+          "Y": 1069,
+          "Width": 102,
+          "Height": 35
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "√",
+        "Box": {
+          "X": 330,
+          "Y": 1069,
+          "Width": 32,
+          "Height": 33
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "279期:杀一尾",
+        "Box": {
+          "X": 57,
+          "Y": 1105,
+          "Width": 180,
+          "Height": 31
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【1尾】",
+        "Box": {
+          "X": 230,
+          "Y": 1105,
+          "Width": 93,
+          "Height": 33
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "√",
+        "Box": {
+          "X": 330,
+          "Y": 1103,
+          "Width": 32,
+          "Height": 34
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "280期:杀一尾【6尾】",
+        "Box": {
+          "X": 54,
+          "Y": 1136,
+          "Width": 270,
+          "Height": 37
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "√",
+        "Box": {
+          "X": 330,
+          "Y": 1138,
+          "Width": 32,
+          "Height": 33
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "281期:杀一尾【5尾】",
+        "Box": {
+          "X": 55,
+          "Y": 1172,
+          "Width": 270,
+          "Height": 37
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "2",
+        "Box": {
+          "X": 323,
+          "Y": 1165,
+          "Width": 49,
+          "Height": 50
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "282期:杀一尾",
+        "Box": {
+          "X": 55,
+          "Y": 1205,
+          "Width": 185,
+          "Height": 36
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【7尾】",
+        "Box": {
+          "X": 234,
+          "Y": 1208,
+          "Width": 89,
+          "Height": 33
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "283期:杀一尾【2尾】",
+        "Box": {
+          "X": 55,
+          "Y": 1240,
+          "Width": 268,
+          "Height": 38
+        },
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      }
+    ],
+    "CloudItems": [
+      {
+        "Text": "264期:新奥杀[兔]√",
+        "Box": {
+          "X": 59,
+          "Y": 3,
+          "Width": 283,
+          "Height": 36
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "265期:新奥杀[猪]√",
+        "Box": {
+          "X": 59,
+          "Y": 39,
+          "Width": 283,
+          "Height": 35
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "266期:新奥杀虎√",
+        "Box": {
+          "X": 59,
+          "Y": 72,
+          "Width": 283,
+          "Height": 35
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "267期:新奥杀鸡√",
+        "Box": {
+          "X": 59,
+          "Y": 107,
+          "Width": 283,
+          "Height": 34
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "268期:新奥杀马",
+        "Box": {
+          "X": 59,
+          "Y": 141,
+          "Width": 283,
+          "Height": 35
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "269期:新奥杀[兔]√",
+        "Box": {
+          "X": 59,
+          "Y": 176,
+          "Width": 283,
+          "Height": 36
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "270期:新奥杀牛√",
+        "Box": {
+          "X": 59,
+          "Y": 212,
+          "Width": 283,
+          "Height": 33
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "271期:新奥杀马√",
+        "Box": {
+          "X": 59,
+          "Y": 245,
+          "Width": 285,
+          "Height": 34
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "272期:新奥杀兔",
+        "Box": {
+          "X": 59,
+          "Y": 278,
+          "Width": 283,
+          "Height": 37
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "273期:新奥杀鸡√",
+        "Box": {
+          "X": 59,
+          "Y": 314,
+          "Width": 283,
+          "Height": 33
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "274期:新奥杀羊羊√",
+        "Box": {
+          "X": 59,
+          "Y": 347,
+          "Width": 283,
+          "Height": 36
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "275期:新奥杀龙",
+        "Box": {
+          "X": 59,
+          "Y": 383,
+          "Width": 283,
+          "Height": 35
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "276期:新奥杀[蛇]X",
+        "Box": {
+          "X": 59,
+          "Y": 416,
+          "Width": 283,
+          "Height": 36
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "277期:新奥杀鸡√",
+        "Box": {
+          "X": 59,
+          "Y": 452,
+          "Width": 283,
+          "Height": 33
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "278期:新奥杀狗√",
+        "Box": {
+          "X": 59,
+          "Y": 487,
+          "Width": 283,
+          "Height": 33
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "279期:新奥杀鼠√紫燕",
+        "Box": {
+          "X": 59,
+          "Y": 395,
+          "Width": 509,
+          "Height": 307
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "280期:新奥杀[兔]√",
+        "Box": {
+          "X": 59,
+          "Y": 556,
+          "Width": 283,
+          "Height": 33
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "281期:新奥杀鸡",
+        "Box": {
+          "X": 59,
+          "Y": 589,
+          "Width": 283,
+          "Height": 34
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "282期:新奥杀兔√",
+        "Box": {
+          "X": 59,
+          "Y": 623,
+          "Width": 283,
+          "Height": 37
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "283期:新奥杀龙",
+        "Box": {
+          "X": 59,
+          "Y": 658,
+          "Width": 244,
+          "Height": 34
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "268期:杀一尾[9尾]√",
+        "Box": {
+          "X": 59,
+          "Y": 727,
+          "Width": 298,
+          "Height": 33
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "269期:杀一尾[3尾]√",
+        "Box": {
+          "X": 59,
+          "Y": 762,
+          "Width": 298,
+          "Height": 32
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "270期:杀一尾[4尾]√",
+        "Box": {
+          "X": 59,
+          "Y": 794,
+          "Width": 298,
+          "Height": 35
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "271期:杀一尾[8尾]√",
+        "Box": {
+          "X": 59,
+          "Y": 831,
+          "Width": 298,
+          "Height": 34
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "272期:杀一尾[9尾]√",
+        "Box": {
+          "X": 59,
+          "Y": 865,
+          "Width": 298,
+          "Height": 33
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "273期:杀一尾[4尾]√",
+        "Box": {
+          "X": 59,
+          "Y": 898,
+          "Width": 298,
+          "Height": 35
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "274期:杀一尾[1尾]√",
+        "Box": {
+          "X": 59,
+          "Y": 933,
+          "Width": 298,
+          "Height": 34
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "275期:杀一尾[3尾]√",
+        "Box": {
+          "X": 59,
+          "Y": 967,
+          "Width": 298,
+          "Height": 35
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "276期:杀一尾[1尾]√",
+        "Box": {
+          "X": 59,
+          "Y": 1002,
+          "Width": 298,
+          "Height": 34
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "277期:杀一尾[3尾]√",
+        "Box": {
+          "X": 59,
+          "Y": 1038,
+          "Width": 298,
+          "Height": 33
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "278期:杀一尾[0尾]√",
+        "Box": {
+          "X": 59,
+          "Y": 1071,
+          "Width": 298,
+          "Height": 34
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "279期:杀一尾[1尾]√",
+        "Box": {
+          "X": 59,
+          "Y": 1105,
+          "Width": 298,
+          "Height": 35
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "280期:杀一尾[6尾]√",
+        "Box": {
+          "X": 59,
+          "Y": 1140,
+          "Width": 298,
+          "Height": 33
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "281期:杀一尾[5尾]√",
+        "Box": {
+          "X": 59,
+          "Y": 1175,
+          "Width": 298,
+          "Height": 34
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "282期:杀一尾[7尾]√",
+        "Box": {
+          "X": 59,
+          "Y": 1209,
+          "Width": 298,
+          "Height": 35
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      },
+      {
+        "Text": "283期:杀一尾[2尾]",
+        "Box": {
+          "X": 59,
+          "Y": 1241,
+          "Width": 259,
+          "Height": 37
+        },
+        "ViewId": "retry/Tencent/tencent",
+        "RegionId": "main"
+      }
+    ]
+  },
+  {
+    "File": "20261010_113905_aaa2aa2d_92577.jpg",
+    "Folder": "紫燕儿",
+    "SourceSha256": "60B34E6D630CC7CA56273E1F290FDD7989FCB8700DCCCDE56EE613AF23EB70D2",
+    "SmallLines": [
+      "【新澳】",
+      "老兵惜缘杀肖",
+      "此轮352错18",
+      "275期杀{猪}开虎√",
+      "276期杀",
+      "{猴}开蛇√",
+      "277期杀",
+      "{鸡}开猴√",
+      "278期杀",
+      "{鸡}开蛇√",
+      "279期杀",
+      "{猴}开鸡√",
+      "280期杀",
+      "{牛}开龙√",
+      "281期杀",
+      "{虎}开鸡√",
+      "282期杀",
+      "{狗}开猴√",
+      "283期杀{虎}开？",
+      "老兵惜缘"
+    ],
+    "MediumItems": [],
+    "CloudItems": []
+  }
+]
