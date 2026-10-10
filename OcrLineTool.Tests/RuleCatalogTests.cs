@@ -281,7 +281,7 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "新澳六合彩资料.json"));
 
-        Assert.Equal(106, rules.Count);
+        Assert.Equal(107, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.Contains(rules, rule => rule.Id == "白小姐四季" && rule.Type == "四季");
         Assert.Contains(rules, rule => rule.Id == "白小姐来钱" && rule.Type == "九肖" && rule.AllowOpeningRow);
@@ -315,6 +315,7 @@ public sealed class RuleCatalogTests
             rule.Id == "龙王杀两肖" &&
             rule.Keyword == "龙王庙绝杀两肖付费版" &&
             rule.Type == "生肖组合");
+        Assert.Contains(rules, rule => rule.Id == "藏宝杀一肖" && rule.Type == "生肖" && rule.Section == "特肖杀");
         Assert.DoesNotContain(rules, rule => rule.Id == "龙王36码");
         Assert.Contains(rules, rule => rule.Id == "小马哥" && rule.Keyword == "小马哥庄家杀12码");
         Assert.Contains(rules, rule => rule.Id == "金钱网" && rule.Keyword == "金钱网必杀12个特码");
@@ -382,7 +383,7 @@ public sealed class RuleCatalogTests
         Assert.Contains(rules, rule => rule.Id == "关公又来了肖" && rule.Keyword == "关公杀一肖又来了" && rule.Type == "生肖");
         Assert.Equal(
         [
-            "小马哥", "张小艺", "雷锋", "狗庄", "藏宝十二码", "藏宝头", "黄大仙", "宝典杀", "宝典尾", "宝典", "刘伯温二尾", "刘伯温",
+            "小马哥", "张小艺", "雷锋", "狗庄", "藏宝十二码", "藏宝头", "藏宝杀一肖", "黄大仙", "宝典杀", "宝典尾", "宝典", "刘伯温二尾", "刘伯温",
             "庄家", "天线宝杀", "六叔公头", "通天", "帅铁", "帅铁尾", "帅铁头", "杀料", "杀料五码", "心水",
             "心水两肖", "白小姐杀两肖", "内幕", "强哥", "锁妖", "赛马会", "聚彩", "慈善", "金钱网", "彩虹",
             "天机阁", "天机阁五行", "妈祖两尾", "祖师公肖", "祖师公尾", "龙王杀", "龙王杀两肖", "龙王", "红人馆", "老人杀", "老人味",

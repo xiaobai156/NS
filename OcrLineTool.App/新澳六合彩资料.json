@@ -9,6 +9,7 @@
     { "keyword": "狗庄吃12码收单省心", "type": "号码:12", "label": "狗庄" },
     { "keyword": "藏宝库", "type": "号码:12", "label": "藏宝十二码", "required_keyword": "杀一波12码" },
     { "keyword": "藏宝头", "type": "头", "label": "藏宝头", "required_keyword": "无错四头", "section": "今晚买" },
+    { "keyword": "藏宝库精杀①特肖付费版", "type": "生肖", "label": "藏宝杀一肖", "section": "特肖杀" },
     { "keyword": "黄大仙死禁10码", "type": "号码:10", "label": "黄大仙" },
     { "keyword": "宝典精杀12码", "type": "号码:12", "label": "宝典杀" },
     { "keyword": "六合绝杀一尾", "type": "尾", "label": "宝典尾" },

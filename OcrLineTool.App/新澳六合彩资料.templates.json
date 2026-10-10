@@ -4,6 +4,15 @@
   "MaxDistance": 60,
   "Templates": [
     {
+      "Id": "藏宝杀一肖",
+      "RuleIds": ["藏宝杀一肖"],
+      "Fingerprint": "7DC3CCB1EEE6CFAFFFCFFFFFFFFFFFFFE5D7BF7F6EBFEFBFE0BFFFBFFFDFF7FFF0AFDBEBFD5F6BBFE03BBBFBBDDF6DFFC306736A9DECE663C7D65725657CE6E387F556655660D5918DC566C56670C6B385C8A2652674DE318CD1A2D52664D581CCCAF2D52E74D452CCFA66D52A60D583DCF456D42C40D4D1DCF256D55652D1B3",
+      "CropTopWidthRatio": 0.1125,
+      "CropBottomWidthRatio": 0.47,
+      "FingerprintTopWidthRatio": null,
+      "FingerprintBottomWidthRatio": null
+    },
+    {
       "Id": "\u5C0F\u9A6C\u54E5",
       "RuleIds": [
         "\u5C0F\u9A6C\u54E5"

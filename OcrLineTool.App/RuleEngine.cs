@@ -1762,6 +1762,8 @@ public static class RuleEngine
     public static RuleExtractionResult ExtractFinalResult(OcrEvidence evidence, int issue, OcrRule rule)
     {
         ArgumentNullException.ThrowIfNull(evidence);
+        if (rule.Id == "藏宝杀一肖" && rule.Type == "生肖")
+            return ToExtractionResult(ZodiacIconMatcher.TryExtractSingle(evidence, issue));
         if (rule.Id == "龙王杀两肖" && rule.Type == "生肖组合" &&
             ZodiacIconMatcher.TryExtractPair(evidence, issue) is string iconValue)
             return RuleExtractionResult.Success(iconValue);

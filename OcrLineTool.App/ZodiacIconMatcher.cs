@@ -7,8 +7,7 @@ using System.Text.RegularExpressions;
 namespace OcrLineTool;
 
 /// <summary>
-/// Reads the two fixed animal cells on the 龙王庙【绝杀两肖】 card. The card
-/// uses bitmap glyphs, so ordinary OCR text is only a fallback for this rule.
+/// Reads fixed animal cells on the 龙王庙 and 藏宝库 cards.
 /// </summary>
 public static class ZodiacIconMatcher
 {
@@ -18,13 +17,14 @@ public static class ZodiacIconMatcher
     private const int ForegroundPadding = 2;
     private const double FirstCellCenter = 0.4325;
     private const double SecondCellCenter = 0.5095;
+    private const double SingleCellCenter = 0.49;
     private const double CellWidth = 0.07;
     private const double GridLineCoverage = 0.65;
     private static readonly object CacheLock = new();
     private static string? cachedConfigPath;
     private static IReadOnlyList<IconTemplate>? cachedTemplates;
 
-    private sealed record IconTemplate(string Zodiac, byte[] Pixels);
+    private sealed record IconTemplate(string Zodiac, byte[] Pixels, byte[] SinglePixels);
     private sealed record IconTemplateConfig(string Zodiac, string File);
     private sealed record IconTemplateCatalog(IconTemplateConfig[] Templates);
     private sealed record CardRow(int Top, int Bottom, bool IsGridRow = false)
@@ -50,7 +50,7 @@ public static class ZodiacIconMatcher
         {
             using var image = new Bitmap(evidence.SourcePath);
             IReadOnlyList<CardRow> rows = FindRows(image);
-            if (rows.Count == 0)
+            if (rows.Count == 0 || !HasCardBackground(image, rows[0], single: false))
                 return null;
 
             CardRow? row = FindTargetRow(image, evidence, issue, rows);
@@ -68,6 +68,85 @@ public static class ZodiacIconMatcher
         {
             return null;
         }
+    }
+
+    public static string? TryExtractSingle(OcrEvidence evidence, int issue) =>
+        TryExtractSingle(evidence, issue, AppContext.BaseDirectory);
+
+    internal static string? TryExtractSingle(OcrEvidence evidence, int issue, string appDirectory)
+    {
+        ArgumentNullException.ThrowIfNull(evidence);
+        if (issue <= 0 || string.IsNullOrWhiteSpace(evidence.SourcePath) || !File.Exists(evidence.SourcePath))
+            return null;
+        IReadOnlyList<IconTemplate> templates = LoadTemplates(appDirectory);
+        if (templates.Select(item => item.Zodiac).Distinct(StringComparer.Ordinal).Count() != 12)
+            return null;
+        try
+        {
+            using var image = new Bitmap(evidence.SourcePath);
+            IReadOnlyList<CardRow> rows = FindGridRows(image);
+            if (rows.Count < 2 || !HasCardBackground(image, rows[0], single: true))
+                return null;
+            CardRow? row = FindSingleTargetRow(image, evidence, issue, rows);
+            if (row is null)
+                return null;
+            Rectangle cell = CellRectangle(image.Width, SingleCellCenter,
+                Math.Max(12, (int)Math.Round(image.Width * CellWidth)), row.Top, row.Bottom + 1);
+            return MatchCell(image, cell, templates, single: true);
+        }
+        catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static bool HasCardBackground(Bitmap image, CardRow row, bool single)
+    {
+        int y = row.Top + Math.Max(1, (row.Bottom - row.Top) / 8);
+        int matching = 0;
+        for (int x = image.Width / 5; x < image.Width * 3 / 4; x++)
+        {
+            Color color = image.GetPixel(x, y);
+            if (single ? IsYellow(color) : color.B >= 160 && color.G >= 150 && color.R < 180)
+                matching++;
+        }
+        return matching >= image.Width * 0.40;
+    }
+
+    private static CardRow? FindSingleTargetRow(
+        Bitmap source, OcrEvidence evidence, int issue, IReadOnlyList<CardRow> rows)
+    {
+        double scale = 1;
+        double offset = 0;
+        if (!string.Equals(evidence.SourcePath, evidence.InputPath, StringComparison.OrdinalIgnoreCase))
+        {
+            // Fixed-template views retain everything below their crop start.
+            using var input = new Bitmap(evidence.InputPath);
+            scale = source.Width / (double)input.Width;
+            offset = source.Height - input.Height * scale;
+            if (offset < 0 || offset > source.Width * .15)
+                return null;
+        }
+        var located = new List<(int Issue, int Index)>();
+        foreach (OcrLineEvidence item in evidence.TokenItems ?? evidence.Items)
+        {
+            if (item.Box is not OcrBox box || box.CenterX * scale >= source.Width * .20)
+                continue;
+            Match token = Regex.Match(item.Text, @"(?<!\d)(\d{1,6})\s*期");
+            if (!token.Success || !int.TryParse(token.Groups[1].Value, out int number))
+                continue;
+            double y = offset + box.CenterY * scale;
+            int index = Enumerable.Range(0, rows.Count).MinBy(index => Math.Abs(rows[index].Center - y));
+            if (Math.Abs(rows[index].Center - y) <= (rows[index].Bottom - rows[index].Top) * .30)
+                located.Add((number, index));
+        }
+        // Two independently located issue labels must agree on the descending
+        // row sequence. Missing/contradictory labels never borrow an adjacent row.
+        if (located.Select(item => item.Index).Distinct().Count() < 2 ||
+            located.Select(item => item.Issue + item.Index).Distinct().Count() != 1)
+            return null;
+        int[] targets = located.Where(item => item.Issue == issue).Select(item => item.Index).Distinct().ToArray();
+        return targets.Length == 1 ? rows[targets[0]] : null;
     }
 
     private static IReadOnlyList<IconTemplate> LoadTemplates(string appDirectory)
@@ -94,7 +173,8 @@ public static class ZodiacIconMatcher
                         Path.GetDirectoryName(configPath)!,
                         item.File.Replace('/', Path.DirectorySeparatorChar));
                     using var image = new Bitmap(path);
-                    loaded.Add(new IconTemplate(item.Zodiac, NormalizeForeground(image)));
+                    loaded.Add(new IconTemplate(item.Zodiac, NormalizeForeground(image),
+                        NormalizeForeground(image, new Rectangle(0, 0, image.Width, image.Height), outlineOnly: true)));
                 }
 
                 cachedConfigPath = configPath;
@@ -270,7 +350,8 @@ public static class ZodiacIconMatcher
         return Regex.IsMatch(text.Trim(), $@"^第?\s*{issue}$", RegexOptions.CultureInvariant);
     }
 
-    private static string? MatchCell(Bitmap image, Rectangle requested, IReadOnlyList<IconTemplate> templates)
+    private static string? MatchCell(
+        Bitmap image, Rectangle requested, IReadOnlyList<IconTemplate> templates, bool single = false)
     {
         Rectangle cell = Rectangle.Intersect(
             new Rectangle(0, 0, image.Width, image.Height), requested);
@@ -311,12 +392,12 @@ public static class ZodiacIconMatcher
 
         (string Zodiac, double Score)[] RankCandidate(Rectangle candidate)
         {
-            byte[] pixels = NormalizeForeground(image, candidate);
+            byte[] pixels = NormalizeForeground(image, candidate, outlineOnly: single);
             return templates.GroupBy(
                          template => template.Zodiac,
                          StringComparer.Ordinal)
                 .Select(group => (Zodiac: group.Key, Score: group
-                    .Select(template => Difference(pixels, template.Pixels))
+                    .Select(template => Difference(pixels, single ? template.SinglePixels : template.Pixels))
                     .Min()))
                 .OrderBy(item => item.Score)
                 .ToArray();
@@ -345,7 +426,7 @@ public static class ZodiacIconMatcher
     private static byte[] NormalizeForeground(Bitmap source) =>
         NormalizeForeground(source, new Rectangle(0, 0, source.Width, source.Height));
 
-    private static byte[] NormalizeForeground(Bitmap source, Rectangle sourceRect)
+    private static byte[] NormalizeForeground(Bitmap source, Rectangle sourceRect, bool outlineOnly = false)
     {
         Rectangle bounded = Rectangle.Intersect(
             new Rectangle(0, 0, source.Width, source.Height),
@@ -360,7 +441,7 @@ public static class ZodiacIconMatcher
         for (int y = bounded.Top; y < bounded.Bottom; y++)
         for (int x = bounded.Left; x < bounded.Right; x++)
         {
-            if (!IsForegroundPixel(source.GetPixel(x, y)))
+            if (!IsMatchingForeground(source.GetPixel(x, y)))
                 continue;
             left = Math.Min(left, x);
             top = Math.Min(top, y);
@@ -398,14 +479,24 @@ public static class ZodiacIconMatcher
         for (int x = 0; x < NormalizedWidth; x++)
         {
             Color color = normalized.GetPixel(x, y);
-            if (!IsForegroundPixel(color))
+            if (!IsMatchingForeground(color))
                 color = Color.White;
+            else if (outlineOnly)
+                color = Color.Black;
             pixels[index++] = color.R;
             pixels[index++] = color.G;
             pixels[index++] = color.B;
         }
         normalized.Dispose();
         return pixels;
+
+        // The single card adds a red square behind the same black-outlined glyph.
+        // Compare the outline in both source and templates so JPEG background
+        // colors and the animal's bright fill cannot change its bounding box.
+        bool IsMatchingForeground(Color color) => outlineOnly
+            ? color.R < 145 && color.G < 145 && color.B < 145 &&
+                Math.Max(color.R, Math.Max(color.G, color.B)) - Math.Min(color.R, Math.Min(color.G, color.B)) < 65
+            : IsForegroundPixel(color);
     }
 
     private static bool IsForegroundPixel(Color color)

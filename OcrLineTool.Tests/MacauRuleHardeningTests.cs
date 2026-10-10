@@ -170,7 +170,7 @@ public sealed class MacauRuleHardeningTests
         // 由 BaixiaojieCardTests 用两张原图的 medium 文本覆盖。
         string[] specialLayouts =
         [
-            "官方两肖", "老墨两肖", "图库禁两肖", "帅铁两肖", "心水两两肖", "金钱两肖", "王不王两肖", "龙王杀两肖",
+            "官方两肖", "老墨两肖", "图库禁两肖", "帅铁两肖", "心水两两肖", "金钱两肖", "王不王两肖", "龙王杀两肖", "藏宝杀一肖",
             "曾道人小杀肖", "心水杀肖肖肖", "聚彩堂一肖", "聚彩堂一尾", "姨妈肖杀", "姨妈尾杀",
             "彩虹半波", "超级赢家半波波", "王不王一头", "神算子避头", "财神一头",
             "近期开奖员", "毛老二", "通天九九肖", "大赢家九肖", "亮剑九肖",
@@ -361,6 +361,7 @@ public sealed class MacauRuleHardeningTests
             ["金钱两肖"] = "猪羊",
             ["王不王两肖"] = "马鼠",
             ["龙王杀两肖"] = "兔羊",
+            ["藏宝杀一肖"] = "鼠",
             ["曾道人小杀肖"] = "蛇",
             ["心水杀肖肖肖"] = "鼠",
             ["聚彩堂一肖"] = "马",
@@ -404,6 +405,8 @@ public sealed class MacauRuleHardeningTests
             Assert.Contains("3头 特头必中", await File.ReadAllLinesAsync(Path.Combine(folder, "318期-头.txt")));
             Assert.Contains("金行 大赢家五行", await File.ReadAllLinesAsync(Path.Combine(folder, "318期-五行.txt")));
             Assert.Contains("2尾 大赢家杀尾", await File.ReadAllLinesAsync(Path.Combine(folder, "318期-尾.txt")));
+            Assert.Contains("鼠 藏宝杀一肖", await File.ReadAllLinesAsync(Path.Combine(folder, "318期-肖-新增.txt")));
+            Assert.DoesNotContain("鼠 藏宝杀一肖", await File.ReadAllLinesAsync(Path.Combine(folder, "318期-二肖.txt")));
             Assert.All(Directory.EnumerateFiles(folder), file => Assert.StartsWith("318期", Path.GetFileName(file)));
             Assert.All(Directory.EnumerateFiles(folder), file => Assert.StartsWith("原有内容", File.ReadAllText(file)));
         }

@@ -7,6 +7,28 @@ namespace OcrLineTool.Tests;
 public sealed class ResultDistributorTests
 {
     [Fact]
+    public async Task TreasureSingleZodiacRoutesOnlyOneAnimalToNewZodiacFile()
+    {
+        string folder = CreateTempFolder();
+        try
+        {
+            string sourceConfig = Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "肖新增分发规则.json");
+            var config = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(sourceConfig))!;
+            config["targetDirectory"] = folder;
+            string configPath = Path.Combine(folder, "肖新增分发规则.json");
+            await File.WriteAllTextAsync(configPath, config.ToJsonString());
+            string target = Path.Combine(folder, "318期-肖-新增.txt");
+            await File.WriteAllTextAsync(target, "原有内容\n生肖次数排行榜\n");
+            IReadOnlySet<string> distributed = await ResultDistributor.DistributeAsync(
+                @"C:\图片\10.9-新澳六合彩资料", 318,
+                ["鼠 藏宝杀一肖", "鼠蛇 藏宝杀一肖", "兔羊 龙王杀两肖", "缺失 藏宝杀一肖"], folder, configPath);
+            Assert.Equal(["鼠 藏宝杀一肖"], distributed);
+            Assert.Equal(["原有内容", "鼠 藏宝杀一肖", "", "生肖次数排行榜"], await File.ReadAllLinesAsync(target));
+        }
+        finally { Directory.Delete(folder, recursive: true); }
+    }
+
+    [Fact]
     public void ProductionNewMacauPremiumConfigsContainTheExactRequestedNames()
     {
         var expected = new Dictionary<string, string[]>
@@ -874,6 +896,8 @@ public sealed class ResultDistributorTests
         Assert.Single(ReadSourceLabels("大围分发规则.json", "新澳六合彩资料"), label => label == "时点半");
         Assert.Single(ReadSourceLabels("杀数字分发规则.json", "新澳六合彩资料"), label => label == "小马哥");
         Assert.Contains("龙王杀两肖", ReadSourceLabels("二肖分发规则.json", "新澳六合彩资料"));
+        Assert.Equal(["藏宝杀一肖"], ReadSourceLabels("肖新增分发规则.json", "新澳六合彩资料"));
+        Assert.DoesNotContain("藏宝杀一肖", ReadSourceLabels("二肖分发规则.json", "新澳六合彩资料"));
         Assert.Equal(["天空杀"], ReadSourceLabels("杀数字分发规则.json", "新澳高手"));
         Assert.Equal(["公式杀两肖肖"], ReadSourceLabels("二肖分发规则.json", "蜻蜓一套"));
         Assert.Equal(
