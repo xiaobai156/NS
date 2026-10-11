@@ -109,6 +109,7 @@
     { "keyword": "狂赢九肖", "type": "九肖", "label": "大赢家九肖" },
     { "keyword": "亮剑团队", "type": "九肖", "label": "亮剑九肖", "ignoreIssue": true },
     { "keyword": "四季生肖", "type": "四季", "label": "白小姐四季" },
-    { "keyword": "九肖来钱", "type": "九肖", "label": "白小姐来钱", "allow_opening_row": true }
+    { "keyword": "九肖来钱", "type": "九肖", "label": "白小姐来钱", "allow_opening_row": true },
+    { "keyword": "慈善网『四季生肖』付费版", "type": "四季", "label": "慈善四季" }
   ]
 }

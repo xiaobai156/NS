@@ -51,6 +51,14 @@ public sealed class BaixiaojieCardTests
         "255期", "开:猴蛇鼠虎豬牛龍狗雞", "豬44中"
     ];
 
+    private static readonly string[] CharitySeasonsCard =
+    [
+        "慈善网『四季生肖』付费版",
+        "春肖:兔虎龙 夏肖:马蛇羊 秋肖:鸡猴狗 冬肖:鼠猪牛",
+        "283期", "四季:春肖夏肖冬肖", "开??",
+        "282期", "四季:春肖秋肖冬肖", "猴23中"
+    ];
+
     [Fact]
     public void SeasonsCardTurnsTheThreeSeasonsIntoTheNineZodiacsOfTheRequestedIssue()
     {
@@ -77,6 +85,17 @@ public sealed class BaixiaojieCardTests
         OcrRule rule = Rule("白小姐四季");
         Assert.Null(RuleEngine.ExtractFinalValue(["269期", "四季:夏肖夏肖冬肖"], 269, rule));
         Assert.Null(RuleEngine.ExtractFinalValue(["269期", "四季:夏肖秋肖"], 269, rule));
+    }
+
+    [Fact]
+    public void CharitySeasonsCardUsesTheSameSeasonExpansionAndItsOwnIdentity()
+    {
+        OcrRule rule = Rule("慈善四季");
+        Assert.Equal("四季", rule.Type);
+        Assert.Contains(rule, RuleEngine.FindMatches(["慈善网『四季生肖』付费版"], [rule]));
+        Assert.Equal("兔虎龙马蛇羊鼠猪牛", RuleEngine.ExtractFinalValue(CharitySeasonsCard, 283, rule));
+        Assert.Equal("兔虎龙鸡猴狗鼠猪牛", RuleEngine.ExtractFinalValue(CharitySeasonsCard, 282, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(CharitySeasonsCard, 284, rule));
     }
 
     [Fact]

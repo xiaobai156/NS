@@ -1147,6 +1147,17 @@
       "CropBottomWidthRatio": 0.6,
       "FingerprintTopWidthRatio": 0.115,
       "FingerprintBottomWidthRatio": 0.215
+    },
+    {
+      "Id": "慈善四季",
+      "RuleIds": [
+        "慈善四季"
+      ],
+      "Fingerprint": "F9C46EFDA6E78FAFFFCFEFBFF7FFEFFF5DDDFFDEDF7BBDEFF40A93FFFADEFFFFB40081BEFD8FBFFFB21899724D9933FF921D91326CB531FFE01D91266CB531FED01D91764CB933FF8A199972ECB133FECA1D91764AB933FFA81C9172CAB133FF931D912648B5A1FF931951AE6AB531FFAB3951AA6A76B7FFFB63FBF773767DFE",
+      "CropTopWidthRatio": 0.1125,
+      "CropBottomWidthRatio": 0.3125,
+      "FingerprintTopWidthRatio": 0.1125,
+      "FingerprintBottomWidthRatio": 0.2125
     }
   ],
   "FingerprintTopWidthRatio": null,

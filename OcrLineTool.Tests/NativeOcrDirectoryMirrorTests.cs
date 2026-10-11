@@ -254,4 +254,45 @@ public sealed class NativeOcrDirectoryMirrorTests
             Directory.Delete(folder, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task CharitySeasonsUsesTheProductionZodiacRouteAndExternalMirror()
+    {
+        string folder = CreateTempFolder();
+        try
+        {
+            string store = Path.Combine(folder, "directory-data.json");
+            File.WriteAllText(store, """
+            {
+              "Shengxiao": {
+                "Directories": [ { "Id": "慈善四季", "Label": "慈善四季" } ],
+                "Values": {}
+              }
+            }
+            """, new UTF8Encoding(false));
+            string config = Path.Combine(folder, "config");
+            Directory.CreateDirectory(config);
+            string sourceConfig = ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory);
+            File.Copy(Path.Combine(sourceConfig, "生肖分发规则.json"), Path.Combine(config, "生肖分发规则.json"));
+            string target = Path.Combine(folder, "target");
+            Directory.CreateDirectory(target);
+            File.WriteAllText(Path.Combine(target, "283期-生肖.txt"), string.Empty, new UTF8Encoding(false));
+
+            DistributionResult result = await ResultDistributor.DistributeAllAsync(
+                @"C:\图片\10.11-新澳六合彩资料", 283,
+                ["兔虎龙马蛇羊鼠猪牛 慈善四季"], target, config, store);
+
+            Assert.Single(result.DistributedLines);
+            Assert.NotNull(result.NativeOcrMirror);
+            Assert.Equal(1, result.NativeOcrMirror!.Written);
+            Assert.Empty(result.Errors);
+            Assert.Equal(
+                "猴鸡狗",
+                Values(store, "Shengxiao").GetProperty("慈善四季").GetString());
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
 }
