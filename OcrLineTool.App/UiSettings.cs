@@ -13,12 +13,28 @@ public enum LocalOcrDevice
 internal sealed record UiSettings(
     bool ShowRecognizeButton,
     bool RetryUsesLocalOcr = true,
-    LocalOcrDevice OcrDevice = LocalOcrDevice.Gpu)
+    LocalOcrDevice OcrDevice = LocalOcrDevice.Gpu,
+    string? ImageRootDirectory = null)
 {
+    /// <summary>默认抓取路径（每日图片根目录）；用户未自定义时使用。</summary>
+    internal const string DefaultImageRootDirectory =
+        @"C:\Users\Administrator\Desktop\每天工具\飞机抓图\结果";
+
     internal static UiSettings Default { get; } = new(false);
 
     internal static string PathFor(string appDirectory) =>
         Path.Combine(appDirectory, "界面设置.json");
+
+    /// <summary>
+    /// 有效抓取路径：未自定义时用默认值；已自定义时原样返回。目录临时不可用交给界面按
+    /// “群目录暂不可用”提示，不静默切回默认目录，避免读到错误来源的图片。
+    /// </summary>
+    internal string EffectiveImageRootDirectory() =>
+        string.IsNullOrWhiteSpace(ImageRootDirectory) ? DefaultImageRootDirectory : ImageRootDirectory;
+
+    /// <summary>按程序目录里的设置解析有效抓取路径。</summary>
+    internal static string ResolveImageRootDirectory(string appDirectory) =>
+        Load(appDirectory).EffectiveImageRootDirectory();
 
     internal static UiSettings Load(string appDirectory)
     {

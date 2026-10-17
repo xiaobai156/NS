@@ -1684,6 +1684,195 @@ public sealed class MainFormTests
         }
     }
 
+    [Fact]
+    public void CustomImageRootRoundTripsAndFallsBackOnlyWhenUnset()
+    {
+        string directory = Directory.CreateTempSubdirectory("ocr-image-root-").FullName;
+        string custom = Directory.CreateTempSubdirectory("ocr-image-root-custom-").FullName;
+        try
+        {
+            Assert.Equal(UiSettings.DefaultImageRootDirectory, UiSettings.Load(directory).EffectiveImageRootDirectory());
+            Assert.Equal(UiSettings.DefaultImageRootDirectory,
+                new UiSettings(false, ImageRootDirectory: "   ").EffectiveImageRootDirectory());
+
+            UiSettings.Save(directory, new UiSettings(false, ImageRootDirectory: custom));
+            Assert.Equal(custom, UiSettings.Load(directory).EffectiveImageRootDirectory());
+            Assert.Equal(custom, UiSettings.ResolveImageRootDirectory(directory));
+
+            // 目录临时不可用时不静默切回默认路径，避免读到错误来源的图片。
+            string missing = Path.Combine(directory, "不存在的抓取路径");
+            UiSettings.Save(directory, new UiSettings(false, ImageRootDirectory: missing));
+            Assert.Equal(missing, UiSettings.Load(directory).EffectiveImageRootDirectory());
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+            Directory.Delete(custom, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void SettingsDialogAcceptsOnlyAnExistingImageRoot()
+    {
+        string existing = Directory.CreateTempSubdirectory("ocr-image-root-ok-").FullName;
+        try
+        {
+            using var dialog = new SettingsForm(new UiSettings(false));
+
+            Assert.False(dialog.ApplyImageRootDirectory(Path.Combine(existing, "子目录不存在"), out string? missingError));
+            Assert.NotNull(missingError);
+            Assert.Contains("不存在", missingError);
+            Assert.False(dialog.ApplyImageRootDirectory("   ", out string? emptyError));
+            Assert.NotNull(emptyError);
+
+            Assert.True(dialog.ApplyImageRootDirectory(existing, out string? noError));
+            Assert.Null(noError);
+            Button save = Assert.Single(Descendants(dialog).OfType<Button>(), button => button.Text == "保存");
+            typeof(Control).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(save, [EventArgs.Empty]);
+
+            Assert.Equal(DialogResult.OK, dialog.DialogResult);
+            Assert.Equal(existing, dialog.Result.ImageRootDirectory);
+        }
+        finally
+        {
+            Directory.Delete(existing, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void SettingsDialogDropsTheStoredPathWhenTheDefaultImageRootIsReselected()
+    {
+        if (!Directory.Exists(UiSettings.DefaultImageRootDirectory))
+            return;
+
+        using var dialog = new SettingsForm(new UiSettings(false, ImageRootDirectory: @"D:\临时抓取路径"));
+        Assert.True(dialog.ApplyImageRootDirectory(UiSettings.DefaultImageRootDirectory, out string? error));
+        Assert.Null(error);
+
+        Button save = Assert.Single(Descendants(dialog).OfType<Button>(), button => button.Text == "保存");
+        typeof(Control).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(save, [EventArgs.Empty]);
+
+        Assert.Equal(DialogResult.OK, dialog.DialogResult);
+        Assert.Null(dialog.Result.ImageRootDirectory);
+        Assert.Equal(UiSettings.DefaultImageRootDirectory, dialog.Result.EffectiveImageRootDirectory());
+    }
+
+    [Fact]
+    public void SettingsDialogShowsTheImageRootPickerAndCurrentPath()
+    {
+        using var dialog = new SettingsForm(new UiSettings(false, ImageRootDirectory: @"D:\自定义抓取路径"));
+        dialog.Show();
+        try
+        {
+            dialog.PerformLayout();
+
+            Button picker = Assert.Single(Descendants(dialog).OfType<Button>(), button => button.Text == "设置抓取路径");
+            Label path = Assert.Single(Descendants(dialog).OfType<Label>(), label => label.Name == "imageRootPath");
+
+            Assert.True(picker.Visible && picker.Enabled);
+            Assert.Equal(@"D:\自定义抓取路径", path.Text);
+            Assert.True(picker.Right <= picker.Parent!.ClientSize.Width, "抓取路径按钮超出所在容器。");
+            Assert.True(path.Right <= path.Parent!.ClientSize.Width, "抓取路径显示超出所在容器。");
+            Assert.True(picker.Bottom <= picker.Parent.ClientSize.Height && path.Bottom <= path.Parent.ClientSize.Height,
+                "抓取路径行被垂直裁切。");
+            Assert.False(picker.Bounds.IntersectsWith(path.Bounds), "抓取路径按钮与路径显示重叠。");
+        }
+        finally
+        {
+            dialog.Close();
+        }
+    }
+
+    [Fact]
+    public void SettingsDialogStartsFromTheRootTheMainWindowActuallyUses()
+    {
+        string custom = Directory.CreateTempSubdirectory("ocr-image-root-live-").FullName;
+        try
+        {
+            using var form = CreateUiTestForm(custom, _ => { });
+
+            // 设置窗口必须拿到主界面正在用的抓取路径；否则它显示默认路径，用户改别的选项
+            // 再保存就会把自定义路径静默清回默认。
+            UiSettings current = form.CurrentUiSettings();
+            Assert.Equal(custom, current.ImageRootDirectory);
+            Assert.Equal(custom, current.EffectiveImageRootDirectory());
+
+            using var dialog = new SettingsForm(current);
+            Label path = Assert.Single(Descendants(dialog).OfType<Label>(), label => label.Name == "imageRootPath");
+            Assert.Equal(custom, path.Text);
+
+            Button save = Assert.Single(Descendants(dialog).OfType<Button>(), button => button.Text == "保存");
+            typeof(Control).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(save, [EventArgs.Empty]);
+
+            Assert.Equal(custom, dialog.Result.ImageRootDirectory);
+            Assert.Equal(string.Empty, form.ApplyImageRootDirectory(dialog.Result.EffectiveImageRootDirectory()));
+        }
+        finally
+        {
+            Directory.Delete(custom, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void SwitchingTheImageRootRefreshesTheGroupListAndClearsTheSelection()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        string first = Directory.CreateTempSubdirectory("ocr-image-root-a-").FullName;
+        string second = Directory.CreateTempSubdirectory("ocr-image-root-b-").FullName;
+        try
+        {
+            string groupA = Directory.CreateDirectory(Path.Combine(first, "甲群")).FullName;
+            Directory.CreateDirectory(Path.Combine(second, "乙群"));
+
+            using var form = CreateUiTestForm(first, _ => { });
+            var folders = (ListBox)typeof(MainForm).GetField("folderList", flags)!.GetValue(form)!;
+            folders.SelectedIndex = 0;
+            typeof(Control).GetMethod("OnClick", flags)!.Invoke(folders, [EventArgs.Empty]);
+            Assert.Equal(groupA, typeof(MainForm).GetField("selectedImageDirectory", flags)!.GetValue(form));
+
+            string note = form.ApplyImageRootDirectory(second);
+
+            Assert.Contains(second, note);
+            Assert.Equal(new[] { "乙群" }, folders.Items.Cast<DirectoryInfo>().Select(info => info.Name));
+            Assert.Null(folders.SelectedItem);
+            Assert.Null(typeof(MainForm).GetField("selectedImageDirectory", flags)!.GetValue(form));
+            Assert.Equal("尚未选择",
+                ((Label)typeof(MainForm).GetField("folderNameLabel", flags)!.GetValue(form)!).Text);
+
+            // 同一路径重复应用不打断当前选择。
+            Assert.Equal(string.Empty, form.ApplyImageRootDirectory(second));
+            Assert.Equal(new[] { "乙群" }, folders.Items.Cast<DirectoryInfo>().Select(info => info.Name));
+        }
+        finally
+        {
+            Directory.Delete(first, recursive: true);
+            Directory.Delete(second, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void SwitchingToAMissingImageRootKeepsTheListUsableAndSaysSo()
+    {
+        string root = Directory.CreateTempSubdirectory("ocr-image-root-missing-").FullName;
+        try
+        {
+            using var form = CreateUiTestForm(root, _ => { });
+            string missing = Path.Combine(root, "还没建好的抓取路径");
+
+            string note = form.ApplyImageRootDirectory(missing);
+
+            Assert.Contains(missing, note);
+            Assert.Contains("不可用", note);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static MainForm CreateUiTestForm(string root, Action<System.Diagnostics.ProcessStartInfo> openFile)
     {
         var constructor = typeof(MainForm).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic,

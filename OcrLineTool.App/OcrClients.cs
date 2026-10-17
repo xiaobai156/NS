@@ -16,9 +16,21 @@ internal static class OcrLayoutMarkers
     private static readonly System.Text.RegularExpressions.Regex PageChrome = new(
         @"(编辑本帖|最后修改|\[日志\]|\d{4}\s*[-/—]\s*\d{1,2}\s*[-/—]\s*\d{1,2})",
         System.Text.RegularExpressions.RegexOptions.Compiled |
-        System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
 
-    internal static bool IsPageChrome(string line) => PageChrome.IsMatch(line);
+    internal static bool IsPageChrome(string line)
+    {
+        try
+        {
+            return PageChrome.IsMatch(line);
+        }
+        catch (System.Text.RegularExpressions.RegexMatchTimeoutException)
+        {
+            // 超时按“不是页脚”处理：判错页脚只影响行合并，不能中断整轮识别。
+            return false;
+        }
+    }
 
     internal static bool IsBoundary(string line) =>
         line == RegionBoundary || IsPageChrome(line);
@@ -122,7 +134,12 @@ internal static class OcrHttp
 {
     internal static readonly HttpClient Client = new() { Timeout = TimeSpan.FromSeconds(90) };
 
-    internal static async Task<byte[]> ReadImageAsync(string path, long maxBytes, CancellationToken cancellationToken)
+    /// <summary>
+    /// 读取待送云图片。<paramref name="maxBytes"/> 默认按原图字节数校验；腾讯接口限制的是
+    /// base64 编码后的长度，此时传 <paramref name="maxBytesApplyToBase64"/> = true。
+    /// </summary>
+    internal static async Task<byte[]> ReadImageAsync(
+        string path, long maxBytes, CancellationToken cancellationToken, bool maxBytesApplyToBase64 = false)
     {
         if (!File.Exists(path))
             throw new OcrException("图片不存在。");
@@ -131,11 +148,30 @@ internal static class OcrHttp
         if (extension is not (".jpg" or ".jpeg" or ".png" or ".bmp"))
             throw new OcrException("仅支持 JPG、JPEG、PNG、BMP 图片。");
 
-        var info = new FileInfo(path);
-        if (info.Length == 0 || info.Length > maxBytes)
-            throw new OcrException($"图片大小必须在 1 字节到 {maxBytes / 1024 / 1024} MB 之间。");
+        // 上限口径随模式变化：base64 模式按接口的编码后长度算，普通模式按原图字节数算。
+        string limitText = maxBytesApplyToBase64
+            ? $"{maxBytes / 1_000_000} MB（base64 编码后）"
+            : $"{maxBytes / 1024 / 1024} MB";
 
-        return await File.ReadAllBytesAsync(path, cancellationToken);
+        var info = new FileInfo(path);
+        if (info.Length == 0)
+            throw new OcrException($"图片大小必须在 1 字节到 {limitText} 之间。");
+
+        if (!maxBytesApplyToBase64)
+        {
+            if (info.Length > maxBytes)
+                throw new OcrException($"图片大小必须在 1 字节到 {limitText} 之间。");
+            return await File.ReadAllBytesAsync(path, cancellationToken);
+        }
+
+        // base64 后长度 = 4 × ⌈n/3⌉：先按上限反推原图字节数快速拒绝，读入后再用同一公式
+        // 复核。只校验原图字节会让 5.3～7.5MB 的图在本地通过、到云端必然报错。
+        if (info.Length > maxBytes / 4 * 3)
+            throw new OcrException($"图片超过 {limitText} 上限，请压缩后再识别。");
+        byte[] bytes = await File.ReadAllBytesAsync(path, cancellationToken);
+        if ((long)4 * ((bytes.LongLength + 2) / 3) > maxBytes)
+            throw new OcrException($"图片超过 {limitText} 上限，请压缩后再识别。");
+        return bytes;
     }
 
     internal static void EnsureImageUnchanged(string path, byte[] sentBytes)
@@ -183,7 +219,8 @@ public sealed class TencentOcrClient : IOcrClient
         string imagePath,
         CancellationToken cancellationToken = default)
     {
-        byte[] bytes = await OcrHttp.ReadImageAsync(imagePath, 7_500_000, cancellationToken);
+        byte[] bytes = await OcrHttp.ReadImageAsync(
+            imagePath, 7_000_000, cancellationToken, maxBytesApplyToBase64: true);
         string payload = JsonSerializer.Serialize(new
         {
             ImageBase64 = Convert.ToBase64String(bytes),
@@ -307,13 +344,25 @@ public sealed class TencentOcrClient : IOcrClient
             && confidenceElement.TryGetDouble(out double parsedConfidence)
             ? parsedConfidence
             : null;
-        if (!item.TryGetProperty("ItemPolygon", out JsonElement polygon))
+        // 坐标字段按“能取到才算”处理：缺字段不让整行抛异常，只降级为无坐标行。
+        // X/Y/Height 缺失时无法定位，整行丢框；Width 保持原有“可缺省默认 0”语义，
+        // 不让一个非必需的宽度字段把整行坐标一起丢掉。
+        if (!item.TryGetProperty("ItemPolygon", out JsonElement polygon)
+            || polygon.ValueKind != JsonValueKind.Object
+            || !TryGetPolygonInt(polygon, "X", out int x)
+            || !TryGetPolygonInt(polygon, "Y", out int y)
+            || !TryGetPolygonInt(polygon, "Height", out int height))
             return new(text, null, confidence, "tencent", "main");
-        int x = polygon.GetProperty("X").GetInt32();
-        int y = polygon.GetProperty("Y").GetInt32();
-        int width = polygon.TryGetProperty("Width", out JsonElement widthElement) ? widthElement.GetInt32() : 0;
-        int height = polygon.GetProperty("Height").GetInt32();
+        TryGetPolygonInt(polygon, "Width", out int width);
         return new(text, new OcrBox(x, y, width, height), confidence, "tencent", "main");
+    }
+
+    private static bool TryGetPolygonInt(JsonElement polygon, string name, out int value)
+    {
+        value = 0;
+        return polygon.TryGetProperty(name, out JsonElement element)
+            && element.ValueKind == JsonValueKind.Number
+            && element.TryGetInt32(out value);
     }
 
 }
@@ -347,6 +396,28 @@ public sealed class BaiduOcrClient : IOcrClient
     {
         byte[] bytes = await OcrHttp.ReadImageAsync(imagePath, 2_500_000, cancellationToken);
         string token = await GetAccessTokenAsync(cancellationToken);
+        try
+        {
+            return await RecognizeWithTokenAsync(imagePath, bytes, token, cancellationToken);
+        }
+        catch (OcrException exception) when (IsExpiredToken(exception) && !cancellationToken.IsCancellationRequested)
+        {
+            // 令牌被服务端提前作废（110/111）时缓存里那份仍然“没过期”，不主动清空就会
+            // 让整轮所有请求持续失败。清掉后只重取一次，避免无限重试。
+            accessToken = null;
+            accessTokenExpiresAt = DateTimeOffset.MinValue;
+            string refreshed = await GetAccessTokenAsync(cancellationToken);
+            return await RecognizeWithTokenAsync(imagePath, bytes, refreshed, cancellationToken);
+        }
+    }
+
+    // 百度 access_token 无效/过期的错误码。
+    private static bool IsExpiredToken(OcrException exception) =>
+        exception.Code is "110" or "111";
+
+    private async Task<OcrEvidence> RecognizeWithTokenAsync(
+        string imagePath, byte[] bytes, string token, CancellationToken cancellationToken)
+    {
         using var content = new FormUrlEncodedContent(
         [
             new("image", Convert.ToBase64String(bytes)),
@@ -407,8 +478,12 @@ public sealed class BaiduOcrClient : IOcrClient
             }
 
             accessToken = tokenElement.GetString() ?? throw new OcrException("百度鉴权未返回令牌。");
+            // expires_in 理论上一定是数字，但服务端异常响应可能是字符串或缺失；
+            // 非数字时退回默认有效期，不能让 InvalidOperationException 逃出 OcrException 包装。
             int expiresIn = document.RootElement.TryGetProperty("expires_in", out JsonElement expires)
-                ? expires.GetInt32()
+                && expires.ValueKind == JsonValueKind.Number
+                && expires.TryGetInt32(out int parsedExpires)
+                ? parsedExpires
                 : 2_592_000;
             accessTokenExpiresAt = DateTimeOffset.UtcNow.AddSeconds(Math.Max(60, expiresIn - 300));
             return accessToken;
@@ -456,13 +531,15 @@ public sealed class BaiduOcrClient : IOcrClient
                 string text = item.GetProperty("words").GetString() ?? "";
                 if (text.Length == 0) { index++; continue; }
                 OcrBox? box = null;
+                // 与腾讯侧同口径：坐标四个字段逐个“能取到才算”，单条结果字段缺失或类型
+                // 异常只让这一行丢掉坐标，不能让整张图判成“返回格式异常”。
                 if (item.TryGetProperty("location", out JsonElement location)
                     && location.ValueKind == JsonValueKind.Object
-                    && location.TryGetProperty("left", out JsonElement left)
-                    && location.TryGetProperty("top", out JsonElement top)
-                    && location.TryGetProperty("width", out JsonElement width)
-                    && location.TryGetProperty("height", out JsonElement height))
-                    box = new(left.GetInt32(), top.GetInt32(), width.GetInt32(), height.GetInt32());
+                    && TryGetBoxField(location, "left", out int left)
+                    && TryGetBoxField(location, "top", out int top)
+                    && TryGetBoxField(location, "width", out int width)
+                    && TryGetBoxField(location, "height", out int height))
+                    box = new(left, top, width, height);
                 double? confidence = null;
                 if (item.TryGetProperty("probability", out JsonElement probability)
                     && probability.ValueKind == JsonValueKind.Object
@@ -482,6 +559,14 @@ public sealed class BaiduOcrClient : IOcrClient
         {
             throw new OcrException("百度 OCR 返回格式异常。");
         }
+    }
+
+    private static bool TryGetBoxField(JsonElement location, string name, out int value)
+    {
+        value = 0;
+        return location.TryGetProperty(name, out JsonElement element)
+            && element.ValueKind == JsonValueKind.Number
+            && element.TryGetInt32(out value);
     }
 
 }

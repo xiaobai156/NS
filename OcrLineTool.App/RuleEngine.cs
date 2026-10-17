@@ -48,11 +48,15 @@ public sealed record RuleExtractionResult(RuleExtractionStatus Status, string? V
 
 public static class RuleEngine
 {
-    private static readonly Regex IssueRegex = new(@"(?<!\d)(?<issue>\d{1,6})\s*期", RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    private static readonly Regex CompactYearIssueRegex = new(@"(?<!\d)20\d{2}(?<issue>\d{3})\s*期", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    // 正则回溯上限：云 OCR 返回超长或病态文本时，没有上限的正则会卡住 UI 线程且
+    // 无法取消。5 秒对正常卡片文本远远够用，超时按“取不到值”处理。
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(5);
+
+    private static readonly Regex IssueRegex = new(@"(?<!\d)(?<issue>\d{1,6})\s*期", RegexOptions.Compiled | RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex CompactYearIssueRegex = new(@"(?<!\d)20\d{2}(?<issue>\d{3})\s*期", RegexOptions.Compiled | RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex BareIssueRegex = new(
         @"^\s*[【\[（({]?\s*(?<issue>\d{3,6})(?!\d)(?!\s*\*)",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        RegexOptions.Compiled | RegexOptions.CultureInvariant, RegexTimeout);
     // OCR may merge a one-digit row index into the period column of a
     // vertical list ("5253杀4合" = row 5, 253期). A trailing space or bracket
     // still counts as a standalone bare number and must not be split.
@@ -60,12 +64,12 @@ public static class RuleEngine
     // 所以只禁止后面紧跟数字，仍不允许把更长数字拆成期号。
     private static readonly Regex MergedRowIndexIssueRegex = new(
         @"^\s*[【\[（({]?\s*(?:(?<row>[1-9]|1[0-3])\s*)?(?<issue>\d{3})(?!\d)",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    private static readonly Regex YearIssueRegex = new(@"^\s*\d{4}\s*[-—/]\s*(?<issue>\d{3,6})(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        RegexOptions.Compiled | RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex YearIssueRegex = new(@"^\s*\d{4}\s*[-—/]\s*(?<issue>\d{3,6})(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant, RegexTimeout);
     // 期号块边界：提取与失败原因共用同一套（不要在诊断里另写宽松的「截几行」解析器）。
     private static readonly Regex IssueBlockRegex = new(
         @"(?<!\d)(?:第\s*)?(?<issue>\d{1,6})\s*期|(?m:^\s*(?<issue>\d{3})(?!\d)(?=\s|$))",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        RegexOptions.Compiled | RegexOptions.CultureInvariant, RegexTimeout);
     internal const string Zodiac = "马蛇龙兔虎牛鼠猪狗鸡猴羊";
     private const string ConflictMarker = "OCR-CONFLICT";
     // Only reviewed layouts may place part of one physical number row before
@@ -96,16 +100,62 @@ public static class RuleEngine
         new(StringComparer.Ordinal) { "尾" };
 
     // 云 OCR 常把相邻两期并成一行（“257期杀，0尾07 258期杀，5尾”）。单值字段
-    // 必须只取目标期号之后的那一段，否则会把邻期的值当成本期值。
+    // 必须只取目标期号之后、下一个期号之前的那一段，否则会把邻期的值当成本期值。
+    // 目标期在行首（at == 0）时同样要截断，否则 257 会把 258 的“5尾”一起读进来
+    // 判成冲突；这里用任意期号（不限目标期）找下一个边界。
     private static string ScopeSingleValueToTargetIssue(string line, int issue, OcrRule rule)
     {
         if (!SingleValueScopedTypes.Contains(rule.Type))
             return line;
         int at = LastIssueIndex(line, issue);
-        if (at <= 0)
+        if (at < 0)
             return line;
-        string scoped = line[at..].Trim();
+        string scoped = line[at..];
+        int next = NextIssueBoundaryIndex(scoped, issue);
+        if (next > 0)
+        {
+            // 已经找到下一个期号边界：即使切完很短也只用切出来的这一段，
+            // 绝不能回退整行（否则邻期的值又被读回来）。
+            scoped = scoped[..next].Trim();
+            return scoped;
+        }
+        scoped = scoped.Trim();
         return scoped.Length >= 2 ? scoped : line;
+    }
+
+    // 目标期片段内“下一个期号”的起点；返回 -1 表示片段里没有别的期号。
+    // 跳过目标期自身（可能被 OCR 重复识别成两段），只认后面出现的其它期号。
+    private static int NextIssueBoundaryIndex(string segment, int issue)
+    {
+        int boundary = -1;
+        foreach (Regex pattern in new[] { IssueRegex, CompactYearIssueRegex, YearIssueRegex })
+        {
+            foreach (Match match in pattern.Matches(segment))
+            {
+                if (!int.TryParse(match.Groups["issue"].Value, out int actual) || actual == issue)
+                    continue;
+                if (boundary < 0 || match.Index < boundary)
+                    boundary = match.Index;
+            }
+        }
+        return boundary;
+    }
+
+    // 这一行里是否还印着别的期号。只要同行出现别的期号，就不允许回退整行：
+    // 回退会把那个期号的值读成目标期的值（假成功）或凑出假冲突。
+    // 判断覆盖期号在前和在后两种顺序（"256期杀，0尾 257期杀" 与
+    // "257期杀，0尾07 258期杀，5尾" 都不许回退）。
+    private static bool LineHasOtherIssue(string line, int issue)
+    {
+        foreach (Regex pattern in new[] { IssueRegex, CompactYearIssueRegex, YearIssueRegex })
+        {
+            foreach (Match match in pattern.Matches(line))
+            {
+                if (!int.TryParse(match.Groups["issue"].Value, out int actual) || actual != issue)
+                    return true;
+            }
+        }
+        return false;
     }
 
     // 期号行/行号行的判定：带“期”的期号，或以 3～6 位数字开头的行（含行号
@@ -308,6 +358,22 @@ public static class RuleEngine
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(selectedIssue);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(requiredCount);
+        try
+        {
+            return DetectIssueMismatchCore(cloudResults, selectedIssue, requiredCount);
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            // 正则超时按“无法判定期号不一致”处理，绝不能中断整轮识别。
+            return null;
+        }
+    }
+
+    private static int? DetectIssueMismatchCore(
+        IEnumerable<IReadOnlyList<string>> cloudResults,
+        int selectedIssue,
+        int requiredCount)
+    {
         IReadOnlyList<string>[] samples = cloudResults.Take(requiredCount).ToArray();
         if (samples.Length < requiredCount)
             return null;
@@ -334,32 +400,45 @@ public static class RuleEngine
             : null;
     }
 
+    // 注意：不能写成带 yield 的惰性迭代器——yield return 不允许出现在带 catch 的 try 里，
+    // 而这里必须能吞掉正则回溯超时（YanranAuthorCards/SummaryRowRecovery 会直接调用本方法，
+    // 超时若逃出去会被记成“未预期错误”而不是按缺失降级）。语句数量很少，物化开销可忽略。
     internal static IEnumerable<int> FindIssues(IEnumerable<string> lines)
     {
-        foreach (string line in lines)
+        var found = new List<int>();
+        try
         {
-            foreach (Match match in IssueRegex.Matches(line))
+            foreach (string line in lines)
             {
-                if (int.TryParse(match.Groups["issue"].Value, out int issue))
-                    yield return issue;
+                foreach (Match match in IssueRegex.Matches(line))
+                {
+                    if (int.TryParse(match.Groups["issue"].Value, out int issue))
+                        found.Add(issue);
+                }
+
+                foreach (Match match in CompactYearIssueRegex.Matches(line))
+                {
+                    if (int.TryParse(match.Groups["issue"].Value, out int issue))
+                        found.Add(issue);
+                }
+
+                Match leading = BareIssueRegex.Match(line);
+                if (leading.Success
+                    && int.TryParse(leading.Groups["issue"].Value, out int leadingIssue))
+                    found.Add(leadingIssue);
+
+                Match yearIssue = YearIssueRegex.Match(line);
+                if (yearIssue.Success
+                    && int.TryParse(yearIssue.Groups["issue"].Value, out int yearIssueNumber))
+                    found.Add(yearIssueNumber);
             }
-
-            foreach (Match match in CompactYearIssueRegex.Matches(line))
-            {
-                if (int.TryParse(match.Groups["issue"].Value, out int issue))
-                    yield return issue;
-            }
-
-            Match leading = BareIssueRegex.Match(line);
-            if (leading.Success
-                && int.TryParse(leading.Groups["issue"].Value, out int leadingIssue))
-                yield return leadingIssue;
-
-            Match yearIssue = YearIssueRegex.Match(line);
-            if (yearIssue.Success
-                && int.TryParse(yearIssue.Groups["issue"].Value, out int yearIssueNumber))
-                yield return yearIssueNumber;
         }
+        catch (RegexMatchTimeoutException)
+        {
+            // 病态文本：按“已扫到的部分期号”返回，绝不中断整轮识别。
+        }
+
+        return found;
     }
 
     private static bool MatchesText(string text, OcrRule rule)
@@ -744,8 +823,15 @@ public static class RuleEngine
 
     public static string? ExtractValue(IEnumerable<string> cloudLines, int issue, OcrRule rule)
     {
-        string? raw = ExtractValueCore(cloudLines, issue, rule, requireCloudKeyword: true);
-        return raw == ConflictMarker ? null : raw;
+        try
+        {
+            string? raw = ExtractValueCore(cloudLines, issue, rule, requireCloudKeyword: true);
+            return raw == ConflictMarker ? null : raw;
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return null;
+        }
     }
 
     private static string[] NormalizeSplitIssueDigits(IEnumerable<string> source)
@@ -1072,7 +1158,10 @@ public static class RuleEngine
             {
                 string scoped = ScopeSingleValueToTargetIssue(line, issue, rule);
                 string? value = ExtractTypedForRule(scoped, rule);
-                if (value is null && !ReferenceEquals(scoped, line))
+                // 只有“这一行里没有别的期号”时才允许回退整行：同行一旦出现别的期号
+                // （无论在前还是在后），回退都会把邻期的值读成本期值。
+                if (value is null && !ReferenceEquals(scoped, line)
+                    && !LineHasOtherIssue(line, issue))
                     value = ExtractTypedForRule(line, rule);
                 if (value is not null)
                     observed.Add(value);
@@ -1465,7 +1554,19 @@ public static class RuleEngine
         return rows.ToArray();
     }
 
-    public static bool LineContainsIssue(string line, int issue) => ContainsIssue(line, issue);
+    public static bool LineContainsIssue(string line, int issue)
+    {
+        try
+        {
+            return ContainsIssue(line, issue);
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            // 超时按“这一行不含目标期号”降级：调用方只会少用一个补读候选，
+            // 不会因为一个病态字符串中断整轮识别。
+            return false;
+        }
+    }
 
     // Issue-row strip recovery: the strip was cropped around exactly one
     // period row, so it may hold a single zodiac only, and only when the
@@ -1769,9 +1870,18 @@ public static class RuleEngine
     public static RuleExtractionResult ExtractFinalResult(
         IEnumerable<string> cloudLines, int issue, OcrRule rule)
     {
-        string? raw = ExtractValueCore(
-            RejectCrossIssueNearbyValue(cloudLines, issue, rule), issue, rule, requireCloudKeyword: false);
-        return ToExtractionResult(raw);
+        string[] lines = cloudLines as string[] ?? cloudLines.ToArray();
+        try
+        {
+            string? raw = ExtractValueCore(
+                RejectCrossIssueNearbyValue(lines, issue, rule), issue, rule, requireCloudKeyword: false);
+            return ToExtractionResult(raw);
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            // 病态文本触发了回溯上限：按取不到值（缺失）处理，绝不让异常中断整轮识别。
+            return RuleExtractionResult.Missing;
+        }
     }
 
     public static string? ExtractFinalValue(IEnumerable<string> cloudLines, int issue, OcrRule rule) =>
@@ -2550,6 +2660,19 @@ public static class RuleEngine
 
     public static string DescribeExtractionFailure(IEnumerable<string> cloudLines, int issue, OcrRule rule)
     {
+        try
+        {
+            return DescribeExtractionFailureCore(cloudLines, issue, rule);
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            // 诊断入口同样要有上限：超时就报一个真实但不猜测的原因，不能把异常抛给 UI 层。
+            return RuleEngine.DescribeMissing(foundImage: true, recognizedText: true);
+        }
+    }
+
+    private static string DescribeExtractionFailureCore(IEnumerable<string> cloudLines, int issue, OcrRule rule)
+    {
         string[] lines = cloudLines.Where(line => !string.IsNullOrWhiteSpace(line)).ToArray();
         if (lines.Length == 0)
             return "云 OCR 未返回有效文字";
@@ -3273,7 +3396,10 @@ public static class RuleEngine
 
         if (rule.Type.StartsWith("号码:", StringComparison.Ordinal))
         {
-            int count = int.Parse(rule.Type.AsSpan("号码:".Length));
+            // 配置写坏（如 "号码:"、"号码:12码"）时按缺失返回，不能抛 FormatException
+            // 中断整轮识别；数量硬校验仍由下面的计数逻辑执行。
+            if (!int.TryParse(rule.Type.AsSpan("号码:".Length), out int count) || count <= 0)
+                return null;
             // Strict number fields that still contain their original containers
             // are validated by the shared checker: each container must be
             // complete on its own, incomplete containers are counter-evidence
@@ -3858,6 +3984,45 @@ public static class RuleEngine
         return values;
     }
 
+    // 九肖卡“期号+开奖表头在同一行、九个生肖在下一行”时，开奖截断会把生肖表切掉。
+    // 这里只从“九肖”标记之后取，遇到下一个档位词或期号就停：同图的六肖、三肖、一肖
+    // 绝不能参与凑数。开奖标记先作为第一道边界（避免把开奖生肖算进来），切完不足
+    // 9 个时再放开开奖边界重试一次——表头行尾的“开:?”会在生肖表之前，属于同一张卡。
+    private static string? ExtractBoundedNineZodiacs(string tail)
+    {
+        int marker = tail.LastIndexOf("九肖", StringComparison.Ordinal);
+        if (marker < 0)
+            return null;
+        string body = tail[(marker + "九肖".Length)..];
+        string? strict = TakeNineZodiacs(body, includeOpeningStop: true);
+        return strict ?? TakeNineZodiacs(body, includeOpeningStop: false);
+    }
+
+    private static string? TakeNineZodiacs(string body, bool includeOpeningStop)
+    {
+        int cut = body.Length;
+        var stops = new List<string>
+        {
+            "期", "上期", "下期", "六肖", "三肖", "二肖", "一肖", "四肖", "五肖",
+            "七肖", "八肖", "十肖", "十二肖"
+        };
+        if (includeOpeningStop)
+            stops.AddRange(["开", "開"]);
+        foreach (string stop in stops)
+        {
+            int at = body.IndexOf(stop, StringComparison.Ordinal);
+            if (at >= 0 && at < cut)
+                cut = at;
+        }
+        string segment = body[..cut];
+        string[] zodiacs = Regex.Matches(segment, $"[{Zodiac}]")
+            .Select(match => match.Value).ToArray();
+        if (zodiacs.Length != 9)
+            return null;
+        string value = string.Concat(zodiacs);
+        return value.Distinct().Count() == 9 ? value : null;
+    }
+
     private static string? ExtractTyped(string tail, string type, OcrRule? rule = null)
     {
         tail = SimplifyOcrText(tail);
@@ -3983,13 +4148,14 @@ public static class RuleEngine
             {
                 // Some 九肖 cards print the issue + result header on one row and
                 // the nine zodiacs on the next row, so the opening cut removes
-                // the list. Retry on the full candidate text, still requiring
-                // exactly nine distinct zodiacs.
+                // the list. Retry on the text after the 九肖 label in the raw
+                // candidate, still requiring exactly nine distinct zodiacs.
+                // 回退必须限定在“九肖”标记之后、下一个档位/期号/开奖之前：直接用整段
+                // tail 会把同图的六肖、三肖凑进来，凑够 9 个就成了假成功。
                 if (type == "九肖")
                 {
-                    MatchCollection wider = Regex.Matches(tail, $"[{Zodiac}]");
-                    string widerValue = string.Concat(wider.Select(match => match.Value));
-                    if (wider.Count == 9 && widerValue.Distinct().Count() == 9)
+                    string? widerValue = ExtractBoundedNineZodiacs(tail);
+                    if (widerValue is not null)
                         return widerValue;
                 }
                 return null;

@@ -31,6 +31,29 @@ public sealed class YanranCardFixTests
         Assert.Equal("5尾", RuleEngine.ExtractFinalValue(split, 258, rule));
         Assert.Equal("5尾", RuleEngine.ExtractFinalValue(merged, 258, rule));
         Assert.Equal("0尾", RuleEngine.ExtractFinalValue(split, 257, rule));
+        // 目标期在合并行行首时同样要截断：否则会把 258 的 5尾 一起读进来判成冲突。
+        Assert.Equal("0尾", RuleEngine.ExtractFinalValue(merged, 257, rule));
+    }
+
+    [Fact]
+    public void EnpingTailDoesNotBorrowTheNextIssueWhenTheTargetStartsTheLine()
+    {
+        OcrRule rule = Rule("恩平杀一尾");
+        // 目标期在行首、邻期紧跟其后：只能取目标期那一段，不能借 258 的 5尾。
+        string[] merged = ["257期杀，0尾07 258期杀，5尾"];
+        Assert.Equal("0尾", RuleEngine.ExtractFinalValue(merged, 257, rule));
+
+        // 目标期这一行本身取不到值时，也不能回退整行去读邻期（那会变成假成功）。
+        string[] noValueInTarget = ["257期杀， 258期杀，5尾"];
+        Assert.Null(RuleEngine.ExtractFinalValue(noValueInTarget, 257, rule));
+
+        // 邻期印在目标期之前时同样不许回退：否则会读到上一期的 0尾（假成功）。
+        string[] previousIssueFirst = ["256期杀，0尾 257期杀"];
+        Assert.Null(RuleEngine.ExtractFinalValue(previousIssueFirst, 257, rule));
+
+        // 同行没有别的期号时仍保留原有回退：值印在期号之前的两列卡不能因此丢值。
+        string[] valueBeforeIssueOnly = ["0尾07 257期杀"];
+        Assert.Equal("0尾", RuleEngine.ExtractFinalValue(valueBeforeIssueOnly, 257, rule));
     }
 
     [Fact]

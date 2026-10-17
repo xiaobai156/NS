@@ -411,7 +411,16 @@ public sealed class PaddleLocalOcrClient
             }
             finally
             {
-                try { Directory.Delete(tempFolder, recursive: true); } catch { }
+                // 只吞可预期的文件系统失败：占用/权限/路径过长时清理不掉属正常，
+                // 其它异常必须照旧上抛，不能在这里被吞成“识别成功”。
+                try
+                {
+                    if (Directory.Exists(tempFolder))
+                        Directory.Delete(tempFolder, recursive: true);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+                {
+                }
             }
         }
 

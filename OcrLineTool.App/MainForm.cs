@@ -8,8 +8,8 @@ namespace OcrLineTool;
 
 public sealed class MainForm : Form
 {
-    private const string FixedImageDirectory = @"C:\Users\Administrator\Desktop\每天工具\飞机抓图\结果";
-    private readonly string imageRootDirectory;
+    // 抓取路径可在“设置”里自定义，保存后立即生效；默认值见 UiSettings.DefaultImageRootDirectory。
+    private string imageRootDirectory;
     private readonly Action<ProcessStartInfo> openFile;
     private const int DwmUseImmersiveDarkMode = 20;
     private const int DwmUseImmersiveDarkModeLegacy = 19;
@@ -147,7 +147,7 @@ public sealed class MainForm : Form
     private CancellationTokenSource? activeCancellation;
     private CancellationToken ActiveToken => activeCancellation?.Token ?? CancellationToken.None;
 
-    public MainForm() : this(FixedImageDirectory, info => Process.Start(info)) { }
+    public MainForm() : this(UiSettings.ResolveImageRootDirectory(AppContext.BaseDirectory), info => Process.Start(info)) { }
 
     internal MainForm(string imageDirectory, Action<ProcessStartInfo> openFile)
     {
@@ -895,8 +895,15 @@ public sealed class MainForm : Form
             }
             finally { folderList.EndUpdate(); }
         }
+        // 群名快照每轮都重算：规则 JSON 新增/改 group 名后必须当轮生效（不能等群目录变化）。
+        // 读盘开销由 RuleCatalog 的“文件名+长度+修改时间”签名缓存兜住，目录没变时不重复解析。
+        folderGroupNames = RuleCatalog.GroupNamesForFolders(AppContext.BaseDirectory, folders);
         RefreshFolderResultMarkers();
     }
+
+    // 群目录 → 基础群名 的快照；每轮刷新时重算，靠 RuleCatalog 的签名缓存避免重复解析。
+    private IReadOnlyDictionary<string, string> folderGroupNames =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
     private void RefreshFolderResultMarkers()
     {
@@ -905,9 +912,11 @@ public sealed class MainForm : Form
         HashSet<string> updated;
         try
         {
-            var groups = RuleCatalog.GroupNamesForFolders(AppContext.BaseDirectory, folders);
-            updated = folders.Where(folder => File.Exists(
-                    ResultFilePaths.ForGroupName(AppContext.BaseDirectory, groups[folder], issue)))
+            if (folderGroupNames.Count == 0 && folders.Length > 0)
+                folderGroupNames = RuleCatalog.GroupNamesForFolders(AppContext.BaseDirectory, folders);
+            updated = folders.Where(folder =>
+                    folderGroupNames.TryGetValue(folder, out string? groupName)
+                    && File.Exists(ResultFilePaths.ForGroupName(AppContext.BaseDirectory, groupName, issue)))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
         catch (Exception exception) when (exception is OcrException or IOException or UnauthorizedAccessException or ArgumentException)
@@ -957,6 +966,33 @@ public sealed class MainForm : Form
         OperationLog.Append(AppContext.BaseDirectory, action, group, Decimal.ToInt32(issueInput.Value));
     }
 
+    // 只记异常类型/HResult/方法名/MVID/IL 偏移，不记 Message、路径或 OCR 原文。
+    private void LogUnexpected(Exception exception, string action)
+    {
+        string? group = selectedImageDirectory is null
+            ? null
+            : RuleCatalog.BaseGroupName(selectedImageDirectory);
+        OperationLog.AppendException(
+            AppContext.BaseDirectory, action, group, Decimal.ToInt32(issueInput.Value), exception);
+    }
+
+    /// <summary>
+    /// 清理本轮临时目录：占用、路径过长、权限不足都只记一条未预期异常日志后继续，
+    /// 不再静默全吞，避免 %TEMP% 下的临时副本长期堆积却毫无记录。
+    /// </summary>
+    private void TryDeleteTemporaryFolder(string folder)
+    {
+        try
+        {
+            if (Directory.Exists(folder))
+                Directory.Delete(folder, recursive: true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            LogUnexpected(exception, "清理临时目录");
+        }
+    }
+
     private void SelectImageDirectory(string directory)
     {
         try
@@ -982,7 +1018,7 @@ public sealed class MainForm : Form
         if (imagePaths.Length > 0)
             ShowPreview(imagePaths[0]);
         else
-            preview.Image = null;
+            ClearPreview();
         statusLabel.Text = imagePaths.Length == 0
             ? "所选子文件夹中没有支持的图片。"
             : hasRules
@@ -1468,7 +1504,7 @@ public sealed class MainForm : Form
         {
             if (temporaryCropFolder is not null)
             {
-                try { Directory.Delete(temporaryCropFolder, recursive: true); } catch { }
+                TryDeleteTemporaryFolder(temporaryCropFolder);
             }
             StopRecognitionTiming();
             SetBusy(false);
@@ -1780,7 +1816,9 @@ public sealed class MainForm : Form
             bool fallbackRequestStarted = false;
             TimeSpan minimumInterval = CloudOcrPolicy.MinimumInterval(credential.Provider);
             TimeSpan fallbackMinimumInterval = CloudOcrPolicy.MinimumInterval(fallbackCredential.Provider);
-            int plannedCloudImages = candidates.Count(candidate => candidate.IsPrimary);
+            // 进度分母必须遍历前一次算定：备选候选也是真正要问云的图，遍历中再自增
+            // 会让进度条回退、剩余时间跳变。这里按“确实有规则要处理”的候选计数。
+            int plannedCloudImages = candidates.Count(candidate => candidate.Rules.Count > 0);
 
             bool TryAdvancePrimaryAccount()
             {
@@ -1960,8 +1998,6 @@ public sealed class MainForm : Form
                 if (activeRules.Length == 0)
                     continue;
 
-                if (!candidate.IsPrimary)
-                    plannedCloudImages++;
                 candidateImages++;
                 int cloudIndex = candidateImages;
                 OcrEvidence cloudEvidence;
@@ -2159,7 +2195,7 @@ public sealed class MainForm : Form
         {
             if (temporaryCropFolder is not null)
             {
-                try { Directory.Delete(temporaryCropFolder, recursive: true); } catch { }
+                TryDeleteTemporaryFolder(temporaryCropFolder);
             }
             StopRecognitionTiming();
             SetBusy(false);
@@ -2302,7 +2338,7 @@ public sealed class MainForm : Form
             new(item =>
             {
                 (string status, string stageName, int batchDone, int batchSize, int workDone, int workTotal) =
-                    RetryBatchStageReport(phase, baseCount, batchCount, item);
+                    RetryBatchStageReport(phase, baseCount, batchCount, item, imageRootDirectory);
                 SetStageStatus(localStageToken, status);
                 ReportRecognitionStage(localStageToken, stageName, batchDone, batchSize, workDone, workTotal);
             });
@@ -2603,21 +2639,6 @@ public sealed class MainForm : Form
                 OcrRule[] evidenceRules = RetryEvidenceRules(candidate, lastRules);
                 int cloudRequestsBeforeCandidate = cloudRequests;
 
-                if (candidateMissing.Length == 0)
-                {
-                    foreach (OcrRule rule in candidate.Rules)
-                        if (lastValues.ContainsKey(rule.Id))
-                            lastMissingReasons.Remove(rule.Id);
-                    completed++;
-                    cloudWorkTotal = Math.Max(cloudWorkDone, cloudWorkTotal - 1);
-                    ReportRecognitionStage(
-                        cloudStageToken, "复抓：云兜底", completed, cloudTotal, cloudWorkDone, cloudWorkTotal);
-                    resultsBox.Text = string.Join(
-                        Environment.NewLine,
-                        RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons));
-                    continue;
-                }
-
                 OcrEvidence? primaryEvidence = null;
                 bool reusedCache = retryCloudEvidence.TryGetValue(candidate.SourcePath, out OcrEvidence? cachedEvidence)
                     && CanReuseRetryCloudEvidence(lastValues, candidateMissing, cachedEvidence, lastIssue);
@@ -2640,7 +2661,8 @@ public sealed class MainForm : Form
                         try
                         {
                             statusLabel.Text = CloudRetryStatusText(
-                                $"主云 {credential.DisplayName}", completed + 1, cloudTotal, cloudRequests, candidate.SourcePath);
+                                $"主云 {credential.DisplayName}", completed + 1, cloudTotal, cloudRequests,
+                                candidate.SourcePath, imageRootDirectory);
                             string primaryInputPath = retryUsesLocalOcr
                                 ? candidate.OcrPath
                                 : RetryPrimaryImage(
@@ -2699,7 +2721,8 @@ public sealed class MainForm : Form
                     try
                     {
                         statusLabel.Text = CloudRetryStatusText(
-                            $"备用 {fallbackCredential.DisplayName}", completed + 1, cloudTotal, cloudRequests, candidate.SourcePath);
+                            $"备用 {fallbackCredential.DisplayName}", completed + 1, cloudTotal, cloudRequests,
+                            candidate.SourcePath, imageRootDirectory);
                         fallbackEvidence = await fallbackImageDeduplicator.RecognizeEvidenceAsync(
                             selectedImageDirectory!, candidate.SourcePath, fallbackMissing,
                             async () =>
@@ -2881,7 +2904,7 @@ public sealed class MainForm : Form
         {
             if (temporaryCropFolder is not null)
             {
-                try { Directory.Delete(temporaryCropFolder, recursive: true); } catch { }
+                TryDeleteTemporaryFolder(temporaryCropFolder);
             }
             StopRecognitionTiming();
             SetBusy(false);
@@ -2981,8 +3004,10 @@ public sealed class MainForm : Form
     }
 
     // 云阶段状态：图片完成数与真实云请求次数分开显示，避免把候选总数当成云任务数。
-    internal static string CloudRetryStatusText(string phase, int imageIndex, int imageTotal, int cloudRequests, string sourcePath) =>
-        $"复抓缺失：{phase} 第 {imageIndex}/{imageTotal} 张，已发云请求 {cloudRequests} 次 · {ShortPath(sourcePath)}";
+    internal static string CloudRetryStatusText(
+        string phase, int imageIndex, int imageTotal, int cloudRequests, string sourcePath, string? root = null) =>
+        $"复抓缺失：{phase} 第 {imageIndex}/{imageTotal} 张，已发云请求 {cloudRequests} 次 · "
+        + ShortenPath(sourcePath, root ?? UiSettings.DefaultImageRootDirectory);
 
     private string RetryDiagnosticMode => retryUsesLocalOcr ? "复抓（本机优先 → 云兜底）" : "复抓（云 OCR）";
 
@@ -4208,8 +4233,22 @@ public sealed class MainForm : Form
         isBusy = busy;
         if (busy)
         {
-            activeCancellation?.Dispose();
+            // 先取消再释放：上一轮任务可能仍在飞（例如自动本地 OCR 的 fire-and-forget），
+            // 直接 Dispose 会让它的 token 注册/等待抛 ObjectDisposedException。
+            CancellationTokenSource? previous = activeCancellation;
             activeCancellation = new CancellationTokenSource();
+            if (previous is not null)
+            {
+                // 取消回调自身抛异常时会包成 AggregateException；只吞这一种，其它照旧上抛。
+                try { previous.Cancel(); }
+                catch (ObjectDisposedException exception) { LogUnexpected(exception, "取消上一轮任务"); }
+                catch (AggregateException exception)
+                {
+                    foreach (Exception inner in exception.Flatten().InnerExceptions)
+                        LogUnexpected(inner, "取消上一轮任务");
+                }
+                previous.Dispose();
+            }
         }
         folderList.Enabled = !busy;
         recognizeButton.Enabled = !busy && imagePaths.Length > 0 && selectedRulePath is not null && File.Exists(selectedRulePath);
@@ -4241,7 +4280,7 @@ public sealed class MainForm : Form
         settingsDialogOpen = true;
         try
         {
-            using var dialog = new SettingsForm(new UiSettings(showRecognizeButton, retryUsesLocalOcr, ocrDevice), AppContext.BaseDirectory);
+            using var dialog = new SettingsForm(CurrentUiSettings(), AppContext.BaseDirectory);
             if (dialog.ShowDialog(this) != DialogResult.OK)
                 return;
 
@@ -4260,14 +4299,49 @@ public sealed class MainForm : Form
             retryUsesLocalOcr = dialog.Result.RetryUsesLocalOcr;
             ocrDevice = dialog.Result.OcrDevice;
             string deviceName = ocrDevice == LocalOcrDevice.Gpu ? "GPU" : "CPU";
-            statusLabel.Text = showRecognizeButton
+            string rootNote = ApplyImageRootDirectory(dialog.Result.EffectiveImageRootDirectory());
+            statusLabel.Text = (showRecognizeButton
                 ? $"已显示“开始识别”按钮；本地 OCR 使用{deviceName}，手动复抓使用{(retryUsesLocalOcr ? "本地 OCR" : "云 OCR")}。"
-                : $"已隐藏“开始识别”按钮；本地 OCR 使用{deviceName}，手动复抓使用{(retryUsesLocalOcr ? "本地 OCR" : "云 OCR")}。";
+                : $"已隐藏“开始识别”按钮；本地 OCR 使用{deviceName}，手动复抓使用{(retryUsesLocalOcr ? "本地 OCR" : "云 OCR")}。") + rootNote;
         }
         finally
         {
             settingsDialogOpen = false;
         }
+    }
+
+    /// <summary>
+    /// 主界面当前生效的设置。必须带上正在使用的抓取路径，否则设置窗口会显示默认路径，
+    /// 用户改别的选项再保存时会把自定义路径静默清回默认。
+    /// </summary>
+    internal UiSettings CurrentUiSettings() =>
+        new(showRecognizeButton, retryUsesLocalOcr, ocrDevice, imageRootDirectory);
+
+    /// <summary>
+    /// 应用新的抓取路径：路径变化时立即刷新群列表并清空当前选择，返回可拼到状态栏的说明。
+    /// 路径未变化时保持当前选择不动，返回空串。
+    /// </summary>
+    internal string ApplyImageRootDirectory(string resolvedRoot)
+    {
+        if (string.Equals(resolvedRoot, imageRootDirectory, StringComparison.OrdinalIgnoreCase))
+            return string.Empty;
+
+        imageRootDirectory = resolvedRoot;
+        selectedImageDirectory = null;
+        selectedRulePath = null;
+        imagePaths = [];
+        folderNameLabel.Text = "尚未选择";
+        resultsBox.Clear();
+        ClearPreview();
+        recognizeButton.Enabled = false;
+        localPrimaryButton.Enabled = false;
+        ClearRetryState();
+        RefreshFolderList(null, EventArgs.Empty);
+        SetProgress(0, 0);
+        string availability = Directory.Exists(resolvedRoot)
+            ? string.Empty
+            : "（目录当前不可用，恢复后群列表会自动更新）";
+        return $"抓取路径已切换为：{resolvedRoot}{availability}。";
     }
 
     internal void ApplyShowRecognizeButton(bool visible)
@@ -4401,7 +4475,7 @@ public sealed class MainForm : Form
     /// 不可变参数传入，不用可变局部量跨批复用（否则上一批延迟回调会披上下一批的标签、算错本批已处理数）。
     /// </summary>
     internal static (string Status, string Stage, int Completed, int Total, int StageCompleted, int StageTotal)
-        RetryBatchStageReport(string phase, int baseCount, int batchTotal, LocalOcrProgress item)
+        RetryBatchStageReport(string phase, int baseCount, int batchTotal, LocalOcrProgress item, string? root = null)
     {
         int totalCompleted = Math.Clamp(baseCount + item.Completed, 0, Math.Max(0, batchTotal));
         if (item.Stage.Contains("加载", StringComparison.Ordinal))
@@ -4415,7 +4489,8 @@ public sealed class MainForm : Form
                 0,
                 0);
         return (
-            $"复抓本机 OCR：{phase}·识别 {totalCompleted}/{batchTotal} · {ShortPath(item.Path)}",
+            $"复抓本机 OCR：{phase}·识别 {totalCompleted}/{batchTotal} · "
+                + ShortenPath(item.Path, root ?? UiSettings.DefaultImageRootDirectory),
             $"复抓本机 OCR：{phase}·识别",
             totalCompleted,
             batchTotal,
@@ -4596,12 +4671,15 @@ public sealed class MainForm : Form
         return parts.Count == 0 ? string.Empty : $"，外部软件：{string.Join("，", parts)}";
     }
 
-    private static string ShortPath(string path)
+    // 相对当前抓取路径显示；路径不在抓取路径下（含自定义路径已切换）时退回文件名。
+    private string ShortPath(string path) => ShortenPath(path, imageRootDirectory);
+
+    private static string ShortenPath(string path, string root)
     {
         if (string.IsNullOrWhiteSpace(path))
             return "-";
 
-        string relative = Path.GetRelativePath(FixedImageDirectory, path);
+        string relative = Path.GetRelativePath(root, path);
         return relative.StartsWith("..", StringComparison.Ordinal) ? Path.GetFileName(path) : relative;
     }
 
@@ -4617,6 +4695,15 @@ public sealed class MainForm : Form
         {
             statusLabel.Text = "统计失败，未更新汇总文件。";
             MessageBox.Show(this, exception.Message, "统计缺失失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        catch (Exception exception)
+        {
+            // async void 处理器里逃出去的异常会直接终止进程，而汇总读取规则/诊断 JSON
+            // 时会抛 OcrException、JsonException 等非 IO 异常，所以这里必须兜住全部。
+            statusLabel.Text = "统计失败，未更新汇总文件。";
+            LogUnexpected(exception, "统计缺失");
+            MessageBox.Show(this, "统计缺失时发生错误，请关闭软件后重试。",
+                "统计缺失失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally
         {
@@ -4722,8 +4809,16 @@ public sealed class MainForm : Form
         }
         catch
         {
-            preview.Image = null;
+            ClearPreview();
         }
+    }
+
+    /// <summary>预览图归预览框所有：换图或清空都要释放上一张，避免留下孤儿位图。</summary>
+    private void ClearPreview()
+    {
+        Image? previous = preview.Image;
+        preview.Image = null;
+        previous?.Dispose();
     }
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)

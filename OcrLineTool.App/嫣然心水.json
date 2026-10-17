@@ -24,6 +24,13 @@
       "folder": "青苹果"
     },
     {
+      "keyword": "青苹果",
+      "type": "生肖",
+      "label": "青苹果杀一肖",
+      "required_keyword": "青苹果",
+      "folder": "青苹果"
+    },
+    {
       "keyword": "依然公主",
       "type": "合",
       "required_keyword": "依然公主",

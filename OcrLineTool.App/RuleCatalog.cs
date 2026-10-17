@@ -127,8 +127,9 @@ public static class RuleCatalog
     {
         string[] folders = selectedFolders.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         string configurationDirectory = ResultFilePaths.ConfigurationDirectory(appDirectory);
-        RuleFileCandidate[] candidates = folders.Length > 0 && Directory.Exists(configurationDirectory)
-            ? EnumerateRuleFiles(configurationDirectory).ToArray() : [];
+        RuleFileCandidate[] candidates = folders.Length > 0
+            ? CachedRuleFiles(configurationDirectory)
+            : [];
         var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (string folder in folders)
         {
@@ -140,6 +141,47 @@ public static class RuleCatalog
             names[folder] = matching?.GroupName ?? BaseGroupName(folder);
         }
         return names;
+    }
+
+    // 群列表每 2 秒刷新一次，每次都要把「配置文件」下所有 JSON 解析一遍取 group 名。
+    // 这里按“文件名 + 修改时间 + 长度”做签名缓存：目录内容不变时不再重复解析，
+    // 规则文件新增/改写/删除后下一次调用自动失效重读。
+    private static readonly object RuleFileCacheLock = new();
+    private static string? ruleFileCacheSignature;
+    private static RuleFileCandidate[] ruleFileCache = [];
+
+    private static RuleFileCandidate[] CachedRuleFiles(string configurationDirectory)
+    {
+        if (!Directory.Exists(configurationDirectory))
+            return [];
+
+        string signature;
+        try
+        {
+            signature = string.Join('\u001f', Directory.EnumerateFiles(configurationDirectory, "*.json")
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .Select(path =>
+                {
+                    if (!IsRuleCatalogFile(Path.GetFileName(path)))
+                        return string.Empty;
+                    var info = new FileInfo(path);
+                    return $"{path}\u001e{info.Length}\u001e{info.LastWriteTimeUtc.Ticks}";
+                })
+                .Where(item => item.Length > 0));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
+
+        lock (RuleFileCacheLock)
+        {
+            if (string.Equals(signature, ruleFileCacheSignature, StringComparison.Ordinal))
+                return ruleFileCache;
+            ruleFileCache = EnumerateRuleFiles(configurationDirectory).ToArray();
+            ruleFileCacheSignature = signature;
+            return ruleFileCache;
+        }
     }
 
     /// <summary>

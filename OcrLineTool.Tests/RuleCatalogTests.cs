@@ -51,7 +51,7 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
 
-        Assert.Equal(102, rules.Count);
+        Assert.Equal(103, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.Contains(rules, rule => rule.Id == "钦差大臣公式一" && rule.Section == "公式一");
         Assert.Contains(rules, rule => rule.Id == "君军两尾" && rule.Type == "尾数组合");
@@ -68,6 +68,8 @@ public sealed class RuleCatalogTests
         Assert.DoesNotContain(rules, rule => rule.Id == "缘来如此（平特一肖）");
         Assert.Contains(rules, rule => rule.Id == "傻丫头" && rule.Type == "生肖");
         Assert.Contains(rules, rule => rule.Id == "青苹果" && rule.Type == "号码:6");
+        Assert.Contains(rules, rule => rule.Id == "青苹果杀一肖" && rule.Type == "生肖"
+            && rule.Keyword == "青苹果" && rule.Folder == "青苹果" && rule.RequiredKeyword == "青苹果");
         Assert.Contains(rules, rule => rule.Id == "蓝色" && rule.Type == "号码:36" && rule.Folder == "36码"
             && rule.RequiredKeyword == "特码开在");
         Assert.Contains(rules, rule => rule.Id == "彩图" && rule.Type == "号码:36" && rule.Folder == "36码"
