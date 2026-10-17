@@ -110,6 +110,21 @@
     { "keyword": "亮剑团队", "type": "九肖", "label": "亮剑九肖", "ignoreIssue": true },
     { "keyword": "四季生肖", "type": "四季", "label": "白小姐四季" },
     { "keyword": "九肖来钱", "type": "九肖", "label": "白小姐来钱", "allow_opening_row": true },
-    { "keyword": "慈善网『四季生肖』付费版", "type": "四季", "label": "慈善四季" }
+    { "keyword": "慈善网『四季生肖』付费版", "type": "四季", "label": "慈善四季" },
+    {"keyword": "买什么输光光", "type": "生肖", "label": "买什么杀一肖"},
+    {"keyword": "⑩码必杀", "type": "号码:10", "label": "买什么杀十码"},
+    {"keyword": "公式杀半波", "type": "色单双", "label": "买什么杀半波"},
+    {"keyword": "公式绝杀头", "type": "头", "label": "买什么杀头"},
+    {"keyword": "公式绝杀行", "type": "单五行", "label": "买什么公式杀行"},
+    {"keyword": "公式绝杀尾", "type": "尾", "label": "买什么公式杀尾"},
+    {"keyword": "公式绝杀肖", "type": "生肖", "label": "买什么公式杀肖"},
+    {"keyword": "唐朝杀一行", "type": "单五行", "label": "唐朝杀行"},
+    {"keyword": "唐朝杀一头", "type": "头", "label": "唐朝杀头"},
+    {"keyword": "唐朝杀一尾", "type": "尾", "label": "唐朝杀尾"},
+    {"keyword": "唐朝杀一肖", "type": "生肖", "label": "唐朝杀肖"},
+    {"keyword": "黑客数据", "type": "生肖组合", "label": "黑客杀两肖"},
+    {"keyword": "老码头", "type": "号码:7", "label": "老码头杀七码"},
+    {"keyword": "锦囊九尾", "type": "缺尾", "label": "锦囊杀尾"},
+    {"keyword": "天宫杀一头", "type": "头", "label": "天宫杀头"}
   ]
 }

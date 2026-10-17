@@ -1805,6 +1805,11 @@ public static class RuleEngine
             return values.Count > 1 ? RuleExtractionResult.Conflict
                 : values.Count == 1 ? RuleExtractionResult.Success(values.Single()) : RuleExtractionResult.Missing;
         }
+        if (rule.StrictIssueBlock && rule.Id is ("买什么杀十码" or "老码头杀七码" or "唐朝杀头")
+            && RuleCatalog.PathBelongsToGroup(evidence.SourcePath, "新澳六合彩资料")
+            && evidence.HasCompleteGeometry
+            && ExtractFixedWrappedTableRows(evidence, issue, rule) is { } wrappedRows)
+            return wrappedRows;
         if (rule.Id == "藏宝杀一肖" && rule.Type == "生肖")
             return ToExtractionResult(ZodiacIconMatcher.TryExtractSingle(evidence, issue));
         if (rule.Id == "龙王杀两肖" && rule.Type == "生肖组合" &&
@@ -2256,6 +2261,70 @@ public static class RuleEngine
                 row.Add(item);
         }
         return rows;
+    }
+
+    private static RuleExtractionResult? ExtractFixedWrappedTableRows(OcrEvidence evidence, int issue, OcrRule rule)
+    {
+        var observed = new HashSet<string>(rule.Type.StartsWith("号码:", StringComparison.Ordinal)
+            ? ResultValues.NumberSetComparer : StringComparer.Ordinal);
+        bool applies = false;
+        foreach (var view in (evidence.TokenItems ?? evidence.Items).GroupBy(item => (item.ViewId, item.RegionId)))
+        {
+            var items = view.Where(item => !string.IsNullOrWhiteSpace(item.Text)).ToArray();
+            if (items.Any(item => item.Box is null))
+                continue;
+            if (!ContainsRuleIdentity(items.Select(item => SimplifyFixedCardText(item.Text)), rule))
+                continue;
+            var anchors = items.Where(item => Regex.IsMatch(item.Text.Trim(), @"^\d{1,6}\s*期$"))
+                .OrderBy(item => item.Box!.CenterY).ToArray();
+            var selected = anchors.Where(item => ContainsIssue(item.Text, issue)).ToArray();
+            if (selected.Length == 0)
+                continue;
+            applies = true;
+            foreach (var inline in items.Where(item => ContainsIssue(item.Text, issue) && !anchors.Contains(item)))
+            {
+                RuleExtractionResult result = ExtractFinalResult([inline.Text], issue, rule);
+                if (result.Status == RuleExtractionStatus.Conflict)
+                    return result;
+                if (result.Value is not null)
+                    observed.Add(result.Value);
+            }
+            foreach (var anchor in selected)
+            {
+                int index = Array.IndexOf(anchors, anchor);
+                if (anchors.Length < 2)
+                    continue;
+                double center = anchor.Box!.CenterY;
+                double top = index > 0 ? (anchors[index - 1].Box!.CenterY + center) / 2
+                    : center - (anchors[index + 1].Box!.CenterY - center) / 2;
+                double bottom = index + 1 < anchors.Length ? (anchors[index + 1].Box!.CenterY + center) / 2
+                    : center + (center - anchors[index - 1].Box!.CenterY) / 2;
+                // The issue and opening columns bound this physical cell. Nothing
+                // outside it, including another view or adjacent row, can fill it.
+                var opening = items.Where(item => item.Box!.X > anchor.Box.Right
+                    && Math.Abs(item.Box.CenterY - center) < anchor.Box.Height / 2d
+                    && Regex.IsMatch(SimplifyFixedCardText(item.Text).Trim(),
+                        $@"^(?:开\s*[?？]+|[{Zodiac}]\s*\d{{1,2}}\s*[中错])$"))
+                    .OrderBy(item => item.Box!.X).FirstOrDefault();
+                if (opening is null)
+                    continue;
+                var cell = items.Where(item => item.Box!.X >= anchor.Box.Right
+                    && item.Box.Right <= opening.Box!.X
+                    && item.Box.CenterY > top && item.Box.CenterY < bottom).ToArray();
+                string field = string.Join("\n", BuildRowMajorReading(cell));
+                if (field.Contains(OcrLayoutMarkers.RegionBoundary, StringComparison.Ordinal))
+                    continue;
+                string? value = ExtractStrictTableValue(SimplifyFixedCardText(field), rule);
+                if (value == ConflictMarker)
+                    return RuleExtractionResult.Conflict;
+                if (value is not null)
+                    observed.Add(value);
+            }
+        }
+        if (!applies)
+            return null;
+        return observed.Count > 1 ? RuleExtractionResult.Conflict
+            : observed.Count == 1 ? RuleExtractionResult.Success(observed.Single()) : RuleExtractionResult.Missing;
     }
 
     // Row-major reading order with the same row tolerance the layout builder
@@ -3120,6 +3189,48 @@ public static class RuleEngine
                 return null;
             block = shared.Groups[rule.Type == "生肖" ? "zodiac" : "tail"].Value;
         }
+        // These fixed cards wrap values in field labels; keep the whole payload
+        // and validate every repeated symbol before using the shared type checks.
+        string? fixedField = rule.Id switch
+        {
+            "买什么杀一肖" => @"^1\s*肖\s*今期买\s*(?<value>.+?)\s*输光光$",
+            "买什么杀十码" => @"^今期\s*10\s*码\s*[:：]?\s*(?<value>.+?)\s*直接不要$",
+            "买什么杀半波" => @"^1\s*肖\s*(?<value>.+)$",
+            "买什么公式杀行" => @"^绝杀一行\s*(?<value>.+)$",
+            "买什么公式杀尾" => @"^金牌绝杀一尾\s*(?<value>.+)$",
+            "买什么公式杀肖" => @"^金牌绝杀一肖\s*(?<value>.+)$",
+            "唐朝杀行" or "唐朝杀头" => @"^唐朝绝杀\s*(?<value>.+?)\s*稳\s*杀$",
+            "唐朝杀尾" => @"^唐朝绝杀\s*(?<value>.+?)\s*尾\s*稳\s*杀$",
+            "唐朝杀肖" => @"^唐朝绝杀\s*(?<value>.+?)\s*肖\s*稳\s*杀$",
+            "黑客杀两肖" => @"^数据杀特肖\s*(?<value>.+)$",
+            "老码头杀七码" => @"^绝杀\s*7\s*码\s*[:：]?\s*(?<value>.+?)\s*稳\s*稳\s*稳$",
+            "锦囊杀尾" => @"^[锦錦]囊九尾\s*(?<value>.+)$",
+            "天宫杀头" => @"^天宫\s*杀\s*(?<value>.+?)\s*头$",
+            _ => null
+        };
+        if (fixedField is not null)
+        {
+            Match field = Regex.Match(rule.Type.StartsWith("号码:", StringComparison.Ordinal)
+                ? rawContainerBlock.Trim() : block, fixedField, RegexOptions.Singleline);
+            if (!field.Success)
+                return null;
+            rawContainerBlock = field.Groups["value"].Value.Trim();
+            block = Regex.Replace(rawContainerBlock, @"[^\p{L}\p{N}\s]", " ").Trim();
+            if (rule.Id is "买什么公式杀行" or "买什么公式杀尾" or "买什么公式杀肖"
+                or "唐朝杀行" or "唐朝杀尾" or "唐朝杀肖" or "唐朝杀头")
+            {
+                string repeats = Regex.Replace(block, @"\s+", "");
+                if (rule.Id == "唐朝杀头")
+                {
+                    if (!Regex.IsMatch(repeats, @"^(?:[零一二三四0-4]头){3}$"))
+                        return null;
+                    repeats = string.Concat(repeats.Where(c => c != '头').Select(ToArabicDigit));
+                }
+                if (repeats.Length != 3 || repeats.Distinct().Count() != 1)
+                    return null;
+                block = repeats[..1];
+            }
+        }
         string prefix = rule.Type switch
         {
             var type when type.StartsWith("号码:", StringComparison.Ordinal) =>
@@ -3171,10 +3282,13 @@ public static class RuleEngine
                 && rule.Id is not ("藏宝十二码" or "雷锋" or "杀料五码")
                 && rule.Folder is not ("68" or "香奈儿" or "战狼" or "红人馆"
                     or "各种杀" or "公式杀料" or "一套组合拳")
-                && Regex.IsMatch(rawContainerBlock, @"[【\[（(]"))
+                && Regex.IsMatch(rawContainerBlock, @"[【\[（(】\]）)]"))
             {
                 string raw = Regex.Replace(rawContainerBlock.Trim(), "^" + prefix + @"\s*", "");
                 raw = Regex.Replace(raw.Trim(), @"(?:精选杀|必输|会输很惨|不会开)$", "").Trim();
+                string outsideContainers = Regex.Replace(raw, @"[【\[（(][^】\]）)]*[】\]）)]", "");
+                if (Regex.IsMatch(outsideContainers, @"[【\[（(】\]）)]"))
+                    return null;
                 return ExtractNumbers(raw, count);
             }
             string numberText = Regex.Replace(block, @"\s+", " ").Trim();

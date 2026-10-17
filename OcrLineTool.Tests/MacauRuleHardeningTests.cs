@@ -8,7 +8,8 @@ public sealed class MacauRuleHardeningTests
         ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "新澳六合彩资料.json"));
     private static OcrRule Rule(string id) => Rules().Single(rule => rule.Id == id);
     public static IEnumerable<object[]> Samples() => SampleText.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-        .Select(line => line.Trim().Split('|')).Select(parts => new object[] { parts[0], parts[1].Replace('~', '\n'), parts[2] });
+        .Select(line => line.Trim().Split('|')).Select(parts => new object[] { parts[0], parts[1].Replace('~', '\n'), parts[2] })
+        .Concat(NewMacauFifteenCardsTests.Rows());
     private const string SampleText = """
         小马哥|庄家必杀:01 04 07 12 14 16 21 27~30 33 43 49|01 04 07 12 14 16 21 27 30 33 43 49
         张小艺|十不中:06 11 17 23 29 33 36 39 45 46|06 11 17 23 29 33 36 39 45 46

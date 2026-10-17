@@ -9,8 +9,12 @@
   "sources": [
     {
       "sourceGroup": "新澳六合彩资料",
-      "labels": ["藏宝杀一肖"],
-      "zodiacCounts": { "藏宝杀一肖": 1 }
+      "labels": [
+        "藏宝杀一肖",
+        "买什么杀一肖",
+        "唐朝杀肖"
+      ],
+      "zodiacCounts": { "藏宝杀一肖": 1, "买什么杀一肖": 1, "唐朝杀肖": 1 }
     },
     {
       "sourceGroup": "蜻蜓一套",
