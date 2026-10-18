@@ -283,8 +283,15 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "新澳六合彩资料.json"));
 
-        Assert.Equal(123, rules.Count);
+        Assert.Equal(108, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
+        // v1.5.189 新增、现已撤回的 15 条资料：Id 一旦回流就报错。
+        string[] removed =
+        [
+            "买什么杀一肖", "买什么杀十码", "买什么杀半波", "买什么杀头", "买什么公式杀行", "买什么公式杀尾", "买什么公式杀肖",
+            "唐朝杀行", "唐朝杀头", "唐朝杀尾", "唐朝杀肖", "黑客杀两肖", "老码头杀七码", "锦囊杀尾", "天宫杀头"
+        ];
+        Assert.DoesNotContain(rules, rule => removed.Contains(rule.Id));
         Assert.Contains(rules, rule => rule.Id == "白小姐四季" && rule.Type == "四季");
         Assert.Contains(rules, rule => rule.Id == "慈善四季"
             && rule.Keyword == "慈善网『四季生肖』付费版"
@@ -400,8 +407,7 @@ public sealed class RuleCatalogTests
             "曾道人小杀肖", "心水杀肖肖肖", "聚彩堂一肖", "聚彩堂一尾", "姨妈肖杀", "姨妈尾杀",
             "彩虹半波", "超级赢家半波波", "王不王一头", "神算子避头", "财神一头",
             "近期开奖员", "毛老二", "通天九九肖", "大赢家九肖", "亮剑九肖",
-            "白小姐四季", "白小姐来钱", "慈善四季",
-            "买什么杀一肖", "买什么杀十码", "买什么杀半波", "买什么杀头", "买什么公式杀行", "买什么公式杀尾", "买什么公式杀肖", "唐朝杀行", "唐朝杀头", "唐朝杀尾", "唐朝杀肖", "黑客杀两肖", "老码头杀七码", "锦囊杀尾", "天宫杀头"
+            "白小姐四季", "白小姐来钱", "慈善四季"
         ], rules.Select(rule => rule.Id));
     }
 

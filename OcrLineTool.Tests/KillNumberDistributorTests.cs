@@ -900,7 +900,7 @@ public sealed class ResultDistributorTests
         Assert.Equal(
             ["近期开奖员", "毛老二", "通天九九肖", "大赢家九肖", "亮剑九肖", "白小姐四季", "白小姐来钱", "慈善四季"],
             ReadSourceLabels("生肖分发规则.json", "新澳六合彩资料"));
-        Assert.Equal(["藏宝杀一肖", "买什么杀一肖", "唐朝杀肖"], ReadSourceLabels("肖新增分发规则.json", "新澳六合彩资料"));
+        Assert.Equal(["藏宝杀一肖"], ReadSourceLabels("肖新增分发规则.json", "新澳六合彩资料"));
         Assert.DoesNotContain("慈善四季", ReadSourceLabels("肖新增分发规则.json", "新澳六合彩资料"));
         Assert.DoesNotContain("藏宝杀一肖", ReadSourceLabels("二肖分发规则.json", "新澳六合彩资料"));
         Assert.Equal(["天空杀"], ReadSourceLabels("杀数字分发规则.json", "新澳高手"));
