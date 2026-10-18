@@ -3681,6 +3681,9 @@ public static class RuleEngine
         return payload.Trim();
     }
 
+    // 标题模板一张都没匹配上：图片可能就在目录里，只是版式对不上，不能报成「未找到对应图片」。
+    public const string TemplateUnmatchedReason = "模板未命中";
+
     public static string DescribeMissing(bool foundImage, bool recognizedText) =>
         !foundImage ? "未找到对应图片"
         : !recognizedText ? "图片文字识别失败"

@@ -134,6 +134,8 @@ internal static class FailureLog
     {
         if (reason.Contains("未找到对应图片", StringComparison.Ordinal))
             return "未找到对应图片";
+        if (reason.Contains("模板未命中", StringComparison.Ordinal))
+            return "标题模板未命中";
         if (reason.Contains("文字识别失败", StringComparison.Ordinal))
             return "图片文字识别失败";
         if (reason.Contains("冲突", StringComparison.Ordinal))

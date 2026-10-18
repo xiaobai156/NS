@@ -382,7 +382,7 @@ public sealed class VisualTemplateMatcherTests
         Assert.Contains(catalog.Templates, item =>
             item.Id == "特头必中" && item.RuleIds.SequenceEqual(["特头必中"], StringComparer.Ordinal));
         string leifengFingerprint = VisualTemplateMatcher.CreateFingerprint(Path.GetFullPath(Path.Combine(
-                AppContext.BaseDirectory, "..", "..", "..", "Fixtures", "leifeng.jpg")), 0.14, 0.24);
+                AppContext.BaseDirectory, "..", "..", "..", "Fixtures", "leifeng.jpg")), 0.165, 0.21);
         Assert.Equal(leifengFingerprint, Assert.Single(catalog.Templates, item => item.Id == "雷锋").Fingerprint);
         VisualTemplateDefinition dragonKing = Assert.Single(catalog.Templates, item =>
             item.Id == "龙王" && item.RuleIds.SequenceEqual(["龙王"], StringComparer.Ordinal));

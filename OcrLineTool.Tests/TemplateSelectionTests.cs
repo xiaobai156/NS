@@ -40,15 +40,15 @@ public sealed class TemplateSelectionTests
         Assert.Equal("标题模板", Get(candidate, "SelectionMode"));
         Assert.Equal(["已匹配"], ((IReadOnlyList<OcrRule>)Get(candidate, "Rules")).Select(rule => rule.Id));
         Assert.Contains("待手动复抓", (string)Get(selection, "DisplayName"));
+        // 部分命中时未匹配的规则必须是「模板未命中」，不能退化成「未找到对应图片」。
+        string noCandidateReason = (string)Get(selection, "NoCandidateReason");
+        Assert.Equal(RuleEngine.TemplateUnmatchedReason, noCandidateReason);
         string crop = (string)Get(candidate, "OcrPath");
         Assert.True(File.Exists(crop));
         Assert.NotEqual(fixture.ImagePath, crop);
         var values = new Dictionary<string, string> { ["已匹配"] = "牛" };
-        var reasons = new Dictionary<string, string>
-        {
-            ["未匹配"] = RuleEngine.DescribeMissing(foundImage: false, recognizedText: false)
-        };
-        Assert.Contains("缺失（未找到对应图片） 未匹配", RuleEngine.FormatOutput(fixture.Rules, values, reasons));
+        var reasons = new Dictionary<string, string> { ["未匹配"] = noCandidateReason };
+        Assert.Contains("缺失（模板未命中） 未匹配", RuleEngine.FormatOutput(fixture.Rules, values, reasons));
     }
 
     [Theory]

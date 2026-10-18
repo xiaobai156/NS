@@ -98,6 +98,7 @@ public sealed class FailureLogTests
     public void CategoryForMapsTheKnownReasons()
     {
         Assert.Equal("未找到对应图片", FailureLog.CategoryFor("未找到对应图片"));
+        Assert.Equal("标题模板未命中", FailureLog.CategoryFor("模板未命中"));
         Assert.Equal("图片文字识别失败", FailureLog.CategoryFor("图片文字识别失败"));
         Assert.Equal("同一期结果冲突", FailureLog.CategoryFor("同一期结果冲突，待核对"));
         Assert.Equal("未识别到目标数据", FailureLog.CategoryFor("已找到图片和文字，但未识别到第258期"));

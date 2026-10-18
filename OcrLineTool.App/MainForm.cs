@@ -1401,7 +1401,9 @@ public sealed class MainForm : Form
                         ? failedCloudLines
                         : failedCandidate.LocalLines ?? [];
                 missingReasons[rule.Id] = !recognizedRuleIds.Contains(rule.Id)
-                    ? RuleEngine.DescribeMissing(failedCandidate is not null, recognizedText: false)
+                    ? (failedCandidate is null && selection.NoCandidateReason is not null
+                        ? selection.NoCandidateReason
+                        : RuleEngine.DescribeMissing(failedCandidate is not null, recognizedText: false))
                     : RuleEngine.DescribeExtractionFailure(failedLines, issue, rule);
             }
             ApplyGapFillNotes(gapFillNotes, missingReasons);
@@ -1804,7 +1806,8 @@ public sealed class MainForm : Form
                 .Select(rule => rule.Id)
                 .ToHashSet(StringComparer.Ordinal);
             foreach (OcrRule rule in rules.Where(rule => !candidateRuleIds.Contains(rule.Id)))
-                missingReasons[rule.Id] = RuleEngine.DescribeMissing(foundImage: false, recognizedText: false);
+                missingReasons[rule.Id] = selection.NoCandidateReason
+                    ?? RuleEngine.DescribeMissing(foundImage: false, recognizedText: false);
             var diagnostics = new List<object>();
             int cloudRequests = 0;
             var primaryImageDeduplicator = new CloudImageDeduplicator();
@@ -3737,7 +3740,8 @@ public sealed class MainForm : Form
                             templates,
                             ruleMap.Keys.ToHashSet(StringComparer.Ordinal));
                         if (deferUnmatchedTemplates && matches.Count == 0)
-                            return new CandidateSelection([], null, "标题模板（未命中，待手动复抓）");
+                            return new CandidateSelection([], null, "标题模板（未命中，待手动复抓）",
+                                RuleEngine.TemplateUnmatchedReason);
 
                         if (hasCompleteTemplateMatches || ((allowTemplateSubset || deferUnmatchedTemplates) && matches.Count > 0))
                         {
@@ -3821,7 +3825,7 @@ public sealed class MainForm : Form
 
                             if (deferUnmatchedTemplates)
                                 return new CandidateSelection(templateCandidates, templateCropFolder,
-                                    "标题模板（部分命中，未匹配项待手动复抓）");
+                                    "标题模板（部分命中，未匹配项待手动复抓）", RuleEngine.TemplateUnmatchedReason);
 
                             if (!allowTemplateSubset)
                             {
@@ -4226,7 +4230,10 @@ public sealed class MainForm : Form
     private sealed record CandidateSelection(
         IReadOnlyList<RecognitionCandidate> Candidates,
         string? TemporaryCropFolder,
-        string DisplayName);
+        string DisplayName,
+        // 模板挂起（未命中/部分命中）时给「没有任何候选」的规则准备的缺失原因，
+        // 避免把「图在目录里但版式没对上」报成「未找到对应图片」。
+        string? NoCandidateReason = null);
 
     private void SetBusy(bool busy)
     {
