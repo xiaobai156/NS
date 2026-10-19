@@ -111,6 +111,17 @@ public static class RuleEngine
             "恩平杀一尾", "简单爱", "爱晚亭"
         };
 
+    // 黑色六合彩、嫣然电报：数据行横跨期号格、甚至被拆成单字符，按识别区域分组
+    // 会把跨行字段切散。只对这几个新群的已复核 Id 在证据路径上先按整页行序取一次；
+    // 取不到仍回落到原来的区域分组，既有整页卡（雁塔题名等）完全不受影响。
+    private static readonly HashSet<string> NewGroupWholePageRuleIds =
+        new(StringComparer.Ordinal)
+        {
+            "黑客杀尾", "黑客杀两肖", "黑客九肖",
+            "公式杀一肖", "公式杀尾", "公式半波", "公式杀行", "公式杀头",
+            "嫣然电报十码必杀", "买什么杀一肖", "天宫杀头", "锦囊杀尾", "锦囊半波"
+        };
+
     private static readonly HashSet<string> SingleValueScopedTypes =
         new(StringComparer.Ordinal) { "尾" };
 
@@ -1423,10 +1434,11 @@ public static class RuleEngine
             void Take(string line)
             {
                 // 尾数只有 0～9，可能是整行「0 1 2 3 5 6 7 8 9 尾」，也可能是 OCR
-                // 拆成单字符逐个输出（0 / 2 / 3 … / 9尾）。这里只看本行去掉「数据分析」
-                // 这类标签后剩下的数字；行内没有两位以上的数字时才当尾数行处理，
-                // 避免把期号、开奖号码等两位数误当尾数。
+                // 拆成单字符逐个输出（0 / 2 / 3 … / 9尾）。行读后同一物理行还会带上
+                // 期号和「开??」，所以先剥掉期号、标签与开奖段，再要求剩下的数字
+                // 全部是单个 0～9，避免把开奖号码等两位数误当尾数。
                 string payload = BeforeOpeningResult(line);
+                payload = Regex.Replace(payload, @"(?<!\d)\d{1,6}\s*期", string.Empty);
                 payload = Regex.Replace(payload, @"数据分析|必中九尾|数据最准之|黑客数据|尾", string.Empty);
                 MatchCollection runs = Regex.Matches(payload, @"\d+");
                 if (runs.Count == 0 || runs.Cast<Match>().Any(run => run.Value.Length > 1))
@@ -1438,6 +1450,9 @@ public static class RuleEngine
                     tails.Add(tail);
                 }
             }
+            // 行读后整行常是「292期 数据分析 0 1 2 3 5 6 7 8 9 尾 开??」，
+            // 本期数据就在期号那一行本身，必须先收当前行再向两侧扩。
+            Take(normalized[index]);
             for (int back = index - 1; back >= 0 && index - back <= 12; back--)
             {
                 if (ContainsOtherIssue(normalized[back], issue))
@@ -1544,7 +1559,9 @@ public static class RuleEngine
         {
             if (!ContainsIssue(normalized[index], issue))
                 continue;
-            var collected = new List<string>();
+            // 行读后整行常是「292期 金牌绝杀一肖：牛牛牛 开??」，本期数据就在
+            // 期号那一行本身，必须先收当前行再向两侧扩。
+            var collected = new List<string> { normalized[index] };
             for (int back = index - 1; back >= 0 && index - back <= 2; back--)
             {
                 if (ContainsOtherIssue(normalized[back], issue))
@@ -1563,9 +1580,12 @@ public static class RuleEngine
             }
             foreach (string line in collected)
             {
-                // 只认真正的字段标签「一肖 / 杀肖 / 一肖：」；标题行「公式绝杀肖」的
-                // 「肖」后面没有值，不能当成本期的生肖来源。
-                Match label = Regex.Match(line, @"(?:一肖|杀肖)\s*[:：]?\s*(?<value>.+)$");
+                // 只认真正的字段标签「一肖 / 杀肖」；行读后同一物理行会带上前面的
+                // 期号和后面的「开??」，所以先去掉期号标记、按开奖标记截断，
+                // 再在剩下的文字里找字段。
+                string scoped = Regex.Replace(line, @"(?<!\d)\d{1,6}\s*期", string.Empty);
+                scoped = BeforeOpeningResult(scoped);
+                Match label = Regex.Match(scoped, @"(?:一肖|杀肖)\s*[:：]?\s*(?<value>.+)$");
                 if (!label.Success)
                     continue;
                 char[] distinct = label.Groups["value"].Value
@@ -2201,6 +2221,23 @@ public static class RuleEngine
         if (rule.Id == "龙王杀两肖" && rule.Type == "生肖组合" &&
             ZodiacIconMatcher.TryExtractPair(evidence, issue) is string iconValue)
             return RuleExtractionResult.Success(iconValue);
+
+        // 黑色六合彩、嫣然电报的这几张卡，数据行横跨期号格、甚至被拆成单字符；
+        // 证据路径默认按识别区域分组，OCR 还会把它们判成竖排按列切开，
+        // evidence.Lines 因此不是阅读顺序。这里先按几何坐标重排成行读再取值，
+        // 取不到仍回落到原来的区域分组，既有整页卡（雁塔题名等）完全不受影响。
+        if (NewGroupWholePageRuleIds.Contains(rule.Id))
+        {
+            // 行读会在列间隔处插入区域边界标记（\u001e）；这些卡同一期号行的
+            // 「期号 / 数据 / 开奖」本来就被宽间隔分开，标记不是真边界，过滤掉。
+            string[] rowMajor = BuildRowMajorReading(evidence.TokenItems ?? evidence.Items)
+                .Where(line => !line.Contains(OcrLayoutMarkers.RegionBoundary, StringComparison.Ordinal)
+                    && !string.IsNullOrWhiteSpace(line))
+                .ToArray();
+            RuleExtractionResult wholePage = ExtractFinalResult(rowMajor, issue, rule);
+            if (wholePage.Status != RuleExtractionStatus.Missing)
+                return wholePage;
+        }
 
         IEqualityComparer<string> comparer = rule.Type.StartsWith("号码:", StringComparison.Ordinal)
             ? ResultValues.NumberSetComparer : StringComparer.Ordinal;
