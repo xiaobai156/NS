@@ -773,7 +773,7 @@ public sealed class RuleCatalogTests
     // 黑色六合彩、嫣然电报：各自独立的规则与模板目录，必须一一对应；
     // 两群的数据行印在期号格上方，除「天宫杀头」外目录默认非严格。
     [Theory]
-    [InlineData("黑色六合彩", 5)]
+    [InlineData("黑色六合彩", 6)]
     [InlineData("嫣然电报", 7)]
     public void LoadsTheTwoNewTemplateGroupsWithMatchingTemplates(string group, int expectedCount)
     {
@@ -795,6 +795,87 @@ public sealed class RuleCatalogTests
         });
         // 模板只在当前所选群的目录里加载，两个新群必须各自被认作独立群。
         Assert.True(VisualTemplateMatcher.Supports($@"C:\结果\9.19-{group}"));
+    }
+
+    // 嫣然电报 292 期真实版式：期号在下、数据在上/下的四种排列都必须正确出值，
+    // 且同一张卡上的上一期数据不能被当成本期值（跨期借值是硬错误）。
+    [Fact]
+    public void YanranTelegramReadsEachIssueWithoutBorrowingTheNeighbour()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然电报.json"));
+        OcrRule Rule(string id) => rules.Single(rule => rule.Id == id);
+
+        // 公式杀头：两期数据都在期号下方。
+        string[] heads = ["公式绝杀头", "292期", "2头", "开??", "291期", "1头", "虎17错"];
+        Assert.Equal("2头", RuleEngine.ExtractFinalValue(heads, 292, Rule("公式杀头")));
+        Assert.Equal("1头", RuleEngine.ExtractFinalValue(heads, 291, Rule("公式杀头")));
+
+        // 公式半波：数据行带「1肖」前缀。
+        string[] half = ["公式杀半波", "292期", "1肖绿波双", "开??", "291期", "1肖绿波双", "虎17中"];
+        Assert.Equal("绿双", RuleEngine.ExtractFinalValue(half, 292, Rule("公式半波")));
+        Assert.Equal("绿双", RuleEngine.ExtractFinalValue(half, 291, Rule("公式半波")));
+
+        // 公式杀一肖：同一生肖重复三遍，取唯一那个；两期各取各的，不并成冲突。
+        string[] zodiac = ["公式绝杀肖", "292期", "金牌绝杀一肖：牛牛牛", "开??", "291期", "金牌绝杀一肖：猪猪猪", "虎17中"];
+        Assert.Equal("牛", RuleEngine.ExtractFinalValue(zodiac, 292, Rule("公式杀一肖")));
+        Assert.Equal("猪", RuleEngine.ExtractFinalValue(zodiac, 291, Rule("公式杀一肖")));
+
+        // 十码必杀：号码被期号格和「开??」切断，标签里的 10 不算号码，
+        // 「直接不要」之后属于下一期，不能并进来。
+        string[] ten =
+        [
+            "⑩码必杀", "今期10码：0813", "18 24 25 29", "292期", "开??",
+            "32 41 42 48", "直接不要", "今期10码：02 16 18 19 20 21", "901期", "中17中"
+        ];
+        Assert.Equal(
+            "08 13 18 24 25 29 32 41 42 48",
+            RuleEngine.ExtractFinalValue(ten, 292, Rule("嫣然电报十码必杀")));
+
+        // 数量不足时保持缺失，绝不靠下一期补齐。
+        string[] shortTen =
+            ["⑩码必杀", "今期10码：0216", "18 19 20 21", "291期", "开??", "30 31 47", "直接不要"];
+        Assert.Null(RuleEngine.ExtractFinalValue(shortTen, 291, Rule("嫣然电报十码必杀")));
+    }
+
+    // 黑色六合彩「黑客杀尾」：九个尾数缺一个，OCR 可能整行读出也可能拆成单字符。
+    // 两种版式都要得出缺的那个尾数；不足九个一律缺失，不猜。
+    [Fact]
+    public void BlackMacauTailCardReadsSplitAndWholeRows()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "黑色六合彩.json"));
+        OcrRule tail = rules.Single(rule => rule.Id == "黑客杀尾");
+
+        string[] whole = ["黑客数据", "数据分析", "必中九尾", "292期", "数据分析 0 1 2 3 5 6 7 8 9 尾", "开??"];
+        Assert.Equal("4尾", RuleEngine.ExtractFinalValue(whole, 292, tail));
+
+        string[] split =
+            ["黑客数据", "数据分析", "必中九尾", "292期", "数据分析", "0", "1", "2", "3", "5", "6", "7", "8", "9尾", "开??"];
+        Assert.Equal("4尾", RuleEngine.ExtractFinalValue(split, 292, tail));
+
+        // 只有八个尾数时无法确定缺哪个，必须保持缺失。
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["黑客数据", "292期", "数据分析 0 2 3 5 6 7 8 9 尾", "开??"], 292, tail));
+    }
+
+    // 黑色六合彩「黑客杀两肖」：数据行「数据杀特肖：鼠 兔」在期号下方，取两个不同生肖。
+    [Fact]
+    public void BlackMacauKillTwoZodiacsReadsTheLabelledRow()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "黑色六合彩.json"));
+        OcrRule pair = rules.Single(rule => rule.Id == "黑客杀两肖");
+
+        Assert.Equal("鼠兔", RuleEngine.ExtractFinalValue(
+            ["黑客数据", "数据分析", "绝杀两肖", "292期", "数据杀特肖：鼠 兔", "开??"], 292, pair));
+        Assert.Equal("猴虎", RuleEngine.ExtractFinalValue(
+            ["黑客数据", "291期", "数据杀特肖：猴 虎", "开??"], 291, pair));
+        // 只有一个生肖或三个生肖都不是合法的两肖。
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["292期", "数据杀特肖：鼠", "开??"], 292, pair));
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["292期", "数据杀特肖：鼠 兔 龙", "开??"], 292, pair));
     }
 }
 

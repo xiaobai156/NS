@@ -1093,6 +1093,16 @@ public static class RuleEngine
         if (rule.Id == "黑客九肖" && rule.Type == "九肖")
             return ExtractNineZodiacsAcrossWrappedRows(lines, issue, rule);
 
+        // 黑色六合彩「黑客杀尾」：九个尾数可能被 OCR 拆成单字符逐个输出
+        //（0 / 2 / 3 / 5 … / 9尾），必须按出现顺序合并后取九个不同尾数反推缺的那个。
+        if (rule.Id == "黑客杀尾" && rule.Type == "缺尾")
+            return ExtractNineTailsAcrossSplitRows(lines, issue, rule);
+
+        // 黑色六合彩「黑客杀两肖」：数据行「数据杀特肖：鼠 兔」印在期号格下方，
+        // 只取该标签后的两个不同生肖。
+        if (rule.Id == "黑客杀两肖" && rule.Type == "生肖组合")
+            return ExtractKillTwoZodiacs(lines, issue, rule);
+
         // 嫣然电报「公式杀一肖」：卡面把同一个生肖重复印三遍（豬豬豬），取唯一那个生肖。
         if (rule.Id == "公式杀一肖" && rule.Type == "生肖")
             return ExtractRepeatedSingleZodiac(lines, issue, rule);
@@ -1398,6 +1408,91 @@ public static class RuleEngine
         return peer >= 0 ? normalizedTail[..peer] : normalizedTail;
     }
 
+    // 黑色六合彩「黑客杀尾」：卡面是「数据分析 0 1 2 3 4 5 6 7 8 尾」九个尾数缺一个。
+    // OCR 有时整行读出，有时拆成单字符逐个输出（0 / 2 / 3 / 5 / 6 / 7 / 8 / 9尾），
+    // 因此按出现顺序合并本期块前后的数字，要求恰好九个不同尾数再反推缺的那个。
+    private static string? ExtractNineTailsAcrossSplitRows(string[] lines, int issue, OcrRule rule)
+    {
+        string[] normalized = lines.Select(SimplifyOcrText).ToArray();
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        for (int index = 0; index < normalized.Length; index++)
+        {
+            if (!ContainsIssue(normalized[index], issue))
+                continue;
+            var tails = new List<int>();
+            void Take(string line)
+            {
+                // 尾数只有 0～9，可能是整行「0 1 2 3 5 6 7 8 9 尾」，也可能是 OCR
+                // 拆成单字符逐个输出（0 / 2 / 3 … / 9尾）。这里只看本行去掉「数据分析」
+                // 这类标签后剩下的数字；行内没有两位以上的数字时才当尾数行处理，
+                // 避免把期号、开奖号码等两位数误当尾数。
+                string payload = BeforeOpeningResult(line);
+                payload = Regex.Replace(payload, @"数据分析|必中九尾|数据最准之|黑客数据|尾", string.Empty);
+                MatchCollection runs = Regex.Matches(payload, @"\d+");
+                if (runs.Count == 0 || runs.Cast<Match>().Any(run => run.Value.Length > 1))
+                    return;
+                foreach (Match run in runs)
+                {
+                    if (!int.TryParse(run.Value, out int tail) || tails.Contains(tail))
+                        continue;
+                    tails.Add(tail);
+                }
+            }
+            for (int back = index - 1; back >= 0 && index - back <= 12; back--)
+            {
+                if (ContainsOtherIssue(normalized[back], issue))
+                    break;
+                if (normalized[back].TrimStart().StartsWith('开'))
+                    break;
+                Take(normalized[back]);
+            }
+            for (int forward = index + 1; forward < normalized.Length && forward - index <= 12; forward++)
+            {
+                string line = normalized[forward];
+                if (ContainsOtherIssue(line, issue) || line.TrimStart().StartsWith('开'))
+                    break;
+                Take(line);
+            }
+            if (tails.Count == 9)
+                observed.Add($"{Enumerable.Range(0, 10).Single(n => !tails.Contains(n))}尾");
+        }
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    // 黑色六合彩「黑客杀两肖」：数据行「数据杀特肖：鼠 兔」印在期号格下方，
+    // 只取该标签后的两个不同生肖；多肖、重复或没有生肖都判缺失。
+    private static string? ExtractKillTwoZodiacs(string[] lines, int issue, OcrRule rule)
+    {
+        string[] normalized = lines.Select(SimplifyOcrText).ToArray();
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        for (int index = 0; index < normalized.Length; index++)
+        {
+            if (!ContainsIssue(normalized[index], issue))
+                continue;
+            var collected = new List<string>();
+            for (int forward = index + 1; forward < normalized.Length && forward - index <= 3; forward++)
+            {
+                string line = normalized[forward];
+                if (ContainsOtherIssue(line, issue) || line.TrimStart().StartsWith('开'))
+                    break;
+                collected.Add(line);
+            }
+            // 数据行也可能与期号格同一行（期号在左、数据在右）。
+            collected.Insert(0, normalized[index]);
+            foreach (string line in collected)
+            {
+                Match field = Regex.Match(line, @"(?:杀特肖|杀两肖)\s*[:：]?\s*(?<value>.+)$");
+                if (!field.Success)
+                    continue;
+                char[] distinct = field.Groups["value"].Value
+                    .Where(Zodiac.Contains).Distinct().ToArray();
+                if (distinct.Length == 2)
+                    observed.Add(string.Concat(distinct));
+            }
+        }
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
     // 黑色六合彩「黑客九肖」：数据行印在期号格上方，九个生肖分两行
     // （「数据分析兔雞鼠蛇馬虎龍」+「猴狗」）。只并目标期号块前后紧邻的行，
     // 遇到别的期号或开奖行立即停止，不跨期借值；必须恰好九个不同生肖。
@@ -1454,6 +1549,9 @@ public static class RuleEngine
             {
                 if (ContainsOtherIssue(normalized[back], issue))
                     break;
+                // 「开??」是上一期的开奖占位：越过它就进入上一期的数据区，停止收集。
+                if (normalized[back].TrimStart().StartsWith('开'))
+                    break;
                 collected.Add(normalized[back]);
             }
             for (int forward = index + 1; forward < normalized.Length && forward - index <= 2; forward++)
@@ -1465,9 +1563,13 @@ public static class RuleEngine
             }
             foreach (string line in collected)
             {
-                int label = line.LastIndexOf('肖');
-                string payload = label >= 0 && label + 1 < line.Length ? line[(label + 1)..] : line;
-                char[] distinct = payload.Where(Zodiac.Contains).Distinct().ToArray();
+                // 只认真正的字段标签「一肖 / 杀肖 / 一肖：」；标题行「公式绝杀肖」的
+                // 「肖」后面没有值，不能当成本期的生肖来源。
+                Match label = Regex.Match(line, @"(?:一肖|杀肖)\s*[:：]?\s*(?<value>.+)$");
+                if (!label.Success)
+                    continue;
+                char[] distinct = label.Groups["value"].Value
+                    .Where(Zodiac.Contains).Distinct().ToArray();
                 if (distinct.Length == 1)
                     observed.Add(distinct[0].ToString());
             }
@@ -1490,9 +1592,10 @@ public static class RuleEngine
             var numbers = new List<int>();
             void Take(string line)
             {
-                // 字段标签「今期10码」里的 10 是数量说明，不是号码：先剥掉标签再取数。
-                string payload = Regex.Replace(
-                    BeforeOpeningResult(line), @"^[^\d:：]*\d+\s*码\s*[:：]?", string.Empty);
+                // 字段标签「今期10码」里的 10 是数量说明，不是号码：先剥掉标签，
+                // 再按开奖边界截断（「码」本身会被开奖截断规则吃掉，顺序不能反）。
+                string labelled = Regex.Replace(line, @"^[^\d:：]*\d+\s*码\s*[:：]?", string.Empty);
+                string payload = BeforeOpeningResult(labelled);
                 foreach (Match run in Regex.Matches(payload, @"\d+"))
                 {
                     // 号码可能连写成一段（「今期10码：0216」是 02 和 16 两个），
@@ -1524,6 +1627,10 @@ public static class RuleEngine
                 if (line.TrimStart().StartsWith('开'))
                     continue;
                 Take(line);
+                // 「直接不要」是本期的结束标签：后面若还有号码，属于下一期的字段，
+                // 收齐本期就该停，不能把下一期的号码并进来。
+                if (line.Contains("直接不要", StringComparison.Ordinal))
+                    break;
             }
             if (numbers.Count == expected)
                 observed.Add(string.Join(' ', numbers.Order().Select(n => n.ToString("00"))));

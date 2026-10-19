@@ -57,6 +57,17 @@
       "CropBottomWidthRatio": 0.41,
       "FingerprintTopWidthRatio": 0.19,
       "FingerprintBottomWidthRatio": 0.3
+    },
+    {
+      "Id": "黑客杀两肖",
+      "RuleIds": [
+        "黑客杀两肖"
+      ],
+      "Fingerprint": "CCB2CFE7E79A4F748D78CDF3C7D0EFDADD18C9E777849F9ED8B3FD9A2799BFDFD923FBD32789BFC4D963FFC766E0FB07C963FFDB6692AB2EC933FFCF279EABABB563FFD627F58AF7B563FFD626DD2AD7F7DFFFFFFF9919DEFFDFFFFFFFFFF9FEFDDFFEFC971FF9FCC1DFFCCC949FF936CDDFFCCC949FF962C5DFFCCC94BFF966",
+      "CropTopWidthRatio": 0.125,
+      "CropBottomWidthRatio": 0.41,
+      "FingerprintTopWidthRatio": 0.19,
+      "FingerprintBottomWidthRatio": 0.3
     }
   ],
   "FingerprintTopWidthRatio": null,
