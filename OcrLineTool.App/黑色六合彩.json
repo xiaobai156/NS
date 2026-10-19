@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "group": "黑色六合彩",
+  "strictIssueBlock": false,
+  "rules": [
+    { "keyword": "天宫杀一头", "type": "头", "label": "天宫杀头", "required_keyword": "天宫", "strictIssueBlock": true },
+    { "keyword": "锦囊九尾", "type": "缺尾", "label": "锦囊杀尾", "required_keyword": "锦囊" },
+    { "keyword": "锦囊绝杀半波", "type": "色单双", "label": "锦囊半波", "required_keyword": "锦囊" },
+    { "keyword": "黑客数据九肖", "type": "九肖", "label": "黑客九肖", "required_keyword": "黑客数据" },
+    { "keyword": "黑客数据必中九尾", "type": "缺尾", "label": "黑客杀尾", "required_keyword": "黑客数据" }
+  ]
+}

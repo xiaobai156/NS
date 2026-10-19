@@ -440,12 +440,13 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "新澳高级会员.json"));
 
-        Assert.Equal(14, rules.Count);
+        Assert.Equal(19, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(
         [
             "会员琴棋", "大赢家琴棋", "会员特供杀十码", "表弟", "翩翩公子尾", "翩翩公子肖", "祥瑞阁",
-            "翩翩公子半波", "翩翩公子五行", "翩翩公子杀十码", "翩翩公子头", "祥瑞阁二肖", "藏宝九肖", "会员暴打"
+            "翩翩公子半波", "翩翩公子五行", "翩翩公子杀十码", "翩翩公子头", "祥瑞阁二肖", "藏宝九肖", "会员暴打",
+            "六合日报三六", "六合绿杀两肖", "六合红杀两肖", "六合蓝杀两肖", "六合杀八码"
         ], rules.Select(rule => rule.Id));
         Assert.Contains(rules, rule =>
             rule.Id == "会员特供杀十码" && rule.Keyword == "会员特供绝杀10码" && rule.Type == "号码:10");
@@ -459,6 +460,21 @@ public sealed class RuleCatalogTests
             rule.Id == "祥瑞阁二肖" && rule.Keyword == "祥瑞阁" && rule.RequiredKeyword == "杀2肖" && rule.Type == "生肖组合");
         Assert.Contains(rules, rule =>
             rule.Id == "藏宝九肖" && rule.Keyword == "藏宝库" && rule.RequiredKeyword == "藏宝库" && rule.Type == "方位");
+        // 六合日报系列：keyword 取各自副标题（颜色两肖只用两字，避开四字以上的一字容错），
+        // required_keyword 统一「六合日报」作群身份前缀，五张卡不得互相串读。
+        Assert.Contains(rules, rule =>
+            rule.Id == "六合日报三六" && rule.Keyword == "平安36码" && rule.Type == "号码:36"
+            && rule.RequiredKeyword == "六合日报");
+        Assert.Contains(rules, rule =>
+            rule.Id == "六合杀八码" && rule.Keyword == "绝杀八码" && rule.Type == "号码:8"
+            && rule.RequiredKeyword == "六合日报");
+        foreach ((string id, string keyword) in new[]
+                 { ("六合绿杀两肖", "绿杀"), ("六合红杀两肖", "红杀"), ("六合蓝杀两肖", "蓝杀") })
+        {
+            Assert.Contains(rules, rule =>
+                rule.Id == id && rule.Keyword == keyword && rule.Type == "生肖组合"
+                && rule.RequiredKeyword == "六合日报");
+        }
     }
 
     [Theory]
@@ -692,6 +708,93 @@ public sealed class RuleCatalogTests
         {
             Directory.Delete(appDirectory, recursive: true);
         }
+    }
+
+    // 六合日报系列：颜色两肖关键词只差一个字，必须靠 required_keyword（六合日报）
+    // 与两字精确关键词区分，五张卡不得互相串读，别的群的同类卡面也不得命中。
+    [Fact]
+    public void SixDayCardsUseExactColorKeywordsAndTheSharedGroupPrefix()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "新澳高级会员.json"));
+
+        string[][] cases =
+        [
+            ["六合日报 绿杀两肖", "292期", "绿杀:兔 龙", "开??"],
+            ["六合日报 红杀两肖", "292期", "红杀:蛇 猴", "开??"],
+            ["六合日报 蓝杀两肖", "292期", "蓝杀:龙 鼠", "开??"]
+        ];
+        string[] expectedIds = ["六合绿杀两肖", "六合红杀两肖", "六合蓝杀两肖"];
+        string[] expectedValues = ["兔龙", "蛇猴", "龙鼠"];
+        for (int index = 0; index < cases.Length; index++)
+        {
+            // 每张卡只命中自己的规则，不能三条一起命中。
+            Assert.Equal([expectedIds[index]], RuleEngine.FindMatches(cases[index], rules).Select(rule => rule.Id));
+            Assert.Equal(expectedValues[index], RuleEngine.ExtractValue(cases[index], 292, rules.Single(rule => rule.Id == expectedIds[index])));
+
+            // 没有「六合日报」前缀的同类卡面属于别的群，必须一条都不命中。
+            string[] foreign = [.. cases[index][1..]];
+            Assert.DoesNotContain(
+                RuleEngine.FindMatches(foreign, rules),
+                rule => rule.Id.StartsWith("六合", StringComparison.Ordinal));
+        }
+    }
+
+    // 六合日报两张号码卡的号码行被期号格和开奖栏从中间切开，属于已复核的分段版式；
+    // 只有这两条在分段白名单里，其他号码规则仍不接受同样版式。
+    [Fact]
+    public void SixDayNumberCardsMergeRowsSplitByTheIssueCell()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "新澳高级会员.json"));
+
+        string[] thirtySix =
+        [
+            "六合日报平安36码", "包准：01 03 04 05 06 07", "08 13 14 15 17 18 20 21",
+            "292期", "22 23 24 25 26 27 28 29", "开??", "30 31 32 33 34 35 36 37", "40 41 42 43 47 48"
+        ];
+        Assert.Equal(
+            "01 03 04 05 06 07 08 13 14 15 17 18 20 21 22 23 24 25 26 27 28 29 " +
+            "30 31 32 33 34 35 36 37 40 41 42 43 47 48",
+            RuleEngine.ExtractValue(thirtySix, 292, rules.Single(rule => rule.Id == "六合日报三六")));
+
+        string[] eight =
+        ["六合日报", "绝杀八码", "× 20 21 26 27 33 38 41", "292期", "开??", "49"];
+        Assert.Equal(
+            "20 21 26 27 33 38 41 49",
+            RuleEngine.ExtractValue(eight, 292, rules.Single(rule => rule.Id == "六合杀八码")));
+
+        // 同一版式给别的号码规则时必须仍然取不到值（白名单不外扩）。
+        var foreign = new OcrRule("小马哥", "号码:10", "小马哥", StrictIssueBlock: true);
+        Assert.Null(RuleEngine.ExtractValue(
+            ["292期", "包准：01 02 03 04 05 06 07 08 09 10", "开??"], 292, foreign));
+    }
+
+    // 黑色六合彩、嫣然电报：各自独立的规则与模板目录，必须一一对应；
+    // 两群的数据行印在期号格上方，除「天宫杀头」外目录默认非严格。
+    [Theory]
+    [InlineData("黑色六合彩", 5)]
+    [InlineData("嫣然电报", 7)]
+    public void LoadsTheTwoNewTemplateGroupsWithMatchingTemplates(string group, int expectedCount)
+    {
+        string configuration = ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory);
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(Path.Combine(configuration, group + ".json"));
+        VisualTemplateSet catalog = VisualTemplateMatcher.Load(Path.Combine(configuration, group + ".templates.json"));
+
+        Assert.Equal(expectedCount, rules.Count);
+        Assert.Equal(group, catalog.Folder);
+        Assert.Equal(rules.Count, catalog.Templates.Count);
+        Assert.Equal(
+            rules.Select(rule => rule.Id).Order(StringComparer.Ordinal),
+            catalog.Templates.Select(template => template.Id).Order(StringComparer.Ordinal));
+        Assert.All(catalog.Templates, template =>
+        {
+            Assert.NotNull(template.FingerprintTopWidthRatio);
+            Assert.NotNull(template.FingerprintBottomWidthRatio);
+            Assert.True(template.FingerprintBottomWidthRatio > template.FingerprintTopWidthRatio);
+        });
+        // 模板只在当前所选群的目录里加载，两个新群必须各自被认作独立群。
+        Assert.True(VisualTemplateMatcher.Supports($@"C:\结果\9.19-{group}"));
     }
 }
 

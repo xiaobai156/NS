@@ -16,6 +16,11 @@
     { "keyword": "公子禁止1头", "type": "头", "label": "翩翩公子头" },
     { "keyword": "祥瑞阁", "type": "生肖组合", "label": "祥瑞阁二肖", "required_keyword": "杀2肖" },
     { "keyword": "藏宝库", "type": "方位", "label": "藏宝九肖", "required_keyword": "藏宝库" },
-    { "keyword": "暴打九肖", "type": "九肖", "label": "会员暴打" }
+    { "keyword": "暴打九肖", "type": "九肖", "label": "会员暴打" },
+    { "keyword": "平安36码", "type": "号码:36", "label": "六合日报三六", "required_keyword": "六合日报" },
+    { "keyword": "绿杀", "type": "生肖组合", "label": "六合绿杀两肖", "required_keyword": "六合日报" },
+    { "keyword": "红杀", "type": "生肖组合", "label": "六合红杀两肖", "required_keyword": "六合日报" },
+    { "keyword": "蓝杀", "type": "生肖组合", "label": "六合蓝杀两肖", "required_keyword": "六合日报" },
+    { "keyword": "绝杀八码", "type": "号码:8", "label": "六合杀八码", "required_keyword": "六合日报" }
   ]
 }

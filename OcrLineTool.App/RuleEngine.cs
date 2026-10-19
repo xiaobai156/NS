@@ -79,13 +79,28 @@ public static class RuleEngine
         {
             "宝典", "心水", "内幕", "强哥", "锁妖", "赛马会", "龙王", "红人馆", "老人味",
             "表弟", "祥瑞阁", "小马哥", "杀料", "金钱网", "天线宝杀", "翩翩公子杀十码",
-            "狗庄", "宝典杀", "聚彩", "龙王杀", "姨妈", "藏宝十二码"
+            "狗庄", "宝典杀", "聚彩", "龙王杀", "姨妈", "藏宝十二码",
+            // 六合日报两张号码卡：期号格与开奖栏都居中，号码行会被期号行和「开??」
+            // 从中间切开（如 292期/开?? 插在 36 码或 8 码之间），只有按已复核的
+            // 分段规则合并同一目标期行才能完整取数；数量、唯一性和 01～49 校验不变。
+            "六合日报三六", "六合杀八码"
         };
 
     // 值行印在期号行上方的两列卡（雁塔题名）：允许把紧邻的上一行并入候选，
     // 只有经复核的这几条规则允许向前合并。
     private static readonly HashSet<string> BackwardValueLineRuleIds =
         new(StringComparer.Ordinal) { "雁塔题名杀头", "雁塔题名半波", "雁塔题名杀合" };
+
+    // 黑色六合彩、嫣然电报：这几张卡的版面是「标题 → 数据行 → 期号格」，
+    // 数据印在期号行上方（与项目里绝大多数「期号在上、数据在下」的卡相反）。
+    // 只有下列已复核的 Id 允许把期号块向前扩一行取值，其余规则的数据行归属不变。
+    private static readonly HashSet<string> AboveIssueValueRuleIds =
+        new(StringComparer.Ordinal)
+        {
+            "天宫杀头", "锦囊杀尾", "锦囊半波", "黑客九肖", "黑客杀尾",
+            "公式杀一肖", "公式杀尾", "公式半波", "公式杀行", "公式杀头",
+            "嫣然电报十码必杀", "买什么杀一肖"
+        };
 
     // 经复核的多区卡：分区与带边界的行读会把同一物理行/同一字段切进互不相连
     // 的区域，需要再按几何顺序整页顺读一次。
@@ -1036,6 +1051,12 @@ public static class RuleEngine
         if (rule.IgnoreIssue
             && !ContainsKeyword(Normalize(string.Concat(lines)), Normalize(rule.Keyword)))
             return null;
+        // 黑色六合彩「黑客九肖」与嫣然电报「十码必杀」的数据行横跨期号格，
+        // 必须在 SplitInlineIssueRows 重排之前按原始行序收集，否则跨行字段会被拆散。
+        if (rule.Id == "黑客九肖" && rule.Type == "九肖")
+            return ExtractNineZodiacsAcrossWrappedRows(lines, issue, rule);
+        if (rule.Id == "嫣然电报十码必杀" && rule.Type == "号码:10")
+            return ExtractSplitTenNumbers(lines, issue, rule);
         if (!rule.StrictIssueBlock)
             lines = SplitInlineIssueRows(lines);
         if (rule.Id is "欧阳半波" or "紫燕儿杀一肖")
@@ -1065,6 +1086,21 @@ public static class RuleEngine
             .Select(Normalize)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
+
+        // 黑色六合彩「黑客九肖」：卡面把九个生肖排成两行（第一行七个、第二行两个，
+        // 第二行排在「开??」之后），且数据行印在期号格上方。只对这条已复核规则
+        // 合并目标期号块前后的行取九个不同生肖。
+        if (rule.Id == "黑客九肖" && rule.Type == "九肖")
+            return ExtractNineZodiacsAcrossWrappedRows(lines, issue, rule);
+
+        // 嫣然电报「公式杀一肖」：卡面把同一个生肖重复印三遍（豬豬豬），取唯一那个生肖。
+        if (rule.Id == "公式杀一肖" && rule.Type == "生肖")
+            return ExtractRepeatedSingleZodiac(lines, issue, rule);
+
+        // 嫣然电报「十码必杀」：号码行被期号格和「直接不要」标签切断，
+        // 只合并同一目标期前后的完整号码段，仍校验 10 个唯一 01～49。
+        if (rule.Id == "嫣然电报十码必杀" && rule.Type == "号码:10")
+            return ExtractSplitTenNumbers(lines, issue, rule);
 
         // 复核卡（require_row_structure）：取值只认目标期号那一行，不拼行、不借期。
         if (rule.RequireRowStructure)
@@ -1360,6 +1396,139 @@ public static class RuleEngine
             .DefaultIfEmpty(-1)
             .Min();
         return peer >= 0 ? normalizedTail[..peer] : normalizedTail;
+    }
+
+    // 黑色六合彩「黑客九肖」：数据行印在期号格上方，九个生肖分两行
+    // （「数据分析兔雞鼠蛇馬虎龍」+「猴狗」）。只并目标期号块前后紧邻的行，
+    // 遇到别的期号或开奖行立即停止，不跨期借值；必须恰好九个不同生肖。
+    private static string? ExtractNineZodiacsAcrossWrappedRows(string[] lines, int issue, OcrRule rule)
+    {
+        string[] normalized = lines.Select(SimplifyOcrText).ToArray();
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        for (int index = 0; index < normalized.Length; index++)
+        {
+            if (!ContainsIssue(normalized[index], issue))
+                continue;
+            var collected = new List<string>();
+            for (int back = index - 1; back >= 0 && index - back <= 3; back--)
+            {
+                // 只挡「别的期号」：本期期号可能被 OCR 重复识别成相邻行，
+                // 它本身不是越界证据。
+                if (ContainsOtherIssue(normalized[back], issue))
+                    break;
+                collected.Add(normalized[back]);
+            }
+            for (int forward = index + 1; forward < normalized.Length && forward - index <= 3; forward++)
+            {
+                string line = normalized[forward];
+                if (ContainsOtherIssue(line, issue))
+                    break;
+                // 「开??」是开奖占位，不结束收集：这张卡的第二行生肖排在它后面。
+                if (line.TrimStart().StartsWith('开'))
+                    continue;
+                collected.Add(line);
+            }
+            // 卡面标题里的「九肖」「数据最准之」等词不是数据行；生肖字可能被标题词
+            // 隔开印在两行（第一行七个、第二行两个）。按出现顺序只收集生肖字，
+            // 非生肖字一律当分隔符丢掉，再要求恰好九个不同生肖。
+            string joined = SimplifyOcrText(string.Concat(collected));
+            char[] zodiacs = joined.Where(Zodiac.Contains).ToArray();
+            if (zodiacs.Length == 9 && zodiacs.Distinct().Count() == 9)
+                observed.Add(string.Concat(zodiacs));
+        }
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    // 嫣然电报「公式杀一肖」：卡面把同一个生肖重复印三遍（豬豬豬）。
+    // 取「一肖」标签之后唯一的那个生肖；两个不同生肖或没有生肖都判缺失。
+    private static string? ExtractRepeatedSingleZodiac(string[] lines, int issue, OcrRule rule)
+    {
+        string[] normalized = lines.Select(SimplifyOcrText).ToArray();
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        for (int index = 0; index < normalized.Length; index++)
+        {
+            if (!ContainsIssue(normalized[index], issue))
+                continue;
+            var collected = new List<string>();
+            for (int back = index - 1; back >= 0 && index - back <= 2; back--)
+            {
+                if (ContainsOtherIssue(normalized[back], issue))
+                    break;
+                collected.Add(normalized[back]);
+            }
+            for (int forward = index + 1; forward < normalized.Length && forward - index <= 2; forward++)
+            {
+                string line = normalized[forward];
+                if (ContainsOtherIssue(line, issue) || line.TrimStart().StartsWith('开'))
+                    break;
+                collected.Add(line);
+            }
+            foreach (string line in collected)
+            {
+                int label = line.LastIndexOf('肖');
+                string payload = label >= 0 && label + 1 < line.Length ? line[(label + 1)..] : line;
+                char[] distinct = payload.Where(Zodiac.Contains).Distinct().ToArray();
+                if (distinct.Length == 1)
+                    observed.Add(distinct[0].ToString());
+            }
+        }
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    // 嫣然电报「十码必杀」：号码行被期号格和「直接不要」标签切断
+    //（「今期10码：0216」/「18 19 20 21」/ 期号 /「开??」/「30 31 47」/「直接不要」）。
+    // 只合并目标期号紧邻的号码段，仍要求恰好 10 个唯一 01～49，绝不借邻期。
+    private static string? ExtractSplitTenNumbers(string[] lines, int issue, OcrRule rule)
+    {
+        const int expected = 10;
+        string[] normalized = lines.Select(SimplifyOcrText).ToArray();
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        for (int index = 0; index < normalized.Length; index++)
+        {
+            if (!ContainsIssue(normalized[index], issue))
+                continue;
+            var numbers = new List<int>();
+            void Take(string line)
+            {
+                // 字段标签「今期10码」里的 10 是数量说明，不是号码：先剥掉标签再取数。
+                string payload = Regex.Replace(
+                    BeforeOpeningResult(line), @"^[^\d:：]*\d+\s*码\s*[:：]?", string.Empty);
+                foreach (Match run in Regex.Matches(payload, @"\d+"))
+                {
+                    // 号码可能连写成一段（「今期10码：0216」是 02 和 16 两个），
+                    // 只有按每两位完整拆开后全部合法才接受，奇数位或越界一律不算。
+                    if (run.Value.Length % 2 != 0)
+                        continue;
+                    for (int offset = 0; offset < run.Value.Length; offset += 2)
+                    {
+                        if (!int.TryParse(run.Value.Substring(offset, 2), out int number)
+                            || number is < 1 or > 49)
+                            break;
+                        if (!numbers.Contains(number))
+                            numbers.Add(number);
+                    }
+                }
+            }
+            for (int back = index - 1; back >= 0 && index - back <= 4; back--)
+            {
+                if (ContainsOtherIssue(normalized[back], issue))
+                    break;
+                Take(normalized[back]);
+            }
+            for (int forward = index + 1; forward < normalized.Length && forward - index <= 4; forward++)
+            {
+                string line = normalized[forward];
+                if (ContainsOtherIssue(line, issue))
+                    break;
+                // 「开??」是开奖占位，不结束收集：这张卡的号码段排在它后面。
+                if (line.TrimStart().StartsWith('开'))
+                    continue;
+                Take(line);
+            }
+            if (numbers.Count == expected)
+                observed.Add(string.Join(' ', numbers.Order().Select(n => n.ToString("00"))));
+        }
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
     }
 
     private static string? ExtractSingleHeadPerIssue(string[] lines, int issue)
@@ -2631,6 +2800,21 @@ public static class RuleEngine
                 || actualIssue != issue)
                 continue;
             string block = SliceIssueBlock(text, periods, index);
+            // 数据行印在期号上方的已复核卡（黑色六合彩/嫣然电报）：把紧邻的上一行并入本期块。
+            // 上一行若本身带别的期号或属于下一张卡，不并入，避免跨期借值。
+            if (AboveIssueValueRuleIds.Contains(rule.Id)
+                && index > 0
+                && int.TryParse(periods[index - 1].Groups["issue"].Value, out int previousIssue)
+                && previousIssue != issue)
+            {
+                string previousBlock = text[periods[index - 1].Index..periods[index].Index];
+                string[] previousLines = previousBlock.Split('\n')
+                    .Skip(1)   // 丢掉上一期的期号行本身
+                    .Where(line => !string.IsNullOrWhiteSpace(line))
+                    .ToArray();
+                if (previousLines.Length == 1)
+                    block = previousLines[0] + "\n" + block;
+            }
             // 开奖横幅不是数据行，栏目/公式归属决定这个块是否属于本规则。
             if (block.StartsWith('开') && !rule.AllowOpeningRow)
                 continue;
@@ -2841,6 +3025,21 @@ public static class RuleEngine
             if (!int.TryParse(period.Groups["issue"].Value, out int actualIssue) || actualIssue != issue)
                 continue;
             string block = SliceIssueBlock(text, periods, index);
+            // 数据行印在期号上方的已复核卡（黑色六合彩/嫣然电报）：把紧邻的上一行并入本期块。
+            // 上一行必须属于另一个期号块且只有一行数据，绝不跨两张卡借值。
+            if (AboveIssueValueRuleIds.Contains(rule.Id)
+                && index > 0
+                && int.TryParse(periods[index - 1].Groups["issue"].Value, out int previousIssue)
+                && previousIssue != issue)
+            {
+                string[] previousLines = text[periods[index - 1].Index..periods[index].Index]
+                    .Split('\n')
+                    .Skip(1)   // 丢掉上一期的期号行本身
+                    .Where(line => !string.IsNullOrWhiteSpace(line))
+                    .ToArray();
+                if (previousLines.Length == 1)
+                    block = previousLines[0] + "\n" + block;
+            }
             if (TryExtractWrappedCardRow(text, period, rule, out string? wrappedValue))
             {
                 if (wrappedValue is null)
@@ -3361,7 +3560,7 @@ public static class RuleEngine
             "缺尾" => @"(?:公子送尾数|狂赢九尾)",
             "缺头" => @"(?:四头出特|必中四头)",
             "生肖" => @"(?:公子杀一肖|帅铁杀一肖)",
-            "生肖组合" => @"(?:祥瑞阁杀|绿杀|蓝杀|杀生肖|今期庄吃|(?:广东|福建|广西|贵州|海南|江西|湖南|上海|深圳|云南|四川)报|今晚杀|杀特肖)",
+            "生肖组合" => @"(?:祥瑞阁杀|[红绿蓝黄紫白黑灰青金银]杀|杀生肖|今期庄吃|(?:广东|福建|广西|贵州|海南|江西|湖南|上海|深圳|云南|四川)报|今晚杀|杀特肖)",
             "色单双" => @"(?:公子秒杀半波|今期特码杀|赢家必杀)",
             "半波" => @"(?:(?:红红半波|粉红半波|蓝黑半波)\s*)+",
             "五行" => @"(?:公子4行|大赢家四行|必中)",
@@ -5109,7 +5308,11 @@ public static class RuleEngine
         bool structuralField = Regex.IsMatch(decoration,
             @"^(?:(?:杀|殺){1,3}|开|開|禁|月禁|本月禁|今期禁|杀码|殺碼|杀特码|殺特碼|不开|不開|精选杀|精選殺|码|碼|特码|特碼|码中特码|码中特碼|计|計|包围码|包圍碼|锁三十六码|鎖三十六碼|庄家必杀|莊家必殺|绝杀|絕殺|绝杀[一二三四五六七八九十0-9]+码|絕殺[一二三四五六七八九十0-9]+碼|封杀|封殺|准|準)$")
             || Regex.IsMatch(decoration, @"^\p{L}{1,6}(?:杀|殺|码|碼|计|計)$");
-        if (!ownIdentity && !structuralField && !zodiacOnly)
+        // 六合日报三六 的号码表以「包准：」开头，这是该卡自己的字段标签，不是别人的数据行；
+        // 只对这条已复核规则放行，其他号码资料仍不接受该标签。
+        bool ownCardLabel = rule.Id == "六合日报三六"
+            && Regex.IsMatch(decoration, @"^(?:包准|包準)$");
+        if (!ownIdentity && !structuralField && !zodiacOnly && !ownCardLabel)
             return false;
 
         // Brackets prove grouping only after ownership has been established.
@@ -5344,6 +5547,11 @@ public static class RuleEngine
         return leading.Success && leading.Groups["issue"].Value.Length == 3
             || YearIssueRegex.IsMatch(line);
     }
+
+    // 行内出现「别的期号」才算越界证据；本期期号本身可能被 OCR 重复识别在相邻行，
+    // 不能当成本期数据的边界。
+    private static bool ContainsOtherIssue(string line, int issue) =>
+        FindIssues([line]).Any(found => found != issue);
 
     private static bool ContainsIssue(string line, int issue)
     {

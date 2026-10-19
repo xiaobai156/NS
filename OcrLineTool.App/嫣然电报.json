@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "group": "嫣然电报",
+  "strictIssueBlock": false,
+  "rules": [
+    { "keyword": "金牌绝杀一肖", "type": "生肖", "label": "公式杀一肖", "required_keyword": "公式绝杀肖" },
+    { "keyword": "金牌绝杀一尾", "type": "尾", "label": "公式杀尾", "required_keyword": "公式绝杀尾" },
+    { "keyword": "公式杀半波", "type": "色单双", "label": "公式半波", "required_keyword": "公式杀半波" },
+    { "keyword": "绝杀一行", "type": "单五行", "label": "公式杀行", "required_keyword": "公式绝杀行" },
+    { "keyword": "公式绝杀头", "type": "头", "label": "公式杀头", "required_keyword": "公式绝杀头" },
+    { "keyword": "今期10码", "type": "号码:10", "label": "嫣然电报十码必杀", "required_keyword": "码必杀" },
+    { "keyword": "今期买", "type": "生肖", "label": "买什么杀一肖", "required_keyword": "输光光" }
+  ]
+}

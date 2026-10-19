@@ -211,8 +211,13 @@ public sealed class PremiumRuleHardeningTests
                     && rule.Id is "斩杀半波" or "斩杀一行" or "斩杀两尾" or "斩杀两肖" or "斩杀一头" or "天空杀";
                 bool explicitHuangdaxianNonStrict = Path.GetFileName(path) == "黄大仙新澳.json"
                     && rule.Id == "完美两肖";
+                // 黑色六合彩、嫣然电报：卡面数据行印在期号格上方，目录默认非严格；
+                // 只有「天宫杀头」这一条按卡面走严格期块。
+                bool explicitNewGroupStrict = Path.GetFileName(path) == "黑色六合彩.json"
+                    && rule.Id == "天宫杀头";
                 Assert.Equal(
-                    hardenedCatalog && !explicitHuangdaxianNonStrict || explicitYanranStrict || explicitZhanShaStrict,
+                    hardenedCatalog && !explicitHuangdaxianNonStrict || explicitYanranStrict || explicitZhanShaStrict
+                        || explicitNewGroupStrict,
                     rule.StrictIssueBlock);
             }
         }

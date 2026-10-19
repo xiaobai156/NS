@@ -63,6 +63,18 @@
       "labels": [
         "黑字杀头"
       ]
+    },
+    {
+      "sourceGroup": "黑色六合彩",
+      "labels": [
+        "天宫杀头"
+      ]
+    },
+    {
+      "sourceGroup": "嫣然电报",
+      "labels": [
+        "公式杀头"
+      ]
     }
   ]
 }

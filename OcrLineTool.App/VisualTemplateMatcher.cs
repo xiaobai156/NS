@@ -52,7 +52,11 @@ public static class VisualTemplateMatcher
     private static readonly HashSet<string> SupportedFolders = new(StringComparer.OrdinalIgnoreCase)
     {
         DefaultFolder,
-        "新澳高级会员"
+        "新澳高级会员",
+        // 黑色六合彩、嫣然电报：各自独立的模板目录，按群名加载自己的
+        // *.templates.json，只在当前所选群的目录里做指纹匹配，不与其他群共用。
+        "黑色六合彩",
+        "嫣然电报"
     };
     // Keep the proven five-position scan: -2%, -1%, 0%, 1%, 2% of image width.
     private static readonly double[] ShiftRatios = [-0.02, -0.01, 0, 0.01, 0.02];

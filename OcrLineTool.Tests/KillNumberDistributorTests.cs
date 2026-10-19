@@ -33,14 +33,14 @@ public sealed class ResultDistributorTests
     {
         var expected = new Dictionary<string, string[]>
         {
-            ["杀数字分发规则.json"] = ["会员特供杀十码", "翩翩公子杀十码"],
-            ["大围分发规则.json"] = ["表弟", "祥瑞阁"],
+            ["杀数字分发规则.json"] = ["会员特供杀十码", "翩翩公子杀十码", "六合杀八码"],
+            ["大围分发规则.json"] = ["表弟", "祥瑞阁", "六合日报三六"],
             ["尾分发规则.json"] = ["翩翩公子尾"],
             ["肖分发规则.json"] = ["翩翩公子肖"],
             ["半波分发规则.json"] = ["翩翩公子半波"],
             ["五行分发规则.json"] = ["翩翩公子五行"],
             ["头分发规则.json"] = ["翩翩公子头"],
-            ["二肖分发规则.json"] = ["祥瑞阁二肖"]
+            ["二肖分发规则.json"] = ["祥瑞阁二肖", "六合绿杀两肖", "六合红杀两肖", "六合蓝杀两肖"]
         };
 
         foreach ((string configName, string[] labels) in expected)
