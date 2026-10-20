@@ -99,7 +99,10 @@ public static class RuleEngine
         {
             "天宫杀头", "锦囊杀尾", "锦囊半波", "黑客九肖", "黑客杀尾",
             "公式杀一肖", "公式杀尾", "公式半波", "公式杀行", "公式杀头",
-            "嫣然电报十码必杀", "买什么杀一肖"
+            "嫣然电报十码必杀", "买什么杀一肖",
+            // 这两张卡的数据行从期号上方一直跨到下方（十码的括号、半波的方括号
+            // 都被期号格切开），必须把紧邻的上一行并进本期块才完整。
+            "锦囊杀十码", "黑客半波"
         };
 
     // 经复核的多区卡：分区与带边界的行读会把同一物理行/同一字段切进互不相连
@@ -117,7 +120,7 @@ public static class RuleEngine
     private static readonly HashSet<string> NewGroupWholePageRuleIds =
         new(StringComparer.Ordinal)
         {
-            "黑客杀尾", "黑客杀两肖", "黑客九肖",
+            "黑客杀尾", "黑客杀两肖", "黑客九肖", "锦囊杀十码", "黑客半波", "红牛四行", "黑客四行",
             "公式杀一肖", "公式杀尾", "公式半波", "公式杀行", "公式杀头",
             "嫣然电报十码必杀", "买什么杀一肖", "天宫杀头", "锦囊杀尾", "锦囊半波"
         };
@@ -1129,6 +1132,16 @@ public static class RuleEngine
         if (rule.Id == "嫣然电报十码必杀" && rule.Type == "号码:10")
             return ExtractSplitTenNumbers(lines, issue, rule);
 
+        // 黑色六合彩「锦囊杀十码」：号码从期号上方一直跨到下方，中间被期号格和
+        // 「开??」切开；开奖截断会把下半段全丢掉，所以单独合并本期块两侧的号码。
+        if (rule.Id == "锦囊杀十码" && rule.Type == "号码:10")
+            return ExtractSplitTenNumbers(lines, issue, rule);
+
+        // 黑色六合彩「黑客半波」：五种半波同样跨期号行印出（方括号被期号格切开），
+        // 需要把本期块两侧合起来才凑齐五种，再反推缺的那一种。
+        if (rule.Id == "黑客半波" && rule.Type == "缺半波")
+            return ExtractSplitHalfWaves(lines, issue, rule);
+
         // 复核卡（require_row_structure）：取值只认目标期号那一行，不拼行、不借期。
         if (rule.RequireRowStructure)
             return ExtractRequiredRowValue(lines, issue, rule);
@@ -1662,10 +1675,14 @@ public static class RuleEngine
             var numbers = new List<int>();
             void Take(string line)
             {
-                // 字段标签「今期10码」里的 10 是数量说明，不是号码：先剥掉标签，
-                // 再按开奖边界截断（「码」本身会被开奖截断规则吃掉，顺序不能反）。
-                string labelled = Regex.Replace(line, @"^[^\d:：]*\d+\s*码\s*[:：]?", string.Empty);
-                string payload = BeforeOpeningResult(labelled);
+                // 字段标签「今期10码」「锦囊杀10码」里的 10 是数量说明，不是号码：
+                // 先剥掉标签，再按开奖边界截断（「码」会被开奖截断规则吃掉，顺序不能反）。
+                // 这两张卡的号码还会跨到期号行的另一侧，所以开奖截断只截到「开??」为止，
+                // 后面同一期的号码段由两侧收集继续补齐。
+                string labelled = Regex.Replace(
+                    line, @"^[^\d:：]*\d+\s*码\s*[:：]?", string.Empty);
+                labelled = Regex.Replace(labelled, @"^[（(【\[]+", string.Empty);
+                string payload = Regex.Replace(labelled, @"开\s*[?？]+", string.Empty);
                 foreach (Match run in Regex.Matches(payload, @"\d+"))
                 {
                     // 号码可能连写成一段（「今期10码：0216」是 02 和 16 两个），
@@ -1704,6 +1721,50 @@ public static class RuleEngine
             }
             if (numbers.Count == expected)
                 observed.Add(string.Join(' ', numbers.Order().Select(n => n.ToString("00"))));
+        }
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    // 黑色六合彩「黑客半波」：六种半波里印出五种，反推缺的那一种。
+    // 卡面的方括号被期号格切成两半（「数据半波【红波单红波双蓝波双」/ 期号 /
+    // 「绿波单绿波双】」），所以合并本期块两侧的文字再统一识别。
+    private static string? ExtractSplitHalfWaves(string[] lines, int issue, OcrRule rule)
+    {
+        string[] normalized = lines.Select(SimplifyOcrText).ToArray();
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        string[] all = ["红单", "红双", "蓝单", "蓝双", "绿单", "绿双"];
+        for (int index = 0; index < normalized.Length; index++)
+        {
+            if (!ContainsIssue(normalized[index], issue))
+                continue;
+            var parts = new List<string> { normalized[index] };
+            for (int back = index - 1; back >= 0 && index - back <= 3; back--)
+            {
+                if (ContainsOtherIssue(normalized[back], issue))
+                    break;
+                parts.Add(normalized[back]);
+            }
+            for (int forward = index + 1; forward < normalized.Length && forward - index <= 3; forward++)
+            {
+                string line = normalized[forward];
+                if (ContainsOtherIssue(line, issue))
+                    break;
+                if (line.TrimStart().StartsWith('开'))
+                    continue;
+                parts.Add(line);
+            }
+            string joined = string.Concat(parts);
+            // 只取方括号里的半波字段，标题里的「GPT半波预测」不算数据。
+            Match field = Regex.Match(joined, @"[【\[](?<value>[^】\]]*)[】\]]");
+            if (!field.Success)
+                continue;
+            var printed = new HashSet<string>(StringComparer.Ordinal);
+            foreach (Match wave in Regex.Matches(
+                field.Groups["value"].Value, @"(?<color>[红蓝绿])波?(?<parity>[单双])"))
+                printed.Add(wave.Groups["color"].Value + wave.Groups["parity"].Value);
+            string[] missing = all.Where(item => !printed.Contains(item)).ToArray();
+            if (printed.Count == 5 && missing.Length == 1)
+                observed.Add(missing[0]);
         }
         return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
     }
@@ -3750,7 +3811,7 @@ public static class RuleEngine
         string prefix = rule.Type switch
         {
             var type when type.StartsWith("号码:", StringComparison.Ordinal) =>
-                @"(?:公子神算杀?10码|绝杀|庄家必杀|十不中|精杀12码|12码|包围36码|36码|36计|强哥三十六码|锁三十六码|35码\s*赛马会|杀四个特码|杀特码|吃码|稳杀|不开|杀)",
+                @"(?:公子神算杀?10码|绝杀|庄家必杀|十不中|精杀12码|12码|包围36码|36码|36计|强哥三十六码|锁三十六码|35码\s*赛马会|杀四个特码|杀特码|吃码|稳杀|不开|杀|锦囊杀\s*10\s*码)",
             "缺尾" => @"(?:公子送尾数|狂赢九尾)",
             "缺头" => @"(?:四头出特|必中四头)",
             "生肖" => @"(?:公子杀一肖|帅铁杀一肖)",
@@ -3838,6 +3899,24 @@ public static class RuleEngine
         if (rule.Type == "缺尾")
             return Regex.IsMatch(value, "^[0-9]{9}$") && value.Distinct().Count() == 9
                 ? $"{Enumerable.Range(0, 10).Single(number => !value.Contains((char)('0' + number)))}尾" : null;
+        // 缺五行：卡面印四个五行字（可能重复），输出五行里没出现的那个，带「行」后缀。
+        if (rule.Type == "缺五行")
+        {
+            char[] printed = value.Where("金木水火土".Contains).Distinct().ToArray();
+            return printed.Length == 4
+                ? $"{"金木水火土".Single(c => !printed.Contains(c))}行" : null;
+        }
+        // 缺半波：六种半波里印出五种，输出没出现的那个，形如「蓝单」。
+        if (rule.Type == "缺半波")
+        {
+            string[] all = ["红单", "红双", "蓝单", "蓝双", "绿单", "绿双"];
+            var printed = new HashSet<string>(StringComparer.Ordinal);
+            foreach (Match wave in Regex.Matches(
+                SimplifyOcrText(value), @"(?<color>[红蓝绿])波?(?<parity>[单双])"))
+                printed.Add(wave.Groups["color"].Value + wave.Groups["parity"].Value);
+            string[] missing = all.Where(item => !printed.Contains(item)).ToArray();
+            return printed.Count == 5 && missing.Length == 1 ? missing[0] : null;
+        }
         if (rule.Type == "五行")
         {
             value = Regex.Replace(value, "码$", "");
@@ -4165,8 +4244,8 @@ public static class RuleEngine
         }
         if (rule.Type == "缺尾") return Regex.IsMatch(value, "^[0-9]尾$");
         if (rule.Type == "缺头") return Regex.IsMatch(value, "^[0-4]头$");
-        if (rule.Type is "五行" or "单五行") return Regex.IsMatch(value, "^[金木水火土]行?$");
-        if (rule.Type is "色单双" or "半波") return Regex.IsMatch(value, "^[红蓝绿][单双]$");
+        if (rule.Type is "五行" or "单五行" or "缺五行") return Regex.IsMatch(value, "^[金木水火土]行?$");
+        if (rule.Type is "色单双" or "半波" or "缺半波") return Regex.IsMatch(value, "^[红蓝绿][单双]$");
         if (rule.Type == "合") return Regex.IsMatch(value, "^(?:0[1-9]|1[0-3])合$");
         if (rule.Type == "段") return Regex.IsMatch(value, "^[0-7]段$");
         if (rule.Type == "半头") return Regex.IsMatch(value, "^[0-4]头[单双]$");
