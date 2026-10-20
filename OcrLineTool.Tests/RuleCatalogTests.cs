@@ -877,5 +877,25 @@ public sealed class RuleCatalogTests
         Assert.Null(RuleEngine.ExtractFinalValue(
             ["292期", "数据杀特肖：鼠 兔 龙", "开??"], 292, pair));
     }
+
+    // 嫣然电报「公式杀行」：同群的「公式绝杀肖」卡标题也含「绝杀」，
+    // 通用单五行分支会从别处凑出五行字，两张卡各给一个值被判冲突。
+    // 只认带「绝杀一行」字段标签的那一行。
+    [Fact]
+    public void YanranTelegramRowCardRequiresItsOwnFieldLabel()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然电报.json"));
+        OcrRule row = rules.Single(rule => rule.Id == "公式杀行");
+
+        string[] real = ["公式绝杀行", "293期", "绝杀一行：水水水", "开??", "292期", "绝杀一行：金 金 金", "羊36中"];
+        Assert.Equal("水", RuleEngine.ExtractFinalValue(real, 293, row));
+        Assert.Equal("金", RuleEngine.ExtractFinalValue(real, 292, row));
+
+        // 同群的杀肖卡没有「绝杀一行」标签，必须取不到值，不能凑出五行字。
+        string[] zodiacCard =
+            ["公式绝杀肖", "293期", "金牌绝杀一肖：羊 羊 羊", "开??", "292期", "金牌绝杀一肖：牛 牛 牛", "羊36中"];
+        Assert.Null(RuleEngine.ExtractFinalValue(zodiacCard, 293, row));
+    }
 }
 

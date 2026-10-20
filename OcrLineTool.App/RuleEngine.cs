@@ -1118,6 +1118,12 @@ public static class RuleEngine
         if (rule.Id == "公式杀一肖" && rule.Type == "生肖")
             return ExtractRepeatedSingleZodiac(lines, issue, rule);
 
+        // 嫣然电报「公式杀行」：只认本期块里带「绝杀一行」标签的那一行。
+        // 同群的「公式绝杀肖」卡标题也含「绝杀」，通用单五行分支会从别处凑出一个
+        // 五行字，导致两张卡给出不同值被判冲突；这里用字段标签当硬身份。
+        if (rule.Id == "公式杀行" && rule.Type == "单五行")
+            return ExtractLabelledSingleElement(lines, issue, rule);
+
         // 嫣然电报「十码必杀」：号码行被期号格和「直接不要」标签切断，
         // 只合并同一目标期前后的完整号码段，仍校验 10 个唯一 01～49。
         if (rule.Id == "嫣然电报十码必杀" && rule.Type == "号码:10")
@@ -1545,6 +1551,50 @@ public static class RuleEngine
             char[] zodiacs = joined.Where(Zodiac.Contains).ToArray();
             if (zodiacs.Length == 9 && zodiacs.Distinct().Count() == 9)
                 observed.Add(string.Concat(zodiacs));
+        }
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    // 嫣然电报「公式杀行」：卡面数据行是「绝杀一行：水水水」。同群的
+    // 「公式绝杀肖」卡标题也含「绝杀」，通用单五行分支会从别处凑出一个五行字，
+    // 让两张卡给出不同值被判冲突。这里只认带「绝杀一行」标签的那一行，
+    // 取标签之后恰好一个五行字；缺标签、多字或不同字一律缺失/冲突。
+    private static string? ExtractLabelledSingleElement(string[] lines, int issue, OcrRule rule)
+    {
+        string[] normalized = lines.Select(SimplifyOcrText).ToArray();
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        for (int index = 0; index < normalized.Length; index++)
+        {
+            if (!ContainsIssue(normalized[index], issue))
+                continue;
+            var collected = new List<string> { normalized[index] };
+            for (int back = index - 1; back >= 0 && index - back <= 2; back--)
+            {
+                if (ContainsOtherIssue(normalized[back], issue))
+                    break;
+                if (normalized[back].TrimStart().StartsWith('开'))
+                    break;
+                collected.Add(normalized[back]);
+            }
+            for (int forward = index + 1; forward < normalized.Length && forward - index <= 2; forward++)
+            {
+                string line = normalized[forward];
+                if (ContainsOtherIssue(line, issue) || line.TrimStart().StartsWith('开'))
+                    break;
+                collected.Add(line);
+            }
+            foreach (string line in collected)
+            {
+                string scoped = Regex.Replace(line, @"(?<!\d)\d{1,6}\s*期", string.Empty);
+                scoped = BeforeOpeningResult(scoped);
+                Match field = Regex.Match(scoped, @"绝杀一行\s*[:：]?\s*(?<value>.+)$");
+                if (!field.Success)
+                    continue;
+                char[] elements = field.Groups["value"].Value
+                    .Where("金木水火土".Contains).Distinct().ToArray();
+                if (elements.Length == 1)
+                    observed.Add(elements[0].ToString());
+            }
         }
         return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
     }
