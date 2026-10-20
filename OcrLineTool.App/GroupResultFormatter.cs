@@ -107,6 +107,9 @@ public static class GroupResultFormatter
             return "波";
         if (type == "色单双")
             return "半波";
+        // 缺半波 也是从六种半波里反推缺的那一种，落库值同样是「蓝单」这种形态。
+        if (type == "缺半波")
+            return "半波";
         if (type == "半头")
             return "半头";
         if (type is "生肖" or "单生肖" or "统计生肖")
@@ -119,7 +122,7 @@ public static class GroupResultFormatter
         // 落库时都已按属性表还原成九个生肖，与九肖同档。
         if (type is "九肖" or "四季" or "方位" or "琴棋书画")
             return "九肖";
-        if (type is "五行" or "单五行")
+        if (type is "五行" or "单五行" or "缺五行")
             return "五行";
         if (type == "合")
             return "合";

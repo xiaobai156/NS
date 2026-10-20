@@ -1677,12 +1677,13 @@ public static class RuleEngine
             {
                 // 字段标签「今期10码」「锦囊杀10码」里的 10 是数量说明，不是号码：
                 // 先剥掉标签，再按开奖边界截断（「码」会被开奖截断规则吃掉，顺序不能反）。
-                // 这两张卡的号码还会跨到期号行的另一侧，所以开奖截断只截到「开??」为止，
-                // 后面同一期的号码段由两侧收集继续补齐。
+                // 开奖格一旦开出具体号码（如「开36中」），那之后的数字属于开奖结果，
+                // 绝不能当成本期的杀号；只有未开奖的「开??」占位才允许越过继续收集。
                 string labelled = Regex.Replace(
                     line, @"^[^\d:：]*\d+\s*码\s*[:：]?", string.Empty);
                 labelled = Regex.Replace(labelled, @"^[（(【\[]+", string.Empty);
                 string payload = Regex.Replace(labelled, @"开\s*[?？]+", string.Empty);
+                payload = Regex.Split(payload, @"开|准|準|[\u4e00-\u9fa5]\s*\d{1,2}\s*[中错錯赢贏]")[0];
                 foreach (Match run in Regex.Matches(payload, @"\d+"))
                 {
                     // 号码可能连写成一段（「今期10码：0216」是 02 和 16 两个），

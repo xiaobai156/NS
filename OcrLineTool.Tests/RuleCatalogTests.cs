@@ -897,5 +897,62 @@ public sealed class RuleCatalogTests
             ["公式绝杀肖", "293期", "金牌绝杀一肖：羊 羊 羊", "开??", "292期", "金牌绝杀一肖：牛 牛 牛", "羊36中"];
         Assert.Null(RuleEngine.ExtractFinalValue(zodiacCard, 293, row));
     }
+
+    // 缺五行：卡面印四个五行字（允许重复），输出没出现的那个并带「行」后缀。
+    // 印出的字不足以唯一反推时保持缺失，绝不猜。
+    [Fact]
+    public void MissingElementCardInvertsTheFourPrintedCharacters()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "黑色六合彩.json"));
+        OcrRule red = rules.Single(rule => rule.Id == "红牛四行");
+        OcrRule black = rules.Single(rule => rule.Id == "黑客四行");
+
+        Assert.Equal("木行", RuleEngine.ExtractFinalValue(
+            ["红牛论坛 【中特四行】", "293期", "四行中特 金 水 火 土 开??"], 293, red));
+        Assert.Equal("水行", RuleEngine.ExtractFinalValue(
+            ["黑客数据", "GPT解4行", "293期", "五行必中【金 木 火 土】 开??"], 293, black));
+
+        // 三个字、四个字全同：都无法唯一反推。
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["293期", "四行中特 金 水 火 开??"], 293, red));
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["293期", "四行中特 金 金 金 金 开??"], 293, red));
+    }
+
+    // 缺半波：六种半波印出五种，输出缺的那一种；印出的不是五种时保持缺失。
+    [Fact]
+    public void MissingHalfWaveCardInvertsTheFivePrintedWaves()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "黑色六合彩.json"));
+        OcrRule wave = rules.Single(rule => rule.Id == "黑客半波");
+
+        Assert.Equal("蓝单", RuleEngine.ExtractFinalValue(
+            ["黑客数据", "GPT半波预测", "293期",
+             "数据半波【红波单 红波双 蓝波双 绿波单 绿波双】 开??"], 293, wave));
+
+        // 只印四种：缺两种，无法唯一反推。
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["293期", "数据半波【红波单 红波双 蓝波双 绿波单】 开??"], 293, wave));
+    }
+
+    // 号码卡的开奖格一旦开出具体号码，那之后的数字属于开奖结果，不能被当成杀号。
+    // 只有未开奖的「开??」占位才允许越过继续收集跨行的号码段。
+    [Fact]
+    public void NumberCardsNeverBorrowTheDrawnResultAsAKillNumber()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "黑色六合彩.json"));
+        OcrRule ten = rules.Single(rule => rule.Id == "锦囊杀十码");
+
+        // 只识别到九个号码且开奖格已开出 36：不能把 36 当成第十个杀号。
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["293期", "锦囊杀10码：(05 08 10 22 25 26 28 39 43) 开36中"], 293, ten));
+
+        // 未开奖的占位允许越过，跨行收齐十个。
+        Assert.Equal("05 08 10 22 25 26 28 39 43 45", RuleEngine.ExtractFinalValue(
+            ["锦胜", "锦囊杀10码：(05 08 10 22 25 26", "293期", "开??", "28 39 43 45)"], 293, ten));
+    }
 }
 
