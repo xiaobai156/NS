@@ -136,4 +136,30 @@ public sealed class GroupResultFormatterTests
 
         Assert.Equal(["恩平杀头"], scope.Select(rule => rule.Id));
     }
+
+    // 缺五行 落库值是「木行」这种形态，缺半波 是「蓝单」这种形态：
+    // 分类必须与 五行 / 半波 同档，不能落到兜底的数字分类里。
+    [Fact]
+    public void InverseTypesGroupWithTheirOwnCategories()
+    {
+        var rules = new OcrRule[]
+        {
+            new("四行中特", "缺五行", "红牛四行"),
+            new("数据半波", "缺半波", "黑客半波"),
+            new("锦囊杀10码", "号码:10", "锦囊杀十码")
+        };
+        var values = new Dictionary<string, string>
+        {
+            ["红牛四行"] = "木行",
+            ["黑客半波"] = "蓝单",
+            ["锦囊杀十码"] = "05 08 10 22 25 26 28 39 43 45"
+        };
+        string[] output = GroupResultFormatter.Format(
+            rules, RuleEngine.FormatOutput(rules, values, null));
+        string text = string.Join(Environment.NewLine, output);
+        Assert.Contains("【五行】", text);
+        Assert.Contains("【半波】", text);
+        Assert.Contains("【5个以上数字】", text);
+        Assert.DoesNotContain("【5个数字】", text);
+    }
 }

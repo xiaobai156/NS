@@ -954,5 +954,34 @@ public sealed class RuleCatalogTests
         Assert.Equal("05 08 10 22 25 26 28 39 43 45", RuleEngine.ExtractFinalValue(
             ["锦胜", "锦囊杀10码：(05 08 10 22 25 26", "293期", "开??", "28 39 43 45)"], 293, ten));
     }
+
+    // 开奖格印在号码行同一行时，开奖号绝不能补成本期的杀号。
+    // OCR 常把「开」和「中/错」都丢掉，只剩一个孤立两位数，所以不能只靠字面标记判边界。
+    [Theory]
+    [InlineData("锦囊杀10码：(05 08 10 22 25 26 28 39 43) 开36中")]
+    [InlineData("锦囊杀10码：(05 08 10 22 25 26 28 39 43) 36中")]
+    [InlineData("锦囊杀10码：(05 08 10 22 25 26 28 39 43) 中36")]
+    [InlineData("锦囊杀10码：(05 08 10 22 25 26 28 39 43) 36")]
+    public void KillNumberCardRejectsTheDrawnResultInEveryForm(string card)
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "黑色六合彩.json"));
+        OcrRule ten = rules.Single(rule => rule.Id == "锦囊杀十码");
+
+        // 只有九个号码，第十个是开奖结果：必须判缺失，不能凑成十个。
+        Assert.Null(RuleEngine.ExtractFinalValue(["293期", card], 293, ten));
+    }
+
+    // 无括号的卡（嫣然电报十码必杀）同样不得借开奖号。
+    [Theory]
+    [InlineData("今期10码：08 13 18 24 25 29 32 41 42 36中")]
+    [InlineData("今期10码：08 13 18 24 25 29 32 41 42 36")]
+    public void TenNumberCardWithoutBracketsRejectsTheTrailingDrawnResult(string card)
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然电报.json"));
+        OcrRule ten = rules.Single(rule => rule.Id == "嫣然电报十码必杀");
+        Assert.Null(RuleEngine.ExtractFinalValue(["293期", card], 293, ten));
+    }
 }
 

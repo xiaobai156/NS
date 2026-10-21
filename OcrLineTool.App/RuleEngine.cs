@@ -1673,17 +1673,52 @@ public static class RuleEngine
             if (!ContainsIssue(normalized[index], issue))
                 continue;
             var numbers = new List<int>();
+            // 开奖格是否已经开出结果。这张卡的期号格、号码段、开奖格在同一物理行上，
+            // OCR 可能把开奖号一起读进来，而且常常丢掉「开」字（只留「36中」「36」）。
+            // 所以不能只靠「开」字判边界：一旦本期号码已经收满十个就立刻停止，
+            // 后面出现的数字（含开奖号）一律不再接收。
+            bool drawn = false;
+            bool full = false;
             void Take(string line)
             {
+                if (full)
+                    return;
                 // 字段标签「今期10码」「锦囊杀10码」里的 10 是数量说明，不是号码：
-                // 先剥掉标签，再按开奖边界截断（「码」会被开奖截断规则吃掉，顺序不能反）。
-                // 开奖格一旦开出具体号码（如「开36中」），那之后的数字属于开奖结果，
-                // 绝不能当成本期的杀号；只有未开奖的「开??」占位才允许越过继续收集。
+                // 先剥掉标签，再处理开奖边界。
                 string labelled = Regex.Replace(
                     line, @"^[^\d:：]*\d+\s*码\s*[:：]?", string.Empty);
-                labelled = Regex.Replace(labelled, @"^[（(【\[]+", string.Empty);
-                string payload = Regex.Replace(labelled, @"开\s*[?？]+", string.Empty);
-                payload = Regex.Split(payload, @"开|准|準|[\u4e00-\u9fa5]\s*\d{1,2}\s*[中错錯赢贏]")[0];
+                // 这两张卡的号码印在括号里，开奖格在括号外。括号还在时只认括号内的
+                // 数字，开奖号天然被隔离——这是最可靠的一层。
+                Match bracketed = Regex.Match(labelled, @"[（(【\[]+(?<inner>[^）)】\]]*)[）)】\]]");
+                if (bracketed.Success)
+                {
+                    labelled = bracketed.Groups["inner"].Value;
+                    drawn = true;   // 括号内就是本期号码，括号外不再收集
+                }
+                else
+                {
+                    labelled = Regex.Replace(labelled, @"^[（(【\[]+", string.Empty);
+                }
+                // 未开奖的「开??」占位允许越过（本期号码会印在它后面）；
+                // 一旦看到已开奖的标记，本行此后的数字都不属于本期号码。
+                if (Regex.IsMatch(labelled, @"开\s*[?？]"))
+                    labelled = Regex.Replace(labelled, @"开\s*[?？]+", " ");
+                else if (Regex.IsMatch(labelled, @"开|[中错錯赢贏]|[\u4e00-\u9fa5]\s*\d{1,2}\s*$"))
+                    drawn = true;
+                string payload = drawn
+                    ? Regex.Split(labelled, @"开|[中错錯赢贏]")[0]
+                    : labelled;
+                // 无括号的卡（嫣然电报十码必杀）：开奖格印在号码行末尾，OCR 常把
+                // 「开」和「中/错」都丢掉，只剩一个孤立的两位数。本行号码不足十个、
+                // 末尾却再挂一个数字时，那一个是开奖结果，不是本期的杀号。
+                Match trailing = Regex.Match(payload, @"^(?<body>.*\S)\s+(?<tail>\d{2})$");
+                if (trailing.Success)
+                {
+                    string body = trailing.Groups["body"].Value;
+                    int bodyCount = Regex.Matches(body, @"\d{2}").Count;
+                    if (bodyCount == expected - 1)
+                        payload = body;
+                }
                 foreach (Match run in Regex.Matches(payload, @"\d+"))
                 {
                     // 号码可能连写成一段（「今期10码：0216」是 02 和 16 两个），
@@ -1697,22 +1732,28 @@ public static class RuleEngine
                             break;
                         if (!numbers.Contains(number))
                             numbers.Add(number);
+                        // 收满十个立即停：多出来的数字只能是开奖结果或下一期的。
+                        if (numbers.Count == expected)
+                        {
+                            full = true;
+                            return;
+                        }
                     }
                 }
             }
-            for (int back = index - 1; back >= 0 && index - back <= 4; back--)
+            for (int back = index - 1; back >= 0 && index - back <= 4 && !full; back--)
             {
                 if (ContainsOtherIssue(normalized[back], issue))
                     break;
                 Take(normalized[back]);
             }
-            for (int forward = index + 1; forward < normalized.Length && forward - index <= 4; forward++)
+            for (int forward = index + 1; forward < normalized.Length && forward - index <= 4 && !full; forward++)
             {
                 string line = normalized[forward];
                 if (ContainsOtherIssue(line, issue))
                     break;
                 // 「开??」是开奖占位，不结束收集：这张卡的号码段排在它后面。
-                if (line.TrimStart().StartsWith('开'))
+                if (line.TrimStart().StartsWith('开') && Regex.IsMatch(line, @"开\s*[?？]"))
                     continue;
                 Take(line);
                 // 「直接不要」是本期的结束标签：后面若还有号码，属于下一期的字段，
