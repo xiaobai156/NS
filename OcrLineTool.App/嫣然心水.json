@@ -735,5 +735,9 @@
       "required_keyword": "九肖中特",
       "folder": "黑了吧唧"
     }
+,
+    { "keyword": "至尊分享四头地摊料", "type": "缺头", "label": "东哥四头", "required_keyword": "至尊分享四头", "folder": "东哥" },
+    { "keyword": "至尊分享杀半头地摊料", "type": "半头", "label": "东哥半头", "required_keyword": "至尊分享杀半头", "folder": "东哥" },
+    { "keyword": "至尊分享杀半波地摊料", "type": "色单双", "label": "东哥半波", "required_keyword": "至尊分享杀半波", "folder": "东哥" }
   ]
 }

@@ -51,7 +51,7 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
 
-        Assert.Equal(103, rules.Count);
+        Assert.Equal(106, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.Contains(rules, rule => rule.Id == "钦差大臣公式一" && rule.Section == "公式一");
         Assert.Contains(rules, rule => rule.Id == "君军两尾" && rule.Type == "尾数组合");
