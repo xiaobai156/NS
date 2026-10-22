@@ -3236,6 +3236,9 @@ public sealed class MainForm : Form
                 && rule.Type.StartsWith("号码", StringComparison.Ordinal)
                 && !string.IsNullOrWhiteSpace(rule.Folder))
             .ToArray();
+        // 右侧小块补读同时充当「按作者名横带」的回落：简单爱这类海报式卡面把作者名
+        // 印在角落、与期号表格错位，横带算不出行距会直接跳过。它本来就在这个集合里，
+        // 横带阶段没取到值时，下面的右侧批次会按目标期号那一行再裁一次。
         OcrRule[] rightBlockRules = rules
             .Where(rule => !values.ContainsKey(rule.Id)
                 && rule.Type == "生肖"
@@ -3257,6 +3260,8 @@ public sealed class MainForm : Form
         AddRequests(issueRowNumberRules, SummaryRowRecoveryKind.IssueNumbers);
         await ApplyBatchAsync("横带");
 
+        // 横带补读之后仍然没有值的规则，再按目标期号那一行裁一次右侧小块。
+        // AddRequests 会跳过已取到值或已判冲突的规则，所以不会重复补读。
         requests.Clear();
         AddRequests(rightBlockRules, SummaryRowRecoveryKind.RightBlock);
         await ApplyBatchAsync("右侧");
