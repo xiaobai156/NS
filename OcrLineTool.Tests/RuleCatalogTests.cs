@@ -85,11 +85,11 @@ public sealed class RuleCatalogTests
         Assert.Contains(rules, rule => rule.Id == "独傲洒脱杀二肖" && rule.Type == "生肖组合"
             && rule.Folder == "独傲洒脱" && rule.RequiredKeyword == "双规");
         Assert.Contains(rules, rule => rule.Id == "阿莲杀肖肖" && rule.Type == "生肖"
-            && rule.Folder == "阿莲" && rule.Section == "9月份"
-            && rule.RequiredKeyword == "9月份");
+            && rule.Folder == "阿莲" && rule.RequiredKeyword == "阿莲"
+            && string.IsNullOrWhiteSpace(rule.Section));
         Assert.Contains(rules, rule => rule.Id == "阿莲杀尾尾" && rule.Type == "尾"
-            && rule.Folder == "阿莲" && rule.Section == "9月份"
-            && rule.RequiredKeyword == "9月份");
+            && rule.Folder == "阿莲" && rule.RequiredKeyword == "阿莲"
+            && string.IsNullOrWhiteSpace(rule.Section));
         Assert.DoesNotContain(rules, rule => rule.Id == "大中华杀肖肖");
         Assert.Contains(rules, rule => rule.Id == "借花献佛" && rule.Type == "统计生肖"
             && rule.Folder == "六扇门" && rule.RequiredKeyword == "借花献佛");
@@ -770,11 +770,12 @@ public sealed class RuleCatalogTests
             ["292期", "包准：01 02 03 04 05 06 07 08 09 10", "开??"], 292, foreign));
     }
 
-    // 黑色六合彩、嫣然电报：各自独立的规则与模板目录，必须一一对应；
-    // 两群的数据行印在期号格上方，除「天宫杀头」外目录默认非严格。
+    // 黑色六合彩、嫣然电报、嫣然六合彩大全：各自独立的规则与模板目录，必须一一对应；
+    // 前两群的数据行印在期号格上方，除「天宫杀头」外目录默认非严格。
     [Theory]
     [InlineData("黑色六合彩", 10)]
     [InlineData("嫣然电报", 7)]
+    [InlineData("嫣然六合彩大全", 4)]
     public void LoadsTheTwoNewTemplateGroupsWithMatchingTemplates(string group, int expectedCount)
     {
         string configuration = ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory);
@@ -982,6 +983,167 @@ public sealed class RuleCatalogTests
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然电报.json"));
         OcrRule ten = rules.Single(rule => rule.Id == "嫣然电报十码必杀");
         Assert.Null(RuleEngine.ExtractFinalValue(["293期", card], 293, ten));
+    }
+
+    // 嫣然六合彩大全「唐朝系列」：卡面窄栏把收尾的「稳杀」折到下一行，OCR 常把
+    // 期号和字段并成同一个 token。四种资料都只认「唐朝绝杀」之后恰好三个相同字符。
+    [Theory]
+    [InlineData("唐朝杀尾", "290期唐朝绝杀000尾稳杀开??", "0尾")]
+    [InlineData("唐朝杀行", "290期唐朝绝杀土土土稳杀开??", "土")]
+    [InlineData("唐朝杀肖", "290期唐朝绝杀猴猴猴肖稳杀开??", "猴")]
+    public void TangChaoCardsReadTheMergedIssueToken(string id, string card, string expected)
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然六合彩大全.json"));
+        OcrRule rule = rules.Single(item => item.Id == id);
+        Assert.Equal(expected, RuleEngine.ExtractFinalValue([card], 290, rule));
+    }
+
+    // 三个字符不完全相同时必须判缺失，不能靠「取第一个」凑值。
+    [Fact]
+    public void TangChaoCardsRejectNonRepeatingValues()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然六合彩大全.json"));
+        OcrRule tail = rules.Single(item => item.Id == "唐朝杀尾");
+        Assert.Null(RuleEngine.ExtractFinalValue(["290期唐朝绝杀012尾稳杀"], 290, tail));
+        // 本期值行不存在时不得借上一期的值。
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["唐朝杀一尾", "唐朝绝杀444尾稳杀", "290期", "开??"], 290, tail));
+    }
+
+    // 杀一头是值行印在期号上方的版式：取上一期块末行，并把折下来的「杀」拼回去。
+    [Fact]
+    public void TangChaoHeadReadsTheRowAboveItsIssueCell()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然六合彩大全.json"));
+        OcrRule head = rules.Single(item => item.Id == "唐朝杀头");
+        string[] card =
+        [
+            "唐朝杀一头",
+            "唐朝绝杀一头一头一头稳", "294期", "兔28中", "杀",
+            "唐朝绝杀三头三头三头稳", "295期", "馬25中", "杀",
+            "唐朝绝杀二头二头二头稳", "296期", "开??", "杀"
+        ];
+        Assert.Equal("2头", RuleEngine.ExtractFinalValue(card, 296, head));
+        Assert.Equal("3头", RuleEngine.ExtractFinalValue(card, 295, head));
+        // 294 是这张卡的首个期号，值行印在它上方且没有上一期块可借：
+        // 只认紧贴本期期号、带「唐朝绝杀」标记的那一行，不允许跨卡或跨期借值。
+        Assert.Equal("1头", RuleEngine.ExtractFinalValue(card, 294, head));
+    }
+
+    // 本期值行整体缺失时必须保持缺失：不能把上一期那行「唐朝绝杀…稳」当成本期值。
+    [Fact]
+    public void TangChaoHeadDoesNotBorrowThePreviousPeriodRow()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然六合彩大全.json"));
+        OcrRule head = rules.Single(item => item.Id == "唐朝杀头");
+        string[] card =
+        [
+            "唐朝杀一头",
+            "唐朝绝杀一头一头一头稳", "294期", "兔28中", "杀",
+            // 295 期自己的值行缺失，只剩开奖结果和折下来的「杀」。
+            "295期", "馬25中", "杀",
+            "唐朝绝杀二头二头二头稳", "296期", "开??", "杀"
+        ];
+        Assert.Null(RuleEngine.ExtractFinalValue(card, 295, head));
+        // 相邻两期仍正常，证明缺失只发生在缺口那一期。
+        Assert.Equal("2头", RuleEngine.ExtractFinalValue(card, 296, head));
+        Assert.Equal("1头", RuleEngine.ExtractFinalValue(card, 294, head));
+    }
+
+    // 新群真实 medium 证据（10.23 嫣然六合彩大全 296 期，四张卡的行序与文本原样）。
+    // 杀头的值行在期号上方，其余三条在期号下方；页眉的「295期开」也会被期号正则命中。
+    [Fact]
+    public void TangChaoCardsMatchTheRealMediumEvidence()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然六合彩大全.json"));
+        string[] header = ["新澳", "295期开", "雞", "兔", "狗", "虎", "馬", "猴", "新", "馬"];
+
+        string[] head =
+        [
+            .. header,
+            "唐朝杀一头",
+            "唐朝绝杀二头二头二头稳", "296期", "开??", "杀",
+            "唐朝绝杀三头三头三头稳", "295期", "馬25中", "杀",
+            "唐朝绝杀一头一头一头稳", "294期", "兔28中", "杀"
+        ];
+        string[] tail =
+        [
+            .. header,
+            "唐朝杀一尾",
+            "296期", "唐朝绝杀 666 尾稳杀", "开??",
+            "295期", "唐朝绝杀999尾稳杀", "馬25中"
+        ];
+        string[] row =
+        [
+            .. header,
+            "唐朝杀一行",
+            "296期", "唐朝绝杀水水水稳杀", "开??",
+            "295期", "唐朝绝杀火火火稳杀", "馬25中"
+        ];
+        // 杀肖的标题被 OCR 读成「唐朝杀一当」；取值只依赖「唐朝绝杀…肖稳杀」，不依赖标题。
+        string[] zodiac =
+        [
+            .. header,
+            "唐朝杀一当",
+            "296期", "唐朝绝杀羊羊羊肖稳杀", "开??",
+            "295期", "唐朝绝杀牛牛牛肖稳杀", "馬25中"
+        ];
+
+        Assert.Equal("2头", RuleEngine.ExtractFinalValue(head, 296, rules.Single(rule => rule.Id == "唐朝杀头")));
+        Assert.Equal("6尾", RuleEngine.ExtractFinalValue(tail, 296, rules.Single(rule => rule.Id == "唐朝杀尾")));
+        Assert.Equal("水", RuleEngine.ExtractFinalValue(row, 296, rules.Single(rule => rule.Id == "唐朝杀行")));
+        Assert.Equal("羊", RuleEngine.ExtractFinalValue(zodiac, 296, rules.Single(rule => rule.Id == "唐朝杀肖")));
+    }
+
+    // 四条资料标题只差最后一个字，标题级 1 字容错必然互相擦边；真正要守住的边界是
+    // 取不到别的卡的值：每张卡只允许自己那条规则出值，其余三条一律缺失。
+    [Fact]
+    public void TangChaoCardsNeverYieldAnotherRulesValue()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然六合彩大全.json"));
+        OcrRule head = rules.Single(rule => rule.Id == "唐朝杀头");
+        OcrRule tail = rules.Single(rule => rule.Id == "唐朝杀尾");
+        OcrRule row = rules.Single(rule => rule.Id == "唐朝杀行");
+        OcrRule zodiac = rules.Single(rule => rule.Id == "唐朝杀肖");
+
+        string[] header = ["新澳", "295期开", "雞", "兔", "狗", "虎", "馬", "猴", "新", "馬"];
+        string[] tailCard =
+        [
+            .. header, "唐朝杀一尾",
+            "296期", "唐朝绝杀 666 尾稳杀", "开??",
+            "295期", "唐朝绝杀999尾稳杀", "馬25中"
+        ];
+        string[] headCard =
+        [
+            .. header, "唐朝杀一头",
+            "唐朝绝杀二头二头二头稳", "296期", "开??", "杀",
+            "唐朝绝杀三头三头三头稳", "295期", "馬25中", "杀"
+        ];
+        string[] rowCard =
+        [
+            .. header, "唐朝杀一行",
+            "296期", "唐朝绝杀水水水稳杀", "开??",
+            "295期", "唐朝绝杀火火火稳杀", "馬25中"
+        ];
+
+        Assert.Equal("6尾", RuleEngine.ExtractFinalValue(tailCard, 296, tail));
+        Assert.Null(RuleEngine.ExtractFinalValue(tailCard, 296, head));
+        Assert.Null(RuleEngine.ExtractFinalValue(tailCard, 296, row));
+        Assert.Null(RuleEngine.ExtractFinalValue(tailCard, 296, zodiac));
+
+        Assert.Equal("2头", RuleEngine.ExtractFinalValue(headCard, 296, head));
+        Assert.Null(RuleEngine.ExtractFinalValue(headCard, 296, tail));
+        Assert.Null(RuleEngine.ExtractFinalValue(headCard, 296, row));
+
+        Assert.Equal("水", RuleEngine.ExtractFinalValue(rowCard, 296, row));
+        Assert.Null(RuleEngine.ExtractFinalValue(rowCard, 296, tail));
+        Assert.Null(RuleEngine.ExtractFinalValue(rowCard, 296, head));
     }
 }
 

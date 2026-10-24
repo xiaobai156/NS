@@ -162,8 +162,10 @@ public sealed class YanranStrictMatchingTests
         Assert.Equal("猪", RuleEngine.ExtractFinalValue(lines, 253, rule));
     }
 
+    // 统计表只认目标期本人行：图上标题仍是上一期时一律判缺失，
+    // 不再回落到「图上印着的最大期号」——绝不允许拿历史期凑数。
     [Fact]
-    public void GgTeamSummaryRowsAreReadEvenWhenTheSheetPrintsAnEarlierIssue()
+    public void GgTeamSummaryRowsStayMissingWhenTheSheetPrintsAnEarlierIssue()
     {
         OcrRule[] catalog = Rules();
         string[] lines =
@@ -179,11 +181,19 @@ public sealed class YanranStrictMatchingTests
             "潮汕陈龙正正禁虎"
         ];
 
-        Assert.Equal("鼠", RuleEngine.ExtractFinalValue(lines, 253, Assert.Single(catalog, r => r.Id == "简单爱")));
-        Assert.Equal("狗", RuleEngine.ExtractFinalValue(lines, 253, Assert.Single(catalog, r => r.Id == "苏柒若")));
-        Assert.Equal("狗", RuleEngine.ExtractFinalValue(lines, 253, Assert.Single(catalog, r => r.Id == "欧阳肖")));
-        Assert.Equal("兔", RuleEngine.ExtractFinalValue(lines, 253, Assert.Single(catalog, r => r.Id == "月来月好")));
-        Assert.Equal("兔", RuleEngine.ExtractFinalValue(lines, 253, Rule("陈思思")));
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 253, Assert.Single(catalog, r => r.Id == "简单爱")));
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 253, Assert.Single(catalog, r => r.Id == "苏柒若")));
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 253, Assert.Single(catalog, r => r.Id == "欧阳肖")));
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 253, Assert.Single(catalog, r => r.Id == "月来月好")));
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 253, Rule("陈思思")));
+
+        // 标题改成目标期后同样的行就能取值，证明缺失只来自期号不符。
+        string[] current =
+        [
+            "GG团队253期新澳禁肖统计表",
+            .. lines[1..]
+        ];
+        Assert.Equal("鼠", RuleEngine.ExtractFinalValue(current, 253, Assert.Single(catalog, r => r.Id == "简单爱")));
     }
 
     [Fact]

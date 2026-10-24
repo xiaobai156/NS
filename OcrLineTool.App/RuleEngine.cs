@@ -26,7 +26,8 @@ public sealed record OcrRule(
     bool MatchByRowStructure = false,
     bool RequireRowStructure = false,
     bool DedupeNumbers = false,
-    bool AllowOpeningRow = false)
+    bool AllowOpeningRow = false,
+    bool SectionOnRow = false)
 {
     public string Id => Label ?? Keyword;
     public string OutputLabel => Label ?? Keyword;
@@ -1073,6 +1074,16 @@ public static class RuleEngine
             return ExtractSplitTenNumbers(lines, issue, rule);
         if (!rule.StrictIssueBlock)
             lines = SplitInlineIssueRows(lines);
+        if (rule.Id == "完美两肖")
+        {
+            // 先过身份：同夹还有「绿格子双杀」那张绝杀2肖【…】卡，没看到本资料名就不能取值。
+            if (requireCloudKeyword
+                && !ContainsKeyword(Normalize(string.Concat(lines)), Normalize(rule.Keyword)))
+                return null;
+            // 「完美杀肖心水料」每期只有一行数据：值必须落在「绝杀2肖」后面的括号里，
+            // 且这一行自己带目标期号；读不到就判缺失，不靠通用期行凑两肖。
+            return ExtractPerfectTwoZodiacRow(lines, issue);
+        }
         if (rule.Id is "欧阳半波" or "紫燕儿杀一肖")
             lines = NormalizeSplitIssueDigits(lines);
         if (rule.Id is "君军两肖" or "君军两尾" or "君军合" or "大哥6688")
@@ -1089,8 +1100,7 @@ public static class RuleEngine
                 return halfWave;
         }
         if (rule.Id == "紫燕儿杀一肖")
-        {
-            string? zodiac = ExtractZiyanerKillZodiac(lines, issue, rule);
+        {            string? zodiac = ExtractZiyanerKillZodiac(lines, issue, rule);
             if (zodiac is not null || lines.Any(line => ContainsIssue(line, issue)))
                 return zodiac;
         }
@@ -1147,15 +1157,9 @@ public static class RuleEngine
             return ExtractRequiredRowValue(lines, issue, rule);
 
         if (rule.Type == "生肖" && IsZodiacSummary(lines))
-        {
-            string? summaryValue = ExtractZodiacSummaryValue(lines, issue, rule);
-            if (summaryValue is not null || !rule.AllowIssueLessSummary)
-                return summaryValue;
-            // GG团队-style sheets may print an earlier period in the title; the
-            // named row is still this material's latest forbidden zodiac.
-            int printedIssue = FindIssues(lines).DefaultIfEmpty(0).Max();
-            return printedIssue > 0 ? ExtractZodiacSummaryValue(lines, printedIssue, rule) : null;
-        }
+            // 只认目标期本人行；找不到就判缺失。曾经回落到「图上印着的最大期号」，
+            // 那等于允许拿上一期表当本期结果，已按口径取消。
+            return ExtractZodiacSummaryValue(lines, issue, rule);
 
         // 半波卡片只能由目标期行本身的完整资料名确认身份。
         // 这样即使上一期标题仍留在图里，也绝不能把本期“杀半波”通用字段归给旧资料。
@@ -1917,6 +1921,18 @@ public static class RuleEngine
             return true;
         if (ContainsSectionMarker(lines[issueIndex], rule.Section))
             return true;
+        // section_on_row：区段词必须出现在本期这一行（或其下一行）里，不许拿卡面
+        // 主标题里的同一串字当区段——女人味标题「澳门女人味杀2肖」就含「女人味杀2肖」，
+        // 否则六肖段会被当成杀2肖段。
+        if (rule.SectionOnRow)
+            return issueIndex + 1 < lines.Length
+                && !ContainsAnyIssue(lines[issueIndex + 1])
+                && ContainsSectionMarker(lines[issueIndex] + lines[issueIndex + 1], rule.Section);
+        if (issueIndex + 1 < lines.Length
+            && !ContainsAnyIssue(lines[issueIndex + 1])
+            && ContainsSectionMarker(lines[issueIndex] + lines[issueIndex + 1], rule.Section))
+            return true;
+
         if (issueIndex + 1 < lines.Length
             && !ContainsAnyIssue(lines[issueIndex + 1])
             && ContainsSectionMarker(lines[issueIndex] + lines[issueIndex + 1], rule.Section))
@@ -2201,18 +2217,25 @@ public static class RuleEngine
         }
 
         bool inTargetIssue = false;
+        int blockStart = -1;
+        int blockEnd = lines.Length;
         var rows = new List<(int Count, string Value)>();
         for (int index = start; index < lines.Length; index++)
         {
             string line = lines[index];
             if (ContainsIssue(line, issue))
             {
+                if (!inTargetIssue)
+                    blockStart = index;
                 inTargetIssue = true;
             }
             else if (ContainsIssueBoundary(line, issue))
             {
                 if (inTargetIssue)
+                {
+                    blockEnd = index;
                     break;
+                }
                 continue;
             }
 
@@ -2249,6 +2272,16 @@ public static class RuleEngine
         (int Count, string Value)[] valuedRows = rows.Where(row => row.Value.Length > 0).ToArray();
         if (valuedRows.Length == 0)
             return null;
+        // 这些统计表都会印「总次数:44次」「统计(14人)」或「共26人」：Σ(次数×该行生肖数)
+        // 必须正好等于本期块自己的那个总量。次数被读错（例如 11次 → 1次）时总数对不上，
+        // 直接判缺失；块内出现两个不同总量说明表读串了，同样判缺失，绝不拿上一期的总量。
+        if (blockStart >= 0 && blockEnd > blockStart
+            && TryReadPrintedTotal(lines, blockStart..blockEnd, out int printedTotal))
+        {
+            int total = valuedRows.Sum(row => row.Count * row.Value.Length);
+            if (total != printedTotal)
+                return null;
+        }
         int maximum = valuedRows.Max(row => row.Count);
         int lastValuedIndex = rows.FindLastIndex(row => row.Value.Length > 0);
         for (int index = 0; index < lastValuedIndex; index++)
@@ -2262,6 +2295,36 @@ public static class RuleEngine
             .SelectMany(item => item)
             .Distinct());
         return result.Length > 0 ? result : null;
+    }
+
+    // 统计表上印的总量：品鉴是「【生肖统计】(总次数:44次)」，小慧慧是「统计结果（共26人）」，
+    // 灰灰团是「第296期统计(14人)」。读不到就跳过一致性校验，绝不用猜的总数否决结果。
+    private static bool TryReadPrintedTotal(string[] lines, Range range, out int total)
+    {
+        total = 0;
+        int start = range.Start.GetOffset(lines.Length);
+        int end = range.End.GetOffset(lines.Length);
+        bool found = false;
+        for (int index = start; index < Math.Min(end, lines.Length); index++)
+        {
+            // 用简化后的原文匹配：Normalize 会把括号和空格去掉，
+            // 那样「第253期统计(14人)」就永远对不上「人前必须有括号」的条件。
+            string line = SimplifyOcrText(lines[index]);
+            Match match = Regex.Match(line,
+                @"(?:总次数|總次數)\s*[:：]?\s*(?<n>\d{1,3})\s*次|共\s*(?<n2>\d{1,3})\s*人|(?<!\d)(?<n3>\d{1,3})\s*人");
+            if (!match.Success)
+                continue;
+            string value = match.Groups["n"].Success ? match.Groups["n"].Value
+                : match.Groups["n2"].Success ? match.Groups["n2"].Value
+                : match.Groups["n3"].Value;
+            if (!int.TryParse(value, out int parsed))
+                continue;
+            if (found && parsed != total)
+                return false;   // 同一期块出现两个不同总量：表读串了，不用任何一个
+            total = parsed;
+            found = true;
+        }
+        return found;
     }
 
     private static bool TryExtractFrequencyRow(string line, out int count, out string value)
@@ -2364,7 +2427,9 @@ public static class RuleEngine
             return values.Count > 1 ? RuleExtractionResult.Conflict
                 : values.Count == 1 ? RuleExtractionResult.Success(values.Single()) : RuleExtractionResult.Missing;
         }
-        if (rule.StrictIssueBlock && rule.Id is ("买什么杀十码" or "老码头杀七码" or "唐朝杀头")
+        // 唐朝杀头属于嫣然六合彩大全，不在这里；它的期号上方取值走 ExtractFinalResult
+        // 里的 FindTangChaoHeadValueLine，不要再往这个新澳六合彩资料的分支里塞。
+        if (rule.StrictIssueBlock && rule.Id is ("买什么杀十码" or "老码头杀七码")
             && RuleCatalog.PathBelongsToGroup(evidence.SourcePath, "新澳六合彩资料")
             && evidence.HasCompleteGeometry
             && ExtractFixedWrappedTableRows(evidence, issue, rule) is { } wrappedRows)
@@ -3322,9 +3387,19 @@ public static class RuleEngine
             if (!int.TryParse(period.Groups["issue"].Value, out int actualIssue) || actualIssue != issue)
                 continue;
             string block = SliceIssueBlock(text, periods, index);
+            // 唐朝杀一头的值行印在本期期号格上方（整卡第一期也可能如此），窄栏又把收尾的
+            // 「稳杀」折到下一行。只认紧邻本期期号、且带「唐朝绝杀」标记的那一行；
+            // 拿不到就直接判缺失——不能回落到通用期块，那样会借到下一张卡印在本块里的值。
+            if (rule.Id == "唐朝杀头")
+            {
+                string? headLine = FindTangChaoHeadValueLine(text, periods, index);
+                if (headLine is null)
+                    continue;
+                block = headLine;
+            }
             // 数据行印在期号上方的已复核卡（黑色六合彩/嫣然电报）：把紧邻的上一行并入本期块。
             // 上一行必须属于另一个期号块且只有一行数据，绝不跨两张卡借值。
-            if (AboveIssueValueRuleIds.Contains(rule.Id)
+            else if (AboveIssueValueRuleIds.Contains(rule.Id)
                 && index > 0
                 && int.TryParse(periods[index - 1].Groups["issue"].Value, out int previousIssue)
                 && previousIssue != issue)
@@ -3364,6 +3439,75 @@ public static class RuleEngine
                 return null;
             }
             values.Add(value);
+        }
+        return values.Count == 0 ? null : values.Count == 1 ? values.Single() : ConflictMarker;
+    }
+
+    // 唐朝杀一头的值行固定印在本期期号格上方（整卡第一期也一样），窄栏把收尾的
+    // 「稳杀」折到下一行。这里只返回紧邻本期期号、且带「唐朝绝杀」标记的那一行；
+    // 本期值行缺失时返回 null，由调用方保持缺失，绝不翻到更早期号块借值。
+    private static string? FindTangChaoHeadValueLine(string text, MatchCollection periods, int index)
+    {
+        int start = index > 0 ? periods[index - 1].Index : 0;
+        int end = periods[index].Index;
+        if (end <= start)
+            return null;
+        string[] previousLines = text[start..end]
+            .Split('\n')
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0)
+            .Skip(index > 0 ? 1 : 0)   // 丢掉上一期的期号行本身
+            .ToArray();
+        if (previousLines.Length == 0)
+            return null;
+        string valueLine = previousLines[^1];
+        if (!valueLine.Contains("唐朝绝杀", StringComparison.Ordinal))
+            return null;
+        if (valueLine.EndsWith('杀'))
+            return valueLine;
+        // 折下来的「杀」只能出现在期号格后面紧跟的「开??」这类结构占位之后：
+        // 允许跳过的只有占位行，遇到别的文字（例如下一张卡的值行）就停止，
+        // 不能在这一块里随便找一个「杀」拼上来。
+        int blockEnd = index + 1 < periods.Count ? periods[index + 1].Index : text.Length;
+        int afterIssue = periods[index].Index + periods[index].Length;
+        foreach (string line in text[afterIssue..blockEnd]
+                     .Split('\n')
+                     .Select(item => item.Trim())
+                     .Where(item => item.Length > 0)
+                     .Take(2))
+        {
+            if (line == "杀")
+                return valueLine + "杀";
+            // 期号格后面紧跟的是本期的开奖格（「开??」或「馬25中」），
+            // 只有这种结构行才允许跳过；遇到别的文字说明已经越到下一张卡。
+            if (!line.StartsWith('开')
+                && !Regex.IsMatch(line, $@"^[{Zodiac}]\s*\d{{1,2}}\s*[中錯错准準赢贏√×✗]"))
+                break;
+        }
+        return valueLine;
+    }
+
+    // 完美两肖：卡面每期一行「296期：绝杀2肖(鸡龙】开？00准」，括号常被 OCR 读成
+    // 半角「(」配全角「】」，繁体也常见。先按 SimplifyOcrText 归一，再用既有期号解析
+    // 取期号；只认目标期这一行 + 括号内恰好两个不同生肖，别的行、别的期号都不参与。
+    private static string? ExtractPerfectTwoZodiacRow(string[] lines, int issue)
+    {
+        var values = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string rawLine in lines)
+        {
+            string line = SimplifyOcrText(rawLine);
+            Match row = Regex.Match(line,
+                @"绝杀\s*2\s*肖\s*[（(【\[]?\s*(?<value>[^）)】\]开准]{2,8}?)\s*[）)】\]]");
+            if (!row.Success)
+                continue;
+            int[] printed = FindIssues(new[] { line[..row.Index] }).ToArray();
+            if (printed.Length == 0 || printed.Any(actual => actual != issue))
+                continue;
+            string zodiacs = string.Concat(Regex.Matches(row.Groups["value"].Value, $"[{Zodiac}]")
+                .Select(match => match.Value).Distinct());
+            if (zodiacs.Length != 2)
+                continue;
+            values.Add(zodiacs);
         }
         return values.Count == 0 ? null : values.Count == 1 ? values.Single() : ConflictMarker;
     }
@@ -3460,6 +3604,11 @@ public static class RuleEngine
             foreach (string line in NearbyIssueWindow(lines, issueIndex, issue, before: 4, after: 1))
             {
                 if (Regex.IsMatch(SimplifyFixedCardText(line), @"(?:上期)?\s*开奖\s*结果"))
+                    continue;
+                // 开奖格（「蛇38中」「牛05错」）是上一期的结果，不是本资料的剪影值：
+                // 窗口里出现它时整行跳过，绝不从中凑第二个生肖。
+                if (Regex.IsMatch(SimplifyOcrText(line),
+                        $@"[{Zodiac}]\s*\d{{1,2}}\s*[中錯错准準赢贏√✗×]"))
                     continue;
                 foreach (char character in SimplifyOcrText(line))
                 {
@@ -3927,9 +4076,10 @@ public static class RuleEngine
             if (rule.DedupeNumbers)
             {
                 // Opt-in exception: a printed duplicate is de-duplicated in order
-                // instead of failing the whole row.
+                // instead of failing the whole row. 去重只吞掉重复值，不放松数量：
+                // 去重后仍必须正好是配置的个数，否则等于把「漏读几个」判成成功。
                 int[] unique = numbers.Distinct().ToArray();
-                return unique.Length >= 1 && unique.Length <= count
+                return unique.Length == count
                     && unique.All(number => number is >= 1 and <= 49)
                         ? string.Join(' ', unique.Select(number => number.ToString("00"))) : null;
             }
@@ -4239,7 +4389,7 @@ public static class RuleEngine
         {
             string[] numbers = value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
             if (rule.DedupeNumbers)
-                return numbers.Length >= 1 && numbers.Length <= count
+                return numbers.Length == count
                     && numbers.Distinct(StringComparer.Ordinal).Count() == numbers.Length
                     && numbers.All(number => number.Length == 2 && int.TryParse(number, out int parsed)
                         && parsed is >= 1 and <= 49);
@@ -4814,9 +4964,9 @@ public static class RuleEngine
             Match chineseHead = Regex.Match(beforeOpening, @"买\s*(?<head>[零一二三四])头");
             if (chineseHead.Success)
                 return $"{ToArabicDigit(chineseHead.Groups["head"].Value[0])}头";
-            int marker = beforeOpening.LastIndexOf('头');
-            if (marker >= 0)
-                match = Regex.Match(beforeOpening[(marker + 1)..], @"(?<!\d)[0-4零一二三四](?!\d)");
+            // 曾经在这里兜底「最后一个『头』字之后任意一个 0-4 单数字」，会把
+            // 「4行必中」这类说明文字的数字当成本期头。只认 X头 / 【X】头 / 买X头，
+            // 三种结构都没有就判缺失。
         }
 
         if (!match.Success)
@@ -4913,7 +5063,7 @@ public static class RuleEngine
                 // crosses that boundary before it has started.
                 if (OcrLayoutMarkers.IsBoundary(lines[next]))
                 {
-                    if (parts.Count == 0 && expectedCount >= 35)
+                    if (parts.Count == 0 && expectedCount >= 36)
                         continue;
                     break;
                 }
@@ -4921,7 +5071,7 @@ public static class RuleEngine
                 // "253期" + "开00准" and the numbers below the opening cell.
                 // Only before the field starts may that opening-only cell be
                 // stepped over, and only for full 36-number tables.
-                if (parts.Count == 0 && expectedCount >= 35 && IsOpeningResultOnly(lines[next]))
+                if (parts.Count == 0 && expectedCount >= 36 && IsOpeningResultOnly(lines[next]))
                     continue;
                 // Split rows print the field label on its own line ("257期" /
                 // "月禁" / "41.29.05"): a pure 禁 label may be stepped over
@@ -4975,7 +5125,7 @@ public static class RuleEngine
                 return true;
         }
 
-        if (expectedCount >= 35
+        if (expectedCount >= 36
             && Enumerable.Range(previousIssue + 1, issueIndex - previousIssue - 1)
                 .Any(index => IsOpeningOnlySeparator(lines[index])))
         {

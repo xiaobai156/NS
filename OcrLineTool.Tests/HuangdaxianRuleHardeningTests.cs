@@ -150,10 +150,28 @@ public sealed class HuangdaxianRuleHardeningTests
             "256期:『03 16 16 28 3143 44』开✓"
         ];
 
-        Assert.Equal("03 16 28 31 43 44", RuleEngine.ExtractFinalValue(lines, 256, rule));
-        Assert.True(RuleEngine.IsFormattedOutputValueValid(rule, "03,16,28,31,43,44"));
+        // 256 期那一行重复印了 16：去重后只剩 6 个号，数量不足按缺失处理。
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 256, rule));
+        // 号码表同样按 7 个校验：6 个不合格，7 个唯一才合格。
+        Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "03,16,28,31,43,44"));
+        Assert.True(RuleEngine.IsFormattedOutputValueValid(rule, "03,16,28,31,43,44,45"));
         Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "03,16,16,28,31,43,44"));
         Assert.False(RuleEngine.IsFormattedOutputValueValid(rule, "03,16,28,31,43,44,45,46"));
+    }
+
+    // 去重只吞重复值、不放松数量：去重后不足 7 个一律判缺失；正好 7 个才算成功。
+    [Fact]
+    public void ZhanLangJiuDianRequiresSevenDistinctNumbersAfterDedupe()
+    {
+        OcrRule rule = Assert.Single(Rules, item => item.Id == "战狼九点");
+        string[] header = ["战狼团队原创九點半", "新澳", "⑨點半杀码"];
+
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            [.. header, "256期:『03 16 16 28 31 43 44』开✓"], 256, rule));
+        Assert.Equal("03 16 28 31 43 44 45", RuleEngine.ExtractFinalValue(
+            [.. header, "257期:『03 16 16 28 31 43 44 45』开??"], 257, rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            [.. header, "258期:『03 16 28 31 43 44 45 46』开??"], 258, rule));
     }
 
     [Fact]

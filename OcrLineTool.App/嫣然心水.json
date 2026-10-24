@@ -664,16 +664,14 @@
       "keyword": "阿莲",
       "type": "生肖",
       "label": "阿莲杀肖肖",
-      "section": "9月份",
-      "required_keyword": "9月份",
+      "required_keyword": "阿莲",
       "folder": "阿莲"
     },
     {
       "keyword": "阿莲",
       "type": "尾",
       "label": "阿莲杀尾尾",
-      "section": "9月份",
-      "required_keyword": "9月份",
+      "required_keyword": "阿莲",
       "folder": "阿莲"
     },
     {

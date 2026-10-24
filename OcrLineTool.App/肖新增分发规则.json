@@ -1,4 +1,4 @@
-{
+﻿{
   "targetDirectory": "C:\\Users\\Administrator\\Desktop\\每天工具\\爬虫合集\\七类数据统一归纳",
   "targetFile": "{issue}期-肖-新增.txt",
   "placement": {
@@ -12,7 +12,9 @@
       "labels": [
         "藏宝杀一肖"
       ],
-      "zodiacCounts": { "藏宝杀一肖": 1 }
+      "zodiacCounts": {
+        "藏宝杀一肖": 1
+      }
     },
     {
       "sourceGroup": "蜻蜓一套",
@@ -55,7 +57,8 @@
       "zodiacCounts": {
         "品鉴": 1,
         "小慧慧": 1,
-        "灰灰团": 1
+        "灰灰团": 1,
+        "借花献佛": 1
       }
     },
     {
@@ -78,6 +81,12 @@
       "sourceGroup": "嫣然电报",
       "labels": [
         "买什么杀一肖"
+      ]
+    },
+    {
+      "sourceGroup": "嫣然六合彩大全",
+      "labels": [
+        "唐朝杀肖"
       ]
     }
   ]

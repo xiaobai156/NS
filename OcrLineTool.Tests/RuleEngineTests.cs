@@ -1,4 +1,4 @@
-using OcrLineTool;
+﻿using OcrLineTool;
 
 namespace OcrLineTool.Tests;
 
@@ -263,9 +263,78 @@ public sealed class RuleEngineTests
         Assert.Equal("1尾", RuleEngine.ExtractValue(lines, 247, tail));
     }
 
-    [Fact]
-    public void UsesTheAlianFolderAndTitleToAvoidAnotherCardInTheFolder()
+    // 阿莲的卡每月换标题（9月份/10月份/11月份…）：身份由 folder 和资料名确定，
+    // 不能再把某个月份写死，否则换月后整条资料静默缺失。
+    [Theory]
+    [InlineData("9月份杀号")]
+    [InlineData("10月份杀号")]
+    [InlineData("11月份杀号")]
+    public void ReadsTheAlianCardInAnyMonth(string heading)
     {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
+        OcrRule zodiac = Assert.Single(rules, rule => rule.Id == "阿莲杀肖肖");
+        OcrRule tail = Assert.Single(rules, rule => rule.Id == "阿莲杀尾尾");
+        string[] lines = ["阿莲", heading, "312期禁猪开??", "312期禁4尾开??"];
+
+        Assert.Equal("猪", RuleEngine.ExtractValue(lines, 312, zodiac));
+        Assert.Equal("4尾", RuleEngine.ExtractValue(lines, 312, tail));
+    }
+
+    // 女人味一张卡同时印「杀2肖 / ⑥肖 / ③肖 / ①肖」四段（10.23 真实 medium 证据）。
+    // 只允许读杀2肖段；六肖、三肖、一肖段的生肖不能凑成这条资料的两肖。
+    [Fact]
+    public void NvRenWeiReadsOnlyTheKillTwoSection()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "新澳高手.json"));
+        OcrRule rule = Assert.Single(rules, item => item.Id == "女人味");
+        string[] card =
+        [
+            "澳门女人味", "2026年296期",
+            "294【女人味杀2肖】", "狗牛", "开兔28准",
+            "295【女人味杀2肖", "羊鸡", "开马25准",
+            "296【女人味杀2肖】", "兔鸡", "开？00准",
+            "295【女人味⑥肖】", "虎马蛇狗鼠龙", "开马25准",
+            "296【女人味⑥肖】", "龙鼠狗羊牛猴", "开？00准",
+            "296【女人味③肖】", "龙鼠狗",
+            "296【女人味①肖】", "龙"
+        ];
+
+        Assert.Equal("兔鸡", RuleEngine.ExtractValue(card, 296, rule));
+        // 只有六肖/三肖段时不能凑出两肖。
+        Assert.Null(RuleEngine.ExtractValue(
+            ["澳门女人味", "2026年296期", "296【女人味⑥肖】", "龙鼠狗羊牛猴", "296【女人味③肖】", "龙鼠狗"],
+            296, rule));
+    }
+
+    // 完美两肖只认「目标期 + 绝杀2肖 + 括号内两个不同生肖」这一行（10.23 真实证据）。
+    [Fact]
+    public void PerfectTwoZodiacsRequireTheBracketedTargetIssueRow()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "黄大仙新澳.json"));
+        OcrRule rule = Assert.Single(rules, item => item.Id == "完美两肖");
+        string[] card =
+        [
+            "完美杀肖心水料",
+            "294期：绝杀2肖(牛狗】开兔28准",
+            "295期：绝杀2肖(猪羊】开马25准",
+            "296期：绝杀2肖(鸡龙】开？00准"
+        ];
+
+        Assert.Equal("鸡龙", RuleEngine.ExtractValue(card, 296, rule));
+        // 目标期那行缺失时不得借用别期的两个生肖。
+        Assert.Null(RuleEngine.ExtractValue(card[..3], 296, rule));
+        // 括号里不是恰好两个不同生肖时判缺失。
+        Assert.Null(RuleEngine.ExtractValue(
+            ["完美杀肖心水料", "296期：绝杀2肖(鸡鸡】开？00准"], 296, rule));
+        Assert.Null(RuleEngine.ExtractValue(
+            ["完美杀肖心水料", "296期：绝杀2肖(鸡龙狗】开？00准"], 296, rule));
+    }
+
+    [Fact]
+    public void UsesTheAlianFolderAndTitleToAvoidAnotherCardInTheFolder()    {
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
         OcrRule[] alianRules = rules.Where(rule => rule.Id is "阿莲杀肖肖" or "阿莲杀尾尾").ToArray();
@@ -297,13 +366,13 @@ public sealed class RuleEngineTests
             ], 247, sixDoors));
         Assert.Equal("狗", RuleEngine.ExtractValue(
             [
-                "品鉴新澳一肖", "==2026247期您的统计结果", "生肖统计（总次数:46次）",
+                "品鉴新澳一肖", "==2026247期您的统计结果", "生肖统计（总次数:10次）",
                 "[00次] 猪", "[01次] 蛇", "[09次] 狗"
             ], 247, pinjian));
         Assert.Equal("虎", RuleEngine.ExtractValue(
             ["小慧慧新澳杀肖团队", "第247期", "[0次]马", "[1次]兔龙猴", "[5次]虎"], 247, xiaohui));
         Assert.Equal("鸡", RuleEngine.ExtractValue(
-            ["灰灰团", "新澳09月份（杀错排名垫后）", "第247期统计(30人):", "[3次]牛虎猴狗", "[5次]鸡"], 247, grayGroup));
+            ["灰灰团", "新澳09月份（杀错排名垫后）", "第247期统计(17人):", "[3次]牛虎猴狗", "[5次]鸡"], 247, grayGroup));
     }
 
     [Fact]
@@ -675,6 +744,108 @@ public sealed class RuleEngineTests
             lines,
             242,
             new OcrRule(keyword, "生肖", label)));
+    }
+
+    // 统计表一致性：Σ(次数×该行生肖数) 必须等于卡面印的总量（10.23 真实表：44次/26人/14人）。
+    [Fact]
+    public void SummarySheetsRejectAFrequencyThatDoesNotAddUpToThePrintedTotal()
+    {
+        var rule = new OcrRule("品鉴", "统计生肖", "品鉴");
+        string[] honest =
+        [
+            "【品鉴新澳杀一肖❤】", "296期您的统计结果", "【生肖统计】(总次数:44次)",
+            "【00次】牛", "【02次】蛇鸡", "【03次】龙马羊狗", "【04次】猪",
+            "【05次】鼠", "【06次】虎猴", "【07次】兔"
+        ];
+        Assert.Equal("兔", RuleEngine.ExtractFinalValue(honest, 296, rule));
+
+        // 07次 被读成 01次：总数对不上（44 ≠ 38），必须判缺失，不能改选 06次 的虎猴。
+        string[] misread =
+        [
+            "【品鉴新澳杀一肖❤】", "296期您的统计结果", "【生肖统计】(总次数:44次)",
+            "【00次】牛", "【02次】蛇鸡", "【03次】龙马羊狗", "【04次】猪",
+            "【05次】鼠", "【06次】虎猴", "【01次】兔"
+        ];
+        Assert.Null(RuleEngine.ExtractFinalValue(misread, 296, rule));
+    }
+
+    // 灰灰团用「(NN人)」形式：人数对不上必须缺失，也不能借上一期块印的总量。
+    [Fact]
+    public void SummarySheetsReadTheParenthesisedPeopleCountAndNeverBorrowAnotherBlock()
+    {
+        var rule = new OcrRule("灰灰团", "统计生肖", "灰灰团");
+        string[] honest =
+        [
+            "wilie985团队", "第296期统计(22人):",
+            "〖0次〗虎兔", "〖1次〗羊猴", "〖2次〗牛狗猪龙马鸡", "〖4次〗鼠蛇"
+        ];
+        Assert.Equal("鼠蛇", RuleEngine.ExtractFinalValue(honest, 296, rule));
+
+        // 人数被读错：Σ=22 但卡面印 26 → 缺失。
+        string[] wrongTotal = [.. honest];
+        wrongTotal[1] = "第296期统计(26人):";
+        Assert.Null(RuleEngine.ExtractFinalValue(wrongTotal, 296, rule));
+
+        // 上一期先印了「(22人)」、本期自己没印总量：只能按本期块自身取值，
+        // 绝不能拿上一期那个总量来给本期背书。
+        string[] previousHasTotal =
+        [
+            "wilie985团队",
+            "第295期统计(22人):", "〖4次〗鼠蛇",
+            "第296期统计:", "〖0次〗虎兔", "〖1次〗羊猴", "〖2次〗牛狗猪龙马鸡", "〖4次〗鼠蛇"
+        ];
+        Assert.Equal("鼠蛇", RuleEngine.ExtractFinalValue(previousHasTotal, 296, rule));
+
+        // 上一期印的总量若被误当成本期的（26≠22），必须判缺失。
+        string[] borrowedWrongTotal =
+        [
+            "wilie985团队",
+            "第295期统计(26人):", "〖4次〗鼠蛇",
+            "第296期统计:", "〖0次〗虎兔", "〖1次〗羊猴", "〖2次〗牛狗猪龙马鸡", "〖4次〗鼠蛇"
+        ];
+        Assert.Equal("鼠蛇", RuleEngine.ExtractFinalValue(borrowedWrongTotal, 296, rule));
+    }
+
+    // 双肖海报的取值窗口不能把开奖格的生肖算进去（「蛇38中」属于上一期结果）。
+    [Fact]
+    public void NearbyTwoZodiacWindowIgnoresOpeningResultCells()
+    {
+        var rule = new OcrRule("官方殺肖", "生肖组合", "官方两肖",
+            StrictIssueBlock: true, AllowNearbyValue: true);
+        string[] lines = ["官方殺肖", "虎兔", "第290期", "蛇38中"];
+
+        Assert.Equal("虎兔", RuleEngine.ExtractFinalValue(lines, 290, rule));
+    }
+
+    // 头类不再从「最后一个头字之后的任意单数字」兜底：卡面只写「绝杀一头 / 4行必中」时判缺失。
+    [Fact]
+    public void HeadRulesDoNotGrabABareNumberAfterTheHeadCharacter()
+    {
+        var rule = new OcrRule("财神网绝杀一头", "头");
+
+        Assert.Null(RuleEngine.ExtractValue(
+            ["财神网绝杀一头", "245期绝杀一头", "4行必中"], 245, rule));
+        Assert.Equal("2头", RuleEngine.ExtractValue(
+            ["财神网绝杀一头", "245期绝杀一头2头开??"], 245, rule));
+        Assert.Equal("3头", RuleEngine.ExtractValue(
+            ["财神网绝杀一头", "245期绝杀一头【3】头开??"], 245, rule));
+    }
+
+    // 统计表标题印的是上一期时必须判缺失：不再回落到「图上印着的最大期号」。
+    [Fact]
+    public void SummarySheetsDoNotFallBackToAHistoricalIssue()
+    {
+        var rule = new OcrRule("苏柒若", "生肖", "苏柒若", AllowIssueLessSummary: true);
+        string[] previousOnly =
+        [
+            "GG团队241期新澳禁肖统计表",
+            "Alice正正正正禁鼠",
+            "苏柒若正正正禁兔"
+        ];
+
+        Assert.Null(RuleEngine.ExtractFinalValue(previousOnly, 242, rule));
+        Assert.Equal("兔", RuleEngine.ExtractFinalValue(
+            ["GG团队242期新澳禁肖统计表", "苏柒若正正正禁兔"], 242, rule));
     }
 
     [Fact]

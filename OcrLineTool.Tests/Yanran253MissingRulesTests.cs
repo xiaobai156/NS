@@ -1,4 +1,4 @@
-using OcrLineTool;
+﻿using OcrLineTool;
 using Xunit;
 
 namespace OcrLineTool.Tests;
@@ -294,7 +294,7 @@ public sealed class Yanran253MissingRulesTests
         string[] grayGroupLines =
         [
             "wilie985团队", "新澳09月份(杀错排名推后)",
-            "第253期统计(25人):",
+            "第253期统计(16人):",
             "〖0次】虎兔", "〖1次】羊猴", "〖2次】牛狗猪", "龙马鸡", "〖4次】鼠蛇",
             "【5次】", "〖6次】", "〖7次】",
             "09月份历史战绩(开出次数):", "212 4 0 2 5 42"
@@ -308,7 +308,7 @@ public sealed class Yanran253MissingRulesTests
             "第253期:",
             "【0次】祝", "【1次】祝牛虎兔羊", "【2次】祝龙蛇马鸡", "【3次】", "禁鼠猴猪",
             "【4次】禁狗", "【5次】禁", "【6次】禁",
-            "统计结果(共26人)", "按道理主少次,杀多次"
+            "统计结果(共25人)", "按道理主少次,杀多次"
         ];
         OcrRule xiaohui = Rule("小慧慧");
         Assert.Equal("狗", RuleEngine.ExtractFinalValue(xiaohuiLines, 253, xiaohui));

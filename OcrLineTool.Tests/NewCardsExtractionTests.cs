@@ -1,4 +1,4 @@
-using OcrLineTool;
+﻿using OcrLineTool;
 
 namespace OcrLineTool.Tests;
 
@@ -602,7 +602,7 @@ public sealed class NewCardsExtractionTests
         string[] huiHuiTuanCard =
         [
             "wilie985团队", "新澳09月份(杀错排名推后)", "【傻丫头】月错0禁马", "【小灰灰正】月错1禁鼠",
-            "灰灰团", "【野狼正正】月错1禁猪", "第255期统计(25人):",
+            "灰灰团", "【野狼正正】月错1禁猪", "第255期统计(23人):",
             "〖0次〗兔狗", "【1次〗鼠羊猴鸡", "【2次〗猪", "【3次〗牛龙马", "〖【4次】虎蛇"
         ];
 
