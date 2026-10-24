@@ -1395,6 +1395,59 @@ public sealed class MainFormTests
     }
 
     [Fact]
+    public void MarksGroupsWithoutAnyDistributedLineAsUndistributed()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        string root = Directory.CreateTempSubdirectory("ocr-group-undistributed-").FullName;
+        string? resultPath = null;
+        try
+        {
+            string folder = Directory.CreateDirectory(Path.Combine(root, "乙群")).FullName;
+            using var form = CreateUiTestForm(root, _ => { });
+            var issueInput = (NumericUpDown)typeof(MainForm).GetField("issueInput", flags)!.GetValue(form)!;
+            var markers = (HashSet<string>)typeof(MainForm)
+                .GetField("foldersWithCurrentIssueResult", flags)!.GetValue(form)!;
+            var undistributed = (HashSet<string>)typeof(MainForm)
+                .GetField("foldersWithoutDistribution", flags)!.GetValue(form)!;
+
+            const int issue = 999994;
+            issueInput.Value = issue;
+            resultPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, folder, issue);
+            Directory.CreateDirectory(Path.GetDirectoryName(resultPath)!);
+
+            var timer = (System.Windows.Forms.Timer)typeof(MainForm).GetField("folderRefreshTimer", flags)!.GetValue(form)!;
+            void Tick() => typeof(System.Windows.Forms.Timer).GetMethod("OnTick", flags)!.Invoke(timer, [EventArgs.Empty]);
+
+            // 一条「（已分流）」都没有（含缺失行）→ 有结果，且算未分流（群名绿色）。
+            File.WriteAllLines(resultPath,
+                ["【头】", "0头 齐天大圣", "缺失（未找到对应图片） 王者肖肖"]);
+            Tick();
+            Assert.Contains(folder, markers);
+            Assert.Contains(folder, undistributed);
+
+            // 只要出现一条已分流 → 不再算未分流（群名回到红色）。
+            File.WriteAllLines(resultPath,
+                ["【头】", "0头 齐天大圣（已分流）", "缺失（未找到对应图片） 王者肖肖"]);
+            Tick();
+            Assert.Contains(folder, markers);
+            Assert.DoesNotContain(folder, undistributed);
+
+            // TXT 被删掉 → 两个集合都不含它（正常色）。
+            File.Delete(resultPath);
+            resultPath = null;
+            Tick();
+            Assert.DoesNotContain(folder, markers);
+            Assert.DoesNotContain(folder, undistributed);
+        }
+        finally
+        {
+            if (resultPath is not null)
+                File.Delete(resultPath);
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void PreservesExistingDistributedMarkersWhenRewritingGroupResult()
     {
         string directory = Directory.CreateTempSubdirectory("ocr-marker-").FullName;
