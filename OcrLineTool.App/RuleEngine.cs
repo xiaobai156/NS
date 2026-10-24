@@ -5419,14 +5419,9 @@ public static class RuleEngine
         if (type is "头数组合" or "缺头")
         {
             string withoutIssue = RemoveIssue(beforeOpening);
-            // 嫣然心水「九王爷」：卡面直接印出四个头并给正确那个打★
-            //（「0头,1头,2头,★3头,」）。有星号就以星号为准，没有星号再按四头反推。
-            if (rule?.Id == "九王爷")
-            {
-                Match starred = Regex.Match(withoutIssue, @"★\s*(?<head>[0-4])\s*头");
-                if (starred.Success)
-                    return $"{starred.Groups["head"].Value}头";
-            }
+            // 注意：这张卡的★标的是「开奖结果落在哪个头」，不是答案。
+            // 例：296期「1头,2头,★3头,4头」开的是 3头，而答案（缺的头）是 0头。
+            // 所以★一律不参与取值，只按四头反推缺的那个。
             int marker = withoutIssue.LastIndexOf("四头出特", StringComparison.Ordinal);
             string valueText = marker >= 0 ? withoutIssue[(marker + "四头出特".Length)..] : withoutIssue;
             char[] rawHeads = valueText

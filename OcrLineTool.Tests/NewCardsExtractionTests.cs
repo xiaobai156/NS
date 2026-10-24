@@ -18,10 +18,9 @@ public sealed class NewCardsExtractionTests
             "【257期新澳门区天机阁九王爷中特四头】0头,1头,3头,4头,"
         ];
 
-        // 257 那行没有星号 → 按四头反推缺 2。
         Assert.Equal("2头", RuleEngine.ExtractFinalValue(lines, 257, rule));
-        // 256 那行星号直接标在 0头 上 → 以星号为准（图上印的答案），不再反推。
-        Assert.Equal("0头", RuleEngine.ExtractFinalValue(lines, 256, rule));
+        // ★ 标的是开奖结果落在哪个头，不是答案：256 那行开的是 0头，而答案（缺的头）是 1头。
+        Assert.Equal("1头", RuleEngine.ExtractFinalValue(lines, 256, rule));
     }
 
     [Fact]
