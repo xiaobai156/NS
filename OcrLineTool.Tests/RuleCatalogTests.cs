@@ -1,4 +1,4 @@
-using OcrLineTool;
+﻿using OcrLineTool;
 
 namespace OcrLineTool.Tests;
 
@@ -532,10 +532,17 @@ public sealed class RuleCatalogTests
         OcrRule rule = Assert.Single(rules, item => item.Id == "翩翩公子尾");
 
         Assert.True(rule.AllowValueWithoutKeyword);
+        // 这一行没有「公子送尾数」标签、尾数又排在期号之后（不是开奖格之后），
+        // 按现在的专属版式读不到九个尾 → 判缺失，不再靠通用扫描凑。
+        Assert.Null(RuleEngine.ExtractValue(
+            ["244期", "0 1 2 3 4 5 6 7 9 准！", "开??"],
+            244,
+            rule));
+        // 真实版式（标签 + 开奖格两侧的尾数 + 准！）能正常出值。
         Assert.Equal(
             "8尾",
             RuleEngine.ExtractValue(
-                ["244期", "0 1 2 3 4 5 6 7 9 准！", "开??"],
+                ["244期", "公子送尾数：0 1 2 3 4 5 6 7 开??", "9 准！"],
                 244,
                 rule));
     }
@@ -890,8 +897,9 @@ public sealed class RuleCatalogTests
         OcrRule row = rules.Single(rule => rule.Id == "公式杀行");
 
         string[] real = ["公式绝杀行", "293期", "绝杀一行：水水水", "开??", "292期", "绝杀一行：金 金 金", "羊36中"];
-        Assert.Equal("水", RuleEngine.ExtractFinalValue(real, 293, row));
-        Assert.Equal("金", RuleEngine.ExtractFinalValue(real, 292, row));
+        // 五行统一带「行」后缀输出，和群里其他五行资料一致。
+        Assert.Equal("水行", RuleEngine.ExtractFinalValue(real, 293, row));
+        Assert.Equal("金行", RuleEngine.ExtractFinalValue(real, 292, row));
 
         // 同群的杀肖卡没有「绝杀一行」标签，必须取不到值，不能凑出五行字。
         string[] zodiacCard =
@@ -1144,6 +1152,132 @@ public sealed class RuleCatalogTests
         Assert.Equal("水", RuleEngine.ExtractFinalValue(rowCard, 296, row));
         Assert.Null(RuleEngine.ExtractFinalValue(rowCard, 296, tail));
         Assert.Null(RuleEngine.ExtractFinalValue(rowCard, 296, head));
+    }
+
+    // 黑色六合彩五张缺项卡的真实版式（10.24 原图，297 期行文本原样）：
+    // 每条只认自己标签包住的那一段，形状不对就缺失，绝不回落到通用扫描。
+    [Fact]
+    public void BlackMacauDerivedCardsReadOnlyTheirOwnLabelledField()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "黑色六合彩.json"));
+        OcrRule jinNang = rules.Single(rule => rule.Id == "锦囊杀尾");
+        OcrRule heiKeTail = rules.Single(rule => rule.Id == "黑客杀尾");
+        OcrRule redBull = rules.Single(rule => rule.Id == "红牛四行");
+        OcrRule heiKeFour = rules.Single(rule => rule.Id == "黑客四行");
+        OcrRule heiKeHalf = rules.Single(rule => rule.Id == "黑客半波");
+
+        string[] header = ["新澳", "296期开", "蛇", "鼠", "蛇", "狗", "龍", "鼠", "新", "猴"];
+
+        // 锦囊九尾：括号里 0 1 2 4 5 6 7 8 9，缺 3尾。
+        string[] jinNangCard =
+        [
+            .. header, "锦囊册", "锦囊九尾",
+            "297期", "锦囊九尾：(012456789)", "开??",
+            "296期", "锦囊九尾：(012345789)", "猴23中"
+        ];
+        Assert.Equal("3尾", RuleEngine.ExtractFinalValue(jinNangCard, 297, jinNang));
+        Assert.Equal("6尾", RuleEngine.ExtractFinalValue(jinNangCard, 296, jinNang));
+        // 296 那行的开奖格是「猴23中」，所以先确认 296 行自己读得对：括号里 012345789 缺 6。
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            [.. header, "297期", "锦囊九尾：(012456789)", "开??"], 296, jinNang));
+        // 括号里只有八个尾：判缺失，不拿开奖号的数字凑。
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            [.. header, "297期", "锦囊九尾：(01245679)", "开??"], 297, jinNang));
+
+        // 黑客九尾：标签后 0 1 2 3 4 5 6 7 9，缺 8尾。
+        string[] heiKeTailCard =
+        [
+            .. header, "黑客数据", "数据分析", "必中九尾",
+            "297期", "数据分析 0 1 2 3 4 5 6 7 9 尾", "开??",
+            "296期", "数据分析 0 1 3 4 5 6 7 8 9 尾", "猴23中"
+        ];
+        Assert.Equal("8尾", RuleEngine.ExtractFinalValue(heiKeTailCard, 297, heiKeTail));
+        Assert.Equal("2尾", RuleEngine.ExtractFinalValue(heiKeTailCard, 296, heiKeTail));
+        // 只有八个尾数：缺失。
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            [.. header, "297期", "数据分析 0 1 2 3 4 5 6 7 尾", "开??"], 297, heiKeTail));
+
+        // 红牛四行：靶心之间 木 水 火 土，缺 金。
+        string[] redBullCard =
+        [
+            .. header, "红牛论坛【中特四行】",
+            "297期", "四行中特 木 水 火 土", "开??",
+            "296期", "四行中特 金 木 火 土", "猴23错"
+        ];
+        Assert.Equal("金行", RuleEngine.ExtractFinalValue(redBullCard, 297, redBull));
+        Assert.Equal("水行", RuleEngine.ExtractFinalValue(redBullCard, 296, redBull));
+
+        // 黑客四行：方括号里 金 木 水 土，缺 火。
+        string[] heiKeFourCard =
+        [
+            .. header, "黑客数据", "GPT解4行",
+            "297期", "五行必中【金 木 水 土】", "开??",
+            "296期", "五行必中【金 木 水 火】", "猴23中"
+        ];
+        Assert.Equal("火行", RuleEngine.ExtractFinalValue(heiKeFourCard, 297, heiKeFour));
+        Assert.Equal("土行", RuleEngine.ExtractFinalValue(heiKeFourCard, 296, heiKeFour));
+        // 四个五行里有重复：缺失。
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            [.. header, "297期", "五行必中【金 木 木 土】", "开??"], 297, heiKeFour));
+
+        // 黑客半波：五种缺「绿波双」→ 输出「绿双」。
+        string[] heiKeHalfCard =
+        [
+            .. header, "黑客数据", "GPT半波预测",
+            "297期", "数据半波【红波单 红波双 蓝波单 蓝波双 绿波单】", "开??",
+            "296期", "数据半波【红波单 红波双 蓝波单 蓝波双 绿波双】", "猴23中"
+        ];
+        Assert.Equal("绿双", RuleEngine.ExtractFinalValue(heiKeHalfCard, 297, heiKeHalf));
+        Assert.Equal("绿单", RuleEngine.ExtractFinalValue(heiKeHalfCard, 296, heiKeHalf));
+        // 只有四种半波：缺失。
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            [.. header, "297期", "数据半波【红波单 红波双 蓝波单 蓝波双】", "开??"], 297, heiKeHalf));
+    }
+
+    // 新澳高手亚太/战澳两张系列卡的真实写法（10.24 原图行文本）：
+    // 只认本期行自己字段名之后那段，个数或重复不对判缺失。
+    [Fact]
+    public void AsiaPacificAndZhanaoCardsReadOnlyTheirOwnField()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "新澳高手.json"));
+        OcrRule yaTaiHead = rules.Single(rule => rule.Id == "亚太一头");
+        OcrRule yaTaiTail = rules.Single(rule => rule.Id == "亚太尾");
+        OcrRule yaTaiPair = rules.Single(rule => rule.Id == "亚太两肖");
+        OcrRule yaTaiElement = rules.Single(rule => rule.Id == "亚太五行");
+        OcrRule zhanAoHead = rules.Single(rule => rule.Id == "战澳头");
+        OcrRule zhanAoTail = rules.Single(rule => rule.Id == "战澳尾");
+        OcrRule zhanAoPair = rules.Single(rule => rule.Id == "战澳两肖");
+        OcrRule zhanAoElement = rules.Single(rule => rule.Id == "战澳五行");
+
+        // 亚太四头 3124 缺 0；八尾 04567238 缺 1、9；十肖缺蛇马；四行 火木金土 缺水。
+        string[] yaTai =
+        [
+            "〖亚太地区四头〗", "297期：【3124】√", "296期：【4213】√",
+            "【亚太地区八尾〗", "297期：【04567238尾】√", "296期：【01267849尾】×",
+            "【亚太地区十肖〗", "297期：【兔羊狗龙牛鼠猪鸡虎猴】√", "296期：【狗虎猴兔马蛇羊鼠龙牛】√",
+            "【亚太地区四行〗", "297期：【火木金土】√", "296期：【金木水土】√"
+        ];
+        Assert.Equal("0头", RuleEngine.ExtractFinalValue(yaTai, 297, yaTaiHead));
+        Assert.Equal("1尾 9尾", RuleEngine.ExtractFinalValue(yaTai, 297, yaTaiTail));
+        Assert.Equal("马蛇", RuleEngine.ExtractFinalValue(yaTai, 297, yaTaiPair));
+        Assert.Equal("水", RuleEngine.ExtractFinalValue(yaTai, 297, yaTaiElement));
+
+        // 战澳：四头 4210 缺 3；八尾 18463950 缺 2、7；十肖缺狗蛇；四行 金木火土 缺水。
+        string[] zhanAo =
+        [
+            "【战澳团队一以'稳'闻名】", "297期团队十肖：兔鼠猴牛羊龙马鸡虎猪√",
+            "297期团队八尾:18463950√", "297期团队四头：4210√", "297期团队四行:金木火土√"
+        ];
+        Assert.Equal("3头", RuleEngine.ExtractFinalValue(zhanAo, 297, zhanAoHead));
+        Assert.Equal("2尾 7尾", RuleEngine.ExtractFinalValue(zhanAo, 297, zhanAoTail));
+        Assert.Equal("蛇狗", RuleEngine.ExtractFinalValue(zhanAo, 297, zhanAoPair));
+        Assert.Equal("水", RuleEngine.ExtractFinalValue(zhanAo, 297, zhanAoElement));
+
+        // 个数不对（三个头、九个生肖）判缺失。
+        Assert.Null(RuleEngine.ExtractFinalValue(["297期：【312】√"], 297, yaTaiHead));
+        Assert.Null(RuleEngine.ExtractFinalValue(["297期：【兔羊狗龙牛鼠猪鸡虎】√"], 297, yaTaiPair));
     }
 }
 

@@ -1117,25 +1117,31 @@ public static class RuleEngine
         if (rule.Id == "黑客九肖" && rule.Type == "九肖")
             return ExtractNineZodiacsAcrossWrappedRows(lines, issue, rule);
 
-        // 黑色六合彩「黑客杀尾」：九个尾数可能被 OCR 拆成单字符逐个输出
-        //（0 / 2 / 3 / 5 … / 9尾），必须按出现顺序合并后取九个不同尾数反推缺的那个。
+        // 每张卡的图片内容格式不同，取值一律走该卡自己的专属解析（见各 Id 分支）。
+        // 共用的只有「只读本期那一行、遇期号/开奖格即停」这个基础动作。
+
+        // 黑色六合彩「黑客杀尾」：卡面「数据分析 0 1 2 3 4 5 6 7 9 尾」，九个尾缺一个。
         if (rule.Id == "黑客杀尾" && rule.Type == "缺尾")
-            return ExtractNineTailsAcrossSplitRows(lines, issue, rule);
+            return ExtractHeiKeNineTails(lines, issue);
+
+        // 黑色六合彩「锦囊杀尾」：卡面「锦囊九尾：(012456789)」，括号里九个尾缺一个。
+        if (rule.Id == "锦囊杀尾" && rule.Type == "缺尾")
+            return ExtractJinNangNineTails(lines, issue);
 
         // 黑色六合彩「黑客杀两肖」：数据行「数据杀特肖：鼠 兔」印在期号格下方，
         // 只取该标签后的两个不同生肖。
         if (rule.Id == "黑客杀两肖" && rule.Type == "生肖组合")
             return ExtractKillTwoZodiacs(lines, issue, rule);
 
-        // 嫣然电报「公式杀一肖」：卡面把同一个生肖重复印三遍（豬豬豬），取唯一那个生肖。
-        if (rule.Id == "公式杀一肖" && rule.Type == "生肖")
-            return ExtractRepeatedSingleZodiac(lines, issue, rule);
-
-        // 嫣然电报「公式杀行」：只认本期块里带「绝杀一行」标签的那一行。
-        // 同群的「公式绝杀肖」卡标题也含「绝杀」，通用单五行分支会从别处凑出一个
-        // 五行字，导致两张卡给出不同值被判冲突；这里用字段标签当硬身份。
-        if (rule.Id == "公式杀行" && rule.Type == "单五行")
-            return ExtractLabelledSingleElement(lines, issue, rule);
+        // 嫣然电报「公式杀一肖 / 公式杀尾 / 公式杀头 / 公式半波 / 公式杀行」：
+        // 卡面都是「期号 + 固定标签 + 值 + 开奖格」，和黑色六合彩同一套骨架，
+        // 只认本期行标签后的字段，三遍重复必须一致，形状不对判缺失。
+        if (rule.Id is "公式杀一肖" or "公式杀尾" or "公式杀行")
+            return ExtractLabelledRepeatedValue(lines, issue, rule);
+        if (rule.Id == "公式杀头" && rule.Type == "头")
+            return ExtractLabelledSingleHead(lines, issue);
+        if (rule.Id == "公式半波" && rule.Type == "色单双")
+            return ExtractLabelledSingleHalfWave(lines, issue);
 
         // 嫣然电报「十码必杀」：号码行被期号格和「直接不要」标签切断，
         // 只合并同一目标期前后的完整号码段，仍校验 10 个唯一 01～49。
@@ -1147,10 +1153,20 @@ public static class RuleEngine
         if (rule.Id == "锦囊杀十码" && rule.Type == "号码:10")
             return ExtractSplitTenNumbers(lines, issue, rule);
 
-        // 黑色六合彩「黑客半波」：五种半波同样跨期号行印出（方括号被期号格切开），
-        // 需要把本期块两侧合起来才凑齐五种，再反推缺的那一种。
+        // 黑色六合彩「黑客半波」：卡面固定「数据半波【红波单 … 绿波单】」，
+        // 只认本期行方括号里那五个半波（六种缺一），括号外不参与。
         if (rule.Id == "黑客半波" && rule.Type == "缺半波")
-            return ExtractSplitHalfWaves(lines, issue, rule);
+            return ExtractLabelledHalfWaves(lines, issue);
+
+        // 黑色六合彩「红牛四行」：卡面固定「四行中特 🎯金 水 火 土🎯」，
+        // 只认两个靶心之间那四个不同五行，反推缺的那个。
+        if (rule.Id == "红牛四行" && rule.Type == "缺五行")
+            return ExtractLabelledFourElements(lines, issue, @"四行中特");
+
+        // 黑色六合彩「黑客四行」：卡面固定「五行必中【金 木 水 土】」，
+        // 只认本期行方括号里那四个不同五行，反推缺的那个。
+        if (rule.Id == "黑客四行" && rule.Type == "缺五行")
+            return ExtractLabelledFourElements(lines, issue, @"五行必中");
 
         // 复核卡（require_row_structure）：取值只认目标期号那一行，不拼行、不借期。
         if (rule.RequireRowStructure)
@@ -1497,6 +1513,154 @@ public static class RuleEngine
         return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
     }
 
+    // 黑色六合彩专属版式：五张卡都是「期号 + 固定标签 + 括号/靶心包住的取值 + 开奖格」，
+    // 值行有时被 OCR 折成两行，所以按「本期行及其下一行」取；标签外、别的期号、
+    // 开奖格一律不参与。取不到或形状不对就判缺失，绝不回落到通用扫描。
+    private static IEnumerable<string> LabelledIssuePayload(
+        string[] lines, int issue, string label, bool labelOptional = false)
+    {
+        for (int index = 0; index < lines.Length; index++)
+        {
+            if (!ContainsIssue(lines[index], issue))
+                continue;
+            var text = new System.Text.StringBuilder(SimplifyOcrText(lines[index]));
+            // 值行可能被 OCR 折成多行（黑客九尾常被拆成 0 / 1 / 2 … / 9尾 逐个输出），
+            // 只向后合并到下一个期号或开奖格之前，绝不跨行到别的期。
+            for (int next = index + 1; next < lines.Length && next - index <= 12; next++)
+            {
+                string following = lines[next].Trim();
+                if (following.Length == 0
+                    || ContainsAnyIssue(following)
+                    || following.StartsWith('开')
+                    || following.Contains('期')
+                    // 开奖格（猴23中 / 馬25错）不是资料值，遇到就停，别把开奖号码带进来。
+                    || Regex.IsMatch(following, $@"^[{Zodiac}]\s*\d{{1,2}}\s*[中错錯准準赢贏√×✗]"))
+                    break;
+                text.Append(' ').Append(SimplifyOcrText(following));
+            }
+            string payload = BeforeOpeningResult(text.ToString());
+            int at = payload.IndexOf(label, StringComparison.Ordinal);
+            if (at >= 0)
+                yield return payload[(at + label.Length)..];
+            else if (labelOptional)
+                // 允许没有关键词的卡（翩翩公子尾）：标签没读出来时，整段就是字段。
+                yield return payload;
+        }
+    }
+
+    // 锦囊九尾「(012456789)」/ 黑客九尾「0 1 2 3 4 5 6 7 9 尾」：
+    // 标签后必须恰好九个不同单数字，反推缺的那个尾。
+    private static string? ExtractLabelledNineTails(string[] lines, int issue)
+    {
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string label in new[] { "锦囊九尾", "数据分析" })
+        {
+            foreach (string payload in LabelledIssuePayload(lines, issue, label))
+            {
+                // 锦囊把九个尾印成连写的「(012456789)」，黑客印成「0 1 2 3 4 5 6 7 9 尾」。
+                // 两种都按单个数字收；出现两位数（2 位）说明混进了开奖号或期号，直接丢弃。
+                string[] runs = Regex.Replace(payload, @"[^0-9]", " ")
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (runs.Length == 0 || runs.Any(run => run.Length == 2))
+                    continue;
+                int[] tails = runs.SelectMany(run => run.Select(character => character - '0'))
+                    .Distinct().ToArray();
+                if (tails.Length != 9)
+                    continue;
+                observed.Add($"{Enumerable.Range(0, 10).Single(number => !tails.Contains(number))}尾");
+            }
+        }
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    // 黑色六合彩「锦囊杀尾」专属版式：
+    //   297期 | 锦囊九尾：(0 1 2 4 5 6 7 8 9) | 开??
+    // 括号里是连写的九个数字（可能带空格），缺一个就是答案。只认本期行、只认括号内；
+    // 括号缺失、个数不是九个、出现两位数（说明读到开奖号/期号）一律判缺失。
+    private static string? ExtractJinNangNineTails(string[] lines, int issue)
+    {
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string payload in LabelledIssuePayload(lines, issue, "锦囊九尾"))
+        {
+            Match bracket = Regex.Match(payload, @"[（(]\s*(?<digits>[0-9\s]{9,30})\s*[）)]");
+            if (!bracket.Success)
+                continue;
+            string[] runs = Regex.Replace(bracket.Groups["digits"].Value, @"\s+", " ")
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (runs.Any(run => run.Length == 2))
+                continue;
+            int[] tails = runs.SelectMany(run => run.Select(character => character - '0'))
+                .Distinct().ToArray();
+            if (tails.Length != 9)
+                continue;
+            observed.Add($"{Enumerable.Range(0, 10).Single(number => !tails.Contains(number))}尾");
+        }
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    // 黑色六合彩「黑客杀尾」专属版式：
+    //   297期 | 数据分析 0 1 2 3 4 5 6 7 9 尾 | 开??
+    // 「数据分析」到「尾」之间是空格分隔的九个单数字，缺一个就是答案。
+    private static string? ExtractHeiKeNineTails(string[] lines, int issue)
+    {
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string payload in LabelledIssuePayload(lines, issue, "数据分析"))
+        {
+            Match field = Regex.Match(payload, @"^(?<digits>[0-9\s]{9,40}?)\s*尾");
+            if (!field.Success)
+                continue;
+            string[] runs = field.Groups["digits"].Value.Trim()
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (runs.Length == 0 || runs.Any(run => run.Length != 1))
+                continue;
+            int[] tails = runs.Select(run => run[0] - '0').Distinct().ToArray();
+            if (tails.Length != 9)
+                continue;
+            observed.Add($"{Enumerable.Range(0, 10).Single(number => !tails.Contains(number))}尾");
+        }
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    // 黑色六合彩「红牛四行」/「黑客四行」：两张卡各自版式不同——
+    //   红牛：四行中特 🎯木 水 火 土🎯
+    //   黑客：五行必中【金 木 水 土】
+    // 只在标签后取四个不同五行，缺的那个就是答案。
+    private static string? ExtractLabelledFourElements(string[] lines, int issue, string label)
+    {
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string payload in LabelledIssuePayload(lines, issue, label))
+        {
+            // 靶心、括号都是分隔符；只认这五个五行字，个数或重复不符就判缺失。
+            string cleaned = Regex.Replace(payload, @"[^\p{L}]", string.Empty);
+            string value = string.Concat(Regex.Matches(cleaned, "[金木水火土]").Select(match => match.Value));
+            if (value.Length != 4 || value.Distinct().Count() != 4)
+                continue;
+            observed.Add(Enumerable.Range(0, 5).Select(n => "金木水火土"[n]).Single(e => !value.Contains(e)) + "行");
+        }
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    // 黑客半波「【红波单 红波双 蓝波单 蓝波双 绿波单】」：
+    // 标签后必须恰好五个不同半波（六种缺一），反推缺的那一种。
+    private static string? ExtractLabelledHalfWaves(string[] lines, int issue)
+    {
+        string[] all = ["红波单", "红波双", "蓝波单", "蓝波双", "绿波单", "绿波双"];
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string payload in LabelledIssuePayload(lines, issue, "数据半波"))
+        {
+            string[] found = Regex.Matches(payload, "(?<color>[红蓝绿])\\s*波?\\s*(?<parity>[单双])")
+                .Select(match => match.Groups["color"].Value + "波" + match.Groups["parity"].Value)
+                .Distinct(StringComparer.Ordinal).ToArray();
+            if (found.Length != 5)
+                continue;
+            string[] missing = all.Except(found, StringComparer.Ordinal).ToArray();
+            if (missing.Length != 1)
+                continue;
+            observed.Add(missing[0].Replace("波", string.Empty));
+        }
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
     // 黑色六合彩「黑客杀两肖」：数据行「数据杀特肖：鼠 兔」印在期号格下方，
     // 只取该标签后的两个不同生肖；多肖、重复或没有生肖都判缺失。
     private static string? ExtractKillTwoZodiacs(string[] lines, int issue, OcrRule rule)
@@ -1568,6 +1732,71 @@ public static class RuleEngine
             char[] zodiacs = joined.Where(Zodiac.Contains).ToArray();
             if (zodiacs.Length == 9 && zodiacs.Distinct().Count() == 9)
                 observed.Add(string.Concat(zodiacs));
+        }
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    // 嫣然电报「公式杀一肖 / 公式杀尾 / 公式杀行」：卡面把同一个值重复印三遍
+    //（雞雞雞 / 1 1 1 / 土 土 土）。只认本期行标签后的字段，三遍必须一致；
+    // 出现两个不同值、个数不是三、或标签缺失，一律判缺失。
+    private static string? ExtractLabelledRepeatedValue(string[] lines, int issue, OcrRule rule)
+    {
+        string[] labels = rule.Type switch
+        {
+            "生肖" => ["一肖", "杀肖"],
+            "尾" => ["一尾", "杀尾"],
+            "单五行" => ["绝杀一行", "杀一行"],
+            _ => ["一肖"]
+        };
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string label in labels)
+        {
+            foreach (string payload in LabelledIssuePayload(lines, issue, label))
+            {
+                string field = Regex.Replace(payload, @"[^\p{L}\p{N}]", " ");
+                IEnumerable<string> tokens = rule.Type switch
+                {
+                    "生肖" => Regex.Matches(field, $"[{Zodiac}]").Select(match => match.Value),
+                    "尾" => Regex.Matches(field, @"(?<!\d)[0-9](?!\d)").Select(match => match.Value + "尾"),
+                    _ => Regex.Matches(field, "[金木水火土]").Select(match => match.Value + "行")
+                };
+                string[] values = tokens.Distinct(StringComparer.Ordinal).ToArray();
+                // 卡面把同一个值重复印几遍是排版习惯（现在常见三遍），不是校验条件：
+                // 去重后只允许一个值，出现两个不同值才判缺失。
+                if (values.Length != 1)
+                    continue;
+                observed.Add(values[0]);
+            }
+        }
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    // 嫣然电报「公式杀头」：本期行只有「0头」这样一个值，别的字段不参与。
+    private static string? ExtractLabelledSingleHead(string[] lines, int issue)
+    {
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string payload in LabelledIssuePayload(lines, issue, string.Empty))
+        {
+            MatchCollection heads = Regex.Matches(payload, @"(?<!\d)(?<head>[0-4零一二三四])\s*头");
+            string[] values = heads.Select(match => $"{ToArabicDigit(match.Groups["head"].Value[0])}头")
+                .Distinct(StringComparer.Ordinal).ToArray();
+            if (heads.Count == 1 && values.Length == 1)
+                observed.Add(values[0]);
+        }
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    // 嫣然电报「公式半波」：本期行「1肖 蓝波单」，标签后恰好一个红/蓝/绿单双。
+    private static string? ExtractLabelledSingleHalfWave(string[] lines, int issue)
+    {
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string payload in LabelledIssuePayload(lines, issue, "1肖"))
+        {
+            MatchCollection waves = Regex.Matches(payload, "(?<color>[红蓝绿])\\s*波?\\s*(?<parity>[单双])");
+            string[] values = waves.Select(match => match.Groups["color"].Value + match.Groups["parity"].Value)
+                .Distinct(StringComparer.Ordinal).ToArray();
+            if (waves.Count == 1 && values.Length == 1)
+                observed.Add(values[0]);
         }
         return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
     }
@@ -3367,6 +3596,24 @@ public static class RuleEngine
         string? treasureDirection = ExtractTreasureDirections(lines, issue, rule);
         if (treasureDirection is not null)
             return treasureDirection;
+        // 新澳高级会员这几张卡各有固定写法，各走自己的专属解析（只读本期行 + 自己的字段）：
+        //   翩翩公子尾   公子送尾数：0 1 2 4 5 6 7 8 9 准！   （九个尾缺一，常折成两行）
+        //   翩翩公子五行 公子4行：金 木 水 土 准！            （四个五行缺一）
+        //   翩翩公子半波 公子秒杀半波：绿波单 准！            （恰一个半波）
+        //   翩翩公子头   公子禁止1头：一头 准！               （恰一个头，标签里的「1头」不算值）
+        //   会员暴打     会员九肖：雞馬狗虎猴猪鼠龍蛇         （九个不同生肖）
+        if (rule.Id is "翩翩公子尾" or "翩翩公子五行" or "翩翩公子半波" or "翩翩公子头" or "会员暴打")
+            return ExtractMemberLabelledCard(lines, issue, rule);
+        // 新澳六合彩资料这几张缺项卡各有固定写法，同样各走自己的取数（校验仍交给类型层）：
+        //   大赢家杀尾 狂赢九尾:012346789                 （连写九个尾，缺一）
+        //   铁甲小宝   【四头出特→→→0 1 2 3】            （方括号里四个头，缺一）
+        //   特头必中   必中四头(( 0 1 2 4 ))头            （双括号里四个头，缺一）
+        //   帅铁两肖   精选:狗 馬 龍 牛 虎 蛇 兔 鼠 猴 猪 （十个生肖，缺两）
+        //   心水两两肖 馬 雞 兔 鼠 龍 猴 羊 虎 狗 牛       （十个生肖，缺两）
+        //   白小姐四季 / 慈善四季  四季:夏肖 秋肖 冬肖     （三个季节还原九肖）
+        if (rule.Id is "大赢家杀尾" or "铁甲小宝" or "特头必中"
+            or "帅铁两肖" or "心水两两肖" or "白小姐四季" or "慈善四季")
+            return ExtractMacauLabelledCard(lines, issue, rule);
         // Do not infer a centred/split row from page-level leading numbers.
         // Reviewed wrapped cards are handled below by TryExtractWrappedCardRow,
         // which consumes explicit neighbouring physical rows instead of TakeLast
@@ -3652,7 +3899,214 @@ public static class RuleEngine
         }
     }
 
-    // 藏宝库【东西南北】付费版（新澳高级会员「藏宝九肖」专属）：卡面每期只印三个方位，
+    // 新澳六合彩资料七张缺项卡：版式都是「期号 | 标签/括号包住的值 | 开奖格」，
+    // 值各有各的形状，所以取数在这里按卡分派、校验仍交给统一类型层。
+    private static string? ExtractMacauLabelledCard(string[] lines, int issue, OcrRule rule)
+    {
+        string label = rule.Id switch
+        {
+            "大赢家杀尾" => "狂赢九尾",
+            "铁甲小宝" => "四头出特",
+            "特头必中" => "必中四头",
+            "帅铁两肖" => "精选",
+            "白小姐四季" or "慈善四季" => "四季",
+            _ => string.Empty   // 心水两两肖没有标签，整行就是十个生肖
+        };
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string rawPayload in LabelledIssuePayload(lines, issue, label, label.Length == 0))
+        {
+            // 先剥掉期号标记，再检查字段里有没有多余文字：卡面只允许标签、括号、箭头、
+            // 「肖/头」这类结构字，混进别的字母或数字说明这行读串了，直接判缺失。
+            string payload = Regex.Replace(rawPayload, @"(?<!\d)\d{1,6}\s*期", string.Empty);
+            (string Decorations, string Allowed) guard = rule.Id switch
+            {
+                "大赢家杀尾" => ("狂赢九尾", "[0-9]"),
+                "铁甲小宝" => ("四头出特", "[0-9]"),
+                "特头必中" => ("必中四头", "[0-9头]"),
+                "帅铁两肖" => ("精选", $"[{Zodiac}]"),
+                "心水两两肖" => (string.Empty, $"[{Zodiac}]"),
+                _ => ("四季", "[四季春夏秋冬肖]")
+            };
+            string residue = guard.Decorations.Length > 0
+                ? Regex.Replace(payload, guard.Decorations, string.Empty)
+                : payload;
+            residue = Regex.Replace(residue, guard.Allowed, string.Empty);
+            // 只把「像字段内容」的多余字符算作读串（字母、数字、其他生肖）；
+            // 冒号、括号、箭头、空格这些结构符号不算。
+            if (residue.Any(character => char.IsLetterOrDigit(character)))
+                continue;
+            string? value = rule.Id switch
+            {
+                "大赢家杀尾" => MacauNineTails(payload),
+                "铁甲小宝" or "特头必中" => MacauFourHeads(payload),
+                "帅铁两肖" or "心水两两肖" => MacauTenZodiacs(payload),
+                _ => MacauSeasons(payload)
+            };
+            if (value is not null)
+                observed.Add(value);
+        }
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    // 连写的九个尾（012346789），缺一个 → 「N尾」。
+    private static string? MacauNineTails(string field)
+    {
+        int[] digits = field.Where(char.IsDigit).Select(character => character - '0').ToArray();
+        int[] tails = digits.Distinct().ToArray();
+        return digits.Length == 9 && tails.Length == 9
+            ? $"{Enumerable.Range(0, 10).Single(number => !tails.Contains(number))}尾"
+            : null;
+    }
+
+    // 括号里的四个头（「→→→0 1 2 3」/「(( 0 1 2 4 ))」），缺一个 → 「N头」。
+    private static string? MacauFourHeads(string field)
+    {
+        int[] heads = Regex.Matches(field, @"(?<!\d)[0-4](?!\d)")
+            .Select(match => match.Value[0] - '0').ToArray();
+        int[] distinct = heads.Distinct().ToArray();
+        return heads.Length == 4 && distinct.Length == 4
+            ? $"{Enumerable.Range(0, 5).Single(number => !distinct.Contains(number))}头"
+            : null;
+    }
+
+    // 十个不同生肖，缺两个 → 按生肖顺序补出缺的两个。
+    private static string? MacauTenZodiacs(string field)
+    {
+        string zodiacs = string.Concat(Regex.Matches(field, $"[{Zodiac}]").Select(match => match.Value).Distinct());
+        return zodiacs.Length == 10
+            ? string.Concat(Zodiac.Where(zodiac => !zodiacs.Contains(zodiac)))
+            : null;
+    }
+
+    // 三个不同季节字，按属性表还原九个生肖（顺序：季节按图中、生肖按属性表）。
+    private static string? MacauSeasons(string field)
+    {
+        string seasons = ZodiacAttributes.FamilyCharacters("四季");
+        string picked = new(field.Where(seasons.Contains).ToArray());
+        if (picked.Length != 3 || picked.Distinct().Count() != 3)
+            return null;
+        string expanded = string.Concat(picked.Select(season =>
+            ZodiacAttributes.TryGetZodiacs(season.ToString(), out string zodiacs) ? zodiacs : string.Empty));
+        return expanded.Length == 9 && expanded.Distinct().Count() == 9 ? expanded : null;
+    }
+
+    // 新澳高级会员五张卡：版式一样（期号 | 固定标签 + 值 + 准！ | 开奖格），
+    // 值各有各的形状，所以取数只走这一处、校验按规则各自的字段：
+    //   翩翩公子尾   九个不同尾数，缺一个 → 「N尾」
+    //   翩翩公子五行 四个不同五行，缺一个 → 「X行」
+    //   翩翩公子半波 恰好一个「红/蓝/绿 + 单/双」
+    //   翩翩公子头   恰好一个「X头」，标签「公子禁止1头」里的 1头 不是值
+    //   会员暴打     九个不同生肖
+    private static string? ExtractMemberLabelledCard(string[] lines, int issue, OcrRule rule)
+    {
+        string label = rule.Id switch
+        {
+            "翩翩公子尾" => "公子送尾数",
+            "翩翩公子五行" => "公子4行",
+            "翩翩公子半波" => "公子秒杀半波",
+            "翩翩公子头" => "公子禁止1头",
+            _ => "会员九肖"
+        };
+        // 「公子送尾数」这张卡的标签可能没被读出来，此时只要本期行里是一串纯尾数
+        // 加「准！」的写法，也按同一张卡取值（该规则本来就允许没有关键词）。
+        bool labelOptional = rule.AllowValueWithoutKeyword;
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        // 翩翩公子尾的值会被开奖格切成两行（「…0123467 开??」+「89 准！」），
+        // 这一条要越过开奖格继续读到「准！」为止；其余四条都停在开奖格。
+        IEnumerable<string> payloads = rule.Id == "翩翩公子尾"
+            ? MemberWrappedTailPayloads(lines, issue)
+            : LabelledIssuePayload(lines, issue, label, labelOptional);
+        foreach (string payload in payloads)
+        {
+            // 「准！」是这张卡自己的结尾标记，值到它就结束。
+            string field = Regex.Split(payload, "准|準")[0];
+            string? value = rule.Id switch
+            {
+                "翩翩公子尾" => MemberNineTails(field),
+                "翩翩公子五行" => MemberFourElements(field),
+                "翩翩公子半波" => MemberSingleHalfWave(field),
+                "翩翩公子头" => MemberSingleHead(field),
+                _ => MemberNineZodiacs(field)
+            };
+            if (value is not null)
+                observed.Add(value);
+        }
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    // 翩翩公子尾专属：这张卡把尾数印在开奖格两侧，形如
+    //   297期 | 公子送尾数：0 1 2 4 5 6 7 | 开?? | 8 9 准！
+    // 所以从本期行开始、越过「开??」继续收到「准！」，把两侧数字拼成一个字段。
+    // 遇到下一个期号立即停，绝不跨期；标签「公子送尾数」缺失时整段就是字段。
+    private static IEnumerable<string> MemberWrappedTailPayloads(string[] lines, int issue)
+    {
+        for (int index = 0; index < lines.Length; index++)
+        {
+            if (!ContainsIssue(lines[index], issue))
+                continue;
+            var text = new System.Text.StringBuilder(SimplifyOcrText(lines[index]));
+            bool closed = text.ToString().Contains('准') || text.ToString().Contains('準');
+            for (int next = index + 1; next < lines.Length && !closed; next++)
+            {
+                string following = lines[next].Trim();
+                if (following.Length == 0 || ContainsAnyIssue(following))
+                    break;
+                text.Append(' ').Append(SimplifyOcrText(following));
+                closed = following.Contains('准') || following.Contains('準');
+            }
+            string payload = text.ToString();
+            int at = payload.IndexOf("公子送尾数", StringComparison.Ordinal);
+            if (at >= 0)
+                payload = payload[(at + "公子送尾数".Length)..];
+            yield return Regex.Split(payload, "准|準")[0];
+        }
+    }
+
+    // 九个不同尾数（卡面可能连写「0123467」+「89」，也可能空格分开），缺一个 → 「N尾」。
+    // 判定只看数字总数：必须正好九个数字且九个都不同；多一个、少一个、有重复都判缺失。
+    private static string? MemberNineTails(string field)
+    {
+        int[] digits = field.Where(char.IsDigit).Select(character => character - '0').ToArray();
+        int[] tails = digits.Distinct().ToArray();
+        return digits.Length == 9 && tails.Length == 9
+            ? $"{Enumerable.Range(0, 10).Single(number => !tails.Contains(number))}尾"
+            : null;
+    }
+
+    // 四个不同五行，按印出顺序原样交出四个字；「缺哪个」由统一的格式层反推（输出带「行」）。
+    private static string? MemberFourElements(string field)
+    {
+        string value = string.Concat(Regex.Matches(field, "[金木水火土]").Select(match => match.Value));
+        return value.Length == 4 && value.Distinct().Count() == 4 ? value : null;
+    }
+
+    // 恰好一个半波；出现两个不同组合就判缺失。
+    private static string? MemberSingleHalfWave(string field)
+    {
+        string[] found = Regex.Matches(field, "(?<color>[红蓝绿])\\s*波?\\s*(?<parity>[单双])")
+            .Select(match => match.Groups["color"].Value + match.Groups["parity"].Value)
+            .Distinct(StringComparer.Ordinal).ToArray();
+        return found.Length == 1 ? found[0] : null;
+    }
+
+    // 恰好一个头。标签「公子禁止1头」本身含「1头」，必须先把标签剥掉再取值。
+    private static string? MemberSingleHead(string field)
+    {
+        string stripped = Regex.Replace(field, @"公子禁止\s*[1一]\s*头", string.Empty);
+        string[] found = Regex.Matches(stripped, @"(?<!\d)(?<head>[0-4零一二三四])\s*头")
+            .Select(match => $"{ToArabicDigit(match.Groups["head"].Value[0])}头")
+            .Distinct(StringComparer.Ordinal).ToArray();
+        return found.Length == 1 ? found[0] : null;
+    }
+
+    // 九个不同生肖。
+    private static string? MemberNineZodiacs(string field)
+    {
+        string value = string.Concat(Regex.Matches(field, $"[{Zodiac}]").Select(match => match.Value));
+        return value.Length == 9 && value.Distinct().Count() == 9 ? value : null;
+    }
+
+    // 新澳高级会员「藏宝九肖」：卡面每期只印三个方位，
     // 这张卡是「九个生肖」用方位表达，按属性表还原成生肖再输出（东=兔虎龙…），
     // 方位顺序按原图，生肖顺序按属性表；方位固定就是 东西南北（用户确认）。
     // 本期必须恰好印三个不同方位，多/少/重复一律缺失；
@@ -3852,6 +4306,14 @@ public static class RuleEngine
         else if (rule.Folder is "各种杀" or "公式杀料" or "一套组合拳" or "综合")
         {
             block = ExtractDragonflyPayload(Regex.Replace(block, @"\s+", ""), rule);
+            if (block == ConflictMarker)
+                return ConflictMarker;
+            if (block.Length == 0)
+                return null;
+        }
+        else if (rule.Folder is "亚太地区" or "战澳团队")
+        {
+            block = ExtractAsiaPacificPayload(block, rule);
             if (block == ConflictMarker)
                 return ConflictMarker;
             if (block.Length == 0)
@@ -4190,6 +4652,8 @@ public static class RuleEngine
     {
         if (rule.Id is "黑字杀头" or "黑字杀行" or "黑字杀合")
         {
+            // 黑字共享表：每行固定「N期 | X头 | 五行 | NN合 | 开:…」，三列各取一列。
+            // 只认本期那一行，别的期号一律不参与；三列里缺自己那一列就判缺失。
             string row = Regex.Replace(block, @"[^\p{L}\p{N}]", "");
             Match columns = Regex.Match(row,
                 @"^(?<head>[0-4]头)?(?<element>[金木水火土])?(?<sum>(?:0?[1-9]|1[0-3])合)?$");
@@ -4295,6 +4759,40 @@ public static class RuleEngine
         return unframed;
     }
 
+    // 新澳高手「亚太地区 / 战澳团队」两张系列卡：每张卡自己的字段名不同，但写法一样——
+    //   亚太：297期：【3124】 / 【04567238尾】 / 【兔羊狗龙牛鼠猪鸡虎猴】 / 【火木金土】 / 【绿波蓝波】
+    //   战澳：297期团队四头：4210 / 团队八尾:18463950 / 团队十肖：… / 团队四行:金木火土
+    // 只认本期行里自己字段名之后、括号内（或无括号时紧随的字符）那一段；
+    // 个数、重复、范围不对一律判缺失，绝不从别处凑。
+    private static string ExtractAsiaPacificPayload(string block, OcrRule rule)
+    {
+        string field = rule.Id switch
+        {
+            "亚太一头" => @"亚太地区四头",
+            "亚太尾" => @"亚太地区八尾",
+            "亚太两肖" => @"亚太地区十肖",
+            "亚太五行" => @"亚太地区四行",
+            "战澳头" => @"团队四头",
+            "战澳尾" => @"团队八尾",
+            "战澳两肖" => @"团队十肖",
+            "战澳五行" => @"团队四行",
+            _ => string.Empty
+        };
+        if (field.Length == 0)
+            return string.Empty;
+        int at = block.IndexOf(field, StringComparison.Ordinal);
+        if (at < 0)
+            return string.Empty;
+        string payload = block[(at + field.Length)..];
+        // 有括号就只认括号内；没有括号（战澳那几张）取紧随的连续字符，遇别的字就停。
+        Match framed = Regex.Match(payload, @"[【\[〖『（(]\s*(?<value>[^】\]〗』）)]+)\s*[】\]〗』）)]");
+        if (framed.Success)
+            return framed.Groups["value"].Value.Trim();
+        Match bare = Regex.Match(payload,
+            $@"^[：:，,\s]*(?<value>(?:[{Zodiac}]|[0-9]|[金木水火土]|尾|波|单|双)+)");
+        return bare.Success ? bare.Groups["value"].Value.Trim() : string.Empty;
+    }
+
     private static string ExtractHuangdaxianPayload(string block, OcrRule rule)
     {
         string pattern = rule.Id switch
@@ -4333,6 +4831,45 @@ public static class RuleEngine
             Match answer = Regex.Match(payload, $@"\A(?<answer>【[{Zodiac}]】|[{Zodiac}])来");
             if (answer.Success)
                 return answer.Groups["answer"].Value;
+        }
+        // 68 团队的三条缺头卡：卡面固定「赵高杀一头【0134】」，方括号里四个头，
+        // 缺一个就是答案。三条卡用的框不一样（【】/『』/🍀…🍀），统一认这几种包围符；
+        // 框外的开奖号码、期号数字一律不参与。
+        if (rule.Id is "68赵高" or "香奈风清扬" or "战狼蔷薇")
+        {
+            Match frame = Regex.Match(payload,
+                @"[【\[『《（(](?<heads>[0-4\s,，、\-－]{3,20})[】\]』》）)]");
+            string? heads = frame.Success
+                ? new string(frame.Groups["heads"].Value.Where(character => character is >= '0' and <= '4').ToArray())
+                // 战狼蔷薇的卡用「🍀0 1 2 3🍀」这种表情包包围，不是文字括号：
+                // 此时只认紧跟在标签后的四个头字符，遇到别的文字就停。
+                : rule.Id == "战狼蔷薇"
+                    ? new string(payload
+                        .SkipWhile(character => character is not (>= '0' and <= '4'))
+                        .TakeWhile(character => character is >= '0' and <= '4'
+                            || character == ' ' || character == '\u3000' || character == '，' || character == ',')
+                        .Where(character => character is >= '0' and <= '4').ToArray())
+                    : null;
+            if (heads is null)
+                return string.Empty;
+            return heads.Length == 4 && heads.Distinct().Count() == 4 ? heads : string.Empty;
+        }
+        // 香奈老大：卡面「四行中特【金 木 火 土】」，方括号里四个五行，缺一个。
+        if (rule.Id == "香奈老大")
+        {
+            Match frame = Regex.Match(payload, @"[【\[](?<elements>[金木水火土\s,，、]{4,15})[】\]]");
+            if (!frame.Success)
+                return string.Empty;
+            string elements = new(frame.Groups["elements"].Value.Where("金木水火土".Contains).ToArray());
+            return elements.Length == 4 && elements.Distinct().Count() == 4 ? elements : string.Empty;
+        }
+        // 战狼老王：卡面「老王杀半头【4头单】」，只认这一个半头。
+        if (rule.Id == "战狼老王")
+        {
+            Match halfHead = Regex.Match(payload, @"(?<!\d)(?<head>[0-4])\s*头\s*(?<parity>[单双])");
+            return halfHead.Success
+                ? $"{halfHead.Groups["head"].Value}头{halfHead.Groups["parity"].Value}"
+                : string.Empty;
         }
         if (rule.Id == "68凯哥")
             payload = Regex.Split(payload, @"来")[0];
@@ -4839,6 +5376,19 @@ public static class RuleEngine
 
         if (type == "五行")
         {
+            // 嫣然心水「小黄人五行」：卡面下方一行「297期资料网 澳门【土木火水】开:?00准」，
+            // 括号里四个五行，缺的那个就是答案（输出带「行」）。
+            // 上方那张「金行/木行/…」号码对照表不是本期值，不能参与。
+            if (rule?.Id == "小黄人五行")
+            {
+                Match framed = Regex.Match(beforeOpening, @"[【\[](?<elements>[金木水火土\s]{4,12})[】\]]");
+                if (!framed.Success)
+                    return null;
+                string picked = new(framed.Groups["elements"].Value.Where("金木水火土".Contains).ToArray());
+                return picked.Length == 4 && picked.Distinct().Count() == 4
+                    ? Enumerable.Range(0, 5).Select(n => "金木水火土"[n]).Single(e => !picked.Contains(e)) + "行"
+                    : null;
+            }
             string[] elements = Regex.Matches(beforeOpening, "[金木水火土]")
                 .Select(match => match.Value)
                 .ToArray();
@@ -4869,6 +5419,14 @@ public static class RuleEngine
         if (type is "头数组合" or "缺头")
         {
             string withoutIssue = RemoveIssue(beforeOpening);
+            // 嫣然心水「九王爷」：卡面直接印出四个头并给正确那个打★
+            //（「0头,1头,2头,★3头,」）。有星号就以星号为准，没有星号再按四头反推。
+            if (rule?.Id == "九王爷")
+            {
+                Match starred = Regex.Match(withoutIssue, @"★\s*(?<head>[0-4])\s*头");
+                if (starred.Success)
+                    return $"{starred.Groups["head"].Value}头";
+            }
             int marker = withoutIssue.LastIndexOf("四头出特", StringComparison.Ordinal);
             string valueText = marker >= 0 ? withoutIssue[(marker + "四头出特".Length)..] : withoutIssue;
             char[] rawHeads = valueText
