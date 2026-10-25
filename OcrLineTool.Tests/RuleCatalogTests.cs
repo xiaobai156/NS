@@ -907,6 +907,33 @@ public sealed class RuleCatalogTests
         Assert.Null(RuleEngine.ExtractFinalValue(zodiacCard, 293, row));
     }
 
+    // 公式杀尾：卡面把同一个尾数连写三遍（「777」），OCR 也可能读成「7 7 7」。
+    // 连写时每个数字前后都是数字，必须按单个数字取，否则一个都匹配不到、永远缺失。
+    [Theory]
+    [InlineData("298期金牌绝杀一尾：777", "7尾")]
+    [InlineData("298期金牌绝杀一尾：7 7 7", "7尾")]
+    [InlineData("298期金牌绝杀一尾：000", "0尾")]
+    [InlineData("298期金牌绝杀一尾：777开??", "7尾")]
+    public void YanranTelegramTailCardReadsJoinedDigits(string card, string expected)
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然电报.json"));
+        OcrRule tail = rules.Single(rule => rule.Id == "公式杀尾");
+        Assert.Equal(expected, RuleEngine.ExtractFinalValue([card], 298, tail));
+    }
+
+    // 出现两个不同尾数时必须判缺失，不能取第一个；本期行缺失时也不得借上一期。
+    [Fact]
+    public void YanranTelegramTailCardRejectsTwoDifferentDigits()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然电报.json"));
+        OcrRule tail = rules.Single(rule => rule.Id == "公式杀尾");
+        Assert.Null(RuleEngine.ExtractFinalValue(["298期金牌绝杀一尾：778"], 298, tail));
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["297期金牌绝杀一尾：111", "馬13中", "298期开??"], 298, tail));
+    }
+
     // 缺五行：卡面印四个五行字（允许重复），输出没出现的那个并带「行」后缀。
     // 印出的字不足以唯一反推时保持缺失，绝不猜。
     [Fact]

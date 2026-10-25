@@ -1803,7 +1803,9 @@ public static class RuleEngine
                 IEnumerable<string> tokens = rule.Type switch
                 {
                     "生肖" => Regex.Matches(field, $"[{Zodiac}]").Select(match => match.Value),
-                    "尾" => Regex.Matches(field, @"(?<!\d)[0-9](?!\d)").Select(match => match.Value + "尾"),
+                    // 尾数可能连写（「777」）也可能分开（「7 7 7」）：先取出全部数字，
+                    // 去重后仍要求只有一个值，两个不同值才判缺失。
+                    "尾" => Regex.Matches(field, @"[0-9]").Select(match => match.Value + "尾"),
                     _ => Regex.Matches(field, "[金木水火土]").Select(match => match.Value + "行")
                 };
                 string[] values = tokens.Distinct(StringComparer.Ordinal).ToArray();
