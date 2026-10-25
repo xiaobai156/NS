@@ -216,6 +216,9 @@ internal sealed class SettingsForm : Form
             Padding = new Padding(12, 5, 12, 5),
             Margin = Padding.Empty
         };
+        // 自动识别改由主界面「自动识别」窗口按群勾选，这里不再显示旧的全局开关；
+        // 控件与配置字段保留，避免旧设置文件失配。
+        autoVisibleLocalOcrCheckBox.Visible = false;
         autoVisibleLocalOcrCheckBox.Location = new Point(12, 6);
         autoHost.Controls.Add(autoVisibleLocalOcrCheckBox);
 
@@ -260,9 +263,8 @@ internal sealed class SettingsForm : Form
         {
             try
             {
-                AutoLocalOcrSettings autoSettings = AutoLocalOcrSettings.Load(appDirectory);
-                autoSettings.Enabled = autoVisibleLocalOcrCheckBox.Checked;
-                autoSettings.Save(appDirectory);
+                // 只做一次清理保存：按群勾选由「自动识别」窗口写入，这里不再改 Enabled。
+                AutoLocalOcrSettings.Load(appDirectory).Save(appDirectory);
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {

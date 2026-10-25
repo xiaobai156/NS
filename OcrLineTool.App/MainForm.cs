@@ -73,6 +73,7 @@ public sealed class MainForm : Form
     private readonly Button clearResultsButton = new DarkButton() { Text = "清除", AutoSize = true, Padding = new Padding(12, 5, 12, 5) };
     private readonly Button missingSummaryButton = new DarkButton() { Text = "统计缺失" };
     private readonly Button settingsButton = new DarkButton() { Text = "设置" };
+    private readonly Button autoRecognizeButton = new DarkButton() { Text = "自动识别" };
     private readonly Label recognitionTimingLabel = new()
     {
         AutoSize = false, Visible = false, ForeColor = SecondaryText,
@@ -210,6 +211,7 @@ public sealed class MainForm : Form
         clearResultsButton.Click += ClearOutputFiles;
         missingSummaryButton.Click += SummarizeMissingAsync;
         settingsButton.Click += OpenSettings;
+        autoRecognizeButton.Click += OpenAutoRecognize;
         RegisterOperationLogging();
         dateTimer.Tick += (_, _) =>
         {
@@ -430,7 +432,7 @@ public sealed class MainForm : Form
         var card = CreateCard("toolsSection");
         var content = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 6,
+            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 7,
             Padding = new Padding(18, 14, 18, 22), BackColor = CardBackground,
             Margin = Padding.Empty
         };
@@ -439,21 +441,29 @@ public sealed class MainForm : Form
         // the same line as the middle column's primary button.
         content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+        // 工具区从 5 个按钮增至 6 个（新增「自动识别」）：单行高度压到 50，
+        // 让整列在 700 高度下仍能完整显示，按钮本身保持 ≥44px 的点击高度。
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         content.Controls.Add(SectionTitle("工具"), 0, 1);
 
         settingsButton.Dock = DockStyle.Fill;
-        settingsButton.Margin = new Padding(0, 0, 0, 16);
+        settingsButton.Margin = new Padding(0, 0, 0, 10);
         content.Controls.Add(settingsButton, 0, 2);
+        // 自动识别：按群勾选要自动跑本地主识别的群，替代设置页里旧的五个群开关。
+        autoRecognizeButton.Dock = DockStyle.Fill;
+        autoRecognizeButton.Margin = new Padding(0, 0, 0, 10);
+        content.Controls.Add(autoRecognizeButton, 0, 3);
         missingSummaryButton.Dock = DockStyle.Fill;
-        missingSummaryButton.Margin = new Padding(0, 0, 0, 16);
-        content.Controls.Add(missingSummaryButton, 0, 3);
+        missingSummaryButton.Margin = new Padding(0, 0, 0, 10);
+        content.Controls.Add(missingSummaryButton, 0, 4);
         retryMissingButton.Dock = DockStyle.Fill;
-        retryMissingButton.Margin = new Padding(0, 0, 0, 16);
-        content.Controls.Add(retryMissingButton, 0, 4);
+        retryMissingButton.Margin = new Padding(0, 0, 0, 10);
+        content.Controls.Add(retryMissingButton, 0, 5);
 
         var distributeAction = new Panel
         {
@@ -465,7 +475,7 @@ public sealed class MainForm : Form
         continueButton.Margin = Padding.Empty;
         distributeAction.Controls.Add(manualDistributeButton);
         distributeAction.Controls.Add(continueButton);
-        content.Controls.Add(distributeAction, 0, 5);
+        content.Controls.Add(distributeAction, 0, 6);
 
         card.Controls.Add(content);
         return card;
@@ -704,6 +714,7 @@ public sealed class MainForm : Form
         ConfigureButton(continueButton, "继续云 OCR", CardBackground, AccentAmber, AccentAmber, 11);
         ConfigureButton(openGroupResultsButton, "打开群结果", CardBackground, PrimaryText, BorderColor, 6);
         ConfigureButton(settingsButton, "设置", CardBackground, PrimaryText, BorderColor, 14);
+        ConfigureButton(autoRecognizeButton, "自动识别", CardBackground, PrimaryText, BorderColor, 14);
 
         // The result-header button shares an auto-sized column, so it must size
         // to its caption instead of the default control width.
@@ -999,7 +1010,8 @@ public sealed class MainForm : Form
             (openGroupResultsButton, "打开群结果"),
             (clearResultsButton, "清除"),
             (missingSummaryButton, "统计缺失"),
-            (settingsButton, "设置")
+            (settingsButton, "设置"),
+            (autoRecognizeButton, "自动识别")
         ];
         foreach ((Button button, string action) in actions)
             button.Click += (_, _) => LogOperation(action);
@@ -1567,7 +1579,8 @@ public sealed class MainForm : Form
             return;
 
         AutoLocalOcrSettings settings = AutoLocalOcrSettings.Load(AppContext.BaseDirectory);
-        if (!settings.Enabled)
+        // 自动识别改由「自动识别」窗口按群勾选，不再有全局开关。
+        if (settings.SelectedGroups.Count == 0)
         {
             automaticOcrReadiness.Clear();
             statusLabel.Text = AutomaticWaitingStatus(statusLabel.Text, null);
@@ -1580,11 +1593,11 @@ public sealed class MainForm : Form
             var skipped = new List<string>();
             IReadOnlyList<(string Folder, string Group, string Signature)> visible =
                 await Task.Run(() => FindVisibleAutomaticGroups(
-                    AppContext.BaseDirectory, imageRootDirectory, skipped.Add));
+                    AppContext.BaseDirectory, imageRootDirectory, settings, skipped.Add));
             AutoLocalOcrSettings latestSettings = AutoLocalOcrSettings.Load(AppContext.BaseDirectory);
             if (IsDisposed)
                 return;
-            if (!latestSettings.Enabled)
+            if (latestSettings.SelectedGroups.Count == 0)
             {
                 automaticOcrReadiness.Clear();
                 statusLabel.Text = AutomaticWaitingStatus(statusLabel.Text, null);
@@ -1671,6 +1684,7 @@ public sealed class MainForm : Form
     internal static IReadOnlyList<(string Folder, string Group, string Signature)> FindVisibleAutomaticGroups(
         string appDirectory,
         string imageRootDirectory,
+        AutoLocalOcrSettings settings,
         Action<string>? onSkip = null)
     {
         string[] folders;
@@ -1701,7 +1715,7 @@ public sealed class MainForm : Form
             {
                 string group = groups[folder];
                 matchedGroup = group;
-                if (!AutoLocalOcrSettings.IsVisibleAutomaticGroup(group))
+                if (!settings.IsSelectedGroup(group))
                     continue;
 
                 string rulePath = RuleCatalog.PathForFolder(appDirectory, folder);
@@ -4321,6 +4335,7 @@ public sealed class MainForm : Form
         clearResultsButton.Enabled = !busy;
         missingSummaryButton.Enabled = !busy;
         settingsButton.Enabled = !busy;
+        autoRecognizeButton.Enabled = !busy;
         UseWaitCursor = busy;
         if (!busy)
         {
@@ -4333,6 +4348,26 @@ public sealed class MainForm : Form
         }
     }
 
+    // 「自动识别」窗口：按群勾选要自动跑本地主识别的群。
+    // 勾选立即写盘，窗口关闭后自动识别轮询会按最新勾选执行。
+    private void OpenAutoRecognize(object? sender, EventArgs e)
+    {
+        if (settingsDialogOpen || isBusy || automaticLocalOcrRunning || automaticOcrDiscoveryRunning)
+            return;
+
+        settingsDialogOpen = true;
+        try
+        {
+            using var dialog = new AutoRecognizeForm(AppContext.BaseDirectory, imageRootDirectory);
+            dialog.ShowDialog(this);
+            // 勾选变了就清掉稳定观察，让新勾选的群重新开始计时。
+            automaticOcrReadiness.Clear();
+        }
+        finally
+        {
+            settingsDialogOpen = false;
+        }
+    }
     private void OpenSettings(object? sender, EventArgs e)
     {
         if (settingsDialogOpen || isBusy || automaticLocalOcrRunning || automaticOcrDiscoveryRunning)

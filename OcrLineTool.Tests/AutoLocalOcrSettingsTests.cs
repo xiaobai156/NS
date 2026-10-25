@@ -10,7 +10,7 @@ public sealed class AutoLocalOcrSettingsTests
     {
         DateOnly today = new(2026, 10, 6);
         DateTime now = today.ToDateTime(new TimeOnly(12, 0));
-        var settings = new AutoLocalOcrSettings { Enabled = true };
+        AutoLocalOcrSettings settings = Selected("新澳六合彩资料", "新澳高手", "新澳高级会员", "蜻蜓一套", "黄大仙新澳");
         string[] groups = ["新澳六合彩资料", "新澳高手", "新澳高级会员", "蜻蜓一套", "黄大仙新澳"];
         foreach (string group in groups)
         {
@@ -30,7 +30,7 @@ public sealed class AutoLocalOcrSettingsTests
     public void OnlyUnattemptedCurrentDateGroupsEnterTheStabilityWindow()
     {
         DateTime now = new(2026, 10, 6, 12, 0, 0);
-        var settings = new AutoLocalOcrSettings { Enabled = true };
+        AutoLocalOcrSettings settings = Selected("新澳六合彩资料", "新澳高手", "新澳高级会员", "蜻蜓一套", "黄大仙新澳");
         (string Folder, string Group, string Signature)[] visible =
         [
             ("10.5-新澳高手", "新澳高手", "old"),
@@ -44,7 +44,8 @@ public sealed class AutoLocalOcrSettingsTests
         Assert.True(readiness.IsStable(pending.Folder, pending.Signature, now.AddMinutes(1)));
         Assert.Equal("自动本地 OCR 等待图片稳定：黄大仙新澳（还需满 1 分钟）",
             MainForm.AutomaticWaitingStatus("识别完成", pending.Group));
-        settings.Enabled = false;
+        // 取消勾选后该群不再进入稳定观察窗口。
+        settings.SetSelectedGroup("黄大仙新澳", false);
         Assert.Empty(MainForm.PendingAutomaticGroups(settings, visible, now));
     }
 
@@ -65,12 +66,16 @@ public sealed class AutoLocalOcrSettingsTests
         try
         {
             var settings = new AutoLocalOcrSettings();
-            Assert.False(settings.Enabled);
+            Assert.Empty(settings.SelectedGroups);
 
-            settings.Enabled = true;
+            settings = Selected("新澳六合彩资料", "新澳高手", "黑色六合彩");
             settings.Save(directory);
 
-            Assert.True(AutoLocalOcrSettings.Load(directory).Enabled);
+            // 勾选状态必须落盘并在重启后恢复。
+            AutoLocalOcrSettings loaded = AutoLocalOcrSettings.Load(directory);
+            Assert.Equal(3, loaded.SelectedGroups.Count);
+            Assert.True(loaded.IsSelectedGroup("黑色六合彩"));
+            Assert.False(loaded.IsSelectedGroup("慕熙会员群"));
         }
         finally
         {
@@ -78,17 +83,36 @@ public sealed class AutoLocalOcrSettingsTests
         }
     }
 
+    // 自动识别改由「自动识别」窗口按群勾选：只有勾上的群参与，不再有固定五个群的白名单；
+    // 嫣然心水始终排除。
     [Theory]
     [InlineData("新澳六合彩资料", true)]
-    [InlineData("新澳高手", true)]
-    [InlineData("新澳高级会员", true)]
-    [InlineData("蜻蜓一套", true)]
-    [InlineData("黄大仙新澳", true)]
+    [InlineData("慕熙会员群", true)]
+    [InlineData("黑色六合彩", true)]
+    [InlineData("嫣然六合彩大全", true)]
+    [InlineData("未勾选的群", false)]
     [InlineData("嫣然心水", false)]
-    [InlineData("慕熙会员群", false)]
-    public void VisibleAutomaticGroupsUseTheFixedFiveGroupWhitelist(string group, bool expected)
+    public void OnlySelectedGroupsParticipateInAutomaticRecognition(string group, bool expected)
     {
-        Assert.Equal(expected, AutoLocalOcrSettings.IsVisibleAutomaticGroup(group));
+        var settings = new AutoLocalOcrSettings();
+        foreach (string name in new[] { "新澳六合彩资料", "慕熙会员群", "黑色六合彩", "嫣然六合彩大全" })
+            settings.SetSelectedGroup(name, true);
+        // 嫣然心水即使被要求勾选也必须拒绝。
+        settings.SetSelectedGroup("嫣然心水", true);
+        Assert.Equal(expected, settings.IsSelectedGroup(group));
+    }
+
+    // 取消勾选后该群不再参与；重复勾选不会产生重复项。
+    [Fact]
+    public void SelectingAndClearingAGroupIsIdempotent()
+    {
+        var settings = new AutoLocalOcrSettings();
+        settings.SetSelectedGroup("黑色六合彩", true);
+        settings.SetSelectedGroup("黑色六合彩", true);
+        Assert.Single(settings.SelectedGroups);
+        settings.SetSelectedGroup("黑色六合彩", false);
+        Assert.Empty(settings.SelectedGroups);
+        Assert.False(settings.IsSelectedGroup("黑色六合彩"));
     }
 
     [Fact]
@@ -129,13 +153,19 @@ public sealed class AutoLocalOcrSettingsTests
 
         try
         {
+            var settings = new AutoLocalOcrSettings();
+            settings.SetSelectedGroup("新澳高手", true);
+            settings.SetSelectedGroup("慕熙会员群", true);
+            settings.SetSelectedGroup("嫣然心水", true);
             IReadOnlyList<(string Folder, string Group, string Signature)> found =
-                MainForm.FindVisibleAutomaticGroups(root, root);
+                MainForm.FindVisibleAutomaticGroups(root, root, settings);
 
-            Assert.Single(found);
-            Assert.Equal(visible, found[0].Folder);
-            Assert.Equal("新澳高手", found[0].Group);
-            Assert.Contains("card.jpg", found[0].Signature);
+            // 勾选的「新澳高手」「慕熙会员群」都出现；嫣然心水始终排除。
+            Assert.Equal(2, found.Count);
+            Assert.Contains(found, item => item.Folder == visible && item.Group == "新澳高手");
+            Assert.Contains(found, item => item.Folder == other && item.Group == "慕熙会员群");
+            Assert.DoesNotContain(found, item => item.Folder == excluded);
+            Assert.All(found, item => Assert.Contains("card.jpg", item.Signature));
         }
         finally
         {
@@ -151,7 +181,7 @@ public sealed class AutoLocalOcrSettingsTests
         {
             DateOnly today = new(2026, 10, 6);
             DateTime now = today.ToDateTime(new TimeOnly(12, 0));
-            var settings = new AutoLocalOcrSettings { Enabled = true };
+            AutoLocalOcrSettings settings = Selected("新澳六合彩资料", "新澳高手", "新澳高级会员", "蜻蜓一套", "黄大仙新澳");
 
             Assert.True(settings.TryBeginVisibleGroup("10.6-新澳高级会员", "新澳高级会员", today, now));
             settings.RecordVisibleGroupResult("10.6-新澳高级会员", "新澳高级会员", today, success: true, now);
@@ -174,7 +204,7 @@ public sealed class AutoLocalOcrSettingsTests
     {
         DateOnly today = new(2026, 10, 6);
         DateTime first = today.ToDateTime(new TimeOnly(12, 0));
-        var settings = new AutoLocalOcrSettings { Enabled = true };
+        AutoLocalOcrSettings settings = Selected("新澳六合彩资料", "新澳高手", "新澳高级会员", "蜻蜓一套", "黄大仙新澳");
 
         Assert.True(settings.TryBeginVisibleGroup("10.6-新澳高手", "新澳高手", today, first));
         settings.RecordVisibleGroupResult("10.6-新澳高手", "新澳高手", today, success: false, first);
@@ -195,7 +225,7 @@ public sealed class AutoLocalOcrSettingsTests
         try
         {
             DateOnly today = new(2026, 10, 6);
-            var settings = new AutoLocalOcrSettings { Enabled = true };
+            AutoLocalOcrSettings settings = Selected("新澳六合彩资料", "新澳高手", "新澳高级会员", "蜻蜓一套", "黄大仙新澳");
             foreach (int offset in Enumerable.Range(-8, 10))
             {
                 DateOnly date = today.AddDays(offset);
@@ -240,6 +270,8 @@ public sealed class AutoLocalOcrSettingsTests
                 "{\"Enabled\":true,\"LastRunDates\":{\"新澳高手\":\"2026-10-06\",\"嫣然心水\":\"2026-10-06\"}}");
 
             AutoLocalOcrSettings settings = AutoLocalOcrSettings.Load(directory, new DateOnly(2026, 10, 6));
+            // 自动识别按群勾选，未勾选的群不参与；这里勾上被测群。
+            settings.SetSelectedGroup("新澳六合彩资料", true);
 
             Assert.Empty(settings.Executions);
             Assert.True(settings.CanAttemptVisibleGroup(
@@ -254,4 +286,13 @@ public sealed class AutoLocalOcrSettingsTests
         }
     }
 
+
+    // 自动识别改为按群勾选：测试里把需要的群一次性勾上。
+    private static AutoLocalOcrSettings Selected(params string[] groups)
+    {
+        var settings = new AutoLocalOcrSettings();
+        foreach (string group in groups)
+            settings.SetSelectedGroup(group, true);
+        return settings;
+    }
 }

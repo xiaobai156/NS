@@ -37,6 +37,9 @@ internal sealed class AutoLocalOcrSettings
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public bool Enabled { get; set; }
+    // 按群勾选：自动识别只跑这里列出的群。旧版的 Enabled 开关保留字段但不再参与判断，
+    // 新逻辑完全由 SelectedGroups 决定；嫣然心水仍排除在外。
+    public List<string> SelectedGroups { get; set; } = new();
     public Dictionary<string, AutoLocalOcrExecution> Executions { get; set; } =
         new(StringComparer.Ordinal);
 
@@ -83,13 +86,25 @@ internal sealed class AutoLocalOcrSettings
         RuleCatalog.NormalizeGroupName(groupName)
             .Equals(RuleCatalog.NormalizeGroupName("嫣然心水"), StringComparison.OrdinalIgnoreCase);
 
-    internal static bool IsVisibleAutomaticGroup(string? groupName)
+    // 自动识别按群勾选：只要该群被勾选（且不是排除群）就参与，不再限制固定五个群。
+    internal bool IsSelectedGroup(string? groupName)
     {
-        if (string.IsNullOrWhiteSpace(groupName))
+        if (string.IsNullOrWhiteSpace(groupName) || IsExcludedGroup(groupName))
             return false;
         string normalized = RuleCatalog.NormalizeGroupName(groupName);
-        return VisibleAutomaticGroups.Any(group =>
-            normalized.Equals(RuleCatalog.NormalizeGroupName(group), StringComparison.OrdinalIgnoreCase));
+        return SelectedGroups.Any(group => !string.IsNullOrWhiteSpace(group)
+            && RuleCatalog.NormalizeGroupName(group).Equals(normalized, StringComparison.OrdinalIgnoreCase));
+    }
+
+    internal void SetSelectedGroup(string groupName, bool selected)
+    {
+        if (string.IsNullOrWhiteSpace(groupName) || IsExcludedGroup(groupName))
+            return;
+        string normalized = RuleCatalog.NormalizeGroupName(groupName);
+        SelectedGroups.RemoveAll(group => string.IsNullOrWhiteSpace(group)
+            || RuleCatalog.NormalizeGroupName(group).Equals(normalized, StringComparison.OrdinalIgnoreCase));
+        if (selected)
+            SelectedGroups.Add(normalized);
     }
 
     internal static DateOnly DateForFolder(string folder, DateOnly fallback)
@@ -111,7 +126,7 @@ internal sealed class AutoLocalOcrSettings
 
     internal bool HasRunToday(string groupName, DateTime nowInBeijing)
     {
-        if (!IsVisibleAutomaticGroup(groupName))
+        if (!IsSelectedGroup(groupName))
             return true;
         DateOnly today = DateOnly.FromDateTime(nowInBeijing);
         return HasExecution(groupName, today);
@@ -120,7 +135,7 @@ internal sealed class AutoLocalOcrSettings
     internal bool CanAttemptVisibleGroup(
         string folder, string groupName, DateOnly executionDate, DateTime nowInBeijing)
     {
-        if (!Enabled || !IsVisibleAutomaticGroup(groupName))
+        if (!IsSelectedGroup(groupName))
             return false;
 
         string key = ExecutionKey(executionDate, groupName);
@@ -187,6 +202,12 @@ internal sealed class AutoLocalOcrSettings
 
     private void RemoveExcludedGroups()
     {
+        SelectedGroups ??= new List<string>();
+        SelectedGroups.RemoveAll(group => string.IsNullOrWhiteSpace(group) || IsExcludedGroup(group));
+        SelectedGroups = SelectedGroups
+            .Select(RuleCatalog.NormalizeGroupName)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         foreach (string key in Executions.Keys
                      .Where(key => Executions[key] is null || IsExcludedGroup(Executions[key].Group))
                      .ToArray())
@@ -231,16 +252,8 @@ internal sealed class AutoLocalOcrSettings
         }
     }
 
-    private static readonly string[] VisibleAutomaticGroups =
-    [
-        "新澳六合彩资料",
-        "新澳高手",
-        "新澳高级会员",
-        "蜻蜓一套",
-        "黄大仙新澳"
-    ];
-}
 
+}
 internal sealed class AutomaticOcrReadiness
 {
     internal static readonly TimeSpan StabilityWindow = TimeSpan.FromMinutes(1);
