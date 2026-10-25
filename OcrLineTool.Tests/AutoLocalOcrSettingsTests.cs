@@ -75,7 +75,7 @@ public sealed class AutoLocalOcrSettingsTests
             AutoLocalOcrSettings loaded = AutoLocalOcrSettings.Load(directory);
             Assert.Equal(3, loaded.SelectedGroups.Count);
             Assert.True(loaded.IsSelectedGroup("黑色六合彩"));
-            Assert.False(loaded.IsSelectedGroup("慕熙会员群"));
+            Assert.False(loaded.IsSelectedGroup("嫣然电报"));
         }
         finally
         {
@@ -87,17 +87,17 @@ public sealed class AutoLocalOcrSettingsTests
     // 嫣然心水始终排除。
     [Theory]
     [InlineData("新澳六合彩资料", true)]
-    [InlineData("慕熙会员群", true)]
+    [InlineData("嫣然电报", true)]
     [InlineData("黑色六合彩", true)]
     [InlineData("嫣然六合彩大全", true)]
     [InlineData("未勾选的群", false)]
-    [InlineData("嫣然心水", false)]
+    [InlineData("嫣然心水", true)]
     public void OnlySelectedGroupsParticipateInAutomaticRecognition(string group, bool expected)
     {
         var settings = new AutoLocalOcrSettings();
-        foreach (string name in new[] { "新澳六合彩资料", "慕熙会员群", "黑色六合彩", "嫣然六合彩大全" })
+        foreach (string name in new[] { "新澳六合彩资料", "嫣然电报", "黑色六合彩", "嫣然六合彩大全" })
             settings.SetSelectedGroup(name, true);
-        // 嫣然心水即使被要求勾选也必须拒绝。
+        // 所有群一视同仁：嫣然心水也能勾选。
         settings.SetSelectedGroup("嫣然心水", true);
         Assert.Equal(expected, settings.IsSelectedGroup(group));
     }
@@ -136,7 +136,7 @@ public sealed class AutoLocalOcrSettingsTests
         string config = Path.Combine(root, "配置文件");
         string visible = Path.Combine(root, "新澳高手");
         string excluded = Path.Combine(root, "嫣然心水");
-        string other = Path.Combine(root, "慕熙会员群");
+        string other = Path.Combine(root, "嫣然电报");
         Directory.CreateDirectory(config);
         Directory.CreateDirectory(visible);
         Directory.CreateDirectory(excluded);
@@ -145,8 +145,8 @@ public sealed class AutoLocalOcrSettingsTests
             "{\"group\":\"新澳高手\",\"rules\":[{\"keyword\":\"测试\",\"type\":\"生肖\"}]}");
         File.WriteAllText(Path.Combine(config, "嫣然心水.json"),
             "{\"group\":\"嫣然心水\",\"rules\":[{\"keyword\":\"测试\",\"type\":\"生肖\"}]}");
-        File.WriteAllText(Path.Combine(config, "慕熙会员群.json"),
-            "{\"group\":\"慕熙会员群\",\"rules\":[{\"keyword\":\"测试\",\"type\":\"生肖\"}]}");
+        File.WriteAllText(Path.Combine(config, "嫣然电报.json"),
+            "{\"group\":\"嫣然电报\",\"rules\":[{\"keyword\":\"测试\",\"type\":\"生肖\"}]}");
         File.WriteAllBytes(Path.Combine(visible, "card.jpg"), [1, 2, 3]);
         File.WriteAllBytes(Path.Combine(excluded, "card.jpg"), [1, 2, 3]);
         File.WriteAllBytes(Path.Combine(other, "card.jpg"), [1, 2, 3]);
@@ -155,16 +155,16 @@ public sealed class AutoLocalOcrSettingsTests
         {
             var settings = new AutoLocalOcrSettings();
             settings.SetSelectedGroup("新澳高手", true);
-            settings.SetSelectedGroup("慕熙会员群", true);
+            settings.SetSelectedGroup("嫣然电报", true);
             settings.SetSelectedGroup("嫣然心水", true);
             IReadOnlyList<(string Folder, string Group, string Signature)> found =
                 MainForm.FindVisibleAutomaticGroups(root, root, settings);
 
-            // 勾选的「新澳高手」「慕熙会员群」都出现；嫣然心水始终排除。
-            Assert.Equal(2, found.Count);
+            // 所有群一视同仁：勾选的群都应出现，嫣然心水不再被排除。
+            Assert.Equal(3, found.Count);
             Assert.Contains(found, item => item.Folder == visible && item.Group == "新澳高手");
-            Assert.Contains(found, item => item.Folder == other && item.Group == "慕熙会员群");
-            Assert.DoesNotContain(found, item => item.Folder == excluded);
+            Assert.Contains(found, item => item.Folder == other && item.Group == "嫣然电报");
+            Assert.Contains(found, item => item.Folder == excluded);
             Assert.All(found, item => Assert.Contains("card.jpg", item.Signature));
         }
         finally
@@ -343,6 +343,8 @@ public sealed class AutoLocalOcrSettingsTests
             "{\"group\":\"黑色六合彩\",\"rules\":[{\"keyword\":\"测试\",\"type\":\"生肖\"}]}");
         File.WriteAllText(Path.Combine(config, "嫣然电报.json"),
             "{\"group\":\"嫣然电报\",\"rules\":[{\"keyword\":\"测试\",\"type\":\"生肖\"}]}");
+        File.WriteAllText(Path.Combine(config, "嫣然心水.json"),
+            "{\"group\":\"嫣然心水\",\"rules\":[{\"keyword\":\"测试\",\"type\":\"生肖\"}]}");
         string empty = Path.Combine(root, "抓图空目录");
         Directory.CreateDirectory(empty);
 
@@ -351,8 +353,8 @@ public sealed class AutoLocalOcrSettingsTests
             IReadOnlyList<string> listed = AutoRecognizeForm.BuildGroupList(empty, root, []);
             Assert.Contains("黑色六合彩", listed);
             Assert.Contains("嫣然电报", listed);
-            // 嫣然心水始终排除。
-            Assert.DoesNotContain("嫣然心水", listed);
+            // 所有群一视同仁，嫣然心水也应能被列出。
+            Assert.Contains("嫣然心水", listed);
         }
         finally
         {

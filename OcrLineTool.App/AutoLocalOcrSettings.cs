@@ -81,15 +81,14 @@ internal sealed class AutoLocalOcrSettings
             new UTF8Encoding(true));
     }
 
-    internal static bool IsExcludedGroup(string? groupName) =>
-        !string.IsNullOrWhiteSpace(groupName) &&
-        RuleCatalog.NormalizeGroupName(groupName)
-            .Equals(RuleCatalog.NormalizeGroupName("嫣然心水"), StringComparison.OrdinalIgnoreCase);
+    // 所有群一视同仁：不再硬排除任何群（嫣然心水也能勾选、也能自动识别）。
+    // 保留这个方法只为兼容既有调用点，永远返回 false。
+    internal static bool IsExcludedGroup(string? groupName) => false;
 
-    // 自动识别按群勾选：只要该群被勾选（且不是排除群）就参与，不再限制固定五个群。
+    // 自动识别按群勾选：只要该群被勾选就参与，不再限制固定五个群。
     internal bool IsSelectedGroup(string? groupName)
     {
-        if (string.IsNullOrWhiteSpace(groupName) || IsExcludedGroup(groupName))
+        if (string.IsNullOrWhiteSpace(groupName))
             return false;
         string normalized = RuleCatalog.NormalizeGroupName(groupName);
         return SelectedGroups.Any(group => !string.IsNullOrWhiteSpace(group)
@@ -98,7 +97,7 @@ internal sealed class AutoLocalOcrSettings
 
     internal void SetSelectedGroup(string groupName, bool selected)
     {
-        if (string.IsNullOrWhiteSpace(groupName) || IsExcludedGroup(groupName))
+        if (string.IsNullOrWhiteSpace(groupName))
             return;
         string normalized = RuleCatalog.NormalizeGroupName(groupName);
         SelectedGroups.RemoveAll(group => string.IsNullOrWhiteSpace(group)
