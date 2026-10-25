@@ -101,6 +101,7 @@ internal sealed class SettingsForm : Form
         FlatStyle = FlatStyle.Flat,
         AccessibleName = "资料群出现后自动本地主识别"
     };
+    private readonly Button autoRecognizeButton = new DarkButton() { Text = "自动识别" };
     private readonly Button imageRootButton = new DarkButton() { Text = "设置抓取路径" };
     private readonly Label imageRootLabel = new()
     {
@@ -253,6 +254,10 @@ internal sealed class SettingsForm : Form
         };
         ConfigureDialogButton(saveButton, accent: true);
         ConfigureDialogButton(cancelButton, accent: false);
+        ConfigureDialogButton(autoRecognizeButton, accent: false);
+        // 「自动识别」按群勾选，勾选立即落盘，所以这里只打开窗口、不影响本窗口的保存流程。
+        autoRecognizeButton.Click += (_, _) =>
+            AutoRecognizeForm.ShowDialog(this, appDirectory, imageRootDirectory);
         cancelButton.Click += (_, _) =>
         {
             Result = current;
@@ -286,6 +291,7 @@ internal sealed class SettingsForm : Form
         };
         buttonHost.Controls.Add(saveButton);
         buttonHost.Controls.Add(cancelButton);
+        buttonHost.Controls.Add(autoRecognizeButton);
 
         layout.Controls.Add(title, 0, 0);
         layout.Controls.Add(checkHost, 0, 1);

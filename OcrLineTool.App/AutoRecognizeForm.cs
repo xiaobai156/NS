@@ -4,6 +4,13 @@ namespace OcrLineTool;
 // 群列表实时取当前抓取路径下的一级子目录，勾选立即保存，重启后保留。
 internal sealed class AutoRecognizeForm : Form
 {
+    // 供设置窗口直接调用：打开群勾选窗口，勾选立即落盘。
+    internal static void ShowDialog(IWin32Window owner, string appDirectory, string imageRootDirectory)
+    {
+        using var dialog = new AutoRecognizeForm(appDirectory, imageRootDirectory);
+        dialog.ShowDialog(owner);
+    }
+
     private readonly string appDirectory;
     private readonly string imageRootDirectory;
     private readonly AutoLocalOcrSettings settings;
