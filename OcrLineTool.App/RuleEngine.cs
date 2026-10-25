@@ -1646,7 +1646,7 @@ public static class RuleEngine
     {
         string[] all = ["红波单", "红波双", "蓝波单", "蓝波双", "绿波单", "绿波双"];
         var observed = new HashSet<string>(StringComparer.Ordinal);
-        foreach (string payload in LabelledIssuePayload(lines, issue, "数据半波"))
+        foreach (string payload in LabelledHalfWavesPayloads(lines, issue))
         {
             string[] found = Regex.Matches(payload, "(?<color>[红蓝绿])\\s*波?\\s*(?<parity>[单双])")
                 .Select(match => match.Groups["color"].Value + "波" + match.Groups["parity"].Value)
@@ -1659,6 +1659,52 @@ public static class RuleEngine
             observed.Add(missing[0].Replace("波", string.Empty));
         }
         return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    // 黑客半波的数据跨在开奖占位「开??」两侧
+    //（「298期数据半波【红波双蓝波单蓝波双开??」+「绿波单绿波双】」），
+    // 所以不能套用通用的「开奖之前截断」：只要方括号已经闭合，就取括号内的完整内容；
+    // 括号没闭合时才退回原来的截断逻辑。
+    private static IEnumerable<string> LabelledHalfWavesPayloads(string[] lines, int issue)
+    {
+        for (int index = 0; index < lines.Length; index++)
+        {
+            if (!ContainsIssue(lines[index], issue))
+                continue;
+            var text = new System.Text.StringBuilder();
+            // 数据行可能印在期号格上方（「数据半波【…」/ 期号 / 「开??」/ 「绿波单绿波双】」），
+            // 先向前取紧邻的那一行，遇到别的期号就停。
+            for (int back = index - 1; back >= 0 && index - back <= 2; back--)
+            {
+                if (ContainsOtherIssue(lines[back], issue))
+                    break;
+                string previous = SimplifyOcrText(lines[back]).Trim();
+                if (previous.Length == 0)
+                    continue;
+                text.Append(previous).Append(' ');
+                break;
+            }
+            text.Append(SimplifyOcrText(lines[index]));
+            for (int next = index + 1; next < lines.Length && next - index <= 6; next++)
+            {
+                string following = lines[next].Trim();
+                if (following.Length == 0
+                    || ContainsAnyIssue(following)
+                    || Regex.IsMatch(following, $@"^[{Zodiac}]\s*\d{{1,2}}\s*[中错錯准準赢贏√×✗]"))
+                    break;
+                text.Append(' ').Append(SimplifyOcrText(following));
+                if (following.Contains('】') || following.Contains(']'))
+                    break;
+            }
+            string joined = text.ToString();
+            int at = joined.IndexOf("数据半波", StringComparison.Ordinal);
+            if (at < 0)
+                continue;
+            string tail = joined[(at + "数据半波".Length)..];
+            // 括号闭合就只取括号内；这是本卡唯一的数据容器，开奖占位夹在中间不算边界。
+            Match bracketed = Regex.Match(tail, @"[【\[](?<inner>[^】\]]*)[】\]]");
+            yield return bracketed.Success ? bracketed.Groups["inner"].Value : BeforeOpeningResult(tail);
+        }
     }
 
     // 黑色六合彩「黑客杀两肖」：数据行「数据杀特肖：鼠 兔」印在期号格下方，
@@ -3695,6 +3741,25 @@ public static class RuleEngine
     // 本期值行缺失时返回 null，由调用方保持缺失，绝不翻到更早期号块借值。
     private static string? FindTangChaoHeadValueLine(string text, MatchCollection periods, int index)
     {
+        // 证据路径会把「期号格」和「值行」合并成同一个 token
+        //（「298期唐朝绝杀二头二头二头稳」），这时值就在期号本行里。
+        // 先剥掉本行的期号前缀，若剩余部分仍是完整的「唐朝绝杀…稳杀」就直接用它。
+        int issueStart = periods[index].Index;
+        int issueEnd = issueStart + periods[index].Length;
+        int thisBlockEnd = index + 1 < periods.Count ? periods[index + 1].Index : text.Length;
+        string inlineLine = text[issueStart..thisBlockEnd]
+            .Split('\n')[0]
+            .Trim();
+        if (inlineLine.Contains("唐朝绝杀", StringComparison.Ordinal))
+        {
+            // 合并 token 形如「298期唐朝绝杀二头二头二头稳」：字段解析要求以
+            // 「唐朝绝杀」开头，所以先剥掉期号前缀，再按需补上折下来的「杀」。
+            int at = inlineLine.IndexOf("唐朝绝杀", StringComparison.Ordinal);
+            string field = inlineLine[at..].Trim();
+            string candidate = field.EndsWith('杀') ? field : field + "杀";
+            if (Regex.IsMatch(candidate, @"^唐朝绝杀\s*(?<value>.+?)\s*稳\s*杀$", RegexOptions.Singleline))
+                return candidate;
+        }
         int start = index > 0 ? periods[index - 1].Index : 0;
         int end = periods[index].Index;
         if (end <= start)
@@ -3961,10 +4026,15 @@ public static class RuleEngine
     // 括号里的四个头（「→→→0 1 2 3」/「(( 0 1 2 4 ))」），缺一个 → 「N头」。
     private static string? MacauFourHeads(string field)
     {
-        int[] heads = Regex.Matches(field, @"(?<!\d)[0-4](?!\d)")
-            .Select(match => match.Value[0] - '0').ToArray();
+        // 四个头可能连写（「0124」）也可能分开（「0 1 2 4」）：先把 0～4 的数字全部
+        // 按出现顺序取出来，再要求恰好四个且互不相同，最后反推缺的那个头。
+        // 只接受 0～4，出现 5 以上说明读到了别的数字（例如开奖号），直接判缺失。
+        string digits = Regex.Replace(field, @"[^0-9]", string.Empty);
+        if (digits.Length != 4 || digits.Any(character => character > '4'))
+            return null;
+        int[] heads = digits.Select(character => character - '0').ToArray();
         int[] distinct = heads.Distinct().ToArray();
-        return heads.Length == 4 && distinct.Length == 4
+        return distinct.Length == 4
             ? $"{Enumerable.Range(0, 5).Single(number => !distinct.Contains(number))}头"
             : null;
     }

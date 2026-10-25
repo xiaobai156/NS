@@ -1,4 +1,4 @@
-﻿using OcrLineTool;
+using OcrLineTool;
 
 namespace OcrLineTool.Tests;
 
@@ -946,6 +946,38 @@ public sealed class RuleCatalogTests
             ["293期", "数据半波【红波单 红波双 蓝波双 绿波单】 开??"], 293, wave));
     }
 
+    // 黑客半波的数据常跨在开奖占位「开??」两侧（括号被期号格切开）：
+    // 证据路径会把前半行和期号合并成一行，后半行另起一行。这时不能按开奖截断，
+    // 否则只剩三个半波、必然判缺失。
+    [Theory]
+    // 证据路径：期号与前半段同一行，「开??」夹在中间，后半段在下一行。
+    [InlineData(new[] { "黑客数据", "GPT半波预测", "298期数据半波【红波双蓝波单蓝波双开??", "绿波单绿波双】" }, "红单")]
+    // 纯文本：数据行在期号上方，期号单独一行。
+    [InlineData(new[] { "黑客数据", "GPT半波预测", "数据半波【红波双蓝波单蓝波双", "298期", "开??", "绿波单绿波双】" }, "红单")]
+    // 括号完整闭合在期号行内。
+    [InlineData(new[] { "298期数据半波【红波单红波双蓝波双绿波单绿波双】" }, "蓝单")]
+    public void BlackMacauHalfWaveReadsAcrossTheOpeningPlaceholder(string[] card, string expected)
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "黑色六合彩.json"));
+        OcrRule wave = rules.Single(rule => rule.Id == "黑客半波");
+        Assert.Equal(expected, RuleEngine.ExtractFinalValue(card, 298, wave));
+    }
+
+    // 六个半波全印出来时没有缺项，必须判缺失；上一期的数据也不得并入本期。
+    [Fact]
+    public void BlackMacauHalfWaveStaysMissingWithoutExactlyOneGap()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "黑色六合彩.json"));
+        OcrRule wave = rules.Single(rule => rule.Id == "黑客半波");
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["298期数据半波【红波单红波双蓝波单蓝波双绿波单绿波双】"], 298, wave));
+        Assert.Equal("红单", RuleEngine.ExtractFinalValue(
+            ["297期数据半波【红波单红波双蓝波单蓝波双绿波单】",
+             "298期数据半波【红波双蓝波单蓝波双绿波单绿波双】"], 298, wave));
+    }
+
     // 号码卡的开奖格一旦开出具体号码，那之后的数字属于开奖结果，不能被当成杀号。
     // 只有未开奖的「开??」占位才允许越过继续收集跨行的号码段。
     [Fact]
@@ -1039,6 +1071,31 @@ public sealed class RuleCatalogTests
         // 294 是这张卡的首个期号，值行印在它上方且没有上一期块可借：
         // 只认紧贴本期期号、带「唐朝绝杀」标记的那一行，不允许跨卡或跨期借值。
         Assert.Equal("1头", RuleEngine.ExtractFinalValue(card, 294, head));
+    }
+
+    // 证据路径会把期号格和值行合并成同一个 token（「298期唐朝绝杀二头二头二头稳」），
+    // 裁剪图里目标期又常是首个期号、没有上一期块可并。此时必须能剥掉期号前缀直接取值，
+    // 否则杀头在裁剪图上必然缺失。
+    [Theory]
+    [InlineData("298期唐朝绝杀二头二头二头稳", "2头")]
+    [InlineData("298期唐朝绝杀零头零头零头稳杀", "0头")]
+    [InlineData("298期唐朝绝杀四头四头四头稳", "4头")]
+    public void TangChaoHeadReadsTheMergedIssueToken(string card, string expected)
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然六合彩大全.json"));
+        OcrRule head = rules.Single(item => item.Id == "唐朝杀头");
+        Assert.Equal(expected, RuleEngine.ExtractFinalValue([card], 298, head));
+    }
+
+    // 合并 token 里出现三个不同头时必须判缺失，不能取第一个凑值。
+    [Fact]
+    public void TangChaoHeadRejectsNonRepeatingMergedToken()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然六合彩大全.json"));
+        OcrRule head = rules.Single(item => item.Id == "唐朝杀头");
+        Assert.Null(RuleEngine.ExtractFinalValue(["298期唐朝绝杀一头二头三头稳"], 298, head));
     }
 
     // 本期值行整体缺失时必须保持缺失：不能把上一期那行「唐朝绝杀…稳」当成本期值。
