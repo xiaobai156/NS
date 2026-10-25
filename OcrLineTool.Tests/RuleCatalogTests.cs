@@ -979,11 +979,11 @@ public sealed class RuleCatalogTests
     [Theory]
     // 证据路径：期号与前半段同一行，「开??」夹在中间，后半段在下一行。
     [InlineData(new[] { "黑客数据", "GPT半波预测", "298期数据半波【红波双蓝波单蓝波双开??", "绿波单绿波双】" }, "红单")]
-    // 纯文本：数据行在期号上方，期号单独一行。
-    [InlineData(new[] { "黑客数据", "GPT半波预测", "数据半波【红波双蓝波单蓝波双", "298期", "开??", "绿波单绿波双】" }, "红单")]
+    // 纯文本无法证明上方字段归属；真实跨行卡由带坐标证据路径验证。
+    [InlineData(new[] { "黑客数据", "GPT半波预测", "数据半波【红波双蓝波单蓝波双", "298期", "开??", "绿波单绿波双】" }, null)]
     // 括号完整闭合在期号行内。
     [InlineData(new[] { "298期数据半波【红波单红波双蓝波双绿波单绿波双】" }, "蓝单")]
-    public void BlackMacauHalfWaveReadsAcrossTheOpeningPlaceholder(string[] card, string expected)
+    public void BlackMacauHalfWaveReadsAcrossTheOpeningPlaceholder(string[] card, string? expected)
     {
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "黑色六合彩.json"));
@@ -1362,6 +1362,35 @@ public sealed class RuleCatalogTests
         // 个数不对（三个头、九个生肖）判缺失。
         Assert.Null(RuleEngine.ExtractFinalValue(["297期：【312】√"], 297, yaTaiHead));
         Assert.Null(RuleEngine.ExtractFinalValue(["297期：【兔羊狗龙牛鼠猪鸡虎】√"], 297, yaTaiPair));
+    }
+
+    // 黑客半波的上一期数据行常常不带期号：向前借行时不能把上一期完整的括号并进来，
+    // 否则会拿上一期的五个半波反推出本期答案。
+    [Fact]
+    public void BlackMacauHalfWaveDoesNotBorrowThePreviousIssuesBracket()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "黑色六合彩.json"));
+        OcrRule wave = rules.Single(rule => rule.Id == "黑客半波");
+
+        // 297 的完整字段印在 298 期号上方：不能被 298 借走（否则会取到 297 的答案）。
+        string[] borrowed =
+        [
+            "297期",
+            "数据半波【红波单红波双蓝波单蓝波双绿波单】",
+            "298期",
+            "开??"
+        ];
+        Assert.Null(RuleEngine.ExtractFinalValue(borrowed, 298, wave));
+        // 本期行缺失、上一期又自带期号时同样不得回头借。
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["297期数据半波【红波单红波双蓝波单蓝波双绿波单】", "298期开??"], 298, wave));
+        // 上方没有期号不能证明它属于本期；真实本期字段依赖坐标验证。
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["数据半波【红波双蓝波单蓝波双绿波单绿波双】", "298期", "开??"], 298, wave));
+        // 期号行自带装饰括号时，不再向后拼出本期的五个半波（守卫 2）。
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["298期【未开】", "开??", "数据半波【红波单红波双蓝波单蓝波双绿波单】"], 298, wave));
     }
 }
 

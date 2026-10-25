@@ -192,6 +192,21 @@ public static class RuleCatalog
             !char.IsWhiteSpace(character) &&
             character is not '-' and not '_' and not '－' and not '＿'));
 
+    /// <summary>
+    /// 配置文件里登记的全部群名。自动识别的群列表用它兜底：抓取目录为空或某个群
+    /// 当天还没抓到图时，用户仍然能看到并勾选/取消该群，不必等目录出现。
+    /// </summary>
+    internal static IReadOnlyList<string> AllGroupNames(string appDirectory)
+    {
+        string configurationDirectory = ResultFilePaths.ConfigurationDirectory(appDirectory);
+        return CachedRuleFiles(configurationDirectory)
+            .Select(item => item.GroupName)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
     // 「配置文件」目录里除了规则表，还放模板、分发规则、云缓存和界面设置；只有这里返回
     // true 的文件才是规则表。目录扫描一律走这个判定，不要再各写一份过滤条件。
     internal static bool IsRuleCatalogFile(string fileName) =>

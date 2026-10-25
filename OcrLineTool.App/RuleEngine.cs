@@ -1642,16 +1642,30 @@ public static class RuleEngine
 
     // 黑客半波「【红波单 红波双 蓝波单 蓝波双 绿波单】」：
     // 标签后必须恰好五个不同半波（六种缺一），反推缺的那一种。
-    private static string? ExtractLabelledHalfWaves(string[] lines, int issue)
+    private static string? ExtractLabelledHalfWaves(string[] lines, int issue) =>
+        ExtractMissingHalfWave(LabelledHalfWavesPayloads(lines, issue));
+
+    private static string? ExtractMissingHalfWave(IEnumerable<string> payloads)
     {
         string[] all = ["红波单", "红波双", "蓝波单", "蓝波双", "绿波单", "绿波双"];
         var observed = new HashSet<string>(StringComparer.Ordinal);
-        foreach (string payload in LabelledHalfWavesPayloads(lines, issue))
+        const string token = @"(?<color>[红蓝绿])\s*波?\s*(?<parity>[单双])";
+        foreach (string rawPayload in payloads)
         {
-            string[] found = Regex.Matches(payload, "(?<color>[红蓝绿])\\s*波?\\s*(?<parity>[单双])")
+            string payload = rawPayload;
+            const string placeholder = @"开\s*[:：]?\s*[?？]{1,2}";
+            if (payload.Contains('开'))
+            {
+                // 仅容忍完整半波之间的一次开奖占位，不得修补半个词或拼接多个块。
+                if (!Regex.IsMatch(payload, $@"^\s*(?:{token}[\s、,，]*)+{placeholder}(?:[\s、,，]*{token})*[\s、,，]*$"))
+                    continue;
+                payload = Regex.Replace(payload, placeholder, string.Empty);
+            }
+            string[] found = Regex.Matches(payload, token)
                 .Select(match => match.Groups["color"].Value + "波" + match.Groups["parity"].Value)
-                .Distinct(StringComparer.Ordinal).ToArray();
-            if (found.Length != 5)
+                .ToArray();
+            if (found.Length != 5 || found.Distinct(StringComparer.Ordinal).Count() != 5
+                || !Regex.IsMatch(Regex.Replace(payload, token, string.Empty), @"^[\s、,，]*$"))
                 continue;
             string[] missing = all.Except(found, StringComparer.Ordinal).ToArray();
             if (missing.Length != 1)
@@ -1661,50 +1675,115 @@ public static class RuleEngine
         return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
     }
 
-    // 黑客半波的数据跨在开奖占位「开??」两侧
-    //（「298期数据半波【红波双蓝波单蓝波双开??」+「绿波单绿波双】」），
-    // 所以不能套用通用的「开奖之前截断」：只要方括号已经闭合，就取括号内的完整内容；
-    // 括号没闭合时才退回原来的截断逻辑。
+    private const string HalfWaveIssuePrefix = @"^\s*[【\[（(]?\s*(?<issue>\d{1,6})\s*期\s*[】\]）)]?";
+
+    private static string? ClosedHalfWavePayload(string field)
+    {
+        Match container = Regex.Match(field,
+            @"^\s*数据半波\s*[【\[](?<inner>[^【\[】\]]*)[】\]]\s*(?:开\s*[:：]?\s*[?？]{1,2})?\s*$");
+        return container.Success ? container.Groups["inner"].Value : null;
+    }
+
+    // 纯文字不能证明期号上方字段的归属；只接受本行或紧随期号、开奖之前起始的字段。
     private static IEnumerable<string> LabelledHalfWavesPayloads(string[] lines, int issue)
     {
         for (int index = 0; index < lines.Length; index++)
         {
-            if (!ContainsIssue(lines[index], issue))
+            string line = SimplifyOcrText(lines[index]);
+            Match anchor = Regex.Match(line, HalfWaveIssuePrefix);
+            if (!anchor.Success || !int.TryParse(anchor.Groups["issue"].Value, out int actual) || actual != issue)
                 continue;
-            var text = new System.Text.StringBuilder();
-            // 数据行可能印在期号格上方（「数据半波【…」/ 期号 / 「开??」/ 「绿波单绿波双】」），
-            // 先向前取紧邻的那一行，遇到别的期号就停。
-            for (int back = index - 1; back >= 0 && index - back <= 2; back--)
+            string field = line[anchor.Length..].Trim();
+            int next = index + 1;
+            if (!field.StartsWith("数据半波", StringComparison.Ordinal))
             {
-                if (ContainsOtherIssue(lines[back], issue))
-                    break;
-                string previous = SimplifyOcrText(lines[back]).Trim();
-                if (previous.Length == 0)
+                if (!Regex.IsMatch(field, @"^(?:【未开】|\[未开\])?$") || next >= lines.Length)
                     continue;
-                text.Append(previous).Append(' ');
-                break;
+                // 重复期号夹着无期号字段时，文字顺序不能确定字段属于哪个格。
+                string? boundary = lines.Skip(next).FirstOrDefault(ContainsAnyIssue);
+                if (boundary is not null && ContainsIssue(boundary, issue))
+                    continue;
+                field = SimplifyOcrText(lines[next++]).Trim();
             }
-            text.Append(SimplifyOcrText(lines[index]));
-            for (int next = index + 1; next < lines.Length && next - index <= 6; next++)
-            {
-                string following = lines[next].Trim();
-                if (following.Length == 0
-                    || ContainsAnyIssue(following)
-                    || Regex.IsMatch(following, $@"^[{Zodiac}]\s*\d{{1,2}}\s*[中错錯准準赢贏√×✗]"))
-                    break;
-                text.Append(' ').Append(SimplifyOcrText(following));
-                if (following.Contains('】') || following.Contains(']'))
-                    break;
-            }
-            string joined = text.ToString();
-            int at = joined.IndexOf("数据半波", StringComparison.Ordinal);
-            if (at < 0)
+            if (!field.StartsWith("数据半波", StringComparison.Ordinal))
                 continue;
-            string tail = joined[(at + "数据半波".Length)..];
-            // 括号闭合就只取括号内；这是本卡唯一的数据容器，开奖占位夹在中间不算边界。
-            Match bracketed = Regex.Match(tail, @"[【\[](?<inner>[^】\]]*)[】\]]");
-            yield return bracketed.Success ? bracketed.Groups["inner"].Value : BeforeOpeningResult(tail);
+            for (; !field.Contains('】') && !field.Contains(']') && next < lines.Length && next - index <= 6; next++)
+            {
+                string following = SimplifyOcrText(lines[next]).Trim();
+                if (following.Length == 0 || ContainsAnyIssue(following)
+                    || following.Contains(OcrLayoutMarkers.RegionBoundary, StringComparison.Ordinal)
+                    || following.Contains("数据半波", StringComparison.Ordinal))
+                    break;
+                field += " " + following;
+            }
+            // 行读时仅未开奖占位可以夹在半波两行之间；实际开奖结果不是半波字段。
+            if (ClosedHalfWavePayload(field) is string payload)
+                yield return payload;
         }
+    }
+
+    private static RuleExtractionResult ExtractPositionedHalfWaves(OcrEvidence evidence, int issue)
+    {
+        var payloads = new List<string>();
+        bool unresolvedInlineField = false;
+        foreach (var region in (evidence.TokenItems ?? evidence.Items).GroupBy(item => (item.ViewId, item.RegionId)))
+        {
+            OcrLineEvidence[] items = region.Where(item => !string.IsNullOrWhiteSpace(item.Text)).ToArray();
+            if (items.All(item => item.Box is null))
+            {
+                payloads.AddRange(LabelledHalfWavesPayloads(items.Select(item => item.Text).ToArray(), issue));
+                continue;
+            }
+            // 部分坐标缺失也不准回落到拼文本，避免把上一期残留重新接回。
+            if (items.Any(item => item.Box is not { Width: > 0, Height: > 0 }))
+                continue;
+            // 同一个 OCR 框内自带期号和完整字段时，归属不依赖相邻框。
+            foreach (OcrLineEvidence item in items)
+            {
+                string text = SimplifyOcrText(item.Text);
+                Match prefix = Regex.Match(text, HalfWaveIssuePrefix);
+                // 原始框自身已合并期号/残缺字段时，不能丢掉它而只接受另一条同期值。
+                if (prefix.Success && int.TryParse(prefix.Groups["issue"].Value, out int actual) && actual == issue
+                    && Regex.IsMatch(text[prefix.Length..], @"^\s*数据半波\s*[【\[][^】\]]*$"))
+                    unresolvedInlineField = true;
+                payloads.AddRange(LabelledHalfWavesPayloads([text], issue));
+            }
+            OcrLineEvidence[] anchors = items.Where(item => Regex.IsMatch(SimplifyOcrText(item.Text),
+                HalfWaveIssuePrefix + @"\s*$")).ToArray();
+            // 邻期带冒号或附带开奖文字仍是边界，不能因其不够纯净而跨行取值。
+            OcrLineEvidence[] boundaries = items.Where(item => Regex.IsMatch(SimplifyOcrText(item.Text),
+                HalfWaveIssuePrefix)).ToArray();
+            foreach (OcrLineEvidence anchor in anchors.Where(item => ContainsIssue(item.Text, issue)))
+            {
+                OcrBox box = anchor.Box!;
+                OcrLineEvidence[] openings = items.Where(item => item.Box!.X > box.Right
+                    && Math.Abs(item.Box.CenterY - box.CenterY) <= Math.Min(box.Height, item.Box.Height) * 0.6
+                    && Regex.IsMatch(SimplifyOcrText(item.Text).Trim(),
+                        $@"^(?:开\s*[:：]?\s*[?？]{{1,2}}|[{Zodiac}]\s*\d{{1,2}}\s*[中错准赢√×✗])$"))
+                    .ToArray();
+                if (openings.Length != 1)
+                    continue;
+                double top = box.CenterY - box.Height * 1.5;
+                double bottom = box.CenterY + box.Height * 1.5;
+                foreach (OcrLineEvidence neighbor in boundaries.Where(item => item != anchor
+                    && item.Box!.X < box.Right && item.Box.Right > box.X))
+                {
+                    double y = neighbor.Box!.CenterY;
+                    if (y < box.CenterY) top = Math.Max(top, (y + box.CenterY) / 2);
+                    else if (y > box.CenterY) bottom = Math.Min(bottom, (y + box.CenterY) / 2);
+                    else { top = bottom; break; }
+                }
+                OcrLineEvidence[] cell = items.Where(item => item.Box!.X >= box.Right
+                    && item.Box.Right <= openings[0].Box!.X
+                    && item.Box.Y >= top && item.Box.Bottom <= bottom).ToArray();
+                string field = string.Join(" ", GroupVisualRows(cell)
+                    .Select(row => string.Concat(row.OrderBy(item => item.Box!.X).Select(item => SimplifyOcrText(item.Text)))));
+                if (ClosedHalfWavePayload(field) is string payload)
+                    payloads.Add(payload);
+            }
+        }
+        RuleExtractionResult result = ToExtractionResult(ExtractMissingHalfWave(payloads));
+        return unresolvedInlineField && result.Status == RuleExtractionStatus.Success ? RuleExtractionResult.Missing : result;
     }
 
     // 黑色六合彩「黑客杀两肖」：数据行「数据杀特肖：鼠 兔」印在期号格下方，
@@ -2681,6 +2760,8 @@ public static class RuleEngine
         ArgumentNullException.ThrowIfNull(evidence);
         if (!rule.IgnoreIssue)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(issue);
+        if (rule.Id == "黑客半波" && rule.Type == "缺半波")
+            return ExtractPositionedHalfWaves(evidence, issue);
         if (YanranAuthorCards.Supports(rule)
             && RuleCatalog.PathBelongsToGroup(evidence.SourcePath, "嫣然心水")
             && evidence.HasCompleteGeometry)

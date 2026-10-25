@@ -244,9 +244,9 @@ public sealed class TencentOcrClient : IOcrClient
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
                 throw new OcrException($"腾讯云请求失败（HTTP {(int)response.StatusCode}）。");
-            IReadOnlyList<OcrLineEvidence> items = ParseEvidenceItems(json);
+            IReadOnlyList<OcrLineEvidence> items = ParseEvidenceItems(json, out var tokens);
             OcrHttp.EnsureImageUnchanged(imagePath, bytes);
-            return OcrEvidence.FromCapturedBytes(imagePath, bytes, "tencent", items);
+            return OcrEvidence.FromCapturedBytes(imagePath, bytes, "tencent", items, tokens);
         }
         catch (OcrException)
         {
@@ -300,7 +300,9 @@ public sealed class TencentOcrClient : IOcrClient
             : OcrEvidence.SafeLines(items);
     }
 
-    internal static IReadOnlyList<OcrLineEvidence> ParseEvidenceItems(string json)
+    internal static IReadOnlyList<OcrLineEvidence> ParseEvidenceItems(string json) => ParseEvidenceItems(json, out _);
+
+    internal static IReadOnlyList<OcrLineEvidence> ParseEvidenceItems(string json, out IReadOnlyList<OcrLineEvidence> tokens)
     {
         try
         {
@@ -321,6 +323,7 @@ public sealed class TencentOcrClient : IOcrClient
                 .Where(piece => piece is not null)
                 .Select(piece => piece!)
                 .ToArray();
+            tokens = pieces;
             if (pieces.Length == 0)
                 return [];
             return OcrEvidenceLayout.Partition(pieces);
@@ -433,9 +436,9 @@ public sealed class BaiduOcrClient : IOcrClient
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
                 throw new OcrException($"百度 OCR 请求失败（HTTP {(int)response.StatusCode}）。");
-            IReadOnlyList<OcrLineEvidence> items = ParseEvidenceItems(json);
+            IReadOnlyList<OcrLineEvidence> items = ParseEvidenceItems(json, out var tokens);
             OcrHttp.EnsureImageUnchanged(imagePath, bytes);
-            return OcrEvidence.FromCapturedBytes(imagePath, bytes, "baidu", items);
+            return OcrEvidence.FromCapturedBytes(imagePath, bytes, "baidu", items, tokens);
         }
         catch (OcrException)
         {
@@ -506,7 +509,9 @@ public sealed class BaiduOcrClient : IOcrClient
             : OcrEvidence.SafeLines(items);
     }
 
-    internal static IReadOnlyList<OcrLineEvidence> ParseEvidenceItems(string json)
+    internal static IReadOnlyList<OcrLineEvidence> ParseEvidenceItems(string json) => ParseEvidenceItems(json, out _);
+
+    internal static IReadOnlyList<OcrLineEvidence> ParseEvidenceItems(string json, out IReadOnlyList<OcrLineEvidence> tokens)
     {
         try
         {
@@ -549,6 +554,7 @@ public sealed class BaiduOcrClient : IOcrClient
                 items.Add(new(text, box, confidence, "baidu", "main"));
                 index++;
             }
+            tokens = items.ToArray();
             return OcrEvidenceLayout.Partition(items);
         }
         catch (OcrException)

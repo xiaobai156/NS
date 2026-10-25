@@ -38,7 +38,7 @@ internal sealed class AutoRecognizeForm : Form
             + "勾选立即保存，重启软件后保持。嫣然心水不参与自动识别。"
     };
     private readonly Button closeButton = new() { Text = "关闭" };
-    private readonly List<(string Folder, string Group)> groups = new();
+    private readonly List<string> groups = new();
     private bool loading;
 
     internal AutoRecognizeForm(string appDirectory, string imageRootDirectory)
@@ -85,7 +85,19 @@ internal sealed class AutoRecognizeForm : Form
         };
 
         groupList.DrawItem += DrawGroupItem;
-        groupList.MouseClick += (_, e) => ToggleFromClick(e.Location);
+        // 只响应鼠标左键；空格/回车用于键盘勾选，保证不开鼠标也能操作。
+        groupList.MouseClick += (_, e) =>
+        {
+            if (e.Button == MouseButtons.Left)
+                ToggleFromClick(e.Location);
+        };
+        groupList.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode is not (Keys.Space or Keys.Enter))
+                return;
+            ToggleAt(groupList.SelectedIndex);
+            e.Handled = true;
+        };
 
         closeButton.Dock = DockStyle.Right;
         closeButton.Width = 104;
@@ -118,35 +130,82 @@ internal sealed class AutoRecognizeForm : Form
         loading = true;
         groups.Clear();
         groupList.Items.Clear();
-        try
+        foreach (string group in BuildGroupList(
+            imageRootDirectory, appDirectory, settings.SelectedGroups))
         {
-            string[] folders = ImageFolderScanner.ListSubfolders(imageRootDirectory);
-            IReadOnlyDictionary<string, string> names = RuleCatalog.GroupNamesForFolders(appDirectory, folders);
-            foreach (string folder in folders)
-            {
-                if (!names.TryGetValue(folder, out string? group) || string.IsNullOrWhiteSpace(group))
-                    continue;
-                if (AutoLocalOcrSettings.IsExcludedGroup(group))
-                    continue;
-                groups.Add((folder, group));
-                groupList.Items.Add(group);
-            }
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
-            or OcrException or System.Text.Json.JsonException)
-        {
-            // 目录暂时不可访问时窗口照常打开，列表为空。
+            groups.Add(group);
+            groupList.Items.Add(group);
         }
         loading = false;
         groupList.Invalidate();
     }
 
+    // 自动识别窗口要列出的群，按三个来源依次补齐并去重：
+    //   1) 当前抓取路径下已有目录的群；
+    //   2) 配置文件里登记的全部群（抓图还没跑、目录为空时仍能勾选）；
+    //   3) 已勾选但前两者都没有的群（配置被删也能取消勾选）。
+    // 去重一律用 RuleCatalog.NormalizeGroupName：设置里存的是归一化名，
+    // 直接比原始字符串会让「黑色 六合彩」和「黑色六合彩」变成两行。
+    // 单独抽成静态方法是为了能在测试里直接断言列表内容。
+    internal static IReadOnlyList<string> BuildGroupList(
+        string imageRootDirectory, string appDirectory, IEnumerable<string> selectedGroups)
+    {
+        var names = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void Add(string? group)
+        {
+            if (string.IsNullOrWhiteSpace(group) || AutoLocalOcrSettings.IsExcludedGroup(group))
+                return;
+            if (seen.Add(RuleCatalog.NormalizeGroupName(group)))
+                names.Add(group);
+        }
+
+        try
+        {
+            string[] folders = ImageFolderScanner.ListSubfolders(imageRootDirectory);
+            IReadOnlyDictionary<string, string> folderNames =
+                RuleCatalog.GroupNamesForFolders(appDirectory, folders);
+            foreach (string folder in folders)
+            {
+                if (folderNames.TryGetValue(folder, out string? group))
+                    Add(group);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            or OcrException or System.Text.Json.JsonException)
+        {
+            // 目录暂时不可访问时照常打开窗口，后面两个来源仍会补齐。
+        }
+
+        try
+        {
+            foreach (string known in RuleCatalog.AllGroupNames(appDirectory))
+                Add(known);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            or System.Text.Json.JsonException)
+        {
+            // 配置目录不可读时只影响兜底，不影响已勾选的群。
+        }
+
+        foreach (string selected in selectedGroups)
+            Add(selected);
+
+        names.Sort(StringComparer.OrdinalIgnoreCase);
+        return names;
+    }
     private void ToggleFromClick(Point location)
     {
+        // 只响应左键：右键/中键不应该改变勾选。
         int index = groupList.IndexFromPoint(location);
+        ToggleAt(index);
+    }
+
+    private void ToggleAt(int index)
+    {
         if (index < 0 || index >= groups.Count)
             return;
-        string group = groups[index].Group;
+        string group = groups[index];
         bool selected = !settings.IsSelectedGroup(group);
         settings.SetSelectedGroup(group, selected);
         try
@@ -169,7 +228,7 @@ internal sealed class AutoRecognizeForm : Form
     {
         if (e.Index < 0 || e.Index >= groups.Count)
             return;
-        bool selected = settings.IsSelectedGroup(groups[e.Index].Group);
+        bool selected = settings.IsSelectedGroup(groups[e.Index]);
         using (var background = new SolidBrush(MainForm.CardBackground))
             e.Graphics.FillRectangle(background, e.Bounds);
         var box = new Rectangle(e.Bounds.Left + 8, e.Bounds.Top + 6, 14, 14);
@@ -180,7 +239,7 @@ internal sealed class AutoRecognizeForm : Form
             using var fill = new SolidBrush(MainForm.AccentAmber);
             e.Graphics.FillRectangle(fill, Rectangle.Inflate(box, -3, -3));
         }
-        TextRenderer.DrawText(e.Graphics, groups[e.Index].Group,
+        TextRenderer.DrawText(e.Graphics, groups[e.Index],
             groupList.Font,
             new Rectangle(e.Bounds.Left + 32, e.Bounds.Top, e.Bounds.Width - 36, e.Bounds.Height),
             MainForm.PrimaryText,

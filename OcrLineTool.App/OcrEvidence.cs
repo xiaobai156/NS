@@ -144,10 +144,11 @@ public sealed record OcrEvidence(
         string inputPath,
         byte[] inputBytes,
         string viewId,
-        IReadOnlyList<OcrLineEvidence> items)
+        IReadOnlyList<OcrLineEvidence> items,
+        IReadOnlyList<OcrLineEvidence>? tokenItems = null)
     {
         string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(inputBytes));
-        return new(inputPath, inputPath, hash, hash, viewId, items, items);
+        return new(inputPath, inputPath, hash, hash, viewId, items, tokenItems ?? items);
     }
 
     public OcrEvidence Bind(OcrEvidenceIdentity identity)
