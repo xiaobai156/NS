@@ -51,13 +51,17 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
 
-        Assert.Equal(106, rules.Count);
+        Assert.Equal(107, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.Contains(rules, rule => rule.Id == "钦差大臣公式一" && rule.Section == "公式一");
         Assert.Contains(rules, rule => rule.Id == "君军两尾" && rule.Type == "尾数组合");
         Assert.Contains(rules, rule => rule.Id == "恩平公式" && rule.RequiredKeyword == "杀二肖" && rule.Section == "杀二肖");
         Assert.Contains(rules, rule => rule.Id == "恩平九肖" && rule.Type == "九肖"
             && rule.Keyword == "恩平公式九肖" && rule.Folder == "恩平");
+        // 送钱宝宝：folder 写错会让候选永远不命中、整条静默缺失，而上面的计数断言照样全绿。
+        Assert.Contains(rules, rule => rule.Id == "送钱宝宝" && rule.Type == "九肖"
+            && rule.Keyword == "送钱宝宝镇坛九肖" && rule.Folder == "送钱宝宝"
+            && rule.RequiredKeyword == "送钱宝宝");
         Assert.Contains(rules, rule => rule.Id == "小灰灰一肖" && rule.Type == "单生肖");
         Assert.DoesNotContain(rules, rule => rule.Id == "小灰灰两肖");
         Assert.DoesNotContain(rules, rule => rule.Id == "小灰灰两尾");
@@ -1391,6 +1395,41 @@ public sealed class RuleCatalogTests
         // 期号行自带装饰括号时，不再向后拼出本期的五个半波（守卫 2）。
         Assert.Null(RuleEngine.ExtractFinalValue(
             ["298期【未开】", "开??", "数据半波【红波单红波双蓝波单蓝波双绿波单】"], 298, wave));
+    }
+
+    // 送钱宝宝：每行「NNN期 + 九个生肖 + 开X NN准」，只取目标期那行的九个生肖本身。
+    // 正确性完全依赖「开」处截断——开奖生肖也是生肖字，不截断就会变成 10 个。
+    [Theory]
+    // 开奖生肖与九肖之一重复（293 期虎既是九肖也是开奖）：仍取九个。
+    [InlineData("293期", "兔鼠龙狗鸡猴马猪虎开虎05准", "兔鼠龙狗鸡猴马猪虎")]
+    // 未开奖的占位写法。
+    [InlineData("300期", "蛇兔鸡羊牛狗龙虎鼠开？00准", "蛇兔鸡羊牛狗龙虎鼠")]
+    [InlineData("299期", "狗龙牛鸡鼠羊虎猴蛇开猴23准", "狗龙牛鸡鼠羊虎猴蛇")]
+    public void SendMoneyBabyTakesTheNineZodiacsAndIgnoresTheDrawnResult(
+        string issueText, string row, string expected)
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
+        OcrRule rule = rules.Single(item => item.Id == "送钱宝宝");
+        int issue = int.Parse(issueText.TrimEnd('期'));
+        // 真实卡面是「期号 + 九个生肖 + 开X」印在同一行，不是分开两行。
+        Assert.Equal(expected, RuleEngine.ExtractFinalValue(
+            ["送钱宝宝镇坛九肖", issueText + " " + row], issue, rule));
+    }
+
+    // 「开」被 OCR 丢掉时，开奖生肖会混进九肖变成十个字：必须判缺失，
+    // 绝不能挑其中九个凑一个看起来合法的答案。
+    [Fact]
+    public void SendMoneyBabyStaysMissingWhenTheOpeningMarkerIsLost()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
+        OcrRule rule = rules.Single(item => item.Id == "送钱宝宝");
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["送钱宝宝镇坛九肖", "293期 兔鼠龙狗鸡猴马猪虎虎05准"], 293, rule));
+        // 只有八个生肖同样判缺失。
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["送钱宝宝镇坛九肖", "293期 兔鼠龙狗鸡猴马猪开虎05准"], 293, rule));
     }
 }
 
