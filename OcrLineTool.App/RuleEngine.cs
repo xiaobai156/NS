@@ -1168,6 +1168,11 @@ public static class RuleEngine
         if (rule.Id == "黑客四行" && rule.Type == "缺五行")
             return ExtractLabelledFourElements(lines, issue, @"五行必中");
 
+        // 嫣然心水「陈思思」：乖乖团队的禁肖统计表，每行作者名 + 正字 + 「禁」+ 生肖。
+        // 通用路径会取页面上第一个「禁」后面的生肖（别人的），必须只认本人那一行。
+        if (rule.Id == "陈思思" && rule.Type == "生肖")
+            return ExtractAuthorForbiddenZodiac(lines, issue, rule);
+
         // 复核卡（require_row_structure）：取值只认目标期号那一行，不拼行、不借期。
         if (rule.RequireRowStructure)
             return ExtractRequiredRowValue(lines, issue, rule);
@@ -2495,6 +2500,45 @@ public static class RuleEngine
             }
         }
 
+        return observed.Count == 1 ? observed.Single() : null;
+    }
+
+    // 「GG团队…禁肖统计」表：每行 = 作者名 + 正字 + 红底「禁」+ 一个生肖。
+    // 整图 OCR 常把各行的生肖并成一列或整行丢掉，通用路径又会拿页面上第一个
+    // 「禁」后面的生肖充数，所以这里只认本人那一行：作者名后面紧跟「禁」，
+    // 且「禁」之后恰好一个生肖才算数。本人行读不到生肖就判缺失，交给按行裁剪补读。
+    private static string? ExtractAuthorForbiddenZodiac(string[] lines, int issue, OcrRule rule)
+    {
+        string[] aliases = new[] { Normalize(rule.Keyword), Normalize(rule.Label ?? string.Empty) }
+            .Where(alias => alias.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (aliases.Length == 0)
+            return null;
+        // 表格标题必须写着目标期；标题还停在上一期时一律判缺失，
+        // 绝不拿历史期的行凑本期结果。
+        if (!FindIssues(lines).Contains(issue))
+            return null;
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string raw in lines)
+        {
+            string line = Normalize(raw);
+            string? alias = aliases.FirstOrDefault(item => line.Contains(item, StringComparison.Ordinal));
+            if (alias is null)
+                continue;
+            string tail = line[(line.IndexOf(alias, StringComparison.Ordinal) + alias.Length)..];
+            int forbidden = tail.IndexOf('禁');
+            if (forbidden < 0)
+                continue;
+            // 作者名与「禁」之间只允许正字计数与对错标记；出现别的字说明这一格
+            // 不是本人的「禁」字段（例如作者名后面又接了另一个资料名）。
+            string statusPrefix = tail[..forbidden];
+            if (statusPrefix.Length > 0
+                && Regex.IsMatch(statusPrefix, @"[^正准準中错錯对對囸企一二三四五0-9]"))
+                continue;
+            if (ExtractSingleZodiac(tail[(forbidden + 1)..]) is { } value)
+                observed.Add(value);
+        }
         return observed.Count == 1 ? observed.Single() : null;
     }
 

@@ -120,6 +120,29 @@ public sealed class AuditPipelineRegressionTests
     }
 
     [Fact]
+    public async Task MarkerPlacementInsertsAboveTheRankingWithOneBlankLine()
+    {
+        using var files = new TemporaryFiles();
+        string target = files.File("303期-五行.txt", "水行 甲\n金行 乙\n\n内容\t次数\t排名\n水行\t1\t1\n金行\t1\t2\n");
+        await OwnedResultWriter.ApplyAsync(target, "群A", ["木行 黑字杀行"], "内容\t次数\t排名", true);
+        Assert.Equal(
+            new[] { "水行 甲", "金行 乙", "木行 黑字杀行", "", "内容\t次数\t排名", "水行\t1\t1", "金行\t1\t2" },
+            await System.IO.File.ReadAllLinesAsync(target));
+    }
+
+    [Fact]
+    public void FiveElementDistributionInsertsAboveItsRankingBlock()
+    {
+        string path = Path.Combine(
+            ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "五行分发规则.json");
+        using JsonDocument document = JsonDocument.Parse(System.IO.File.ReadAllText(path));
+        JsonElement placement = document.RootElement.GetProperty("placement");
+        Assert.Equal("beforeLine", placement.GetProperty("mode").GetString());
+        Assert.Equal("内容\t次数\t排名", placement.GetProperty("marker").GetString());
+        Assert.True(placement.GetProperty("blankLineBeforeMarker").GetBoolean());
+    }
+
+    [Fact]
     public async Task CanceledAtomicWritePreservesPreviousFile()
     {
         using var files = new TemporaryFiles();

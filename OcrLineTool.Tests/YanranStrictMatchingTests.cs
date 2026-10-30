@@ -201,7 +201,7 @@ public sealed class YanranStrictMatchingTests
     {
         OcrRule[] catalog = Rules();
         OcrRule rule = Rule("陈思思");
-        Assert.Equal("统计表", rule.RequiredKeyword);
+        Assert.Equal("禁肖统计", rule.RequiredKeyword);
         Assert.True(rule.AllowIssueLessSummary);
 
         string summary = @"C:\结果\9.10-嫣然心水\乖乖团队\summary.jpg";
@@ -215,6 +215,45 @@ public sealed class YanranStrictMatchingTests
             dedicated,
             ["团队", "不忘初心", "新澳门六合彩", "陈思思", "254期禁羊", "255期禁马"],
             [rule], catalog));
+    }
+
+    // 禁肖统计表：每行是「作者名 + 正字 + 禁 + 生肖」。整图 OCR 常把别人的生肖
+    // 先读出来，通用路径会拿页面上第一个「禁」后面的生肖充数，所以只认本人那一行。
+    [Fact]
+    public void ChenSisiReadsOnlyItsOwnForbiddenRow()
+    {
+        OcrRule rule = Rule("陈思思");
+        string[] sheet =
+        [
+            "GG团队303期新澳禁肖统计",
+            "YGG正正正正禁猪",
+            "Alice正正正正禁猴",
+            "陈思思 正正正禁马",
+            "潮汕陈龙 正正禁龙"
+        ];
+        Assert.Equal("马", RuleEngine.ExtractFinalValue(sheet, 303, rule));
+
+        // 只有别人的行、没有本人行时判缺失，别人的生肖不许顶上来。
+        Assert.Null(RuleEngine.ExtractFinalValue(sheet[..3], 303, rule));
+
+        // 本人行没读到生肖就判缺失，交给按行裁剪补读。
+        string[] missing = ["GG团队303期新澳禁肖统计", "YGG正正正正禁猪", "陈思思 正正三禁"];
+        Assert.Null(RuleEngine.ExtractFinalValue(missing, 303, rule));
+
+        // 同一期出现两个不同生肖时不猜，直接判缺失。
+        string[] conflicting = ["GG团队303期新澳禁肖统计", "陈思思正正正禁马", "陈思思正正正禁羊"];
+        Assert.Null(RuleEngine.ExtractFinalValue(conflicting, 303, rule));
+    }
+
+    [Fact]
+    public void ChenSisiKeepsTheSheetIssueGate()
+    {
+        OcrRule rule = Rule("陈思思");
+        // 标题还停在上一期时，本人行再清楚也不许当本期结果。
+        string[] earlier = ["GG团队302期新澳禁肖统计", "陈思思 正正正禁马"];
+        Assert.Null(RuleEngine.ExtractFinalValue(earlier, 303, rule));
+        string[] current = ["GG团队303期新澳禁肖统计", "陈思思 正正正禁马"];
+        Assert.Equal("马", RuleEngine.ExtractFinalValue(current, 303, rule));
     }
 
     [Fact]
