@@ -65,7 +65,6 @@ public sealed class MacauRuleHardeningTests
         绿杀|绿杀:羊 猪|羊猪
         摇钱树蓝杀|蓝杀:狗 雞|狗鸡
         通天资料双尾|【5 8】尾|5尾+8尾
-        心水杀段|杀:3 段!! 不会开|3段
         广东两肖|广东报👉:【猴龙】✓|猴龙
         福建两肖|福建报👉:【龙马】✓|龙马
         广西两肖|广西报👉:【兔狗】✓|兔狗
@@ -262,7 +261,6 @@ public sealed class MacauRuleHardeningTests
     [InlineData("天机阁五行", "必中【金 木 水 土 土】码")]
     [InlineData("大赢家五行", "大赢家四行:金 木 水")]
     [InlineData("大赢家杀尾", "狂赢九尾:0 1 3 4 5 6 7 8 9 9")]
-    [InlineData("心水杀段", "杀:3 4段 不会开")]
     public void MalformedValuesAreMissingNotPartialSuccesses(string id, string body) =>
         Assert.Null(RuleEngine.ExtractFinalValue(["318期", body, "鸡46中"], 318, Rule(id)));
 
@@ -275,7 +273,6 @@ public sealed class MacauRuleHardeningTests
     [InlineData("大赢家五行", "大赢家四行:木 水 火 土", "金")]
     [InlineData("天机阁五行", "必中【金 水 火 土】码", "木")]
     [InlineData("大赢家杀尾", "狂赢九尾:0 1 3 4 5 6 7 8 9", "2尾")]
-    [InlineData("心水杀段", "杀:0 段!! 不会开", "0段")]
     [InlineData("大赢家杀头", "买 零头 会输很惨!", "0头")]
     public void FinalOutputUsesTheMissingItemOrExplicitSingleValue(string id, string body, string expected)
     {

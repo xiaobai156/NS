@@ -326,7 +326,6 @@ public sealed class ResultDistributorTests
                     "05,06,07,09,15,24,25,27,30,32,38,44 小马哥",
                     "木 天机阁五行",
                     "木 大赢家五行",
-                    "0段 心水杀段",
                     "兔 帅铁备份",
                     "01,02 龙王36码",
                     "木 大赢家五行备份"
@@ -350,7 +349,7 @@ public sealed class ResultDistributorTests
                 ["土行 男儿本色", "木 天机阁五行", "木 大赢家五行"],
                 await File.ReadAllLinesAsync(Path.Combine(folder, "242期-五行.txt")));
             Assert.Equal(
-                ["2段 花间辞令", "0段 心水杀段", "", "排行", "合计 200条"],
+                ["2段 花间辞令", "", "排行", "合计 200条"],
                 await File.ReadAllLinesAsync(Path.Combine(folder, "242期-段.txt")));
         }
         finally

@@ -597,17 +597,6 @@
       "FingerprintBottomWidthRatio": null
     },
     {
-      "Id": "\u5FC3\u6C34\u6740\u6BB5",
-      "RuleIds": [
-        "\u5FC3\u6C34\u6740\u6BB5"
-      ],
-      "Fingerprint": "FFC759F9736FD7AFFFC7FFFFFFFFFFFFFDEFFFFFFFFFFFFFFFDFFFFFFFFFFFFFFE7FFFFFF773EB7FFE65E2D5E772CEFFFE65E2954F72CCFFFE67D18CE732EEFFFE69F28D4332867FFE61B2954B32DD7FFE6739BC6333DD7FFE61B9954F31D77FFE67F19CE734957FFE65E2E8E730AD7FFE66E524C733ECFFFC6AE5999F314CFF",
-      "CropTopWidthRatio": 0.1125,
-      "CropBottomWidthRatio": 0.33,
-      "FingerprintTopWidthRatio": null,
-      "FingerprintBottomWidthRatio": null
-    },
-    {
       "Id": "\u5E7F\u4E1C\u4E24\u8096",
       "RuleIds": [
         "\u5E7F\u4E1C\u4E24\u8096"

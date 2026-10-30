@@ -287,7 +287,7 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "新澳六合彩资料.json"));
 
-        Assert.Equal(108, rules.Count);
+        Assert.Equal(107, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
         // v1.5.189 新增、现已撤回的 15 条资料：Id 一旦回流就报错。
         string[] removed =
@@ -360,10 +360,6 @@ public sealed class RuleCatalogTests
             rule.Id == "通天资料双尾" &&
             rule.Keyword == "通天资料必杀双尾特" &&
             rule.Type == "尾数组合");
-        Assert.Contains(rules, rule =>
-            rule.Id == "心水杀段" &&
-            rule.Keyword == "心水站期期绝杀一段" &&
-            rule.Type == "段");
         foreach (string province in new[] { "广东", "福建", "广西", "贵州", "海南", "江西" })
             Assert.Contains(rules, rule =>
                 rule.Id == province + "两肖" &&
@@ -403,7 +399,7 @@ public sealed class RuleCatalogTests
             "庄家", "天线宝杀", "六叔公头", "通天", "帅铁", "帅铁尾", "帅铁头", "杀料", "杀料五码", "心水",
             "心水两肖", "白小姐杀两肖", "内幕", "强哥", "锁妖", "赛马会", "聚彩", "慈善", "金钱网", "彩虹",
             "天机阁", "天机阁五行", "妈祖两尾", "祖师公肖", "祖师公尾", "龙王杀", "龙王杀两肖", "龙王", "红人馆", "老人杀", "老人味",
-            "姨妈", "姨妈杀头", "聚宝两肖", "大赢家", "大赢家杀头", "大赢家五行", "大赢家杀尾", "大懒趴", "铁甲小宝", "伯公绝杀", "绿杀", "摇钱树蓝杀", "通天资料双尾", "心水杀段",
+            "姨妈", "姨妈杀头", "聚宝两肖", "大赢家", "大赢家杀头", "大赢家五行", "大赢家杀尾", "大懒趴", "铁甲小宝", "伯公绝杀", "绿杀", "摇钱树蓝杀", "通天资料双尾",
             "广东两肖", "福建两肖", "广西两肖", "贵州两肖", "海南两肖", "江西两肖", "湖南两肖",
             "上海两肖", "深圳两肖", "云南两肖", "四川两肖", "特头杀", "特头必中"
             , "水哥肖", "包公肖肖", "九宫格肖肖", "佛祖肖肖", "禁止肖肖", "三怪肖肖", "王者肖肖", "小精肖肖", "时点半", "红禁肖", "关公又来了肖",

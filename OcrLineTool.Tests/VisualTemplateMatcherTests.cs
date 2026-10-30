@@ -351,8 +351,8 @@ public sealed class VisualTemplateMatcherTests
             VisualTemplateMatcher.ConfigPath(AppContext.BaseDirectory));
 
         Assert.Equal("新澳六合彩资料", catalog.Folder);
-        Assert.Equal(105, catalog.Templates.Count);
-        Assert.Equal(108, catalog.Templates.SelectMany(item => item.RuleIds).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(104, catalog.Templates.Count);
+        Assert.Equal(107, catalog.Templates.SelectMany(item => item.RuleIds).Distinct(StringComparer.Ordinal).Count());
         Assert.Contains(catalog.Templates, item =>
             item.Id == "藏宝杀一肖" && item.RuleIds.SequenceEqual(["藏宝杀一肖"], StringComparer.Ordinal));
         Assert.Contains(catalog.Templates, item =>
@@ -371,8 +371,6 @@ public sealed class VisualTemplateMatcherTests
             item.Id == "摇钱树蓝杀" && item.RuleIds.SequenceEqual(["摇钱树蓝杀"], StringComparer.Ordinal));
         Assert.Contains(catalog.Templates, item =>
             item.Id == "通天资料双尾" && item.RuleIds.SequenceEqual(["通天资料双尾"], StringComparer.Ordinal));
-        Assert.Contains(catalog.Templates, item =>
-            item.Id == "心水杀段" && item.RuleIds.SequenceEqual(["心水杀段"], StringComparer.Ordinal));
         foreach (string province in new[] { "广东", "福建", "广西", "贵州", "海南", "江西", "湖南", "上海", "深圳", "云南", "四川" })
             Assert.Contains(catalog.Templates, item =>
                 item.Id == province + "两肖" &&
