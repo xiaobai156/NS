@@ -27,6 +27,7 @@
       "keyword": "青苹果",
       "type": "生肖",
       "label": "青苹果杀一肖",
+      "section": "肖",
       "required_keyword": "青苹果",
       "folder": "青苹果"
     },

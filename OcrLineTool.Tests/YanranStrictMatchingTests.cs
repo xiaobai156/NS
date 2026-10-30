@@ -314,4 +314,38 @@ public sealed class YanranStrictMatchingTests
         Assert.True(plan.IsPrimary);
         Assert.Equal(rule, Assert.Single(plan.Rules));
     }
+
+    [Fact]
+    public void QingpingguoSplitsTheKillSixCodeCardFromTheKillOneZodiacCard()
+    {
+        OcrRule[] catalog = Rules();
+        OcrRule zodiac = Assert.Single(catalog, rule => rule.Id == "青苹果杀一肖");
+        OcrRule sixCodes = Assert.Single(catalog, rule => rule.Id == "青苹果");
+        // 同一作者两张卡都只印「原创青苹果」，靠卡面上的「肖」字分区：
+        // 杀①肖卡有「肖」，杀六码卡整张没有「肖」。
+        Assert.Equal("肖", zodiac.Section);
+
+        string image = @"C:\结果.30-嫣然心水\青苹果\sample.jpg";
+        string[] sixCodeCard =
+        [
+            "新澳六合彩",
+            "原创青苹果原创青苹果",
+            "303期杀六码:081823381328开00猫准"
+        ];
+        string[] zodiacCard =
+        [
+            "新澳六合彩",
+            "原创青苹果原创青苹果",
+            "{303期}新澳杀①肖：猴开猫50对"
+        ];
+
+        // 杀六码卡不许再顶替杀一肖，否则复抓会挑错图并报「未识别到唯一有效生肖」。
+        Assert.Empty(RuleEngine.FindMatches(image, sixCodeCard, [zodiac], catalog));
+        Assert.Single(RuleEngine.FindMatches(image, zodiacCard, [zodiac], catalog));
+        Assert.Single(RuleEngine.FindMatches(image, sixCodeCard, [sixCodes], catalog));
+        Assert.Empty(RuleEngine.FindMatches(image, zodiacCard, [sixCodes], catalog));
+
+        // 按行裁剪补读回来的那一行仍能取到值。
+        Assert.Equal("猴", RuleEngine.ExtractFinalValue(["303期新澳杀①肖猴×开猫50对"], 303, zodiac));
+    }
 }
