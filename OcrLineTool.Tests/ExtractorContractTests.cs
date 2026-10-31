@@ -32,6 +32,22 @@ public sealed class ExtractorContractTests
         ["黑客四行"] = "four_elements_bracket",
         ["陈思思"] = "author_forbidden_zodiac",
         ["杰少九肖"] = "jieshao_nine_zodiacs",
+        ["龙翔"] = "rui_er_team_card",
+        ["彩虹公主"] = "rui_er_team_card",
+        ["蓝色空间"] = "rui_er_team_card",
+        ["战神飘扬"] = "rui_er_team_card",
+        ["安之若素"] = "rui_er_team_card",
+        ["安之若素尾"] = "rui_er_team_card",
+        ["风雨同路"] = "rui_er_team_card",
+        ["风雨同路尾"] = "rui_er_team_card",
+        ["紫琼女神"] = "rui_er_team_card",
+        ["紫琼女神尾"] = "rui_er_team_card",
+        ["碧水蓝天"] = "rui_er_team_card",
+        ["碧水蓝天尾"] = "rui_er_team_card",
+        ["蕊儿"] = "rui_er_team_card",
+        ["蕊儿尾"] = "rui_er_team_card",
+        ["梓涵合"] = "rui_er_team_card",
+        ["梓涵半头"] = "rui_er_team_card",
     };
 
     // 代码里 switch 认得的全部取值。加分支时同步这里。
@@ -55,6 +71,7 @@ public sealed class ExtractorContractTests
         "four_elements_bracket",
         "author_forbidden_zodiac",
         "jieshao_nine_zodiacs",
+        "rui_er_team_card",
     };
 
     [Fact]

@@ -875,9 +875,20 @@ public sealed class ResultDistributorTests
             ["68赵高", "香奈风清扬", "战狼蔷薇"],
             ReadSourceLabels("头分发规则.json", "黄大仙新澳"));
         Assert.Equal(
-            ["68宝爷", "香奈肖肖", "红人关公肖", "红人极点肖"],
+            ["68宝爷", "香奈肖肖", "红人关公肖", "红人极点肖",
+             "龙翔", "彩虹公主", "蓝色空间", "战神飘扬", "安之若素"],
             ReadSourceLabels("肖新增分发规则.json", "黄大仙新澳"));
-        Assert.Equal(["68旺仔", "香奈尾", "红人关公尾"], ReadSourceLabels("尾分发规则.json", "黄大仙新澳"));
+        Assert.Equal(
+            ["68旺仔", "香奈尾", "红人关公尾",
+             "安之若素尾", "风雨同路尾", "紫琼女神尾", "碧水蓝天尾", "蕊儿尾"],
+            ReadSourceLabels("尾分发规则.json", "黄大仙新澳"));
+        Assert.Equal(
+            ["战狼小馒头", "风雨同路", "紫琼女神", "碧水蓝天", "蕊儿"],
+            ReadSourceLabels("肖分发规则.json", "黄大仙新澳"));
+        Assert.Equal(["梓涵合"], ReadSourceLabels("合分发规则.json", "黄大仙新澳"));
+        Assert.Equal(
+            ["战狼老王", "梓涵半头"],
+            ReadSourceLabels("半头分发规则.json", "黄大仙新澳"));
         Assert.Equal(
             ["68老大", "香奈微风细雨", "战狼天空"],
             ReadSourceLabels("生肖分发规则.json", "黄大仙新澳"));

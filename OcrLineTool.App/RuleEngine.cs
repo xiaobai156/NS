@@ -1152,6 +1152,7 @@ public static class RuleEngine
         "four_elements_bracket",
         "author_forbidden_zodiac",
         "jieshao_nine_zodiacs",
+        "rui_er_team_card",
     };
 
     private static bool TryExtractOwnCard(
@@ -1263,6 +1264,11 @@ public static class RuleEngine
             // 通用路径会取页面上第一个「禁」后面的生肖（别人的），必须只认本人那一行。
             case "author_forbidden_zodiac":
                 value = ExtractAuthorForbiddenZodiac(lines, issue, rule);
+                return true;
+
+            // 黄大仙新澳「蕊儿团队」：作者名只在图头，值在方括号里，括号右边是开奖结果。
+            case "rui_er_team_card":
+                value = ExtractRuiErTeamCard(lines, issue, rule);
                 return true;
 
             case null:
@@ -2678,6 +2684,70 @@ public static class RuleEngine
                 observed.Add(value);
         }
         return observed.Count == 1 ? observed.Single() : null;
+    }
+
+    // 黄大仙新澳「蕊儿团队」：十张同版式卡，作者名只印在图头，数据行统一是
+    // 「新菜304期：杀①肖【虎】T00肖」。答案只认方括号里那一截，
+    // 括号右边是开奖结果（T17虎 之类），算进去就会拿到别人的生肖。
+    private static string? ExtractRuiErTeamCard(string[] lines, int issue, OcrRule rule)
+    {
+        // 作者名只出现在图头，用它挡掉同版式的别人卡。
+        if (!HasKeywordInHeading(lines, Normalize(rule.Keyword)))
+            return null;
+
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        for (int index = 0; index < lines.Length; index++)
+        {
+            if (!RowBelongsToIssue(lines[index], issue))
+                continue;
+
+            // 方括号可能被 OCR 切到下一行（碧水蓝天 302 期、蕊儿 302 期就是这样）。
+            string row = lines[index];
+            if (!row.Contains('【') && index + 1 < lines.Length && lines[index + 1].Contains('【'))
+                row += lines[index + 1];
+
+            Match payload = Regex.Match(row, "【(?<value>[^】]*)】");
+            if (!payload.Success)
+                continue;
+
+            if (ParseRuiErTeamPayload(rule.Type, payload.Groups["value"].Value) is { } value)
+                observed.Add(value);
+        }
+
+        return observed.Count == 1 ? observed.Single() : null;
+    }
+
+    // 这一族卡的期号有两种写法：「新菜304期」和「新菜期:300」。
+    private static bool RowBelongsToIssue(string line, int issue)
+    {
+        if (LineContainsIssue(line, issue))
+            return true;
+        return Regex.IsMatch(line, $@"期\s*[:：]?\s*{issue}(?![0-9])");
+    }
+
+    // 括号里是「虎」/「猴+7尾」/「01」/「4头双」这类短串，按规则类型各取各的。
+    private static string? ParseRuiErTeamPayload(string type, string payload)
+    {
+        string value = payload.Trim();
+        if (value.Length == 0)
+            return null;
+
+        switch (type)
+        {
+            case "生肖":
+                return ExtractSingleZodiac(value);
+            case "尾":
+            {
+                Match tail = Regex.Match(value, "(?<digit>[0-9])尾");
+                return tail.Success ? tail.Groups["digit"].Value + "尾" : null;
+            }
+            case "合":
+                return Regex.IsMatch(value, "^[0-9]{2}$") ? value + "合" : null;
+            case "半头":
+                return Regex.IsMatch(value, "^[0-4]头[单双]$") ? value : null;
+            default:
+                return null;
+        }
     }
 
     private static int CountOccurrences(string text, string value)

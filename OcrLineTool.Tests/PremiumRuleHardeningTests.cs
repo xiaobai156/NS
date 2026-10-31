@@ -211,12 +211,16 @@ public sealed class PremiumRuleHardeningTests
                     && rule.Id is "斩杀半波" or "斩杀一行" or "斩杀两尾" or "斩杀两肖" or "斩杀一头" or "天空杀";
                 bool explicitHuangdaxianNonStrict = Path.GetFileName(path) == "黄大仙新澳.json"
                     && rule.Id == "完美两肖";
+                // 黄大仙半波每行把标签、重复半波和开奖格挤在同一行，严格期块切不出干净值，按卡面走非严格。
+                bool explicitMacauNonStrict = Path.GetFileName(path) == "新澳六合彩资料.json"
+                    && rule.Id == "黄大仙半波";
                 // 黑色六合彩、嫣然电报：卡面数据行印在期号格上方，目录默认非严格；
                 // 只有「天宫杀头」这一条按卡面走严格期块。
                 bool explicitNewGroupStrict = Path.GetFileName(path) == "黑色六合彩.json"
                     && rule.Id is "天宫杀头" or "锦囊杀十码" or "红牛四行" or "黑客四行" or "黑客半波";
                 Assert.Equal(
-                    hardenedCatalog && !explicitHuangdaxianNonStrict || explicitYanranStrict || explicitZhanShaStrict
+                    hardenedCatalog && !explicitHuangdaxianNonStrict && !explicitMacauNonStrict
+                        || explicitYanranStrict || explicitZhanShaStrict
                         || explicitNewGroupStrict,
                     rule.StrictIssueBlock);
             }

@@ -1147,6 +1147,15 @@
       "CropBottomWidthRatio": 0.3125,
       "FingerprintTopWidthRatio": 0.1125,
       "FingerprintBottomWidthRatio": 0.2125
+    },
+    {
+      "Id": "\u9EC4\u5927\u4ED9\u534A\u6CE2",
+      "RuleIds": ["\u9EC4\u5927\u4ED9\u534A\u6CE2"],
+      "Fingerprint": "F9C4EEB9FAF79F8EFFC7FFFFFFFFFFFFFFB5FFFFFFFFDFFFFFBFFFFFFFFFFFFFFFB9BDCDFEB75FFFFFF1AD8DBEB25FFFFFF32DAC7EB25FFFFFF33994FCB25FFFFFE2B8CC7CA33FFFFFE6BA4D38B33FFFFFE61B4CE8B23FFFFFE3DDC8EAB23FFFFFE5AD8E68B23FFFFFECAD8D38A73FFFFFE53DC97CED5FFFFFE35DCC7CAD5FFF",
+      "CropTopWidthRatio": 0.1,
+      "CropBottomWidthRatio": 0.62,
+      "FingerprintTopWidthRatio": null,
+      "FingerprintBottomWidthRatio": null
     }
   ],
   "FingerprintTopWidthRatio": null,

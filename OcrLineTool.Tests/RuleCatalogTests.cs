@@ -287,7 +287,7 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "新澳六合彩资料.json"));
 
-        Assert.Equal(107, rules.Count);
+        Assert.Equal(108, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
         // v1.5.189 新增、现已撤回的 15 条资料：Id 一旦回流就报错。
         string[] removed =
@@ -405,7 +405,7 @@ public sealed class RuleCatalogTests
             , "水哥肖", "包公肖肖", "九宫格肖肖", "佛祖肖肖", "禁止肖肖", "三怪肖肖", "王者肖肖", "小精肖肖", "时点半", "红禁肖", "关公又来了肖",
             "官方两肖", "老墨两肖", "图库禁两肖", "帅铁两肖", "心水两两肖", "金钱两肖", "王不王两肖",
             "曾道人小杀肖", "心水杀肖肖肖", "聚彩堂一肖", "聚彩堂一尾", "姨妈肖杀", "姨妈尾杀",
-            "彩虹半波", "超级赢家半波波", "王不王一头", "神算子避头", "财神一头",
+            "彩虹半波", "超级赢家半波波", "黄大仙半波", "王不王一头", "神算子避头", "财神一头",
             "近期开奖员", "毛老二", "通天九九肖", "大赢家九肖", "亮剑九肖",
             "白小姐四季", "白小姐来钱", "慈善四季"
         ], rules.Select(rule => rule.Id));
@@ -478,7 +478,7 @@ public sealed class RuleCatalogTests
     }
 
     [Theory]
-    [InlineData("黄大仙新澳.json", "黄大仙新澳", 24)]
+    [InlineData("黄大仙新澳.json", "黄大仙新澳", 40)]
     [InlineData("新澳高手.json", "新澳高手", 25)]
     public void LoadsTheNewGroupRules(string fileName, string groupName, int expectedCount)
     {

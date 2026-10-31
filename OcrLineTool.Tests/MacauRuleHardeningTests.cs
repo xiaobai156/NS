@@ -170,14 +170,19 @@ public sealed class MacauRuleHardeningTests
         [
             "官方两肖", "老墨两肖", "图库禁两肖", "帅铁两肖", "心水两两肖", "金钱两肖", "王不王两肖", "龙王杀两肖", "藏宝杀一肖",
             "曾道人小杀肖", "心水杀肖肖肖", "聚彩堂一肖", "聚彩堂一尾", "姨妈肖杀", "姨妈尾杀",
-            "彩虹半波", "超级赢家半波波", "王不王一头", "神算子避头", "财神一头",
+            "彩虹半波", "超级赢家半波波", "黄大仙半波", "王不王一头", "神算子避头", "财神一头",
             "近期开奖员", "毛老二", "通天九九肖", "大赢家九肖", "亮剑九肖",
             "白小姐四季", "白小姐来钱", "慈善四季"
         ];
         string[] covered = Samples().Concat(Portraits()).Select(row => (string)row[0])
             .Append("时点半").Concat(specialLayouts).Order().ToArray();
         Assert.Equal(Rules().Select(rule => rule.Id).Order(), covered);
-        Assert.All(Rules(), rule => Assert.True(rule.StrictIssueBlock));
+        // 黄大仙半波那张卡的每行把「杀半个波色」标签、两个重复半波和「开??」挤在同一行，
+        // 严格期块切不出干净的值，所以这一条按卡面走非严格期块，其余资料仍全部严格。
+        Assert.All(
+            Rules().Where(rule => rule.Id != "黄大仙半波"),
+            rule => Assert.True(rule.StrictIssueBlock));
+        Assert.False(Rule("黄大仙半波").StrictIssueBlock);
     }
 
     [Fact]
@@ -370,6 +375,7 @@ public sealed class MacauRuleHardeningTests
             ["姨妈尾杀"] = "7尾",
             ["彩虹半波"] = "蓝单",
             ["超级赢家半波波"] = "红单",
+            ["黄大仙半波"] = "红单",
             ["王不王一头"] = "3头",
             ["神算子避头"] = "3头",
             ["财神一头"] = "3头",
@@ -405,6 +411,7 @@ public sealed class MacauRuleHardeningTests
             Assert.Equal(output.Order(), result.DistributedLines.Order());
             Assert.Contains("3头 特头必中", await File.ReadAllLinesAsync(Path.Combine(folder, "318期-头.txt")));
             Assert.Contains("金行 大赢家五行", await File.ReadAllLinesAsync(Path.Combine(folder, "318期-五行.txt")));
+            Assert.Contains("红单 黄大仙半波", await File.ReadAllLinesAsync(Path.Combine(folder, "318期-半波.txt")));
             Assert.Contains("2尾 大赢家杀尾", await File.ReadAllLinesAsync(Path.Combine(folder, "318期-尾.txt")));
             Assert.Contains("鼠 藏宝杀一肖", await File.ReadAllLinesAsync(Path.Combine(folder, "318期-肖-新增.txt")));
             Assert.DoesNotContain("鼠 藏宝杀一肖", await File.ReadAllLinesAsync(Path.Combine(folder, "318期-二肖.txt")));
@@ -415,5 +422,24 @@ public sealed class MacauRuleHardeningTests
         {
             Directory.Delete(folder, recursive: true);
         }
+    }
+
+    [Fact]
+    public void HuangdaxianHalfWaveReadsTheDuplicatedCellOnTheIssueRow()
+    {
+        // 这张卡每行是「NNN期 + 杀半个波色 + 两个重复半波 + 开X NN中/错」，全部挤在一行。
+        var rule = Rule("黄大仙半波");
+        string[] lines =
+        [
+            "黄大仙--杀半个波色",
+            "304期杀半个波色红波单 红波单开??",
+            "303期杀半个波色绿波单绿波单虎17错",
+            "302期杀半个波色红波双红波双狗45中"
+        ];
+        Assert.Equal("红单", RuleEngine.ExtractFinalValue(lines, 304, rule));
+        Assert.Equal("绿单", RuleEngine.ExtractFinalValue(lines, 303, rule));
+        Assert.Equal("红双", RuleEngine.ExtractFinalValue(lines, 302, rule));
+        // 没有这一期就必须判缺失，不能拿相邻期的值顶上。
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 305, rule));
     }
 }

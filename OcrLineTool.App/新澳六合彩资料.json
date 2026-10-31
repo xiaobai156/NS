@@ -99,6 +99,7 @@
     { "keyword": "姨妈封杀一肖一尾", "type": "尾", "label": "姨妈尾杀" },
     { "keyword": "彩虹网精杀半波", "type": "色单双", "label": "彩虹半波" },
     { "keyword": "绝杀半波", "type": "色单双", "label": "超级赢家半波波" },
+    { "keyword": "杀半个波色", "type": "色单双", "label": "黄大仙半波", "strictIssueBlock": false },
     { "keyword": "王中王绝杀一头", "type": "头", "label": "王不王一头" },
     { "keyword": "神算子避开", "type": "头", "label": "神算子避头" },
     { "keyword": "财神网绝杀一头", "type": "头", "label": "财神一头" },

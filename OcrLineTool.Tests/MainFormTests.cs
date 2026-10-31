@@ -542,7 +542,9 @@ public sealed class MainFormTests
         Assert.Equal(2, calls);
         Assert.Contains("复抓触发限流：2 秒后重试 1/1", status.Text);
         // 墙钟照走，但 2 秒退避全部从估速耗时里扣除，且等待状态已复位。
-        Assert.True(watch.Elapsed >= TimeSpan.FromSeconds(2), watch.Elapsed.ToString());
+        // Windows 的 Task.Delay 受 15.6 毫秒时钟粒度影响，可能比请求的时长早几毫秒返回，
+        // 所以这里只要求「确实等过近 2 秒」；退避时长本身由下面的 ExcludedWait 精确核对。
+        Assert.True(watch.Elapsed >= TimeSpan.FromMilliseconds(1900), watch.Elapsed.ToString());
         Assert.True(tracker.ExcludedWait >= TimeSpan.FromSeconds(2), tracker.ExcludedWait.ToString());
         Assert.False(tracker.IsWaiting);
     }

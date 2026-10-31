@@ -26,6 +26,22 @@
     { "keyword": "关公", "type": "尾", "label": "红人关公尾", "section": "杀一尾", "required_keyword": "关公", "folder": "红人馆" },
     { "keyword": "极点", "type": "生肖", "label": "红人极点肖", "section": "杀一肖", "required_keyword": "极点", "folder": "红人馆" },
     { "keyword": "绝杀2肖", "type": "生肖组合", "label": "绿格子双杀", "section": "绝杀2肖", "required_keyword": "绝杀2肖", "folder": "综合" },
-    { "keyword": "完美杀肖心水料", "type": "生肖组合", "label": "完美两肖", "extractor": "perfect_two_zodiac", "required_keyword": "完美", "folder": "两版绿杀+完美杀", "strictIssueBlock": false }
+    { "keyword": "完美杀肖心水料", "type": "生肖组合", "label": "完美两肖", "extractor": "perfect_two_zodiac", "required_keyword": "完美", "folder": "两版绿杀+完美杀", "strictIssueBlock": false },
+    { "keyword": "龙翔", "type": "生肖", "label": "龙翔", "extractor": "rui_er_team_card", "required_keyword": "龙翔", "folder": "蕊儿团队" },
+    { "keyword": "彩虹公主", "type": "生肖", "label": "彩虹公主", "extractor": "rui_er_team_card", "required_keyword": "彩虹公主", "folder": "蕊儿团队" },
+    { "keyword": "蓝色空间", "type": "生肖", "label": "蓝色空间", "extractor": "rui_er_team_card", "required_keyword": "蓝色空间", "folder": "蕊儿团队" },
+    { "keyword": "战神飘扬", "type": "生肖", "label": "战神飘扬", "extractor": "rui_er_team_card", "required_keyword": "战神飘扬", "folder": "蕊儿团队" },
+    { "keyword": "安之若素", "type": "生肖", "label": "安之若素", "extractor": "rui_er_team_card", "required_keyword": "安之若素", "folder": "蕊儿团队" },
+    { "keyword": "安之若素", "type": "尾", "label": "安之若素尾", "extractor": "rui_er_team_card", "required_keyword": "安之若素", "folder": "蕊儿团队" },
+    { "keyword": "风雨同路", "type": "生肖", "label": "风雨同路", "extractor": "rui_er_team_card", "required_keyword": "风雨同路", "folder": "蕊儿团队" },
+    { "keyword": "风雨同路", "type": "尾", "label": "风雨同路尾", "extractor": "rui_er_team_card", "required_keyword": "风雨同路", "folder": "蕊儿团队" },
+    { "keyword": "紫琼女神", "type": "生肖", "label": "紫琼女神", "extractor": "rui_er_team_card", "required_keyword": "紫琼女神", "folder": "蕊儿团队" },
+    { "keyword": "紫琼女神", "type": "尾", "label": "紫琼女神尾", "extractor": "rui_er_team_card", "required_keyword": "紫琼女神", "folder": "蕊儿团队" },
+    { "keyword": "碧水蓝天", "type": "生肖", "label": "碧水蓝天", "extractor": "rui_er_team_card", "required_keyword": "碧水蓝天", "folder": "蕊儿团队" },
+    { "keyword": "碧水蓝天", "type": "尾", "label": "碧水蓝天尾", "extractor": "rui_er_team_card", "required_keyword": "碧水蓝天", "folder": "蕊儿团队" },
+    { "keyword": "蕊儿", "type": "生肖", "label": "蕊儿", "extractor": "rui_er_team_card", "required_keyword": "蕊儿", "folder": "蕊儿团队" },
+    { "keyword": "蕊儿", "type": "尾", "label": "蕊儿尾", "extractor": "rui_er_team_card", "required_keyword": "蕊儿", "folder": "蕊儿团队" },
+    { "keyword": "梓涵", "type": "合", "label": "梓涵合", "extractor": "rui_er_team_card", "required_keyword": "梓涵", "folder": "蕊儿团队" },
+    { "keyword": "梓涵", "type": "半头", "label": "梓涵半头", "extractor": "rui_er_team_card", "required_keyword": "梓涵", "folder": "蕊儿团队" }
   ]
 }
