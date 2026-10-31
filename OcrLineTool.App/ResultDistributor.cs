@@ -249,55 +249,9 @@ public static class ResultDistributor
     private static readonly IReadOnlySet<string> EmptyResult =
         new HashSet<string>(StringComparer.Ordinal);
 
-    private static void InsertBeforeMarker(
-        string targetPath,
-        string[] existingLines,
-        string[] linesToInsert,
-        Placement placement)
-    {
-        int markerIndex = Array.FindIndex(existingLines, line =>
-            line.Equals(placement.Marker, StringComparison.Ordinal));
-        if (markerIndex < 0)
-            markerIndex = Array.FindIndex(existingLines, IsRankingHeader);
-        if (markerIndex < 0)
-        {
-            // Some production category files are already flat data tables and
-            // do not contain the legacy ranking marker. Append safely instead
-            // of reporting a distribution failure.
-            string existingText = File.ReadAllText(targetPath);
-            string leadingNewLine = existingText.Length > 0 && !existingText.EndsWith('\n')
-                ? Environment.NewLine
-                : string.Empty;
-            File.AppendAllText(
-                targetPath,
-                leadingNewLine + string.Join(Environment.NewLine, linesToInsert) + Environment.NewLine,
-                new UTF8Encoding(false));
-            return;
-        }
-
-        var updated = existingLines.ToList();
-        while (markerIndex > 0 && string.IsNullOrWhiteSpace(updated[markerIndex - 1]))
-        {
-            updated.RemoveAt(markerIndex - 1);
-            markerIndex--;
-        }
-
-        updated.InsertRange(markerIndex, linesToInsert);
-        if (placement.BlankLineBeforeMarker)
-            updated.Insert(markerIndex + linesToInsert.Length, string.Empty);
-
-        byte[] bytes = File.ReadAllBytes(targetPath);
-        bool hasUtf8Bom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
-        AtomicFile.WriteAllLines(targetPath, updated, new UTF8Encoding(hasUtf8Bom));
-    }
-
-    private static bool IsRankingHeader(string line)
-    {
-        string normalized = string.Concat(line.Where(character => !char.IsWhiteSpace(character)));
-        return normalized.Contains("内容", StringComparison.Ordinal)
-            && normalized.Contains("次数", StringComparison.Ordinal)
-            && normalized.Contains("排名", StringComparison.Ordinal);
-    }
+    // 这里原本还有一份就地追加的实现（InsertBeforeMarker + IsRankingHeader）。
+    // 它用 File.AppendAllText 直接改用户的目标文件，中途失败会把文件截断，
+    // 而且早已没有调用方（排序块插入统一由 OwnedResultWriter 完成），故整段删除。
 
     private static bool IsConfiguredLine(
         string line,

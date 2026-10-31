@@ -120,9 +120,12 @@ internal static class OwnedResultWriter
                 : original.Length >= 2 && original[0] == 0xFF && original[1] == 0xFE ? Encoding.Unicode
                 : original.Length >= 2 && original[0] == 0xFE && original[1] == 0xFF ? Encoding.BigEndianUnicode
                 : new UTF8Encoding(false);
-            await AtomicFile.WriteAllLinesAsync(targetPath, rows, encoding);
-            // Separate atomic files, not a multi-file transaction. Failure here is reported, never marked distributed.
+            // 两个文件各自原子，合起来不是事务，所以顺序很重要：先写归属记录。
+            // 万一在两次写之间中断，留下的是「归属记录说有、目标文件里没有」，
+            // 下一次运行会把它当成待写入项自己补上；反过来则会在目标文件里留下
+            // 无主行——既撤销不掉，又会被判成归属不确定而永久卡住。
             await AtomicFile.WriteAllTextAsync(ownerPath, JsonSerializer.Serialize(owners));
+            await AtomicFile.WriteAllLinesAsync(targetPath, rows, encoding);
             return configuredLines.ToHashSet(StringComparer.Ordinal);
         }
         catch (OcrException) { throw; }
