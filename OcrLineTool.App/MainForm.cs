@@ -1264,8 +1264,7 @@ public sealed class MainForm : Form
             lastCloudOcrResults = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
             var localPrimaryCloudEvidence = new Dictionary<string, OcrEvidence>(StringComparer.OrdinalIgnoreCase);
             var cloudDeduplicators = new Dictionary<OcrProvider, CloudImageDeduplicator>();
-            var providerSpacing = new Dictionary<OcrProvider, Stopwatch>();
-            var providerStarted = new HashSet<OcrProvider>();
+            var providerPacers = new Dictionary<OcrProvider, CloudRequestPacer>();
             OcrCredential selectedCredential = credentialSelector.SelectedIndex <= 0
                 ? CredentialSchedule.DescribeDate(CredentialSchedule.TodayInBeijing())
                 : CredentialSchedule.DescribeSlot(credentialSelector.SelectedIndex - 1);
@@ -1311,12 +1310,14 @@ public sealed class MainForm : Form
                             candidate.Rules,
                             async () =>
                             {
-                                if (!providerSpacing.TryGetValue(credential.Provider, out Stopwatch? spacing))
-                                    providerSpacing[credential.Provider] = spacing = new Stopwatch();
-                                if (providerStarted.Contains(credential.Provider))
-                                    await WaitForPacingAsync(spacing, CloudOcrPolicy.MinimumInterval(credential.Provider));
-                                spacing.Restart();
-                                providerStarted.Add(credential.Provider);
+                                if (!providerPacers.TryGetValue(credential.Provider, out CloudRequestPacer? pacer))
+                                    providerPacers[credential.Provider] = pacer = new CloudRequestPacer
+                                    {
+                                        MinimumInterval = CloudOcrPolicy.MinimumInterval(credential.Provider)
+                                    };
+                                if (pacer.Remaining > TimeSpan.Zero)
+                                    await Task.Delay(pacer.Remaining, ActiveToken);
+                                pacer.MarkRequested();
                                 cloudRequests++;
                                 statusLabel.Text = $"本地主识别：云 OCR 兜底 {credential.DisplayName} · {completed + 1}/{cloudCandidates.Length} · 当前：{ShortPath(candidate.SourcePath)}";
                                 return await client.RecognizeEvidenceAsync(candidate.OcrPath, ActiveToken);
@@ -1840,10 +1841,8 @@ public sealed class MainForm : Form
                 : CredentialSchedule.DescribeSlot(credentialSelector.SelectedIndex - 1);
             IOcrClient cloudClient = OcrClientFactory.CreateDeferred(credential);
             // 主云遇到权限/欠费/无效凭据/无额度时，按顺序换下一个账号，最多 3 个。
-            OcrCredential[] primaryRotation = CredentialSchedule.RotationFrom(credential).Take(3).ToArray();
-            if (primaryRotation.Length == 0)
-                primaryRotation = [credential];
-            int primaryRotationIndex = 0;
+            var primaryRotation = new CloudAccountRotation(
+                CredentialSchedule.RotationFrom(credential).Take(3).DefaultIfEmpty(credential).ToArray());
             OcrCredential fallbackCredential = CredentialSchedule.DescribeFallback(credential);
             IOcrClient fallbackClient = OcrClientFactory.CreateDeferred(fallbackCredential);
             var values = new ResultValues(StringComparer.Ordinal);
@@ -1862,27 +1861,22 @@ public sealed class MainForm : Form
             var primaryImageDeduplicator = new CloudImageDeduplicator();
             var fallbackImageDeduplicator = new CloudImageDeduplicator();
             var cloudWatch = Stopwatch.StartNew();
-            var requestSpacing = Stopwatch.StartNew();
-            var fallbackRequestSpacing = Stopwatch.StartNew();
-            bool requestStarted = false;
-            bool fallbackRequestStarted = false;
-            TimeSpan minimumInterval = CloudOcrPolicy.MinimumInterval(credential.Provider);
-            TimeSpan fallbackMinimumInterval = CloudOcrPolicy.MinimumInterval(fallbackCredential.Provider);
+            var primaryPacer = new CloudRequestPacer { MinimumInterval = CloudOcrPolicy.MinimumInterval(credential.Provider) };
+            var fallbackPacer = new CloudRequestPacer { MinimumInterval = CloudOcrPolicy.MinimumInterval(fallbackCredential.Provider) };
             // 进度分母必须遍历前一次算定：备选候选也是真正要问云的图，遍历中再自增
             // 会让进度条回退、剩余时间跳变。这里按“确实有规则要处理”的候选计数。
             int plannedCloudImages = candidates.Count(candidate => candidate.Rules.Count > 0);
 
             bool TryAdvancePrimaryAccount()
             {
-                if (primaryRotationIndex + 1 >= primaryRotation.Length)
+                if (!primaryRotation.TryAdvance())
                     return false;
-                primaryRotationIndex++;
-                credential = primaryRotation[primaryRotationIndex];
+                credential = primaryRotation.Current;
                 cloudClient = OcrClientFactory.CreateDeferred(credential);
-                minimumInterval = CloudOcrPolicy.MinimumInterval(credential.Provider);
+                primaryPacer.MinimumInterval = CloudOcrPolicy.MinimumInterval(credential.Provider);
                 fallbackCredential = CredentialSchedule.DescribeFallback(credential);
                 fallbackClient = OcrClientFactory.CreateDeferred(fallbackCredential);
-                fallbackMinimumInterval = CloudOcrPolicy.MinimumInterval(fallbackCredential.Provider);
+                fallbackPacer.MinimumInterval = CloudOcrPolicy.MinimumInterval(fallbackCredential.Provider);
                 return true;
             }
 
@@ -1900,14 +1894,11 @@ public sealed class MainForm : Form
                 int automaticRetry = 0;
                 while (true)
                 {
-                    if (requestStarted)
+                    TimeSpan pacingDelay = primaryPacer.Remaining;
+                    if (pacingDelay > TimeSpan.Zero)
                     {
-                        TimeSpan pacingDelay = minimumInterval - requestSpacing.Elapsed;
-                        if (pacingDelay > TimeSpan.Zero)
-                        {
-                            statusLabel.Text = $"{stage}：按免费额度限速，{pacingDelay.TotalMilliseconds:0} 毫秒后处理 {displayIndex}/{displayTotal} · 当前：{ShortPath(candidate.SourcePath)}";
-                            await Task.Delay(pacingDelay, ActiveToken);
-                        }
+                        statusLabel.Text = $"{stage}：按免费额度限速，{pacingDelay.TotalMilliseconds:0} 毫秒后处理 {displayIndex}/{displayTotal} · 当前：{ShortPath(candidate.SourcePath)}";
+                        await Task.Delay(pacingDelay, ActiveToken);
                     }
 
                     int completedBeforeCall = displayIndex - 1;
@@ -1916,8 +1907,7 @@ public sealed class MainForm : Form
                         : TimeSpan.FromSeconds(cloudWatch.Elapsed.TotalSeconds / completedBeforeCall * (displayTotal - completedBeforeCall));
                     string remainingText = completedBeforeCall == 0 ? "计算中" : FormatDuration(remaining);
                     statusLabel.Text = $"{stage}：正在处理 {displayIndex}/{displayTotal} · 当前：{ShortPath(candidate.SourcePath)} · 已用 {FormatDuration(cloudWatch.Elapsed)} · 预计剩余 {remainingText}";
-                    requestSpacing.Restart();
-                    requestStarted = true;
+                    primaryPacer.MarkRequested();
                     cloudRequests++;
                     try
                     {
@@ -1974,18 +1964,14 @@ public sealed class MainForm : Form
                 int fallbackRetry = 0;
                 while (true)
                 {
-                    if (fallbackRequestStarted)
+                    TimeSpan fallbackPacingDelay = fallbackPacer.Remaining;
+                    if (fallbackPacingDelay > TimeSpan.Zero)
                     {
-                        TimeSpan pacingDelay = fallbackMinimumInterval - fallbackRequestSpacing.Elapsed;
-                        if (pacingDelay > TimeSpan.Zero)
-                        {
-                            statusLabel.Text = $"备用 {fallbackCredential.DisplayName}：等待 {pacingDelay.TotalMilliseconds:0} 毫秒 · {cloudIndex}/{plannedCloudImages} · 当前：{ShortPath(candidate.SourcePath)}";
-                            await Task.Delay(pacingDelay, ActiveToken);
-                        }
+                        statusLabel.Text = $"备用 {fallbackCredential.DisplayName}：等待 {fallbackPacingDelay.TotalMilliseconds:0} 毫秒 · {cloudIndex}/{plannedCloudImages} · 当前：{ShortPath(candidate.SourcePath)}";
+                        await Task.Delay(fallbackPacingDelay, ActiveToken);
                     }
 
-                    fallbackRequestSpacing.Restart();
-                    fallbackRequestStarted = true;
+                    fallbackPacer.MarkRequested();
                     cloudRequests++;
                     statusLabel.Text = $"主云结果不完整，正在用 {fallbackCredential.DisplayName} 整图补识别 {cloudIndex}/{plannedCloudImages} · 当前：{ShortPath(candidate.SourcePath)}";
                     try
@@ -2649,18 +2635,15 @@ public sealed class MainForm : Form
                 ? CredentialSchedule.DescribeDate(CredentialSchedule.TodayInBeijing())
                 : CredentialSchedule.DescribeSlot(credentialSelector.SelectedIndex - 1);
             // 云请求遇到权限/欠费/无效凭据/无额度时，按顺序换下一个账号，最多 3 个。
-            OcrCredential[] retryRotation = CredentialSchedule.RotationFrom(initialCredential).Take(3).ToArray();
-            if (retryRotation.Length == 0)
-                retryRotation = [initialCredential];
-            int retryRotationIndex = 0;
-            OcrCredential credential = retryRotation[0];
+            var retryRotation = new CloudAccountRotation(
+                CredentialSchedule.RotationFrom(initialCredential).Take(3).DefaultIfEmpty(initialCredential).ToArray());
+            OcrCredential credential = retryRotation.Current;
             IOcrClient cloudClient = OcrClientFactory.CreateDeferred(credential);
-            var primarySpacing = Stopwatch.StartNew();
-            var fallbackSpacing = Stopwatch.StartNew();
+            var primaryPacer = new CloudRequestPacer { MinimumInterval = CloudOcrPolicy.MinimumInterval(credential.Provider) };
+            var fallbackPacer = new CloudRequestPacer();
             var primaryImageDeduplicator = new CloudImageDeduplicator();
             var fallbackImageDeduplicator = new CloudImageDeduplicator();
-            bool primaryStarted = false;
-            bool fallbackStarted = false;
+
             int completed = 0;
 
             // 只对本机仍未取到值的规则请求云（本机优先的统一顺序）。
@@ -2705,11 +2688,10 @@ public sealed class MainForm : Form
                 }
                 else
                 {
-                    if (primaryStarted)
-                        await ExcludeStageWaitAsync(
-                            WaitForPacingAsync(primarySpacing, CloudOcrPolicy.MinimumInterval(credential.Provider)));
-                    primarySpacing.Restart();
-                    primaryStarted = true;
+                    primaryPacer.MinimumInterval = CloudOcrPolicy.MinimumInterval(credential.Provider);
+                    if (primaryPacer.Remaining > TimeSpan.Zero)
+                        await ExcludeStageWaitAsync(Task.Delay(primaryPacer.Remaining, ActiveToken));
+                    primaryPacer.MarkRequested();
                     while (true)
                     {
                         try
@@ -2740,13 +2722,12 @@ public sealed class MainForm : Form
                         }
                         catch (OcrException exception) when (CloudOcrPolicy.IsCredentialProblem(credential.Provider, exception))
                         {
-                            if (retryRotationIndex + 1 >= retryRotation.Length)
+                            if (!retryRotation.TryAdvance())
                             {
                                 statusLabel.Text = $"复抓主云 {credential.DisplayName} 无权限/无额度，且已无更多账号：{exception.Message}";
                                 break;
                             }
-                            retryRotationIndex++;
-                            credential = retryRotation[retryRotationIndex];
+                            credential = retryRotation.Current;
                             cloudClient = OcrClientFactory.CreateDeferred(credential);
                             statusLabel.Text = $"复抓主云 {credential.DisplayName} 无权限/无额度，切换下一个账号…";
                         }
@@ -2767,11 +2748,10 @@ public sealed class MainForm : Form
                 OcrEvidence? fallbackEvidence = null;
                 if (fallbackMissing.Length > 0)
                 {
-                    if (fallbackStarted)
-                        await ExcludeStageWaitAsync(
-                            WaitForPacingAsync(fallbackSpacing, CloudOcrPolicy.MinimumInterval(fallbackCredential.Provider)));
-                    fallbackSpacing.Restart();
-                    fallbackStarted = true;
+                    fallbackPacer.MinimumInterval = CloudOcrPolicy.MinimumInterval(fallbackCredential.Provider);
+                    if (fallbackPacer.Remaining > TimeSpan.Zero)
+                        await ExcludeStageWaitAsync(Task.Delay(fallbackPacer.Remaining, ActiveToken));
+                    fallbackPacer.MarkRequested();
                     try
                     {
                         statusLabel.Text = CloudRetryStatusText(
@@ -3031,13 +3011,6 @@ public sealed class MainForm : Form
                 retry = 0;
             }
         }
-    }
-
-    private async Task WaitForPacingAsync(Stopwatch spacing, TimeSpan minimumInterval)
-    {
-        TimeSpan delay = minimumInterval - spacing.Elapsed;
-        if (delay > TimeSpan.Zero)
-            await Task.Delay(delay, ActiveToken);
     }
 
     // 限流等待、等待手动继续都不属于识别速度：单独累计扣除，等待期间界面不显示精确倒计时。
