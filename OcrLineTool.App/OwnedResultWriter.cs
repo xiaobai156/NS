@@ -121,17 +121,52 @@ internal static class OwnedResultWriter
                 : original.Length >= 2 && original[0] == 0xFE && original[1] == 0xFF ? Encoding.BigEndianUnicode
                 : new UTF8Encoding(false);
             // 两个文件各自原子，合起来不是事务，所以顺序很重要：先写归属记录。
-            // 万一在两次写之间中断，留下的是「归属记录说有、目标文件里没有」，
+            // 新增时万一在两次写之间中断，留下的是「归属记录说有、目标文件里没有」，
             // 下一次运行会把它当成待写入项自己补上；反过来则会在目标文件里留下
             // 无主行——既撤销不掉，又会被判成归属不确定而永久卡住。
+            //
+            // 但目标 TXT 被 Excel/WPS 占用是日常情况：读得出来、写不进去。那种时候
+            // 第二次写会失败，而归属记录已经是新值——改值方向会变成「不同值且归属
+            // 不确定」、撤销方向会变成无主行，两者都是永久卡死。所以先记住原内容，
+            // 写目标失败就把它写回去，退化成「两个文件都没动」的干净失败。
+            string? previousOwners = File.Exists(ownerPath)
+                ? await File.ReadAllTextAsync(ownerPath)
+                : null;
             await AtomicFile.WriteAllTextAsync(ownerPath, JsonSerializer.Serialize(owners));
-            await AtomicFile.WriteAllLinesAsync(targetPath, rows, encoding);
+            try
+            {
+                await AtomicFile.WriteAllLinesAsync(targetPath, rows, encoding);
+            }
+            catch
+            {
+                await RestoreOwnersAsync(ownerPath, previousOwners);
+                throw;
+            }
             return configuredLines.ToHashSet(StringComparer.Ordinal);
         }
         catch (OcrException) { throw; }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
             throw new OcrException($"分流目标忙、不可写或归属记录损坏：{Path.GetFileName(targetPath)}。请检查后重试。");
+        }
+    }
+
+    // 回滚本身也可能失败（同一目录仍不可写）。不能因为回滚失败把真正的错误吞掉，
+    // 所以这里只尽力而为，异常一律忽略，原异常继续向上抛。
+    private static async Task RestoreOwnersAsync(string ownerPath, string? previousOwners)
+    {
+        try
+        {
+            if (previousOwners is null)
+            {
+                if (File.Exists(ownerPath))
+                    File.Delete(ownerPath);
+                return;
+            }
+            await AtomicFile.WriteAllTextAsync(ownerPath, previousOwners);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
         }
     }
 
