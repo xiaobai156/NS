@@ -206,7 +206,7 @@ def _box_from(value) -> list[int] | None:
         return None
 
 
-def _prediction_items(first, view_id: str) -> list[dict]:
+def _prediction_items(first, view_id: str, y_offset: int = 0) -> list[dict]:
     if not hasattr(first, "get"):
         return []
     raw_texts = first.get("rec_texts")
@@ -235,6 +235,9 @@ def _prediction_items(first, view_id: str) -> list[dict]:
             except (TypeError, ValueError):
                 confidence = None
         box = _box_from(raw_boxes[index]) if index < len(raw_boxes) else None
+        if box is not None and y_offset:
+            # 分块识别时把每块的框平移回整图坐标系，调用方才能按整页重排行。
+            box = [box[0], box[1] + y_offset, box[2], box[3]]
         items.append({
             "text": text,
             "confidence": confidence,
@@ -243,6 +246,40 @@ def _prediction_items(first, view_id: str) -> list[dict]:
         })
     return items
 
+
+def _tile_count_for(path: str, aspect: float | None, limit: int) -> int:
+    """按高宽比决定把整图切成几块；1 表示不切。"""
+    if not aspect or aspect <= 0 or limit < 2:
+        return 1
+    try:
+        with Image.open(path) as image:
+            width, height = image.size
+    except Exception:
+        return 1
+    if width <= 0 or height <= 0:
+        return 1
+    return max(2, min(limit, int((height / width) / aspect) + 1))
+
+
+def _tile_bounds(array: np.ndarray, count: int) -> list[int]:
+    """在名义分割线附近挑一行最空的像素切开，避免把一行字拦腰截断。"""
+    height = int(array.shape[0])
+    if count <= 1 or height < count * 16:
+        return [0, height]
+    gray = array[:, :, :3].mean(axis=2)
+    ink = (gray < 160).sum(axis=1)
+    window = max(8, height // (count * 8))
+    bounds = [0]
+    for index in range(1, count):
+        nominal = round(height * index / count)
+        low = max(bounds[-1] + 1, nominal - window)
+        high = min(height - 1, nominal + window)
+        if high <= low:
+            bounds.append(nominal)
+            continue
+        bounds.append(low + int(np.argmin(ink[low:high])))
+    bounds.append(height)
+    return bounds
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -254,6 +291,8 @@ def main() -> int:
     parser.add_argument("--model", choices=("small", "medium"), default="small")
     parser.add_argument("--det-max-side", type=int)
     parser.add_argument("--compact-folder")
+    parser.add_argument("--tile-aspect", type=float)
+    parser.add_argument("--tile-count", type=int, default=3)
     args = parser.parse_args()
 
     phases: dict[str, float] = {}
@@ -336,30 +375,42 @@ def main() -> int:
                     header = image.crop((0, 0, image.width, max(1, round(image.height * 0.28)))).convert("RGB")
                     compact = image.resize((max(1, round(image.width * 0.55)), image.height)).convert("RGB")
                     sources = [
-                        (np.asarray(header)[:, :, ::-1].copy(), "header"),
-                        (np.asarray(compact)[:, :, ::-1].copy(), "compact"),
+                        (np.asarray(header)[:, :, ::-1].copy(), "header", 0),
+                        (np.asarray(compact)[:, :, ::-1].copy(), "compact", 0),
                     ]
             elif args.top_ratio < 1.0:
                 with Image.open(path) as image:
                     crop_height = max(1, round(image.height * args.top_ratio))
                     rgb = image.crop((0, 0, image.width, crop_height)).convert("RGB")
                     source = np.asarray(rgb)[:, :, ::-1].copy()
-                sources = [(source, "top")]
+                sources = [(source, "top", 0)]
             else:
-                sources = [(path, "original")]
+                # 窄栏密集卡整图缩放会丢小字：按高度分块，每块单独识别后把框平移回整图，
+                # 视图名保持一致，调用方仍按一页重排。
+                tile_count = _tile_count_for(path, args.tile_aspect, args.tile_count)
+                if tile_count > 1:
+                    with Image.open(path) as image:
+                        page = np.asarray(image.convert("RGB"))
+                        bounds = _tile_bounds(page, tile_count)
+                    sources = [
+                        (page[bounds[i]:bounds[i + 1]][:, :, ::-1].copy(), "original", bounds[i])
+                        for i in range(len(bounds) - 1)
+                    ]
+                else:
+                    sources = [(path, "original", 0)]
             texts = []
             items = []
             # 真正的“进入推理”事件：每张图片只在第一次 predict 前报一次（多视图仍算一张），
             # 解码失败在到达这里之前就抛出，不会发出本事件。
             print(f"OCR_INFER|{path}", flush=True)
-            for source, view_id in sources:
+            for source, view_id, y_offset in sources:
                 view_started = time.perf_counter()
                 prediction = ocr.predict(source)
                 inference_seconds += time.perf_counter() - view_started
                 view_count += 1
                 if prediction:
                     first = prediction[0]
-                    view_items = _prediction_items(first, view_id)
+                    view_items = _prediction_items(first, view_id, y_offset)
                     items.extend(view_items)
                     texts.extend(item["text"] for item in view_items)
             results.append({"path": path, "texts": texts, "items": items})

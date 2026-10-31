@@ -7,7 +7,7 @@ public sealed class LocalCandidatePlannerTests
     [Fact]
     public void LiangWeiweiLockedFolderUsesOnlyThePrimaryImage()
     {
-        var rule = new OcrRule("梁微微", "生肖", Folder: "梁薇薇");
+        var rule = new OcrRule("梁微微", "生肖", Folder: "梁薇薇", LockToFolder: true);
         string dataImage = @"C:\结果\9.2-嫣然心水\梁薇薇\原图.jpg";
         string summaryImage = @"C:\结果\9.2-嫣然心水\汇总\统计.jpg";
         var results = new Dictionary<string, IReadOnlyList<string>>
@@ -27,7 +27,7 @@ public sealed class LocalCandidatePlannerTests
     [Fact]
     public void LiangWeiweiLockedFolderStillWinsWhenLocalOcrMissesTheFooter()
     {
-        var rule = new OcrRule("梁微微", "生肖", Folder: "梁薇薇");
+        var rule = new OcrRule("梁微微", "生肖", Folder: "梁薇薇", LockToFolder: true);
         string dataImage = @"C:\结果\9.2-嫣然心水\梁薇薇\原图.jpg";
         string summaryImage = @"C:\结果\9.2-嫣然心水\汇总\统计.jpg";
         var results = new Dictionary<string, IReadOnlyList<string>>
@@ -114,8 +114,10 @@ public sealed class LocalCandidatePlannerTests
     }
 
     [Fact]
-    public void PrefersTheLatestFileWhenEquivalentExplicitMatchesExist()
+    public void EquivalentMatchesIgnoreCaptureTimeAndFallBackToPathOrder()
     {
+        // 两张卡对这条规则完全等价时，抓图时间（文件名里的日期序号）不能用来决胜：
+        // 文件名只说明哪张抓得晚，不说明哪张是对的。这里只保证结果稳定可复现。
         var rule = new OcrRule("木桃", "生肖");
         string earlier = Path.Combine("C:\\结果", "来源", "20260830_100000.jpg");
         string later = Path.Combine("C:\\结果", "来源", "20260830_120000.jpg");
@@ -128,9 +130,9 @@ public sealed class LocalCandidatePlannerTests
         IReadOnlyList<LocalCandidatePlan> plans = LocalCandidatePlanner.Build(
             [earlier, later], results, [rule]);
 
-        Assert.Equal(later, plans[0].Path);
+        Assert.Equal(earlier, plans[0].Path);
         Assert.True(plans[0].IsPrimary);
-        Assert.Equal(earlier, plans[1].Path);
+        Assert.Equal(later, plans[1].Path);
         Assert.False(plans[1].IsPrimary);
     }
 
@@ -322,6 +324,73 @@ public sealed class LocalCandidatePlannerTests
 
         Assert.Equal(image, plan.Path);
         Assert.Equal(rule, Assert.Single(plan.Rules));
+    }
+
+    [Fact]
+    public void LockToFolderComesFromTheRuleNotFromTheAuthorId()
+    {
+        // 目录名与作者名不一致的资料（梁微微 → 梁薇薇）靠规则自带的 lock_to_folder 锁定同夹，
+        // 不再按 Id 写死。同一条规则去掉这个标记后就必须允许汇总表胜出。
+        string folderImage = Path.Combine("C:\\结果", "9.2-嫣然心水", "梁薇薇", "原图.jpg");
+        string summaryImage = Path.Combine("C:\\结果", "9.2-嫣然心水", "汇总", "统计.jpg");
+        var results = new Dictionary<string, IReadOnlyList<string>>
+        {
+            [folderImage] = ["245期杀兔", "(梁微微娱乐)"],
+            [summaryImage] = ["245期禁肖统计表", "梁薇薇禁兔", "烟草味禁羊"]
+        };
+        var locked = new OcrRule("梁微微", "生肖", Folder: "梁薇薇", LockToFolder: true);
+        var unlocked = new OcrRule("梁微微", "生肖", Folder: "梁薇薇");
+
+        Assert.Equal(folderImage, Assert.Single(LocalCandidatePlanner.Build(
+            [folderImage, summaryImage], results, [locked])).Path);
+        Assert.Equal(summaryImage, Assert.Single(LocalCandidatePlanner.Build(
+            [folderImage, summaryImage], results, [unlocked])).Path);
+    }
+
+    [Fact]
+    public void SummaryBackupIsSuppressedOnlyForTheYanranXinshuiCardItself()
+    {
+        // 嫣然心水只用主图、不准备备选。这个判断必须按「这张备选图自己」所在群做，
+        // 否则一批里混进一张嫣然心水的图，会把别的群规则的备选候选一起禁掉。
+        var rule = new OcrRule("木桃", "生肖");
+        string yanran = Path.Combine("C:\\结果", "9.2-嫣然心水", "来源", "20260830_100000.jpg");
+        string other = Path.Combine("C:\\结果", "9.3-其他群", "来源", "20260830_120000.jpg");
+        var results = new Dictionary<string, IReadOnlyList<string>>
+        {
+            [yanran] = ["木桃", "242期杀蛇开？"],
+            [other] = ["木桃", "242期杀蛇开？"]
+        };
+
+        IReadOnlyList<LocalCandidatePlan> plans = LocalCandidatePlanner.Build(
+            [yanran, other], results, [rule]);
+
+        Assert.Equal(yanran, plans[0].Path);
+        Assert.True(plans[0].IsPrimary);
+        Assert.Equal(other, plans[1].Path);
+        Assert.False(plans[1].IsPrimary);
+    }
+
+    [Fact]
+    public void HeaderCardOutranksALaterFilenameWhenNothingElseSeparatesThem()
+    {
+        // 作者名印在图头，说明这是该作者自己的卡；只出现在正文里的是汇总行。
+        // 这个信号必须排在文件名之前，否则后抓的汇总图会靠时间戳抢走主图。
+        var rule = new OcrRule("木桃", "生肖");
+        string bodyOnly = Path.Combine("C:\\结果", "来源", "20260830_100000.jpg");
+        string header = Path.Combine("C:\\结果", "来源", "20260830_120000.jpg");
+        var results = new Dictionary<string, IReadOnlyList<string>>
+        {
+            [bodyOnly] = ["新澳门六合彩", "242期杀蛇开？", "木桃"],
+            [header] = ["木桃心水", "242期杀蛇开？"]
+        };
+
+        IReadOnlyList<LocalCandidatePlan> plans = LocalCandidatePlanner.Build(
+            [bodyOnly, header], results, [rule]);
+
+        Assert.Equal(header, plans[0].Path);
+        Assert.True(plans[0].IsPrimary);
+        Assert.Equal(bodyOnly, plans[1].Path);
+        Assert.False(plans[1].IsPrimary);
     }
 
     private static IReadOnlyList<OcrRule> LoadRules(string fileName) => RuleCatalog.Load(Path.Combine(

@@ -230,4 +230,20 @@ public sealed class PaddleScriptTests
     private static string ScriptPath => Path.Combine(
         ResultFilePaths.RuntimeDirectory(AppContext.BaseDirectory),
         "paddle_local_ocr.py");
+
+    [Fact]
+    public void TilesTallNarrowCardsInsteadOfShrinkingThem()
+    {
+        string script = File.ReadAllText(ScriptPath);
+
+        Assert.Contains("--tile-aspect", script);
+        Assert.Contains("--tile-count", script);
+        Assert.Contains("def _tile_count_for(", script);
+        Assert.Contains("def _tile_bounds(", script);
+        // 分块后每块的框要平移回整图坐标，调用方才仍按一页重排。
+        Assert.Contains("y_offset", script);
+        Assert.Contains("bounds[i]", script);
+        Assert.Equal(1.4, PaddleLocalOcrClient.TileAspectRatio, 3);
+        Assert.Equal(3, PaddleLocalOcrClient.TileCount);
+    }
 }

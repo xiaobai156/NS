@@ -485,7 +485,16 @@ public sealed class PaddleLocalOcrClient
             ? $" --det-max-side {maxSide}"
             : string.Empty;
         if (detectionMaxSide == 960)
+        {
             detectionArgument += " --compact-folder 杰少";
+            // 窄栏密集卡整图缩到 960 必然丢小字：按高度分块识别，块内不再缩放，
+            // 等价于把有效分辨率提高一倍；块数由脚本按高宽比决定。
+            detectionArgument += string.Format(
+                CultureInfo.InvariantCulture,
+                " --tile-aspect {0} --tile-count {1}",
+                TileAspectRatio,
+                TileCount);
+        }
         string modelArgument = model == PaddleOcrModel.Medium ? "medium" : "small";
         var startInfo = new ProcessStartInfo
         {
@@ -659,6 +668,11 @@ public sealed class PaddleLocalOcrClient
         }
     }
 
+    // 窄栏密集卡的分块识别参数：高宽比达到 1.4 就切块，最多切 3 块。
+    // 脚本按这个上限自行决定实际块数，块内不再缩放。
+    internal const double TileAspectRatio = 1.4;
+    internal const int TileCount = 3;
+
     public static int WorkerCountFor(int imageCount) => 1;
 
     public static bool IsCudaUnavailable(OcrException exception) =>
@@ -784,6 +798,8 @@ public sealed class PaddleLocalOcrClient
         if (detectionMaxSide == 960 && (Path.GetDirectoryName(path) ?? string.Empty)
             .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Contains("杰少", StringComparer.OrdinalIgnoreCase))
             key += "|compact=0.55-header=0.28";
+        if (detectionMaxSide == 960)
+            key += string.Format(CultureInfo.InvariantCulture, "|tile={0}/{1}", TileAspectRatio, TileCount);
         return detectionMaxSide is int maxSide ? $"{key}|det-max={maxSide}" : key;
     }
 

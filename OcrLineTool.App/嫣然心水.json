@@ -310,7 +310,8 @@
       "required_keyword": "梁微微",
       "folder": "梁薇薇",
       "allow_folder_identity": true,
-      "allowValueWithoutKeyword": true
+      "allowValueWithoutKeyword": true,
+      "lock_to_folder": true
     },
     {
       "keyword": "烟草味",

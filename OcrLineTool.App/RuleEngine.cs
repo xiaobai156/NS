@@ -27,7 +27,8 @@ public sealed record OcrRule(
     bool RequireRowStructure = false,
     bool DedupeNumbers = false,
     bool AllowOpeningRow = false,
-    bool SectionOnRow = false)
+    bool SectionOnRow = false,
+    bool LockToFolder = false)
 {
     public string Id => Label ?? Keyword;
     public string OutputLabel => Label ?? Keyword;
@@ -1114,8 +1115,8 @@ public static class RuleEngine
         // 黑色六合彩「黑客九肖」：卡面把九个生肖排成两行（第一行七个、第二行两个，
         // 第二行排在「开??」之后），且数据行印在期号格上方。只对这条已复核规则
         // 合并目标期号块前后的行取九个不同生肖。
-        if (rule.Id == "黑客九肖" && rule.Type == "九肖")
-            return ExtractNineZodiacsAcrossWrappedRows(lines, issue, rule);
+        // 注意：这条必须在上面 SplitInlineIssueRows 之前处理，那里已经直接返回，
+        // 所以此处不再重复判断。
 
         // 每张卡的图片内容格式不同，取值一律走该卡自己的专属解析（见各 Id 分支）。
         // 共用的只有「只读本期那一行、遇期号/开奖格即停」这个基础动作。

@@ -116,19 +116,24 @@ public static class LocalCandidatePlanner
                 continue;
 
             CandidateOption[] explicitOptions = ruleOptions.Where(option => option.TitleMatched).ToArray();
-            CandidateOption[] lockedLiangOptions = rule.Id.Equals("梁微微", StringComparison.Ordinal)
+            // lock_to_folder：这条资料的作者名与目录名不一致（如「梁微微」在「梁薇薇」目录里），
+            // 只认同夹的卡，避免同群别处的同名行被选上。规则自己声明，不再按 Id 写死。
+            CandidateOption[] lockedFolderOptions = rule.LockToFolder
                 ? ruleOptions.Where(option => option.ExpectedFolder).ToArray()
                 : [];
-            IEnumerable<CandidateOption> preferred = lockedLiangOptions.Length > 0
-                ? lockedLiangOptions
+            IEnumerable<CandidateOption> preferred = lockedFolderOptions.Length > 0
+                ? lockedFolderOptions
                 : rule.AllowFolderIdentity ? ruleOptions
                 : explicitOptions.Length > 0 ? explicitOptions : ruleOptions;
+            // 决胜信号只用「这张图有多像该规则的卡」：取到本期值 > 汇总表生肖 > 取到任意值 >
+            // 同夹 > 作者名印在图头。最后按完整路径升序，只为让结果稳定可复现 ——
+            // 文件名是抓图时间序号，与卡片对不对无关，不能用来决胜。
             CandidateOption best = preferred
                 .OrderByDescending(option => option.HasTargetValue)
                 .ThenByDescending(option => option.Rule.Type == "生肖" && option.IsSummary)
                 .ThenByDescending(option => option.HasAnyValue)
                 .ThenByDescending(option => option.ExpectedFolder)
-                .ThenByDescending(option => Path.GetFileName(option.Path), StringComparer.OrdinalIgnoreCase)
+                .ThenByDescending(option => option.HeaderMatched)
                 .ThenBy(option => option.Path, StringComparer.OrdinalIgnoreCase)
                 .First();
             selectedPathByRule[rule.Id] = best.Path;
@@ -145,11 +150,9 @@ public static class LocalCandidatePlanner
                 plans.Add(new LocalCandidatePlan(path, assigned, IsPrimary: true));
         }
 
-        // 嫣然心水 uses the primary image only; no backup candidates are
-        // planned, so a mixed-in card in the same subfolder can never feed a
-        // second value for the same rule.
-        bool primaryOnly = imagePaths.Any(path => RuleCatalog.PathBelongsToGroup(path, "嫣然心水"));
-
+        // 嫣然心水只用主图，不准备备选候选，避免同夹混入的卡再给同一条规则喂第二个值。
+        // 判定按「这张备选图自己」所在群，不再看整批里有没有嫣然心水路径 —— 否则
+        // 批里混进一张嫣然心水的图，会把其他群规则的备选候选一起禁掉。
         foreach (string path in imagePaths)
         {
             OcrRule[] alternatives = options
@@ -161,7 +164,7 @@ public static class LocalCandidatePlanner
                 .DistinctBy(rule => rule.Id, StringComparer.Ordinal)
                 .OrderBy(rule => ruleOrder[rule.Id])
                 .ToArray();
-            if (alternatives.Length > 0 && !primaryOnly)
+            if (alternatives.Length > 0 && !RuleCatalog.PathBelongsToGroup(path, "嫣然心水"))
                 plans.Add(new LocalCandidatePlan(path, alternatives, IsPrimary: false));
         }
 
