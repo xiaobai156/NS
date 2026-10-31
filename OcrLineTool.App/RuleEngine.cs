@@ -30,7 +30,8 @@ public sealed record OcrRule(
     bool SectionOnRow = false,
     bool LockToFolder = false,
     string? Extractor = null,
-    string? ReadModel = null)
+    string? ReadModel = null,
+    bool IgnorePeerKeywords = false)
 {
     public string Id => Label ?? Keyword;
     public string OutputLabel => Label ?? Keyword;
@@ -1552,7 +1553,7 @@ public static class RuleEngine
         string line, OcrRule rule, IReadOnlyList<string> aliases, out bool closed)
     {
         closed = false;
-        if (rule.PeerKeywords is not { Count: > 0 })
+        if (rule.IgnorePeerKeywords || rule.PeerKeywords is not { Count: > 0 })
             return line;
         (string normalized, int[] map) = NormalizeWithMap(line);
         (int Index, int Length)[] own = aliases
@@ -1586,7 +1587,7 @@ public static class RuleEngine
 
     private static bool ContainsPeerIdentity(string line, OcrRule rule)
     {
-        if (rule.PeerKeywords is not { Count: > 0 })
+        if (rule.IgnorePeerKeywords || rule.PeerKeywords is not { Count: > 0 })
             return false;
         string normalized = Normalize(line);
         return rule.PeerKeywords
@@ -1597,7 +1598,7 @@ public static class RuleEngine
 
     private static string TrimAtPeerBoundary(string normalizedTail, OcrRule rule)
     {
-        if (rule.PeerKeywords is not { Count: > 0 })
+        if (rule.IgnorePeerKeywords || rule.PeerKeywords is not { Count: > 0 })
             return normalizedTail;
         int peer = rule.PeerKeywords
             .Where(value => !string.IsNullOrWhiteSpace(value))
