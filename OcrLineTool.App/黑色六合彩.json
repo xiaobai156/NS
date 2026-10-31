@@ -4,14 +4,14 @@
   "strictIssueBlock": false,
   "rules": [
     { "keyword": "天宫杀一头", "type": "头", "label": "天宫杀头", "required_keyword": "天宫", "strictIssueBlock": true },
-    { "keyword": "锦囊九尾", "type": "缺尾", "label": "锦囊杀尾", "required_keyword": "锦囊" },
+    { "keyword": "锦囊九尾", "type": "缺尾", "label": "锦囊杀尾", "extractor": "jinnang_nine_tails", "required_keyword": "锦囊" },
     { "keyword": "锦囊绝杀半波", "type": "色单双", "label": "锦囊半波", "required_keyword": "锦囊" },
-    { "keyword": "黑客数据九肖", "type": "九肖", "label": "黑客九肖", "required_keyword": "黑客数据" },
-    { "keyword": "黑客数据必中九尾", "type": "缺尾", "label": "黑客杀尾", "required_keyword": "黑客数据" },
-    { "keyword": "黑客数据绝杀两肖", "type": "生肖组合", "label": "黑客杀两肖", "required_keyword": "黑客数据" },
-    { "keyword": "锦囊杀10码", "type": "号码:10", "label": "锦囊杀十码", "required_keyword": "锦囊", "strictIssueBlock": true },
-    { "keyword": "四行中特", "type": "缺五行", "label": "红牛四行", "required_keyword": "红牛", "strictIssueBlock": true },
-    { "keyword": "五行必中", "type": "缺五行", "label": "黑客四行", "required_keyword": "GPT解4行", "strictIssueBlock": true },
-    { "keyword": "数据半波", "type": "缺半波", "label": "黑客半波", "required_keyword": "GPT半波预测", "strictIssueBlock": true }
+    { "keyword": "黑客数据九肖", "type": "九肖", "label": "黑客九肖", "extractor": "nine_zodiacs_across_wrapped_rows", "required_keyword": "黑客数据" },
+    { "keyword": "黑客数据必中九尾", "type": "缺尾", "label": "黑客杀尾", "extractor": "heike_nine_tails", "required_keyword": "黑客数据" },
+    { "keyword": "黑客数据绝杀两肖", "type": "生肖组合", "label": "黑客杀两肖", "extractor": "kill_two_zodiacs", "required_keyword": "黑客数据" },
+    { "keyword": "锦囊杀10码", "type": "号码:10", "label": "锦囊杀十码", "extractor": "ten_numbers_straddling_issue", "required_keyword": "锦囊", "strictIssueBlock": true },
+    { "keyword": "四行中特", "type": "缺五行", "label": "红牛四行", "extractor": "four_elements_bullseye", "required_keyword": "红牛", "strictIssueBlock": true },
+    { "keyword": "五行必中", "type": "缺五行", "label": "黑客四行", "extractor": "four_elements_bracket", "required_keyword": "GPT解4行", "strictIssueBlock": true },
+    { "keyword": "数据半波", "type": "缺半波", "label": "黑客半波", "extractor": "labelled_half_waves", "required_keyword": "GPT半波预测", "strictIssueBlock": true }
   ]
 }

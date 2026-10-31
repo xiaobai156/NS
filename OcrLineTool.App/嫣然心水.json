@@ -168,6 +168,7 @@
       "type": "生肖",
       "required_keyword": "紫燕儿",
       "label": "紫燕儿杀一肖",
+      "extractor": "ziyaner_kill_zodiac",
       "section": "紫燕儿",
       "folder": "紫燕儿",
       "allow_folder_identity": true
@@ -258,6 +259,7 @@
       "keyword": "大哥",
       "type": "生肖",
       "label": "大哥6688",
+      "extractor": "yanran_author_card",
       "required_keyword": "大哥",
       "folder": "大哥",
       "allow_folder_identity": true
@@ -272,6 +274,7 @@
       "keyword": "君军",
       "type": "生肖组合",
       "label": "君军两肖",
+      "extractor": "yanran_author_card",
       "required_keyword": "君军",
       "section": "杀一肖",
       "folder": "君君"
@@ -280,6 +283,7 @@
       "keyword": "君军",
       "type": "尾数组合",
       "label": "君军两尾",
+      "extractor": "yanran_author_card",
       "required_keyword": "君军",
       "section": "杀一尾",
       "folder": "君君"
@@ -288,6 +292,7 @@
       "keyword": "君军",
       "type": "合",
       "label": "君军合",
+      "extractor": "yanran_author_card",
       "required_keyword": "君军",
       "section": "杀一合",
       "folder": "君君"
@@ -546,6 +551,7 @@
       "keyword": "欧阳",
       "type": "色单双",
       "label": "欧阳半波",
+      "extractor": "ouyang_half_wave",
       "required_keyword": "欧阳",
       "section": "欧阳",
       "folder": "乖乖团队"
@@ -559,6 +565,7 @@
     },
     {
       "keyword": "陈思思",
+      "extractor": "author_forbidden_zodiac",
       "type": "生肖",
       "required_keyword": "禁肖统计",
       "allow_issue_less_summary": true,

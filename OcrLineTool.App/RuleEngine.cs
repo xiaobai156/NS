@@ -28,7 +28,8 @@ public sealed record OcrRule(
     bool DedupeNumbers = false,
     bool AllowOpeningRow = false,
     bool SectionOnRow = false,
-    bool LockToFolder = false)
+    bool LockToFolder = false,
+    string? Extractor = null)
 {
     public string Id => Label ?? Keyword;
     public string OutputLabel => Label ?? Keyword;
@@ -1054,11 +1055,55 @@ public static class RuleEngine
         return compact.Length == 1 && Zodiac.Contains(compact[0]);
     }
 
+    // 提取分四段，顺序本身就是语义，不要调换：
+    // ① 身份识别 —— 没有可核对期号的卡先验资料名，再把必须按原始行序读的卡读掉；
+    // ② 专属解析 —— 每张卡只在自己那一段里找值，公共的只有「只读本期那一行、遇期号/开奖格即停」；
+    // ③ 类型化   —— 复核行结构、汇总表、严格期块、号码:N 这些按形状取值；
+    // ④ 兜底     —— 通用候选拼装，只有前三段都没命中才会走到。
     private static string? ExtractValueCore(IEnumerable<string> cloudLines, int issue, OcrRule rule, bool requireCloudKeyword)
     {
         if (!rule.IgnoreIssue)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(issue);
         string[] lines = cloudLines.Select(line => rule.StrictIssueBlock ? SimplifyFixedCardText(line) : line).ToArray();
+
+        if (TryReadIdentity(lines, issue, rule, out string? identityValue))
+            return identityValue;
+
+        if (!rule.StrictIssueBlock)
+            lines = SplitInlineIssueRows(lines);
+
+        if (TryExtractOwnCard(lines, issue, rule, requireCloudKeyword, out string[] scoped, out string? cardValue))
+            return cardValue;
+
+        var state = new ExtractionState(scoped, BuildAliases(rule));
+        if (TryExtractTyped(state, issue, rule, requireCloudKeyword, out string? typedValue))
+            return typedValue;
+
+        return ExtractFallbackValue(state, issue, rule);
+    }
+
+    // 跨段共享的提取状态：当前行、别名、区段起点、本期候选行。
+    private sealed class ExtractionState(string[] lines, string[] aliases)
+    {
+        public string[] Lines { get; set; } = lines;
+        public string[] Aliases { get; } = aliases;
+        public int ScopeStart { get; set; }
+        public IReadOnlyList<string> Candidates { get; set; } = [];
+        public bool KeywordInTarget { get; set; }
+    }
+
+    private static string[] BuildAliases(OcrRule rule) =>
+        new[] { rule.Keyword, rule.Label ?? string.Empty }
+            .Where(alias => !string.IsNullOrWhiteSpace(alias))
+            .Select(Normalize)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+    // ① 身份识别：卡上没有可核对期号时，资料名本身就是身份；跨期号格的数据行必须
+    // 在 SplitInlineIssueRows 重排之前按原始行序读，否则字段会被拆散。
+    private static bool TryReadIdentity(string[] lines, int issue, OcrRule rule, out string? value)
+    {
+        value = null;
         // IgnoreIssue (时点半): the card carries no verifiable issue; identity
         // comes from the matched candidate/template and only the body numbers
         // are validated, so no issue marker is required. The rule's own title
@@ -1066,123 +1111,160 @@ public static class RuleEngine
         // A requested issue is a query, never evidence for repairing OCR.
         if (rule.IgnoreIssue
             && !ContainsKeyword(Normalize(string.Concat(lines)), Normalize(rule.Keyword)))
-            return null;
-        // 黑色六合彩「黑客九肖」与嫣然电报「十码必杀」的数据行横跨期号格，
-        // 必须在 SplitInlineIssueRows 重排之前按原始行序收集，否则跨行字段会被拆散。
-        if (rule.Id == "黑客九肖" && rule.Type == "九肖")
-            return ExtractNineZodiacsAcrossWrappedRows(lines, issue, rule);
-        if (rule.Id == "嫣然电报十码必杀" && rule.Type == "号码:10")
-            return ExtractSplitTenNumbers(lines, issue, rule);
-        if (!rule.StrictIssueBlock)
-            lines = SplitInlineIssueRows(lines);
-        if (rule.Id == "完美两肖")
-        {
-            // 先过身份：同夹还有「绿格子双杀」那张绝杀2肖【…】卡，没看到本资料名就不能取值。
-            if (requireCloudKeyword
-                && !ContainsKeyword(Normalize(string.Concat(lines)), Normalize(rule.Keyword)))
-                return null;
-            // 「完美杀肖心水料」每期只有一行数据：值必须落在「绝杀2肖」后面的括号里，
-            // 且这一行自己带目标期号；读不到就判缺失，不靠通用期行凑两肖。
-            return ExtractPerfectTwoZodiacRow(lines, issue);
-        }
-        if (rule.Id is "欧阳半波" or "紫燕儿杀一肖")
-            lines = NormalizeSplitIssueDigits(lines);
-        if (rule.Id is "君军两肖" or "君军两尾" or "君军合" or "大哥6688")
-        {
-            if (requireCloudKeyword && !YanranAuthorCards.HasIdentity(lines, rule))
-                return null;
-            RuleExtractionResult result = YanranAuthorCards.Extract(lines, issue, rule);
-            return result.Status == RuleExtractionStatus.Conflict ? ConflictMarker : result.Value;
-        }
-        if (rule.Id == "欧阳半波")
-        {
-            string? halfWave = ExtractOuyangHalfWaveRow(lines, issue, rule);
-            if (halfWave is not null || lines.Any(line => ContainsIssue(line, issue)))
-                return halfWave;
-        }
-        if (rule.Id == "紫燕儿杀一肖")
-        {            string? zodiac = ExtractZiyanerKillZodiac(lines, issue, rule);
-            if (zodiac is not null || lines.Any(line => ContainsIssue(line, issue)))
-                return zodiac;
-        }
-        string keyword = Normalize(rule.Keyword);
-        string[] aliases = new[] { rule.Keyword, rule.Label ?? string.Empty }
-            .Where(alias => !string.IsNullOrWhiteSpace(alias))
-            .Select(Normalize)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-
+            return true;
         // 黑色六合彩「黑客九肖」：卡面把九个生肖排成两行（第一行七个、第二行两个，
-        // 第二行排在「开??」之后），且数据行印在期号格上方。只对这条已复核规则
-        // 合并目标期号块前后的行取九个不同生肖。
-        // 注意：这条必须在上面 SplitInlineIssueRows 之前处理，那里已经直接返回，
-        // 所以此处不再重复判断。
+        // 第二行排在「开??」之后），且数据行印在期号格上方。
+        if (rule.Extractor == "nine_zodiacs_across_wrapped_rows")
+        {
+            value = ExtractNineZodiacsAcrossWrappedRows(lines, issue, rule);
+            return true;
+        }
+        // 嫣然电报「十码必杀」：号码行被期号格和「直接不要」标签切断，必须按原始行序读。
+        if (rule.Extractor == "ten_numbers_across_issue_cell")
+        {
+            value = ExtractSplitTenNumbers(lines, issue, rule);
+            return true;
+        }
+        return false;
+    }
 
-        // 每张卡的图片内容格式不同，取值一律走该卡自己的专属解析（见各 Id 分支）。
-        // 共用的只有「只读本期那一行、遇期号/开奖格即停」这个基础动作。
+    // ② 专属解析：每张卡自己的版式，由配置里的 extractor 指定走哪一支，
+    // 只认自己那一段里的字段。
+    private static bool TryExtractOwnCard(
+        string[] lines, int issue, OcrRule rule, bool requireCloudKeyword,
+        out string[] scoped, out string? value)
+    {
+        scoped = lines;
+        value = null;
+        switch (rule.Extractor)
+        {
+            case "perfect_two_zodiac":
+                // 先过身份：同夹还有「绿格子双杀」那张绝杀2肖【…】卡，没看到本资料名就不能取值。
+                if (requireCloudKeyword
+                    && !ContainsKeyword(Normalize(string.Concat(lines)), Normalize(rule.Keyword)))
+                    return true;
+                // 「完美杀肖心水料」每期只有一行数据：值必须落在「绝杀2肖」后面的括号里，
+                // 且这一行自己带目标期号；读不到就判缺失，不靠通用期行凑两肖。
+                value = ExtractPerfectTwoZodiacRow(lines, issue);
+                return true;
 
-        // 黑色六合彩「黑客杀尾」：卡面「数据分析 0 1 2 3 4 5 6 7 9 尾」，九个尾缺一个。
-        if (rule.Id == "黑客杀尾" && rule.Type == "缺尾")
-            return ExtractHeiKeNineTails(lines, issue);
+            case "yanran_author_card":
+                if (requireCloudKeyword && !YanranAuthorCards.HasIdentity(lines, rule))
+                    return true;
+                RuleExtractionResult result = YanranAuthorCards.Extract(lines, issue, rule);
+                value = result.Status == RuleExtractionStatus.Conflict ? ConflictMarker : result.Value;
+                return true;
 
-        // 黑色六合彩「锦囊杀尾」：卡面「锦囊九尾：(012456789)」，括号里九个尾缺一个。
-        if (rule.Id == "锦囊杀尾" && rule.Type == "缺尾")
-            return ExtractJinNangNineTails(lines, issue);
+            case "ouyang_half_wave":
+            {
+                string[] normalized = NormalizeSplitIssueDigits(lines);
+                string? halfWave = ExtractOuyangHalfWaveRow(normalized, issue, rule);
+                if (halfWave is not null || normalized.Any(line => ContainsIssue(line, issue)))
+                {
+                    value = halfWave;
+                    return true;
+                }
+                scoped = normalized;
+                return false;
+            }
 
-        // 黑色六合彩「黑客杀两肖」：数据行「数据杀特肖：鼠 兔」印在期号格下方，
-        // 只取该标签后的两个不同生肖。
-        if (rule.Id == "黑客杀两肖" && rule.Type == "生肖组合")
-            return ExtractKillTwoZodiacs(lines, issue, rule);
+            case "ziyaner_kill_zodiac":
+            {
+                string[] normalized = NormalizeSplitIssueDigits(lines);
+                string? zodiac = ExtractZiyanerKillZodiac(normalized, issue, rule);
+                if (zodiac is not null || normalized.Any(line => ContainsIssue(line, issue)))
+                {
+                    value = zodiac;
+                    return true;
+                }
+                scoped = normalized;
+                return false;
+            }
 
-        // 嫣然电报「公式杀一肖 / 公式杀尾 / 公式杀头 / 公式半波 / 公式杀行」：
-        // 卡面都是「期号 + 固定标签 + 值 + 开奖格」，和黑色六合彩同一套骨架，
-        // 只认本期行标签后的字段，三遍重复必须一致，形状不对判缺失。
-        if (rule.Id is "公式杀一肖" or "公式杀尾" or "公式杀行")
-            return ExtractLabelledRepeatedValue(lines, issue, rule);
-        if (rule.Id == "公式杀头" && rule.Type == "头")
-            return ExtractLabelledSingleHead(lines, issue);
-        if (rule.Id == "公式半波" && rule.Type == "色单双")
-            return ExtractLabelledSingleHalfWave(lines, issue);
+            // 黑色六合彩「黑客杀尾」：卡面「数据分析 0 1 2 3 4 5 6 7 9 尾」，九个尾缺一个。
+            case "heike_nine_tails":
+                value = ExtractHeiKeNineTails(lines, issue);
+                return true;
 
-        // 嫣然电报「十码必杀」：号码行被期号格和「直接不要」标签切断，
-        // 只合并同一目标期前后的完整号码段，仍校验 10 个唯一 01～49。
-        if (rule.Id == "嫣然电报十码必杀" && rule.Type == "号码:10")
-            return ExtractSplitTenNumbers(lines, issue, rule);
+            // 黑色六合彩「锦囊杀尾」：卡面「锦囊九尾：(012456789)」，括号里九个尾缺一个。
+            case "jinnang_nine_tails":
+                value = ExtractJinNangNineTails(lines, issue);
+                return true;
 
-        // 黑色六合彩「锦囊杀十码」：号码从期号上方一直跨到下方，中间被期号格和
-        // 「开??」切开；开奖截断会把下半段全丢掉，所以单独合并本期块两侧的号码。
-        if (rule.Id == "锦囊杀十码" && rule.Type == "号码:10")
-            return ExtractSplitTenNumbers(lines, issue, rule);
+            // 黑色六合彩「黑客杀两肖」：数据行「数据杀特肖：鼠 兔」印在期号格下方，
+            // 只取该标签后的两个不同生肖。
+            case "kill_two_zodiacs":
+                value = ExtractKillTwoZodiacs(lines, issue, rule);
+                return true;
 
-        // 黑色六合彩「黑客半波」：卡面固定「数据半波【红波单 … 绿波单】」，
-        // 只认本期行方括号里那五个半波（六种缺一），括号外不参与。
-        if (rule.Id == "黑客半波" && rule.Type == "缺半波")
-            return ExtractLabelledHalfWaves(lines, issue);
+            // 嫣然电报「公式杀一肖 / 公式杀尾 / 公式杀行」：卡面都是「期号 + 固定标签 + 值 + 开奖格」，
+            // 和黑色六合彩同一套骨架，只认本期行标签后的字段，三遍重复必须一致，形状不对判缺失。
+            case "labelled_repeated":
+                value = ExtractLabelledRepeatedValue(lines, issue, rule);
+                return true;
 
-        // 黑色六合彩「红牛四行」：卡面固定「四行中特 🎯金 水 火 土🎯」，
-        // 只认两个靶心之间那四个不同五行，反推缺的那个。
-        if (rule.Id == "红牛四行" && rule.Type == "缺五行")
-            return ExtractLabelledFourElements(lines, issue, @"四行中特");
+            case "labelled_single_head":
+                value = ExtractLabelledSingleHead(lines, issue);
+                return true;
 
-        // 黑色六合彩「黑客四行」：卡面固定「五行必中【金 木 水 土】」，
-        // 只认本期行方括号里那四个不同五行，反推缺的那个。
-        if (rule.Id == "黑客四行" && rule.Type == "缺五行")
-            return ExtractLabelledFourElements(lines, issue, @"五行必中");
+            case "labelled_single_half_wave":
+                value = ExtractLabelledSingleHalfWave(lines, issue);
+                return true;
 
-        // 嫣然心水「陈思思」：乖乖团队的禁肖统计表，每行作者名 + 正字 + 「禁」+ 生肖。
-        // 通用路径会取页面上第一个「禁」后面的生肖（别人的），必须只认本人那一行。
-        if (rule.Id == "陈思思" && rule.Type == "生肖")
-            return ExtractAuthorForbiddenZodiac(lines, issue, rule);
+            // 黑色六合彩「锦囊杀十码」：号码从期号上方一直跨到下方，中间被期号格和
+            // 「开??」切开；开奖截断会把下半段全丢掉，所以单独合并本期块两侧的号码。
+            case "ten_numbers_straddling_issue":
+                value = ExtractSplitTenNumbers(lines, issue, rule);
+                return true;
 
+            // 黑色六合彩「黑客半波」：卡面固定「数据半波【红波单 … 绿波单】」，
+            // 只认本期行方括号里那五个半波（六种缺一），括号外不参与。
+            case "labelled_half_waves":
+                value = ExtractLabelledHalfWaves(lines, issue);
+                return true;
+
+            // 黑色六合彩「红牛四行」：卡面固定「四行中特 🎯金 水 火 土🎯」，
+            // 只认两个靶心之间那四个不同五行，反推缺的那个。
+            case "four_elements_bullseye":
+                value = ExtractLabelledFourElements(lines, issue, @"四行中特");
+                return true;
+
+            // 黑色六合彩「黑客四行」：卡面固定「五行必中【金 木 水 土】」，
+            // 只认本期行方括号里那四个不同五行，反推缺的那个。
+            case "four_elements_bracket":
+                value = ExtractLabelledFourElements(lines, issue, @"五行必中");
+                return true;
+
+            // 嫣然心水「陈思思」：乖乖团队的禁肖统计表，每行作者名 + 正字 + 「禁」+ 生肖。
+            // 通用路径会取页面上第一个「禁」后面的生肖（别人的），必须只认本人那一行。
+            case "author_forbidden_zodiac":
+                value = ExtractAuthorForbiddenZodiac(lines, issue, rule);
+                return true;
+        }
+        scoped = lines;
+        return false;
+    }
+
+    // ③ 类型化：按卡面形状取值，不看具体是哪张卡。
+    private static bool TryExtractTyped(
+        ExtractionState state, int issue, OcrRule rule, bool requireCloudKeyword, out string? value)
+    {
+        value = null;
+        string[] lines = state.Lines;
+        string[] aliases = state.Aliases;
         // 复核卡（require_row_structure）：取值只认目标期号那一行，不拼行、不借期。
         if (rule.RequireRowStructure)
-            return ExtractRequiredRowValue(lines, issue, rule);
-
+        {
+            value = ExtractRequiredRowValue(lines, issue, rule);
+            return true;
+        }
         if (rule.Type == "生肖" && IsZodiacSummary(lines))
+        {
             // 只认目标期本人行；找不到就判缺失。曾经回落到「图上印着的最大期号」，
             // 那等于允许拿上一期表当本期结果，已按口径取消。
-            return ExtractZodiacSummaryValue(lines, issue, rule);
-
+            value = ExtractZodiacSummaryValue(lines, issue, rule);
+            return true;
+        }
         // 半波卡片只能由目标期行本身的完整资料名确认身份。
         // 这样即使上一期标题仍留在图里，也绝不能把本期“杀半波”通用字段归给旧资料。
         bool explicitHalfWaveIssueIdentity = rule.StrictIssueBlock
@@ -1190,35 +1272,43 @@ public static class RuleEngine
             && lines.Any(line => ContainsIssue(line, issue)
                 && HasExplicitHalfWaveIdentity(line, rule));
         if (rule.StrictIssueBlock && rule.Type == "半波" && !explicitHalfWaveIssueIdentity)
-            return null;
+            return true;
 
         int scopeStart = 0;
         if (!string.IsNullOrWhiteSpace(rule.Section) && !explicitHalfWaveIssueIdentity)
         {
             scopeStart = LocateSectionStart(lines, rule.Section);
             if (scopeStart < 0)
-                return null;
+                return true;
         }
+        state.ScopeStart = scopeStart;
 
-        var candidates = BuildIssueCandidates(lines, issue, rule, scopeStart, aliases);
-
+        IReadOnlyList<string> candidates = BuildIssueCandidates(lines, issue, rule, scopeStart, aliases);
+        state.Candidates = candidates;
         // Section ownership is enforced while each issue candidate is built; do
         // not reopen the scope later based on a sibling section.
 
         bool keywordInTarget = candidates.Any(line => ContainsAnyAlias(line, aliases));
+        state.KeywordInTarget = keywordInTarget;
         bool keywordInHeading = aliases.Any(alias => HasKeywordInHeading(lines, alias));
         if (requireCloudKeyword && !rule.AllowValueWithoutKeyword && !keywordInTarget && !keywordInHeading)
-            return null;
+            return true;
 
         if (rule.SingleValuePerIssue && rule.Type == "头")
-            return ExtractSingleHeadPerIssue(lines, issue);
-
+        {
+            value = ExtractSingleHeadPerIssue(lines, issue);
+            return true;
+        }
         if (rule.Type == "统计生肖")
-            return ExtractMostFrequentZodiac(lines, issue, rule);
-
+        {
+            value = ExtractMostFrequentZodiac(lines, issue, rule);
+            return true;
+        }
         if (rule.StrictIssueBlock || rule.Folder == "公式杀料")
-            return ExtractStrictIssueBlock(lines, issue, rule);
-
+        {
+            value = ExtractStrictIssueBlock(lines, issue, rule);
+            return true;
+        }
         // This sheet prints the opening result before a separate nine-zodiac row.
         // Match that row within the requested issue, never combine the smaller tiers.
         if (rule.Id == "杰少九肖" && rule.Type == "九肖")
@@ -1230,25 +1320,34 @@ public static class RuleEngine
                 MatchCollection matches = Regex.Matches(normalized, $"九肖(?<value>[{Zodiac}]{{9}})(?![{Zodiac}])");
                 foreach (Match nine in matches)
                 {
-                    string value = nine.Groups["value"].Value;
-                    if (value.Distinct().Count() == 9)
-                        nineValues.Add(value);
+                    string nineValue = nine.Groups["value"].Value;
+                    if (nineValue.Distinct().Count() == 9)
+                        nineValues.Add(nineValue);
                 }
             }
-            return nineValues.Count == 0 ? null : nineValues.Count == 1 ? nineValues.Single() : ConflictMarker;
+            value = nineValues.Count == 0 ? null : nineValues.Count == 1 ? nineValues.Single() : ConflictMarker;
+            return true;
         }
-
         if (rule.Type.StartsWith("号码:", StringComparison.Ordinal)
             && int.TryParse(rule.Type.AsSpan("号码:".Length), out int expectedCount))
         {
-            string? numberValue = rule.IgnoreIssue
-                ? ExtractNumbers(string.Join(' ', lines), expectedCount)
-                : ExtractNumbersAroundIssue(lines, scopeStart, issue, expectedCount, rule);
             // Number extraction is provenance-aware. Never fall through to the
             // generic candidate concatenation and accidentally rebuild a failed row.
-            return numberValue;
+            value = rule.IgnoreIssue
+                ? ExtractNumbers(string.Join(' ', lines), expectedCount)
+                : ExtractNumbersAroundIssue(lines, scopeStart, issue, expectedCount, rule);
+            return true;
         }
+        return false;
+    }
 
+    // ④ 兜底：前三段都没命中才走这里，按通用候选拼装取值。
+    private static string? ExtractFallbackValue(ExtractionState state, int issue, OcrRule rule)
+    {
+        string[] lines = state.Lines;
+        string[] aliases = state.Aliases;
+        IReadOnlyList<string> candidates = state.Candidates;
+        string keyword = Normalize(rule.Keyword);
         var observed = new HashSet<string>(StringComparer.Ordinal);
         bool zodiacTypes = rule.Type is "生肖" or "单生肖" or "生肖组合" or "九肖";
         void CollectCandidates(IEnumerable<string> source, bool maximalOnly)
@@ -1259,19 +1358,19 @@ public static class RuleEngine
             foreach (string line in relevant)
             {
                 string scoped = ScopeSingleValueToTargetIssue(line, issue, rule);
-                string? value = ExtractTypedForRule(scoped, rule);
+                string? typed = ExtractTypedForRule(scoped, rule);
                 // 只有“这一行里没有别的期号”时才允许回退整行：同行一旦出现别的期号
                 // （无论在前还是在后），回退都会把邻期的值读成本期值。
-                if (value is null && !ReferenceEquals(scoped, line)
+                if (typed is null && !ReferenceEquals(scoped, line)
                     && !LineHasOtherIssue(line, issue))
-                    value = ExtractTypedForRule(line, rule);
-                if (value is not null)
-                    observed.Add(value);
+                    typed = ExtractTypedForRule(line, rule);
+                if (typed is not null)
+                    observed.Add(typed);
             }
         }
         IEnumerable<string> keywordCandidates = candidates.Where(
             line => ContainsAnyAlias(line, aliases)).ToArray();
-        IEnumerable<string>[] passes = keywordInTarget
+        IEnumerable<string>[] passes = state.KeywordInTarget
             ? [keywordCandidates, candidates]
             : [candidates];
         foreach (IEnumerable<string> pass in passes)

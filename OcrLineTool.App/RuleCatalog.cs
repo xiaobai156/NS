@@ -306,6 +306,7 @@ public static class RuleCatalog
                 bool allowOpeningRow = ReadOptionalBoolean(item, "allow_opening_row", false, fileName);
                 bool sectionOnRow = ReadOptionalBoolean(item, "section_on_row", false, fileName);
                 bool lockToFolder = ReadOptionalBoolean(item, "lock_to_folder", false, fileName);
+                string? extractor = ReadOptionalText(item, "extractor", fileName);
                 if (keyword.Length > 0 && type.Length > 0)
                     output.Add(new OcrRule(
                         keyword,
@@ -333,7 +334,8 @@ public static class RuleCatalog
                         dedupeNumbers,
                         allowOpeningRow,
                         sectionOnRow,
-                        lockToFolder));
+                        lockToFolder,
+                        extractor));
             }
             if (output.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count() != output.Count)
                 throw new OcrException($"{fileName} 中存在重复的输出名称。");
@@ -385,5 +387,14 @@ public static class RuleCatalog
             JsonValueKind.False => false,
             _ => throw new OcrException($"{fileName} 的 {propertyName} 必须是 true 或 false。")
         };
+    }
+    private static string? ReadOptionalText(JsonElement element, string propertyName, string fileName)
+    {
+        if (!element.TryGetProperty(propertyName, out JsonElement value))
+            return null;
+        if (value.ValueKind != JsonValueKind.String)
+            throw new OcrException($"{fileName} 的 {propertyName} 必须是字符串。");
+        string text = value.GetString()?.Trim() ?? string.Empty;
+        return text.Length == 0 ? null : text;
     }
 }
