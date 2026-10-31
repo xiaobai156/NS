@@ -235,7 +235,8 @@
       "section": "杀一肖",
       "folder": "缘来如此",
       "allow_folder_identity": true,
-      "ignore_peer_keywords": true
+      "ignore_peer_keywords": true,
+      "require_folder_name": true
     },
     {
       "keyword": "缘来如此",
@@ -245,7 +246,8 @@
       "section": "杀一尾",
       "folder": "缘来如此",
       "allow_folder_identity": true,
-      "ignore_peer_keywords": true
+      "ignore_peer_keywords": true,
+      "require_folder_name": true
     },
     {
       "keyword": "木桃",
@@ -312,7 +314,8 @@
       "type": "生肖",
       "required_keyword": "东南仔",
       "folder": "东南仔",
-      "allow_folder_identity": true
+      "allow_folder_identity": true,
+      "require_folder_name": true
     },
     {
       "keyword": "梁微微",
@@ -758,6 +761,6 @@
     { "keyword": "至尊分享杀半头地摊料", "type": "半头", "label": "东哥半头", "required_keyword": "至尊分享杀半头", "folder": "东哥" },
     { "keyword": "至尊分享杀半波地摊料", "type": "色单双", "label": "东哥半波", "required_keyword": "至尊分享杀半波", "folder": "东哥" }
 ,
-    { "keyword": "送钱宝宝镇坛九肖", "type": "九肖", "label": "送钱宝宝", "required_keyword": "送钱宝宝", "allow_folder_identity": true, "folder": "送钱宝宝" }
+    { "keyword": "送钱宝宝镇坛九肖", "type": "九肖", "label": "送钱宝宝", "required_keyword": "送钱宝宝", "allow_folder_identity": true, "folder": "送钱宝宝", "require_folder_name": true }
   ]
 }

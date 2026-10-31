@@ -315,6 +315,7 @@ public static class RuleCatalog
                 if (readModel is not null && readModel is not ("small" or "medium"))
                     throw new OcrException($"{fileName} 的 read_model「{readModel}」只支持 small 或 medium。");
                 bool ignorePeerKeywords = ReadOptionalBoolean(item, "ignore_peer_keywords", false, fileName);
+                bool requireFolderName = ReadOptionalBoolean(item, "require_folder_name", false, fileName);
                 if (keyword.Length > 0 && type.Length > 0)
                     output.Add(new OcrRule(
                         keyword,
@@ -345,7 +346,8 @@ public static class RuleCatalog
                         lockToFolder,
                         extractor,
                         readModel,
-                        ignorePeerKeywords));
+                        ignorePeerKeywords,
+                        requireFolderName));
             }
             if (output.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count() != output.Count)
                 throw new OcrException($"{fileName} 中存在重复的输出名称。");

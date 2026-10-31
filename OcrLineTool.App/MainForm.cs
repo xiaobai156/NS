@@ -3977,11 +3977,12 @@ public sealed class MainForm : Form
                 return new CandidateSelection(templateCandidates.Concat(localCandidates).ToArray(), templateCropFolder, "本地OCR");
             }
 
+            IReadOnlyDictionary<string, int> folderImageCounts = RuleEngine.CountImagesPerFolder(imagePaths);
             foreach (string path in localImagePaths)
             {
                 if (!localResults.TryGetValue(path, out IReadOnlyList<string>? lines))
                     continue;
-                IReadOnlyList<OcrRule> matched = RuleEngine.FindMatches(path, lines, rules, completeIdentityRules);
+                IReadOnlyList<OcrRule> matched = RuleEngine.FindMatches(path, lines, rules, completeIdentityRules, folderImageCounts);
                 if (localLimitedRuleIds is not null && limitedImagePaths.Count > 0 &&
                     !limitedImagePaths.Contains(path))
                 {

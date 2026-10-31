@@ -31,7 +31,8 @@ public sealed record OcrRule(
     bool LockToFolder = false,
     string? Extractor = null,
     string? ReadModel = null,
-    bool IgnorePeerKeywords = false)
+    bool IgnorePeerKeywords = false,
+    bool RequireFolderName = false)
 {
     public string Id => Label ?? Keyword;
     public string OutputLabel => Label ?? Keyword;
@@ -227,11 +228,37 @@ public static class RuleEngine
         return rules.Where(rule => MatchesText(text, rule)).ToArray();
     }
 
+    // 每张图所在夹子里有多少张图：夹里只有一张时夹子本身已唯一，不需要再看卡面名字。
+    public static IReadOnlyDictionary<string, int> CountImagesPerFolder(IEnumerable<string> imagePaths)
+    {
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (string path in imagePaths)
+        {
+            string folder = Path.GetDirectoryName(path) ?? string.Empty;
+            counts[folder] = counts.TryGetValue(folder, out int current) ? current + 1 : 1;
+        }
+        return counts;
+    }
+
+    // 夹子名是否在卡面上读得到。允许「连续两个字」就算读到——竖排大字的作者名
+    // 常被 OCR 读坏一半，要求完整匹配会把真实卡也挡掉。
+    private static bool SharesFolderNameRun(string text, string folderName)
+    {
+        string normalized = Normalize(folderName);
+        for (int start = 0; start + 2 <= normalized.Length; start++)
+        {
+            if (text.Contains(normalized.Substring(start, 2), StringComparison.Ordinal))
+                return true;
+        }
+        return false;
+    }
+
     public static IReadOnlyList<OcrRule> FindMatches(
         string imagePath,
         IEnumerable<string> localLines,
         IEnumerable<OcrRule> rules,
-        IEnumerable<OcrRule>? completeRules = null)
+        IEnumerable<OcrRule>? completeRules = null,
+        IReadOnlyDictionary<string, int>? folderImageCounts = null)
     {
         string[] lines = localLines.ToArray();
         OcrRule[] requestedRules = rules.ToArray();
@@ -322,6 +349,14 @@ public static class RuleEngine
                 // different material's name is not this rule's image.
                 string ownFolderKeyword = Normalize(rule.Keyword);
                 if (presentIdentities.Any(value => !value.Equals(ownFolderKeyword, StringComparison.Ordinal)))
+                    return false;
+                // 夹里混进了别人的图（不止一张）时，才要求在卡面上读到夹子名：
+                // 一张图的夹子靠夹子名认卡已经足够，多图夹子则必须自证身份。
+                if (rule.RequireFolderName
+                    && folderImageCounts is not null
+                    && folderImageCounts.TryGetValue(Path.GetDirectoryName(imagePath) ?? string.Empty, out int folderCount)
+                    && folderCount > 1
+                    && !SharesFolderNameRun(text, expectedFolder))
                     return false;
                 // 无标题卡（爱晚亭杀肖）：卡面没有"杀1肖"字样时，文件夹 + 每期一行
                 // 的单肖统计表形状才算命中；同夹的号码表/万能猫统计表不能顶替。

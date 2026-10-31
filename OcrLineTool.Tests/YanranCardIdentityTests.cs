@@ -114,4 +114,42 @@ public sealed class YanranCardIdentityTests
             Directory.Delete(folder, recursive: true);
         }
     }
+
+    // 夹里混进了别人的图时，光靠夹子名认卡会认错，所以要卡面自证身份。
+    private static readonly string[] CardWithoutFolderName = ["杀一肖", "304期杀一肖【鸡】"];
+
+    [Fact]
+    public void ASharedFolderCardHasToShowItsOwnName()
+    {
+        OcrRule rule = Rule("缘来如此杀一肖");
+        string first = Path.Combine(@"C:\图片", "10.31-嫣然心水", "缘来如此", "a.jpg");
+        string second = Path.Combine(@"C:\图片", "10.31-嫣然心水", "缘来如此", "b.jpg");
+        // 夹子里有两张图、卡面又读不到夹子名 → 不认领，避免取到别人的值。
+        IReadOnlyDictionary<string, int> shared = RuleEngine.CountImagesPerFolder([first, second]);
+        Assert.Empty(RuleEngine.FindMatches(first, CardWithoutFolderName, [rule], Rules(), shared));
+        // 同一张图单独放一个夹子 → 夹子本身已唯一，不需要卡面写名字。
+        IReadOnlyDictionary<string, int> alone = RuleEngine.CountImagesPerFolder([first]);
+        Assert.Contains(rule, RuleEngine.FindMatches(first, CardWithoutFolderName, [rule], Rules(), alone));
+    }
+
+    [Fact]
+    public void HalfReadFolderNameIsStillEnough()
+    {
+        OcrRule rule = Rule("缘来如此杀一肖");
+        string first = Path.Combine(@"C:\图片", "10.31-嫣然心水", "缘来如此", "a.jpg");
+        string second = Path.Combine(@"C:\图片", "10.31-嫣然心水", "缘来如此", "b.jpg");
+        IReadOnlyDictionary<string, int> shared = RuleEngine.CountImagesPerFolder([first, second]);
+        // 竖排大字常被读坏一半，只剩「如此」两字也要认这张卡。
+        Assert.Contains(rule, RuleEngine.FindMatches(first, ["如此", "304期杀一肖【鸡】"], [rule], Rules(), shared));
+    }
+
+    [Theory]
+    [InlineData("东南仔")]
+    [InlineData("送钱宝宝")]
+    [InlineData("缘来如此杀一肖")]
+    [InlineData("缘来如此尾")]
+    public void TheFolderIdentityCardsAlsoAskForTheirName(string id)
+    {
+        Assert.True(Rule(id).RequireFolderName);
+    }
 }
