@@ -77,4 +77,45 @@ internal sealed class CloudRequestPacer
         stopwatch.Restart();
         Started = true;
     }
+
+    /// <summary>
+    /// 等到下一次可以请求。等待方式由调用方决定：界面流程用 Task.Delay 并显示倒计时，
+    /// 手动复抓用不计入阶段耗时的等待。三套流程原来各写一遍「取 Remaining、判正、Delay」。
+    /// </summary>
+    public async Task WaitAsync(Func<TimeSpan, Task> delay, Action<TimeSpan>? announce = null)
+    {
+        TimeSpan remaining = Remaining;
+        if (remaining <= TimeSpan.Zero)
+            return;
+        announce?.Invoke(remaining);
+        await delay(remaining);
+    }
+}
+
+/// <summary>
+/// 限流自动重试：云主识别、云备用识别、手动复抓各写过一遍「没到上限就退避重试、
+/// 到了就交给调用方处理，恢复之后计数归零」。抽成一份，上限和退避曲线只有一处。
+/// </summary>
+internal sealed class CloudRateLimitRetries
+{
+    private int attempts;
+
+    public int Count => attempts;
+
+    /// <summary>还有机会时给出这一轮的退避时长并计一次数；用尽时返回 false 且不改状态。</summary>
+    public bool TryBeginRetry(out TimeSpan delay)
+    {
+        if (attempts >= CloudOcrPolicy.MaxAutomaticRetries)
+        {
+            delay = TimeSpan.Zero;
+            return false;
+        }
+
+        attempts++;
+        delay = CloudOcrPolicy.RetryDelay(attempts);
+        return true;
+    }
+
+    /// <summary>等过一次人工恢复之后重新给满重试机会。</summary>
+    public void Reset() => attempts = 0;
 }

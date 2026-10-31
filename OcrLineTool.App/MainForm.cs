@@ -1315,8 +1315,7 @@ public sealed class MainForm : Form
                                     {
                                         MinimumInterval = CloudOcrPolicy.MinimumInterval(credential.Provider)
                                     };
-                                if (pacer.Remaining > TimeSpan.Zero)
-                                    await Task.Delay(pacer.Remaining, ActiveToken);
+                                await pacer.WaitAsync(delay => Task.Delay(delay, ActiveToken));
                                 pacer.MarkRequested();
                                 cloudRequests++;
                                 statusLabel.Text = $"本地主识别：云 OCR 兜底 {credential.DisplayName} · {completed + 1}/{cloudCandidates.Length} · 当前：{ShortPath(candidate.SourcePath)}";
@@ -1891,15 +1890,12 @@ public sealed class MainForm : Form
                     candidate.SourcePath,
                     candidate.OcrPath,
                     $"cloud-primary/{candidate.SelectionMode}");
-                int automaticRetry = 0;
+                var automaticRetries = new CloudRateLimitRetries();
                 while (true)
                 {
-                    TimeSpan pacingDelay = primaryPacer.Remaining;
-                    if (pacingDelay > TimeSpan.Zero)
-                    {
-                        statusLabel.Text = $"{stage}：按免费额度限速，{pacingDelay.TotalMilliseconds:0} 毫秒后处理 {displayIndex}/{displayTotal} · 当前：{ShortPath(candidate.SourcePath)}";
-                        await Task.Delay(pacingDelay, ActiveToken);
-                    }
+                    await primaryPacer.WaitAsync(
+                        delay => Task.Delay(delay, ActiveToken),
+                        delay => statusLabel.Text = $"{stage}：按免费额度限速，{delay.TotalMilliseconds:0} 毫秒后处理 {displayIndex}/{displayTotal} · 当前：{ShortPath(candidate.SourcePath)}");
 
                     int completedBeforeCall = displayIndex - 1;
                     TimeSpan remaining = completedBeforeCall == 0
@@ -1916,18 +1912,16 @@ public sealed class MainForm : Form
                     }
                     catch (OcrException exception) when (CloudOcrPolicy.IsRateLimit(credential.Provider, exception))
                     {
-                        if (automaticRetry < CloudOcrPolicy.MaxAutomaticRetries)
+                        if (automaticRetries.TryBeginRetry(out TimeSpan retryDelay))
                         {
-                            automaticRetry++;
-                            TimeSpan retryDelay = CloudOcrPolicy.RetryDelay(automaticRetry);
-                            statusLabel.Text = $"{stage}触发限流：停在 {displayIndex}/{displayTotal}，{retryDelay.TotalSeconds:0} 秒后自动重试（{automaticRetry}/{CloudOcrPolicy.MaxAutomaticRetries}）";
+                            statusLabel.Text = $"{stage}触发限流：停在 {displayIndex}/{displayTotal}，{retryDelay.TotalSeconds:0} 秒后自动重试（{automaticRetries.Count}/{CloudOcrPolicy.MaxAutomaticRetries}）";
                             await Task.Delay(retryDelay, ActiveToken);
                             continue;
                         }
 
                         resultsBox.Text = string.Join(Environment.NewLine, RuleEngine.FormatOutput(rules, values, missingReasons));
                         await WaitForCloudResumeAsync(displayIndex, displayTotal, candidate.SourcePath);
-                        automaticRetry = 0;
+                        automaticRetries.Reset();
                     }
                     catch (OcrException exception) when (CloudOcrPolicy.IsCredentialProblem(credential.Provider, exception))
                     {
@@ -1961,15 +1955,12 @@ public sealed class MainForm : Form
                     candidate.SourcePath,
                     candidate.SourcePath,
                     "cloud-fallback/original");
-                int fallbackRetry = 0;
+                var fallbackRetries = new CloudRateLimitRetries();
                 while (true)
                 {
-                    TimeSpan fallbackPacingDelay = fallbackPacer.Remaining;
-                    if (fallbackPacingDelay > TimeSpan.Zero)
-                    {
-                        statusLabel.Text = $"备用 {fallbackCredential.DisplayName}：等待 {fallbackPacingDelay.TotalMilliseconds:0} 毫秒 · {cloudIndex}/{plannedCloudImages} · 当前：{ShortPath(candidate.SourcePath)}";
-                        await Task.Delay(fallbackPacingDelay, ActiveToken);
-                    }
+                    await fallbackPacer.WaitAsync(
+                        delay => Task.Delay(delay, ActiveToken),
+                        delay => statusLabel.Text = $"备用 {fallbackCredential.DisplayName}：等待 {delay.TotalMilliseconds:0} 毫秒 · {cloudIndex}/{plannedCloudImages} · 当前：{ShortPath(candidate.SourcePath)}");
 
                     fallbackPacer.MarkRequested();
                     cloudRequests++;
@@ -1981,18 +1972,16 @@ public sealed class MainForm : Form
                     }
                     catch (OcrException exception) when (CloudOcrPolicy.IsRateLimit(fallbackCredential.Provider, exception))
                     {
-                        if (fallbackRetry < CloudOcrPolicy.MaxAutomaticRetries)
+                        if (fallbackRetries.TryBeginRetry(out TimeSpan retryDelay))
                         {
-                            fallbackRetry++;
-                            TimeSpan retryDelay = CloudOcrPolicy.RetryDelay(fallbackRetry);
-                            statusLabel.Text = $"备用 {fallbackCredential.DisplayName} 触发限流，{retryDelay.TotalSeconds:0} 秒后重试（{fallbackRetry}/{CloudOcrPolicy.MaxAutomaticRetries}）";
+                            statusLabel.Text = $"备用 {fallbackCredential.DisplayName} 触发限流，{retryDelay.TotalSeconds:0} 秒后重试（{fallbackRetries.Count}/{CloudOcrPolicy.MaxAutomaticRetries}）";
                             await Task.Delay(retryDelay, ActiveToken);
                             continue;
                         }
 
                         resultsBox.Text = string.Join(Environment.NewLine, RuleEngine.FormatOutput(rules, values, missingReasons));
                         await WaitForCloudResumeAsync(cloudIndex, plannedCloudImages, candidate.SourcePath);
-                        fallbackRetry = 0;
+                        fallbackRetries.Reset();
                     }
                     catch (OcrException exception)
                     {
@@ -2689,8 +2678,7 @@ public sealed class MainForm : Form
                 else
                 {
                     primaryPacer.MinimumInterval = CloudOcrPolicy.MinimumInterval(credential.Provider);
-                    if (primaryPacer.Remaining > TimeSpan.Zero)
-                        await ExcludeStageWaitAsync(Task.Delay(primaryPacer.Remaining, ActiveToken));
+                    await primaryPacer.WaitAsync(delay => ExcludeStageWaitAsync(Task.Delay(delay, ActiveToken)));
                     primaryPacer.MarkRequested();
                     while (true)
                     {
@@ -2749,8 +2737,7 @@ public sealed class MainForm : Form
                 if (fallbackMissing.Length > 0)
                 {
                     fallbackPacer.MinimumInterval = CloudOcrPolicy.MinimumInterval(fallbackCredential.Provider);
-                    if (fallbackPacer.Remaining > TimeSpan.Zero)
-                        await ExcludeStageWaitAsync(Task.Delay(fallbackPacer.Remaining, ActiveToken));
+                    await fallbackPacer.WaitAsync(delay => ExcludeStageWaitAsync(Task.Delay(delay, ActiveToken)));
                     fallbackPacer.MarkRequested();
                     try
                     {
@@ -2989,7 +2976,7 @@ public sealed class MainForm : Form
         string sourcePath,
         Func<Task<T>> request)
     {
-        int retry = 0;
+        var retries = new CloudRateLimitRetries();
         while (true)
         {
             try
@@ -2998,9 +2985,8 @@ public sealed class MainForm : Form
             }
             catch (OcrException exception) when (CloudOcrPolicy.IsRateLimit(credential.Provider, exception))
             {
-                if (retry < CloudOcrPolicy.MaxAutomaticRetries)
+                if (retries.TryBeginRetry(out TimeSpan delay))
                 {
-                    TimeSpan delay = CloudOcrPolicy.RetryDelay(++retry);
                     statusLabel.Text = $"复抓触发限流：{delay.TotalSeconds:0} 秒后重试 {current}/{total}";
                     // 自动退避与手动继续、节流等待同一口径：墙钟照走，但不算进识别均速（等待期间不给精确倒计时）。
                     await ExcludeStageWaitAsync(Task.Delay(delay, ActiveToken));
@@ -3008,7 +2994,7 @@ public sealed class MainForm : Form
                 }
 
                 await WaitForCloudResumeAsync(current, total, sourcePath);
-                retry = 0;
+                retries.Reset();
             }
         }
     }

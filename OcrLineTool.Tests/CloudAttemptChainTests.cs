@@ -87,6 +87,71 @@ public sealed class CloudAttemptChainTests
         Assert.Equal(TimeSpan.Zero, pacer.Remaining);
     }
 
+    [Fact]
+    public void RateLimitRetriesGiveUpAtTheConfiguredLimit()
+    {
+        var retries = new CloudRateLimitRetries();
+        var delays = new List<TimeSpan>();
+
+        for (int expected = 1; expected <= CloudOcrPolicy.MaxAutomaticRetries; expected++)
+        {
+            Assert.True(retries.TryBeginRetry(out TimeSpan delay));
+            Assert.Equal(expected, retries.Count);
+            Assert.Equal(CloudOcrPolicy.RetryDelay(expected), delay);
+            delays.Add(delay);
+        }
+
+        Assert.False(retries.TryBeginRetry(out TimeSpan exhausted));
+        Assert.Equal(TimeSpan.Zero, exhausted);
+        // 用尽之后计数不再增长，避免界面显示「4/3」这种越界数字。
+        Assert.Equal(CloudOcrPolicy.MaxAutomaticRetries, retries.Count);
+        Assert.Equal(delays.Count, delays.Distinct().Count());
+    }
+
+    [Fact]
+    public void RateLimitRetriesStartOverAfterAManualResume()
+    {
+        var retries = new CloudRateLimitRetries();
+        for (int index = 0; index < CloudOcrPolicy.MaxAutomaticRetries; index++)
+            Assert.True(retries.TryBeginRetry(out _));
+        Assert.False(retries.TryBeginRetry(out _));
+
+        retries.Reset();
+
+        Assert.Equal(0, retries.Count);
+        Assert.True(retries.TryBeginRetry(out TimeSpan delay));
+        Assert.Equal(CloudOcrPolicy.RetryDelay(1), delay);
+    }
+
+    [Fact]
+    public async Task PacerWaitSkipsTheDelayWhenNothingIsOwed()
+    {
+        var pacer = new CloudRequestPacer { MinimumInterval = TimeSpan.FromSeconds(30) };
+        var waited = new List<TimeSpan>();
+
+        // 一次都没请求过：不需要等待，也不该报告倒计时。
+        await pacer.WaitAsync(delay =>
+        {
+            waited.Add(delay);
+            return Task.CompletedTask;
+        }, delay => waited.Add(delay));
+
+        Assert.Empty(waited);
+
+        pacer.MarkRequested();
+        await pacer.WaitAsync(delay =>
+        {
+            waited.Add(delay);
+            return Task.CompletedTask;
+        }, delay => waited.Add(delay));
+
+        // 请求过之后：先报倒计时再等，两处拿到的是同一个时长。
+        Assert.Equal(2, waited.Count);
+        Assert.Equal(waited[0], waited[1]);
+        Assert.True(waited[0] > TimeSpan.Zero);
+        Assert.True(waited[0] <= TimeSpan.FromSeconds(30));
+    }
+
     private static OcrCredential Account(string id) =>
         new(OcrProvider.Tencent, "slot-" + id, id, "secret-" + id);
 }
