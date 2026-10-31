@@ -307,6 +307,8 @@ public static class RuleCatalog
                 bool sectionOnRow = ReadOptionalBoolean(item, "section_on_row", false, fileName);
                 bool lockToFolder = ReadOptionalBoolean(item, "lock_to_folder", false, fileName);
                 string? extractor = ReadOptionalText(item, "extractor", fileName);
+                if (extractor is not null && !RuleEngine.KnownExtractors.Contains(extractor))
+                    throw new OcrException($"{fileName} 的 extractor「{extractor}」代码不认识，请检查配置。");
                 if (keyword.Length > 0 && type.Length > 0)
                     output.Add(new OcrRule(
                         keyword,

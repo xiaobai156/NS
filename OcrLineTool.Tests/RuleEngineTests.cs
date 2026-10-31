@@ -1247,7 +1247,7 @@ public sealed class RuleEngineTests
     [Fact]
     public void IssueFailureCountsTheAuthorsOwnSectionInsteadOfTheNeighbouringKillRow()
     {
-        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");
+        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少", Extractor: "jieshao_nine_zodiacs");
         string[] lines = ["原创杰少", "269期 杀①肖 马", "九肖", "269期 九肖 鼠牛虎兔龙蛇马羊"];
 
         // 该卡本期九肖只印了 8 个，作者自己的栏目内就是 8；不能数到上面的「杀①肖」栏。
@@ -1260,7 +1260,7 @@ public sealed class RuleEngineTests
     [Fact]
     public void IssueFailureStillPointsAtTheAuthorsSectionWhenTheRowsAreSwapped()
     {
-        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");
+        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少", Extractor: "jieshao_nine_zodiacs");
         string[] lines = ["原创杰少", "九肖", "269期 九肖 鼠牛虎兔龙蛇马羊", "269期 杀①肖 马"];
 
         Assert.Equal(
@@ -1271,7 +1271,7 @@ public sealed class RuleEngineTests
     [Fact]
     public void IssueFailureIgnoresTheHistoryIssueInTheSameSection()
     {
-        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");
+        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少", Extractor: "jieshao_nine_zodiacs");
         string[] lines =
         [
             "原创杰少",
@@ -1289,7 +1289,7 @@ public sealed class RuleEngineTests
     [Fact]
     public void IssueFailureCountsOnlyTheAnswerFieldBeforeTheOpeningResultOnTheSameRow()
     {
-        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");
+        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少", Extractor: "jieshao_nine_zodiacs");
         string[] lines = ["原创杰少", "269期 杀①肖 马", "九肖", "269期 九肖 鼠牛虎兔龙蛇马羊 开猴49准"];
 
         // 同一行后面的「开猴49准」是上期开奖，不是本题答案：正文只有 8 个，诊断必须也数 8。
@@ -1302,7 +1302,7 @@ public sealed class RuleEngineTests
     [Fact]
     public void IssueFailureCountsOnlyTheAnswerFieldWhenTheOpeningResultIsOnItsOwnRow()
     {
-        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");
+        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少", Extractor: "jieshao_nine_zodiacs");
         string[] lines =
         [
             "原创杰少",
@@ -1321,7 +1321,7 @@ public sealed class RuleEngineTests
     [Fact]
     public void OpeningZodiacRepeatingAnAnswerZodiacDoesNotRaiseTheReportedCount()
     {
-        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");
+        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少", Extractor: "jieshao_nine_zodiacs");
         string[] lines = ["原创杰少", "269期 杀①肖 马", "九肖", "269期 九肖 鼠牛虎兔龙蛇马猴 开猴49准"];
 
         // 正文 8 个字里已经有「猴」，开奖再印一次猴既不加原始数也不加去重数。
@@ -1333,7 +1333,7 @@ public sealed class RuleEngineTests
     [Fact]
     public void CompleteAnswerRowWithATrailingOpeningResultStillSucceeds()
     {
-        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");
+        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少", Extractor: "jieshao_nine_zodiacs");
         string[] lines = ["原创杰少", "269期 杀①肖 马", "九肖", "269期 九肖 鼠牛虎兔龙蛇马羊鸡 开猴49准"];
 
         Assert.Equal("鼠牛虎兔龙蛇马羊鸡", RuleEngine.ExtractFinalValue(lines, 269, rule));
@@ -1356,7 +1356,7 @@ public sealed class RuleEngineTests
     [Fact]
     public void CompleteSectionRowStillSucceedsWithTheNeighbouringRowsPresent()
     {
-        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");
+        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少", Extractor: "jieshao_nine_zodiacs");
         string[] lines = ["原创杰少", "269期 杀①肖 马", "九肖", "269期 九肖 鼠牛虎兔龙蛇马羊鸡"];
 
         Assert.Equal("鼠牛虎兔龙蛇马羊鸡", RuleEngine.ExtractFinalValue(lines, 269, rule));
@@ -1365,7 +1365,7 @@ public sealed class RuleEngineTests
     [Fact]
     public void TwoDifferentCompleteAnswersInTheOwnSectionStillConflict()
     {
-        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少");
+        var rule = new OcrRule("杰少", "九肖", "杰少九肖", "九肖", "原创杰少", "杰少", Extractor: "jieshao_nine_zodiacs");
         string[] lines =
         [
             "原创杰少",

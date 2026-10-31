@@ -31,6 +31,7 @@ public sealed class ExtractorContractTests
         ["红牛四行"] = "four_elements_bullseye",
         ["黑客四行"] = "four_elements_bracket",
         ["陈思思"] = "author_forbidden_zodiac",
+        ["杰少九肖"] = "jieshao_nine_zodiacs",
     };
 
     // 代码里 switch 认得的全部取值。加分支时同步这里。
@@ -53,6 +54,7 @@ public sealed class ExtractorContractTests
         "four_elements_bullseye",
         "four_elements_bracket",
         "author_forbidden_zodiac",
+        "jieshao_nine_zodiacs",
     };
 
     [Fact]
@@ -97,6 +99,46 @@ public sealed class ExtractorContractTests
             Assert.True(string.IsNullOrEmpty(rule.Extractor),
                 $"{group} 的「{rule.Id}」不该声明 extractor：{rule.Extractor}");
         }
+    }
+
+    [Fact]
+    public void AnUnknownExtractorIsRejectedWhenTheConfigIsLoaded()
+    {
+        // 写错解析器名字以前会静默落到类型化段，用别的形状凑出一个值。
+        // 现在读配置时就报错，启动即失败，而不是等到结果不对才发现。
+        string directory = Path.Combine(Path.GetTempPath(), "ocr-extractor-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            string path = Path.Combine(directory, "测试群.json");
+            File.WriteAllText(path,
+                """
+                { "version": 1, "group": "测试群", "rules": [
+                  { "keyword": "测试", "type": "生肖", "label": "测试卡", "extractor": "no_such_parser" }
+                ] }
+                """);
+            OcrException error = Assert.Throws<OcrException>(() => RuleCatalog.Load(path));
+            Assert.Contains("no_such_parser", error.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void AnUnknownExtractorFailsLoudlyInsteadOfFallingBack()
+    {
+        var rule = new OcrRule("测试", "生肖", "测试卡", Extractor: "no_such_parser");
+        Assert.Throws<OcrException>(() => RuleEngine.ExtractFinalValue(["测试 鼠"], 300, rule));
+    }
+
+    [Fact]
+    public void TheCodeSideListCarriesEveryParserTheTestsKnow()
+    {
+        Assert.Equal(
+            Known.OrderBy(value => value, StringComparer.Ordinal),
+            RuleEngine.KnownExtractors.OrderBy(value => value, StringComparer.Ordinal));
     }
 
     private static IEnumerable<(string Group, OcrRule Rule)> AllRules()

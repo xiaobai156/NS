@@ -1130,6 +1130,30 @@ public static class RuleEngine
 
     // ② 专属解析：每张卡自己的版式，由配置里的 extractor 指定走哪一支，
     // 只认自己那一段里的字段。
+    // 配置里 extractor 的合法取值。代码侧认识的解析器只在这个集合里，
+    // RuleCatalog 读配置时先挡一道，写错名字在启动时就报错，而不是静默变成缺失。
+    internal static readonly IReadOnlySet<string> KnownExtractors = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "nine_zodiacs_across_wrapped_rows",
+        "ten_numbers_across_issue_cell",
+        "ten_numbers_straddling_issue",
+        "perfect_two_zodiac",
+        "ouyang_half_wave",
+        "ziyaner_kill_zodiac",
+        "yanran_author_card",
+        "heike_nine_tails",
+        "jinnang_nine_tails",
+        "kill_two_zodiacs",
+        "labelled_repeated",
+        "labelled_single_head",
+        "labelled_single_half_wave",
+        "labelled_half_waves",
+        "four_elements_bullseye",
+        "four_elements_bracket",
+        "author_forbidden_zodiac",
+        "jieshao_nine_zodiacs",
+    };
+
     private static bool TryExtractOwnCard(
         string[] lines, int issue, OcrRule rule, bool requireCloudKeyword,
         out string[] scoped, out string? value)
@@ -1240,6 +1264,20 @@ public static class RuleEngine
             case "author_forbidden_zodiac":
                 value = ExtractAuthorForbiddenZodiac(lines, issue, rule);
                 return true;
+
+            case null:
+                // 没有声明专属解析器的卡走下一段类型化取值，这是绝大多数规则。
+                break;
+
+            case "jieshao_nine_zodiacs":
+                // 这张卡要按候选行匹配「九肖」后面的九个生肖，候选行在类型化段才拼好，
+                // 所以解析放在那里，这里只是放行。
+                break;
+
+            default:
+                // 配置写了代码不认识的解析器名。宁可当场报错，也不能静默落到类型化段
+                // 用别的形状去凑一个值——那种错误只会以「值不对」的形式出现在结果里。
+                throw new OcrException($"未知的解析器「{rule.Extractor}」：{rule.Id}，请检查配置。");
         }
         scoped = lines;
         return false;
@@ -1311,7 +1349,7 @@ public static class RuleEngine
         }
         // This sheet prints the opening result before a separate nine-zodiac row.
         // Match that row within the requested issue, never combine the smaller tiers.
-        if (rule.Id == "杰少九肖" && rule.Type == "九肖")
+        if (rule.Extractor == "jieshao_nine_zodiacs")
         {
             var nineValues = new HashSet<string>(StringComparer.Ordinal);
             foreach (string candidate in candidates)

@@ -649,6 +649,7 @@
       "keyword": "杰少",
       "type": "九肖",
       "label": "杰少九肖",
+      "extractor": "jieshao_nine_zodiacs",
       "section": "九肖",
       "required_keyword": "原创杰少",
       "folder": "杰少"
