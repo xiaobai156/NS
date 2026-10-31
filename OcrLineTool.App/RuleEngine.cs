@@ -29,7 +29,8 @@ public sealed record OcrRule(
     bool AllowOpeningRow = false,
     bool SectionOnRow = false,
     bool LockToFolder = false,
-    string? Extractor = null)
+    string? Extractor = null,
+    string? ReadModel = null)
 {
     public string Id => Label ?? Keyword;
     public string OutputLabel => Label ?? Keyword;
@@ -502,7 +503,9 @@ public static class RuleEngine
 
     private static bool IsSummaryText(string text) =>
         text.Contains("统计表", StringComparison.Ordinal)
-        || text.Contains("統計表", StringComparison.Ordinal);
+        || text.Contains("統計表", StringComparison.Ordinal)
+        || text.Contains("禁肖统计", StringComparison.Ordinal)
+        || text.Contains("禁肖統計", StringComparison.Ordinal);
 
     private static bool ContainsKeyword(string text, string keyword)
     {
@@ -1069,7 +1072,7 @@ public static class RuleEngine
         if (TryReadIdentity(lines, issue, rule, out string? identityValue))
             return identityValue;
 
-        if (!rule.StrictIssueBlock)
+        if (!rule.StrictIssueBlock && !(rule.Type == "生肖" && IsZodiacSummary(lines)))
             lines = SplitInlineIssueRows(lines);
 
         if (TryExtractOwnCard(lines, issue, rule, requireCloudKeyword, out string[] scoped, out string? cardValue))
@@ -2510,19 +2513,59 @@ public static class RuleEngine
 
     private static string[] SummaryRowsForIssue(IEnumerable<string> source, int issue)
     {
+        string[] lines = source.Select(Normalize).ToArray();
         var rows = new List<string>();
         bool inTarget = false;
-        foreach (string line in SplitInlineIssueRows(source))
+        bool titleBound = false;
+        for (int index = 0; index < lines.Length; index++)
         {
-            if (ContainsIssue(line, issue))
-                inTarget = true;
-            else if (ContainsIssueBoundary(line, issue))
-                inTarget = false;
-            if (inTarget)
-                rows.Add(line);
+            string line = lines[index];
+            if (IsSummaryText(line))
+            {
+                string title = line;
+                // OCR may split the heading into “GG团队N期新澳 / 禁 / 肖统计表”.
+                for (int previous = index - 1; previous >= 0 && previous >= index - 2
+                    && !FindIssues([title]).Any(); previous--)
+                {
+                    string prefix = lines[previous];
+                    if (prefix is "禁" or "肖" or "禁肖")
+                        title = prefix + title;
+                    else if (Regex.IsMatch(prefix, @"^(?:[A-Za-z]*团队|乖乖团队)?第?\d{1,6}期(?:新[澳奥])?$"))
+                    {
+                        title = prefix + title;
+                        break;
+                    }
+                    else
+                        break;
+                }
+                int[] titleIssues = FindIssues([title]).Distinct().ToArray();
+                titleBound = titleIssues.Length > 0;
+                inTarget = titleIssues.SequenceEqual([issue]);
+                if (inTarget)
+                    rows.Add(line);
+                continue;
+            }
+            foreach (string row in SplitInlineIssueRows([line]))
+            {
+                // Only period rows open a block. “战绩：从N期开始记录” is history.
+                if (BareIssueRegex.IsMatch(row) || Regex.IsMatch(row, @"^第?\d+期"))
+                {
+                    int[] rowIssues = FindIssues([row]).Distinct().ToArray();
+                    if (!titleBound)
+                        inTarget = rowIssues.SequenceEqual([issue]);
+                    else if (rowIssues.Any(found => found != issue))
+                        inTarget = false;
+                }
+                if (inTarget)
+                    rows.Add(row);
+            }
         }
         return rows.ToArray();
     }
+
+    internal static bool HasCurrentSummaryAuthor(IReadOnlyList<string> lines, int issue, OcrRule rule) =>
+        IsZodiacSummary(lines) && SummaryRowsForIssue(lines, issue)
+            .Any(line => BuildAliases(rule).Any(alias => ContainsKeyword(line, alias)));
 
     public static bool LineContainsIssue(string line, int issue)
     {
@@ -2626,15 +2669,21 @@ public static class RuleEngine
                 aliasIndex = line.IndexOf(label, StringComparison.Ordinal);
             if (aliasIndex >= 0)
             {
-                int forbidden = line.IndexOf('禁', aliasIndex);
+                string alias = aliases.First(item => line.IndexOf(item, StringComparison.Ordinal) == aliasIndex);
+                string tail = line[(aliasIndex + alias.Length)..];
+                int forbidden = tail.IndexOf('禁');
                 if (forbidden >= 0)
                 {
-                    string? value = ExtractSingleZodiac(line[(forbidden + 1)..]);
+                    if (Regex.IsMatch(tail[..forbidden], @"[^正准準中错錯对對囸企一二三四五0-9]"))
+                        continue;
+                    string payload = tail[(forbidden + 1)..];
+                    string? value = payload.Contains('禁') ? null : ExtractSingleZodiac(payload);
                     if (value is not null)
                         observed.Add(value);
                 }
 
                 if (index + 2 < lines.Length
+                    && !Regex.IsMatch(tail, @"[^正准準中错錯对對囸企一二三四五0-9]")
                     && Regex.IsMatch(lines[index + 1], "^禁+$"))
                 {
                     string? value = ExtractSingleZodiac(lines[index + 2]);
@@ -2653,37 +2702,7 @@ public static class RuleEngine
     // 且「禁」之后恰好一个生肖才算数。本人行读不到生肖就判缺失，交给按行裁剪补读。
     private static string? ExtractAuthorForbiddenZodiac(string[] lines, int issue, OcrRule rule)
     {
-        string[] aliases = new[] { Normalize(rule.Keyword), Normalize(rule.Label ?? string.Empty) }
-            .Where(alias => alias.Length > 0)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        if (aliases.Length == 0)
-            return null;
-        // 表格标题必须写着目标期；标题还停在上一期时一律判缺失，
-        // 绝不拿历史期的行凑本期结果。
-        if (!FindIssues(lines).Contains(issue))
-            return null;
-        var observed = new HashSet<string>(StringComparer.Ordinal);
-        foreach (string raw in lines)
-        {
-            string line = Normalize(raw);
-            string? alias = aliases.FirstOrDefault(item => line.Contains(item, StringComparison.Ordinal));
-            if (alias is null)
-                continue;
-            string tail = line[(line.IndexOf(alias, StringComparison.Ordinal) + alias.Length)..];
-            int forbidden = tail.IndexOf('禁');
-            if (forbidden < 0)
-                continue;
-            // 作者名与「禁」之间只允许正字计数与对错标记；出现别的字说明这一格
-            // 不是本人的「禁」字段（例如作者名后面又接了另一个资料名）。
-            string statusPrefix = tail[..forbidden];
-            if (statusPrefix.Length > 0
-                && Regex.IsMatch(statusPrefix, @"[^正准準中错錯对對囸企一二三四五0-9]"))
-                continue;
-            if (ExtractSingleZodiac(tail[(forbidden + 1)..]) is { } value)
-                observed.Add(value);
-        }
-        return observed.Count == 1 ? observed.Single() : null;
+        return ExtractZodiacSummaryValue(lines, issue, rule);
     }
 
     // 黄大仙新澳「蕊儿团队」：十张同版式卡，作者名只印在图头，数据行统一是
@@ -2762,11 +2781,9 @@ public static class RuleEngine
         return count;
     }
 
-    private static string? ExtractZodiacSummaryValue(string[] lines, int issue, OcrRule rule)
+    private static string? ExtractZodiacSummaryValue(string[] lines, int issue, OcrRule rule, bool allowSplitFields = true)
     {
-        if (rule.Type != "生肖"
-            || !IsZodiacSummary(lines)
-            || !FindIssues(lines).Contains(issue))
+        if (rule.Type != "生肖" || !IsZodiacSummary(lines))
         {
             return null;
         }
@@ -2794,14 +2811,16 @@ public static class RuleEngine
                     // Between this author and its 禁 field only status marks may
                     // appear; another author or “待更新” closes this cell.
                     if (statusPrefix.Length > 0
-                        && Regex.IsMatch(statusPrefix, @"[^正准準中错錯对對囸企0-9]"))
+                        && Regex.IsMatch(statusPrefix, @"[^正准準中错錯对對囸企一二三四五0-9]"))
                         continue;
-                    string? value = ExtractSingleZodiac(tail[(forbiddenIndex + 1)..]);
+                    string payload = tail[(forbiddenIndex + 1)..];
+                    string? value = payload.Contains('禁') ? null : ExtractSingleZodiac(payload);
                     if (value is not null)
                         observed.Add(value);
                 }
 
-                if (index + 2 < lines.Length
+                if (allowSplitFields && index + 2 < lines.Length
+                    && !Regex.IsMatch(tail, @"[^正准準中错錯对對囸企一二三四五0-9]")
                     && Regex.IsMatch(Normalize(lines[index + 1]), "^禁+$"))
                 {
                     string? value = ExtractSingleZodiac(Normalize(lines[index + 2]));
@@ -3014,6 +3033,28 @@ public static class RuleEngine
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(issue);
         if (rule.Id == "黑客半波" && rule.Type == "缺半波")
             return ExtractPositionedHalfWaves(evidence, issue);
+        if (rule.Type == "生肖" && IsZodiacSummary(evidence.Lines))
+        {
+            // Read each physical view independently; a vertical merged column is not a row cell.
+            var summaryValues = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var view in (evidence.TokenItems ?? evidence.Items).GroupBy(item => item.ViewId))
+            {
+                OcrLineEvidence[] items = view.Where(item => !string.IsNullOrWhiteSpace(item.Text)).ToArray();
+                IEnumerable<string> lines = items.All(item => item.Box is not null)
+                    ? BuildRowMajorReading(items.Where(item => item.Box is { Height: > 0 } box
+                        && box.Width >= box.Height).ToArray())
+                    : OcrEvidence.SafeLines(items);
+                RuleExtractionResult result = ToExtractionResult(ExtractZodiacSummaryValue(
+                    lines.ToArray(), issue, rule, allowSplitFields: false));
+                if (result.Status == RuleExtractionStatus.Conflict)
+                    return result;
+                if (result.Value is not null)
+                    summaryValues.Add(result.Value);
+            }
+            return summaryValues.Count > 1 ? RuleExtractionResult.Conflict
+                : summaryValues.Count == 1 ? RuleExtractionResult.Success(summaryValues.Single())
+                : RuleExtractionResult.Missing;
+        }
         if (YanranAuthorCards.Supports(rule)
             && RuleCatalog.PathBelongsToGroup(evidence.SourcePath, "嫣然心水")
             && evidence.HasCompleteGeometry)

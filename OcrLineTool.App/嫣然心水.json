@@ -383,7 +383,8 @@
       "type": "生肖",
       "required_keyword": "苏柒若",
       "allow_issue_less_summary": true,
-      "folder": "乖乖团队"
+      "folder": "乖乖团队",
+      "read_model": "small"
     },
     {
       "keyword": "爱晚亭",
@@ -528,7 +529,8 @@
       "type": "生肖",
       "required_keyword": "简单爱",
       "allow_issue_less_summary": true,
-      "folder": "乖乖团队"
+      "folder": "乖乖团队",
+      "read_model": "small"
     },
     {
       "keyword": "月来月好",
@@ -536,7 +538,8 @@
       "label": "月来月好",
       "required_keyword": "月来月好",
       "allow_issue_less_summary": true,
-      "folder": "乖乖团队"
+      "folder": "乖乖团队",
+      "read_model": "small"
     },
     {
       "keyword": "欧阳",
@@ -545,7 +548,8 @@
       "required_keyword": "欧阳",
       "section": "欧阳",
       "allow_issue_less_summary": true,
-      "folder": "乖乖团队"
+      "folder": "乖乖团队",
+      "read_model": "small"
     },
     {
       "keyword": "欧阳",
@@ -569,7 +573,8 @@
       "type": "生肖",
       "required_keyword": "禁肖统计",
       "allow_issue_less_summary": true,
-      "folder": "乖乖团队"
+      "folder": "乖乖团队",
+      "read_model": "small"
     },
     {
       "keyword": "潮汕陈龙",

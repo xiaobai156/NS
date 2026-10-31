@@ -67,7 +67,7 @@ public sealed class SummaryRowRecoveryTests
                 };
             string Argument(string name) => Regex.Match(info.Arguments, name + " \"([^\"]+)\"").Groups[1].Value;
             string path = File.ReadAllLines(Argument("--list")).Single();
-            string[] texts = route == "summary" ? ["简单爱 正正正", "陈思思 正正正"] : ["257期", "258期"];
+            string[] texts = route == "summary" ? ["GG团队257期新澳禁肖统计", "简单爱 正正正", "陈思思 正正正"] : ["257期", "258期"];
             var items = texts.Select((text, i) => new { text, box = new[] { 20, 100 + i * 50, 180, 24 }, confidence = 0.99, viewId = "original" });
             File.WriteAllText(Argument("--output"), JsonSerializer.Serialize(new { results = new[] { new { path, texts, items } } }));
             return Task.FromResult(new ProcessResult(true, 0, "", ""));
@@ -76,6 +76,62 @@ public sealed class SummaryRowRecoveryTests
 
     private static IReadOnlyList<OcrRule> Rules => RuleCatalog.Load(Path.Combine(
         ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
+
+    [Theory]
+    [InlineData("GG团队257期新澳禁肖统计", true)]
+    [InlineData("GG团队256期新澳禁肖统计", false)]
+    [InlineData("GG团队禁肖统计", false)]
+    [InlineData("257期普通资料", false)]
+    [InlineData("GG团队256期新澳禁肖统计 257期", false)]
+    [InlineData("257期新澳禁肖统计", true)]
+    [InlineData("GG团队257期新澳禁肖统计\n战绩：从256期开始记录", true)]
+    [InlineData("GG团队256期新澳禁肖统计\n257期", false)]
+    [InlineData("GG团队256期新澳禁肖统计\n战绩：从257期开始记录", false)]
+    [InlineData("统计表\n256期\n简单爱正正禁\n257期", false)]
+    [InlineData("GG团队257期新澳\n禁\n肖统计表", true)]
+    public async Task SummaryRecoveryRequiresAnUnambiguousCurrentSummaryBeforeSmallStripRead(string title, bool valid)
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "summary-period-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            string image = Path.Combine(folder, "sample.png");
+            using (var bitmap = new Bitmap(400, 400)) bitmap.Save(image);
+            var runner = new SummaryGateRunner(title);
+            var client = new PaddleLocalOcrClient(runner, Path.Combine(folder, "cache.json"));
+            var rule = Rules.Single(r => r.Id == "简单爱");
+            var results = await SummaryRowRecovery.TryRecoverBatchAsync(client,
+                [new(image, rule, SummaryRowRecoveryKind.Summary)], Rules, 257, 1, null, default);
+            Assert.Equal(valid ? 1 : 0, results.Count);
+            Assert.Equal(valid ? 2 : 1, runner.Arguments.Count);
+            Assert.Contains("--model medium", runner.Arguments[0]);
+            if (valid)
+            {
+                Assert.Contains("--model small", runner.Arguments[1]);
+                Assert.Equal("虎", Assert.Single(results).Value.Value);
+            }
+        }
+        finally { Directory.Delete(folder, true); }
+    }
+
+    private sealed class SummaryGateRunner(string title) : IProcessRunner
+    {
+        public List<string> Arguments { get; } = [];
+        public Task<ProcessResult> RunAsync(ProcessStartInfo info, Action<string>? output,
+            CancellationToken token, Action? reportStarted)
+        {
+            reportStarted?.Invoke();
+            Arguments.Add(info.Arguments);
+            string Argument(string name) => Regex.Match(info.Arguments, name + " \"([^\"]+)\"").Groups[1].Value;
+            string path = File.ReadAllLines(Argument("--list")).Single();
+            string[] texts = Arguments.Count == 1
+                ? [.. title.Split('\n'), .. title.Contains("简单爱") ? Array.Empty<string>() : new[] { "简单爱正正禁" },
+                    "陈思思正正禁"] : ["简单爱正正禁虎"];
+            var items = texts.Select((text, i) => new { text, box = new[] { 20, 50 + i * 50, 280, 24 }, confidence = 0.99, viewId = "original" });
+            File.WriteAllText(Argument("--output"), JsonSerializer.Serialize(new { results = new[] { new { path, texts, items } } }));
+            return Task.FromResult(new ProcessResult(true, 0, "", ""));
+        }
+    }
 
     [Fact]
     public void StripWithOnlyTheOwnRowYieldsItsSingleZodiac()

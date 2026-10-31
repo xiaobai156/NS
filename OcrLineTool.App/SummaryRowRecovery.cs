@@ -125,6 +125,9 @@ internal static class SummaryRowRecovery
                         Func<IReadOnlyList<string>, string?> parse;
                         if (request.Kind == SummaryRowRecoveryKind.Summary)
                         {
+                            if (request.Rule.AllowIssueLessSummary
+                                && !RuleEngine.HasCurrentSummaryAuthor(original.Lines, issue, request.Rule))
+                                continue;
                             var band = ComputeSummaryBand(original.Evidence.Items, request.Rule);
                             rect = band is null ? null : (0, band.Value.Top, 0, band.Value.Height);
                             parse = lines => RuleEngine.ExtractSummaryRowZodiacFromStrip(lines, request.Rule, catalog);
@@ -170,9 +173,20 @@ internal static class SummaryRowRecovery
 
             if (pending.Count == 0)
                 return results;
-            var strips = await ReadBatchAsync(client, pending.Select(item => item.Path).ToArray(),
-                1.0, StripDetectionMaxSide, false, cancellationToken,
-                progress: progress is null ? null : new PrefixedProgress(progress, "裁剪重读·"));
+            // 有些统计表卡（GG团队禁肖统计这类）整图读时会把右侧生肖竖列并成一个 token，
+            // 只有把作者那一行横带裁出来再读才拿得到本人的生肖；而这类表用 Medium 读横带
+            // 仍会丢值列，所以按规则声明的 read_model 分组，分别用对应模型重读。
+            var strips = new Dictionary<string, (IReadOnlyList<string> Lines, OcrEvidence Evidence)>(
+                StringComparer.OrdinalIgnoreCase);
+            foreach (var group in pending.GroupBy(item => item.Request.Rule.ReadModel == "small"))
+            {
+                var groupStrips = await ReadBatchAsync(client, group.Select(item => item.Path).ToArray(),
+                    1.0, StripDetectionMaxSide, false, cancellationToken,
+                    group.Key ? PaddleOcrModel.Small : PaddleOcrModels.LocalPrimary,
+                    progress is null ? null : new PrefixedProgress(progress, "裁剪重读·"));
+                foreach (var entry in groupStrips)
+                    strips[entry.Key] = entry.Value;
+            }
             foreach (var item in pending)
             {
                 cancellationToken.ThrowIfCancellationRequested();

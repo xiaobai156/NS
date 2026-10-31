@@ -309,6 +309,11 @@ public static class RuleCatalog
                 string? extractor = ReadOptionalText(item, "extractor", fileName);
                 if (extractor is not null && !RuleEngine.KnownExtractors.Contains(extractor))
                     throw new OcrException($"{fileName} 的 extractor「{extractor}」代码不认识，请检查配置。");
+                // 有些卡（两列并排的统计表）用主识别的 Medium 模型会把值列整个读丢，
+                // 需要换 Small 模型重读；取值只允许这两个，写错名字直接报错而不是静默失效。
+                string? readModel = ReadOptionalText(item, "read_model", fileName);
+                if (readModel is not null && readModel is not ("small" or "medium"))
+                    throw new OcrException($"{fileName} 的 read_model「{readModel}」只支持 small 或 medium。");
                 if (keyword.Length > 0 && type.Length > 0)
                     output.Add(new OcrRule(
                         keyword,
@@ -337,7 +342,8 @@ public static class RuleCatalog
                         allowOpeningRow,
                         sectionOnRow,
                         lockToFolder,
-                        extractor));
+                        extractor,
+                        readModel));
             }
             if (output.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count() != output.Count)
                 throw new OcrException($"{fileName} 中存在重复的输出名称。");
