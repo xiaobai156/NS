@@ -53,6 +53,7 @@
     { "keyword": "大赢家稳杀10码付费版", "type": "号码:10", "label": "大赢家" },
     { "keyword": "大赢家跳杀一头付费版", "type": "头", "label": "大赢家杀头" },
     { "keyword": "大赢家四行出码付费版", "type": "五行", "label": "大赢家五行" },
+    { "keyword": "大赢家双色球付费版", "type": "波", "label": "大赢家双波", "extractor": "missing_wave_balls" },
     { "keyword": "大赢家无措九尾付费版", "type": "缺尾", "label": "大赢家杀尾" },
     { "keyword": "大懒趴要杀的八码", "type": "号码:8", "label": "大懒趴" },
     { "keyword": "铁甲小宝四头出特", "type": "缺头", "label": "铁甲小宝" },

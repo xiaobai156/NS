@@ -9,6 +9,7 @@ public sealed class ExtractorContractTests
     // 规则 Id → 必须声明的 extractor。加新卡时先在这里登记，再去改配置。
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
+        ["大赢家双波"] = "missing_wave_balls",
         ["黑客九肖"] = "nine_zodiacs_across_wrapped_rows",
         ["嫣然电报十码必杀"] = "ten_numbers_across_issue_cell",
         ["锦囊杀十码"] = "ten_numbers_straddling_issue",
@@ -53,6 +54,7 @@ public sealed class ExtractorContractTests
     // 代码里 switch 认得的全部取值。加分支时同步这里。
     private static readonly HashSet<string> Known = new(StringComparer.Ordinal)
     {
+        "missing_wave_balls",
         "nine_zodiacs_across_wrapped_rows",
         "ten_numbers_across_issue_cell",
         "ten_numbers_straddling_issue",

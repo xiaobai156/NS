@@ -1192,6 +1192,7 @@ public static class RuleEngine
         "author_forbidden_zodiac",
         "jieshao_nine_zodiacs",
         "rui_er_team_card",
+        "missing_wave_balls",
     };
 
     private static bool TryExtractOwnCard(
@@ -1202,6 +1203,10 @@ public static class RuleEngine
         value = null;
         switch (rule.Extractor)
         {
+            case "missing_wave_balls":
+                // Pure text cannot prove the colours of the two printed balls.
+                return true;
+
             case "perfect_two_zodiac":
                 // 先过身份：同夹还有「绿格子双杀」那张绝杀2肖【…】卡，没看到本资料名就不能取值。
                 if (requireCloudKeyword
@@ -3069,6 +3074,8 @@ public static class RuleEngine
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(issue);
         if (rule.Id == "黑客半波" && rule.Type == "缺半波")
             return ExtractPositionedHalfWaves(evidence, issue);
+        if (rule.Extractor == "missing_wave_balls" && rule.Type == "波")
+            return ColorBallMatcher.ExtractMissingWave(evidence, issue);
         if (rule.Type == "生肖" && IsZodiacSummary(evidence.Lines))
         {
             // Read each physical view independently; a vertical merged column is not a row cell.
@@ -3911,6 +3918,8 @@ public static class RuleEngine
             return "云 OCR 未返回有效文字";
         if (!FindIssues(lines).Contains(issue) && !rule.IgnoreIssue)
             return $"已找到图片和文字，但未识别到第{issue}期";
+        if (rule.Extractor == "missing_wave_balls")
+            return $"已找到{issue}期文字，但未确认当期完整表格行内的两种不同波色（期号坐标或色球校验未通过）";
         if (rule.Folder == "杰少" && !string.IsNullOrWhiteSpace(rule.Section))
         {
             string[] rows = SplitInlineIssueRows(lines.Select(Normalize).ToArray());
@@ -5457,6 +5466,7 @@ public static class RuleEngine
         if (rule.Type == "缺头") return Regex.IsMatch(value, "^[0-4]头$");
         if (rule.Type is "五行" or "单五行" or "缺五行") return Regex.IsMatch(value, "^[金木水火土]行?$");
         if (rule.Type is "色单双" or "半波" or "缺半波") return Regex.IsMatch(value, "^[红蓝绿][单双]$");
+        if (rule.Type == "波") return Regex.IsMatch(value, "^[红蓝绿]波$");
         if (rule.Type == "合") return Regex.IsMatch(value, "^(?:0[1-9]|1[0-3])合$");
         if (rule.Type == "段") return Regex.IsMatch(value, "^[0-7]段$");
         if (rule.Type == "半头") return Regex.IsMatch(value, "^[0-4]头[单双]$");

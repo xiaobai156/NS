@@ -3,39 +3,36 @@ using System.Security.Cryptography;
 namespace OcrLineTool.Tests;
 
 /// <summary>
-/// 程序运行时读的是 发布\配置文件 那一份，但它不受任何测试约束。
-/// 只改了 OcrLineTool.App\*.json 却忘了同步，改动静默失效（比如 extractor 漏写会变成缺失），
-/// 所以这里按哈希逐个比对，不同就红。
+/// 构建配置始终与源码比对；实际部署只在获得发布授权后显式验收。
 /// </summary>
 public sealed class PublishedConfigTests
 {
     [Fact]
-    public void PublishedConfigurationMatchesTheSourceFiles()
-    {
-        string? root = RepositoryRoot();
-        if (root is null)
-            return; // 不是源码树（例如只有测试输出的机器），没有可比对的发布副本。
-        string source = Path.Combine(root, "OcrLineTool.App");
-        string published = Path.Combine(root, "发布", "配置文件");
-        if (!Directory.Exists(published))
-            return; // 还没发布过。
+    public void BuiltConfigurationMatchesTheSourceFiles() =>
+        AssertConfigurationMatchesSource(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory));
 
-        var compared = new List<string>();
+    [PublishedConfigFact]
+    [Trait("Category", "Deployment")]
+    public void PublishedConfigurationMatchesTheSourceFiles() =>
+        AssertConfigurationMatchesSource(Path.Combine(Environment.GetEnvironmentVariable("OCR_PUBLISHED_CONFIG_ROOT")!, "配置文件"));
+
+    private static void AssertConfigurationMatchesSource(string configuration)
+    {
+        string root = Assert.IsType<string>(RepositoryRoot());
+        string source = Path.Combine(root, "OcrLineTool.App");
+        Assert.True(Directory.Exists(configuration), "配置目录不存在：" + configuration);
         var stale = new List<string>();
-        foreach (string path in Directory.GetFiles(source, "*.json"))
+        string[] files = Directory.GetFiles(source, "*.json");
+        Assert.NotEmpty(files);
+        foreach (string path in files)
         {
             string name = Path.GetFileName(path);
-            string copy = Path.Combine(published, name);
-            if (!File.Exists(copy))
-                continue;
-            compared.Add(name);
-            if (!SHA256.HashData(File.ReadAllBytes(path)).SequenceEqual(SHA256.HashData(File.ReadAllBytes(copy))))
+            string copy = Path.Combine(configuration, name);
+            if (!File.Exists(copy) || !SHA256.HashData(File.ReadAllBytes(path)).SequenceEqual(SHA256.HashData(File.ReadAllBytes(copy))))
                 stale.Add(name);
         }
-
-        Assert.NotEmpty(compared);
         Assert.True(stale.Count == 0,
-            "发布\\配置文件 与源码不一致，请先同步：" + string.Join("、", stale.OrderBy(name => name, StringComparer.Ordinal)));
+            "配置缺失或与源码不一致：" + string.Join("、", stale.OrderBy(name => name, StringComparer.Ordinal)));
     }
 
     private static string? RepositoryRoot()
@@ -48,5 +45,14 @@ public sealed class PublishedConfigTests
             directory = directory.Parent;
         }
         return null;
+    }
+}
+
+public sealed class PublishedConfigFactAttribute : FactAttribute
+{
+    public PublishedConfigFactAttribute()
+    {
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OCR_PUBLISHED_CONFIG_ROOT")))
+            Skip = "发布验收：将 OCR_PUBLISHED_CONFIG_ROOT 设为明确授权的发布根目录后执行。";
     }
 }

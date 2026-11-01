@@ -1,0 +1,761 @@
+[
+  {
+    "text": "新澳",
+    "confidence": 0.9999499917030334,
+    "box": [
+      33,
+      9,
+      75,
+      44
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "23",
+    "confidence": 0.9999980926513672,
+    "box": [
+      153,
+      8,
+      63,
+      46
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "24",
+    "confidence": 0.9999986290931702,
+    "box": [
+      238,
+      8,
+      63,
+      47
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "10",
+    "confidence": 0.999997079372406,
+    "box": [
+      325,
+      9,
+      62,
+      46
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "43",
+    "confidence": 0.9999973177909851,
+    "box": [
+      409,
+      9,
+      62,
+      46
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "13",
+    "confidence": 0.9999983906745911,
+    "box": [
+      495,
+      8,
+      61,
+      47
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "36",
+    "confidence": 0.9999980926513672,
+    "box": [
+      580,
+      8,
+      64,
+      47
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "刷",
+    "confidence": 0.9999918937683105,
+    "box": [
+      652,
+      10,
+      41,
+      46
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "21",
+    "confidence": 0.9999958872795105,
+    "box": [
+      704,
+      8,
+      59,
+      47
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "猴",
+    "confidence": 0.9999946355819702,
+    "box": [
+      157,
+      46,
+      53,
+      49
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "羊",
+    "confidence": 0.9999842643737793,
+    "box": [
+      241,
+      45,
+      54,
+      50
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "雞",
+    "confidence": 0.9957185387611389,
+    "box": [
+      327,
+      46,
+      55,
+      49
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "鼠",
+    "confidence": 0.9999986886978149,
+    "box": [
+      414,
+      45,
+      52,
+      50
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "馬",
+    "confidence": 0.9999892711639404,
+    "box": [
+      497,
+      46,
+      53,
+      48
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "羊",
+    "confidence": 0.9999792575836182,
+    "box": [
+      584,
+      45,
+      53,
+      50
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "新",
+    "confidence": 0.9711548089981079,
+    "box": [
+      650,
+      40,
+      47,
+      55
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "304期开",
+    "confidence": 0.9999904632568359,
+    "box": [
+      7,
+      53,
+      130,
+      39
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "狗",
+    "confidence": 0.9999539852142334,
+    "box": [
+      708,
+      45,
+      53,
+      50
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "赢",
+    "confidence": 0.9969459176063538,
+    "box": [
+      28,
+      107,
+      89,
+      82
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "大赢家【双色球】付费版",
+    "confidence": 0.9998779296875,
+    "box": [
+      137,
+      113,
+      638,
+      76
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "305期",
+    "confidence": 0.9999948740005493,
+    "box": [
+      13,
+      224,
+      116,
+      51
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "特码买：",
+    "confidence": 0.9945088624954224,
+    "box": [
+      199,
+      226,
+      142,
+      46
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "开??",
+    "confidence": 0.9960222244262695,
+    "box": [
+      667,
+      224,
+      87,
+      51
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "304期",
+    "confidence": 0.9999911785125732,
+    "box": [
+      13,
+      300,
+      117,
+      51
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "特码买：",
+    "confidence": 0.9938627481460571,
+    "box": [
+      199,
+      302,
+      139,
+      47
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "】球",
+    "confidence": 0.9096225500106812,
+    "box": [
+      475,
+      298,
+      97,
+      54
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "狗21中",
+    "confidence": 0.9999852776527405,
+    "box": [
+      645,
+      300,
+      132,
+      51
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "303期",
+    "confidence": 0.9999943375587463,
+    "box": [
+      13,
+      376,
+      117,
+      51
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "特码买：",
+    "confidence": 0.9930236339569092,
+    "box": [
+      199,
+      378,
+      138,
+      47
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "】球",
+    "confidence": 0.9146060943603516,
+    "box": [
+      475,
+      372,
+      97,
+      55
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "虎17中",
+    "confidence": 0.9999799728393555,
+    "box": [
+      646,
+      376,
+      131,
+      51
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "302期",
+    "confidence": 0.9999948740005493,
+    "box": [
+      12,
+      451,
+      117,
+      52
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "特码买：",
+    "confidence": 0.9953744411468506,
+    "box": [
+      198,
+      452,
+      137,
+      51
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "】球",
+    "confidence": 0.9765498638153076,
+    "box": [
+      473,
+      449,
+      98,
+      54
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "狗45中",
+    "confidence": 0.999983549118042,
+    "box": [
+      645,
+      451,
+      132,
+      52
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "301期",
+    "confidence": 0.9999871850013733,
+    "box": [
+      13,
+      527,
+      117,
+      52
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "特码买：【",
+    "confidence": 0.9002435803413391,
+    "box": [
+      198,
+      528,
+      177,
+      50
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "虎17错",
+    "confidence": 0.9998912811279297,
+    "box": [
+      645,
+      527,
+      132,
+      52
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "300期",
+    "confidence": 0.9999907612800598,
+    "box": [
+      12,
+      601,
+      118,
+      54
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "特码买：",
+    "confidence": 0.9935029745101929,
+    "box": [
+      199,
+      605,
+      138,
+      48
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "】球",
+    "confidence": 0.9501820802688599,
+    "box": [
+      474,
+      601,
+      98,
+      55
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "蛇38中",
+    "confidence": 0.9999265670776367,
+    "box": [
+      645,
+      603,
+      132,
+      52
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "299期",
+    "confidence": 0.9362174868583679,
+    "box": [
+      13,
+      679,
+      117,
+      52
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "特码买：",
+    "confidence": 0.9958398342132568,
+    "box": [
+      198,
+      680,
+      138,
+      51
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "】球",
+    "confidence": 0.9891178011894226,
+    "box": [
+      474,
+      680,
+      96,
+      51
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "猴23中",
+    "confidence": 0.9999905228614807,
+    "box": [
+      644,
+      678,
+      134,
+      55
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "298期",
+    "confidence": 0.9999963045120239,
+    "box": [
+      12,
+      754,
+      117,
+      52
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "特码买：",
+    "confidence": 0.9922926425933838,
+    "box": [
+      199,
+      758,
+      139,
+      48
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "】球",
+    "confidence": 0.9740505814552307,
+    "box": [
+      473,
+      754,
+      99,
+      54
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "豬08中",
+    "confidence": 0.9968149662017822,
+    "box": [
+      644,
+      753,
+      133,
+      55
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "297期",
+    "confidence": 0.9999916553497314,
+    "box": [
+      12,
+      832,
+      118,
+      52
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "特码买：",
+    "confidence": 0.9949384927749634,
+    "box": [
+      198,
+      832,
+      140,
+      51
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "】球",
+    "confidence": 0.952662467956543,
+    "box": [
+      422,
+      831,
+      148,
+      52
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "馬13中",
+    "confidence": 0.999983549118042,
+    "box": [
+      644,
+      829,
+      133,
+      55
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "296期",
+    "confidence": 0.9999967217445374,
+    "box": [
+      13,
+      909,
+      116,
+      48
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "特码买：",
+    "confidence": 0.9922434091567993,
+    "box": [
+      198,
+      910,
+      135,
+      47
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "】球",
+    "confidence": 0.9687409400939941,
+    "box": [
+      422,
+      907,
+      148,
+      52
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "猴23中",
+    "confidence": 0.9999896287918091,
+    "box": [
+      645,
+      908,
+      132,
+      52
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "295期",
+    "confidence": 0.9999953508377075,
+    "box": [
+      12,
+      984,
+      118,
+      51
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "特码买：",
+    "confidence": 0.9928407073020935,
+    "box": [
+      199,
+      986,
+      142,
+      47
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "馬25错",
+    "confidence": 0.9974657297134399,
+    "box": [
+      645,
+      984,
+      133,
+      51
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "294期",
+    "confidence": 0.9999950528144836,
+    "box": [
+      12,
+      1060,
+      118,
+      51
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "特码买：",
+    "confidence": 0.9942417740821838,
+    "box": [
+      199,
+      1062,
+      139,
+      47
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "1球",
+    "confidence": 0.7425476312637329,
+    "box": [
+      476,
+      1057,
+      96,
+      55
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "兔28中",
+    "confidence": 0.9920639991760254,
+    "box": [
+      643,
+      1056,
+      135,
+      59
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "293期",
+    "confidence": 0.9997744560241699,
+    "box": [
+      16,
+      1139,
+      111,
+      27
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "特码买：",
+    "confidence": 0.9968478083610535,
+    "box": [
+      198,
+      1137,
+      165,
+      29
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "球",
+    "confidence": 0.9994276165962219,
+    "box": [
+      516,
+      1137,
+      52,
+      29
+    ],
+    "viewId": "original"
+  },
+  {
+    "text": "虎05中",
+    "confidence": 0.9236995577812195,
+    "box": [
+      648,
+      1137,
+      127,
+      29
+    ],
+    "viewId": "original"
+  }
+]
