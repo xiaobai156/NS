@@ -24,10 +24,17 @@ public static class MissingResultSummary
             if (!name.Success)
                 continue;
             string groupName = name.Groups[1].Value;
+            // 抓取设置里关掉的群、关掉的条目：结果里当它不存在，汇总里也不再出“缺失”。
+            CaptureSettings capture = CaptureSettings.Load(appDirectory);
+            if (!capture.IsGroupEnabled(groupName))
+                continue;
             string rulePath = RuleCatalog.PathForFolder(appDirectory, groupName);
-            OcrRule[] rules = File.Exists(rulePath)
-                ? RuleCatalog.Load(rulePath).OrderByDescending(rule => rule.OutputLabel.Length).ToArray()
-                : [];
+            OcrRule[] catalogRules = File.Exists(rulePath) ? RuleCatalog.Load(rulePath).ToArray() : [];
+            OcrRule[] rules = capture.EnabledRules(groupName, catalogRules)
+                .OrderByDescending(rule => rule.OutputLabel.Length).ToArray();
+            HashSet<string> enabledRuleIds = rules.Select(rule => rule.Id).ToHashSet(StringComparer.Ordinal);
+            string[] closedLabels = catalogRules.Where(rule => !enabledRuleIds.Contains(rule.Id))
+                .Select(rule => rule.OutputLabel).ToArray();
             var diagnosticFolders = ResolveDiagnosticFolders(appDirectory, imageRoot, Path.GetFileNameWithoutExtension(path), groupName,
                 rules.Where(rule => string.IsNullOrWhiteSpace(rule.Folder)).Select(rule => rule.Id).ToHashSet(StringComparer.Ordinal));
             string category = "其他";
@@ -48,13 +55,17 @@ public static class MissingResultSummary
                 if (!line.StartsWith("缺失", StringComparison.Ordinal))
                     continue;
 
+                string summaryLine = line;
+                string labelLine = line.EndsWith("（未分流）", StringComparison.Ordinal)
+                    ? line[..^5].TrimEnd() : line;
+                if (closedLabels.Length > 0 && closedLabels.Any(label =>
+                    labelLine.Equals(label, StringComparison.Ordinal)
+                    || labelLine.EndsWith(" " + label, StringComparison.Ordinal)))
+                    continue;
                 if (!groups.TryGetValue(groupName, out var categories))
                     groups[groupName] = categories = new Dictionary<string, List<string>>(StringComparer.Ordinal);
                 if (!categories.TryGetValue(category, out var entries))
                     categories[category] = entries = [];
-                string summaryLine = line;
-                string labelLine = line.EndsWith("（未分流）", StringComparison.Ordinal)
-                    ? line[..^5].TrimEnd() : line;
                 OcrRule? rule = rules.FirstOrDefault(candidate =>
                     labelLine.Equals(candidate.OutputLabel, StringComparison.Ordinal) ||
                     labelLine.EndsWith(" " + candidate.OutputLabel, StringComparison.Ordinal));

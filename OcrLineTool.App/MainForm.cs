@@ -22,7 +22,7 @@ public sealed class MainForm : Form
     internal static readonly Color SecondaryText = Color.FromArgb(180, 184, 166);
     internal static readonly Color AccentAmber = Color.FromArgb(255, 171, 86);
     internal static readonly Color OnAccent = Color.FromArgb(36, 22, 8);
-    private static readonly Color DangerRed = Color.FromArgb(242, 165, 165);
+    internal static readonly Color DangerRed = Color.FromArgb(242, 165, 165);
     // 群名绿色：当期有结果 TXT，但一条「（已分流）」都没有（多半是忘了点手动分流）。
     private static readonly Color ReadyGreen = Color.FromArgb(146, 208, 128);
     private static readonly Color DangerBorder = Color.FromArgb(96, 64, 68);
@@ -107,6 +107,8 @@ public sealed class MainForm : Form
     private readonly System.Windows.Forms.Timer dateTimer = new() { Interval = 60_000 };
     private readonly System.Windows.Forms.Timer folderRefreshTimer = new() { Interval = 2_000 };
     private readonly System.Windows.Forms.Timer automaticLocalOcrTimer = new() { Interval = 2_000 };
+    // 自动识别的等待倒计时：只按秒重算状态栏文字，不重新扫描目录。
+    private readonly System.Windows.Forms.Timer automaticWaitCountdownTimer = new() { Interval = 1_000 };
     private readonly System.Windows.Forms.Timer recognitionTimer = new() { Interval = 1_000 };
     private readonly Stopwatch recognitionWatch = new();
     // 复抓按阶段显示进度：阶段计时独立于总耗时，阶段切换或阶段结束都会让旧阶段的回调失效。
@@ -148,6 +150,8 @@ public sealed class MainForm : Form
     private bool automaticOcrDiscoveryRunning;
     private bool settingsDialogOpen;
     private readonly AutomaticOcrReadiness automaticOcrReadiness = new();
+    // 正在等的那个群：倒计时每秒刷新状态栏要用（文件夹、群名、图片签名）。
+    private (string Folder, string Group, string Signature)? automaticWaitTarget;
     private CancellationTokenSource? activeCancellation;
     private CancellationToken ActiveToken => activeCancellation?.Token ?? CancellationToken.None;
 
@@ -230,6 +234,8 @@ public sealed class MainForm : Form
         folderRefreshTimer.Start();
         automaticLocalOcrTimer.Tick += async (_, _) => await TryStartVisibleAutomaticLocalOcrAsync();
         automaticLocalOcrTimer.Start();
+        automaticWaitCountdownTimer.Tick += (_, _) => RefreshAutomaticWaitCountdown();
+        automaticWaitCountdownTimer.Start();
         recognitionTimer.Tick += (_, _) => UpdateRecognitionTiming();
         _ = TryStartVisibleAutomaticLocalOcrAsync();
     }
@@ -837,7 +843,12 @@ public sealed class MainForm : Form
         bool undistributed = hasResult
             && folderList.Items[e.Index] is DirectoryInfo pendingFolder
             && foldersWithoutDistribution.Contains(pendingFolder.FullName);
-        Color foreground = undistributed ? ReadyGreen : hasResult ? DangerRed : PrimaryText;
+        // 抓取设置里关掉的群：置灰表示不抓取、也不能识别；仍然列出来，方便看清目录还在。
+        bool captureDisabled = folderList.Items[e.Index] is DirectoryInfo captureFolder
+            && !captureSettings.IsGroupEnabled(GroupNameForFolderItem(captureFolder));
+        Color foreground = captureDisabled
+            ? SecondaryText
+            : undistributed ? ReadyGreen : hasResult ? DangerRed : PrimaryText;
         TextRenderer.DrawText(
             e.Graphics,
             folderList.GetItemText(folderList.Items[e.Index]),
@@ -907,12 +918,78 @@ public sealed class MainForm : Form
         // 群名快照每轮都重算：规则 JSON 新增/改 group 名后必须当轮生效（不能等群目录变化）。
         // 读盘开销由 RuleCatalog 的“文件名+长度+修改时间”签名缓存兜住，目录没变时不重复解析。
         folderGroupNames = RuleCatalog.GroupNamesForFolders(AppContext.BaseDirectory, folders);
+        // 抓取设置跟着同一节拍刷新：“抓取设置”窗口勾完立即落盘，主界面 2 秒内就按新设置置灰和拦截。
+        CurrentCaptureSettings();
+        // 当前选中的群刚被关掉：直接清掉选择，别让按钮靠抛异常兜底。
+        // 识别过程中不动选择，等这一轮跑完再说。
+        if (!isBusy && selectedImageDirectory is not null)
+        {
+            string selectedGroup = folderGroupNames.TryGetValue(selectedImageDirectory, out string? currentGroup)
+                ? currentGroup
+                : RuleCatalog.BaseGroupName(Path.GetFileName(Path.TrimEndingDirectorySeparator(selectedImageDirectory)));
+            if (!captureSettings.IsGroupEnabled(selectedGroup))
+            {
+                folderList.SelectedIndex = -1;
+                selectedImageDirectory = null;
+                selectedRulePath = null;
+                imagePaths = [];
+                folderNameLabel.Text = "尚未选择";
+                resultsBox.Clear();
+                ClearPreview();
+                recognizeButton.Enabled = false;
+                localPrimaryButton.Enabled = false;
+                ClearRetryState();
+                statusLabel.Text = $"「{selectedGroup}」在抓取设置里已关闭：不抓取，也不识别。";
+            }
+        }
         RefreshFolderResultMarkers();
     }
 
     // 群目录 → 基础群名 的快照；每轮刷新时重算，靠 RuleCatalog 的签名缓存避免重复解析。
     private IReadOnlyDictionary<string, string> folderGroupNames =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    // 抓取设置（哪些群、哪些条目不抓取/不识别）。按“文件长度＋修改时间”签名缓存：
+    // 群列表每 2 秒刷新一次，签名没变就不重复读盘解析。
+    private CaptureSettings captureSettings = new();
+    private string captureSettingsSignature = string.Empty;
+
+    private CaptureSettings CurrentCaptureSettings()
+    {
+        string path = CaptureSettings.PathFor(AppContext.BaseDirectory);
+        string signature;
+        try
+        {
+            var info = new FileInfo(path);
+            signature = info.Exists ? $"{info.Length}\u001e{info.LastWriteTimeUtc.Ticks}" : "missing";
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return captureSettings;
+        }
+        if (string.Equals(signature, captureSettingsSignature, StringComparison.Ordinal))
+            return captureSettings;
+        captureSettings = CaptureSettings.Load(AppContext.BaseDirectory);
+        captureSettingsSignature = signature;
+        return captureSettings;
+    }
+
+    private string GroupNameForFolderItem(DirectoryInfo folder) =>
+        folderGroupNames.TryGetValue(folder.FullName, out string? group)
+            ? group
+            : RuleCatalog.BaseGroupName(folder.Name);
+
+    // 抓取设置生效后的规则：整群关闭、或条目全部关闭时明确报错，不空跑一轮。
+    private IReadOnlyList<OcrRule> EnabledRulesOrThrow(string groupName, IReadOnlyList<OcrRule> catalogRules)
+    {
+        CaptureSettings capture = CurrentCaptureSettings();
+        if (!capture.IsGroupEnabled(groupName))
+            throw new OcrException($"「{groupName}」在抓取设置里已关闭：不抓取，也不识别。");
+        IReadOnlyList<OcrRule> rules = capture.EnabledRules(groupName, catalogRules);
+        if (rules.Count == 0)
+            throw new OcrException($"「{groupName}」的资料在抓取设置里已全部关闭，没有要识别的资料。");
+        return rules;
+    }
 
     private void RefreshFolderResultMarkers()
     {
@@ -948,7 +1025,11 @@ public sealed class MainForm : Form
         }
         if (foldersWithCurrentIssueResult.SetEquals(updated)
             && foldersWithoutDistribution.SetEquals(undistributed))
+        {
+            // 结果集没变也要重画：抓取设置刚改过群开关时，置灰必须立刻生效。
+            folderList.Invalidate();
             return;
+        }
         foldersWithCurrentIssueResult.Clear();
         foldersWithCurrentIssueResult.UnionWith(updated);
         foldersWithoutDistribution.Clear();
@@ -1042,6 +1123,20 @@ public sealed class MainForm : Form
 
     private void SelectImageDirectory(string directory)
     {
+        string directoryGroup = folderGroupNames.TryGetValue(directory, out string? knownGroup)
+            ? knownGroup
+            : RuleCatalog.BaseGroupName(Path.GetFileName(Path.TrimEndingDirectorySeparator(directory)));
+        // 抓取设置里关掉的群不可选：保留上一次有效选择，只在状态栏说明原因。
+        if (!CurrentCaptureSettings().IsGroupEnabled(directoryGroup))
+        {
+            statusLabel.Text = $"「{directoryGroup}」在抓取设置里已关闭：不抓取，也不识别。";
+            folderList.SelectedIndex = selectedImageDirectory is null
+                ? -1
+                : Array.FindIndex(
+                    folderList.Items.Cast<DirectoryInfo>().Select(item => item.FullName).ToArray(),
+                    path => path.Equals(selectedImageDirectory, StringComparison.OrdinalIgnoreCase));
+            return;
+        }
         try
         {
             imagePaths = ImageFolderScanner.Scan(directory);
@@ -1100,9 +1195,10 @@ public sealed class MainForm : Form
             if (ocrDevice == LocalOcrDevice.Gpu)
                 await localClient.EnsureCudaAvailableAsync(ActiveToken);
 
-            IReadOnlyList<OcrRule> rules = RuleCatalog.Load(selectedRulePath
-                ?? throw new OcrException("请先选择要读取的子文件夹。"));
             string groupName = RuleCatalog.GroupNameForFolder(AppContext.BaseDirectory, selectedImageDirectory!);
+            // 抓取设置里关掉的群/条目在这里就被过滤：不抓取、不识别，也不算缺失。
+            IReadOnlyList<OcrRule> rules = EnabledRulesOrThrow(groupName, RuleCatalog.Load(selectedRulePath
+                ?? throw new OcrException("请先选择要读取的子文件夹。")));
 
             // 复用旧模式的候选筛选、模板裁剪和目录约束；新模式只替换最终识别模型。
             CandidateSelection selection = await SelectCandidatesAsync(
@@ -1571,7 +1667,8 @@ public sealed class MainForm : Form
         if (settings.SelectedGroups.Count == 0)
         {
             automaticOcrReadiness.Clear();
-            statusLabel.Text = AutomaticWaitingStatus(statusLabel.Text, null);
+            automaticWaitTarget = null;
+            statusLabel.Text = AutomaticWaitingStatus(statusLabel.Text, null, 0);
             return;
         }
 
@@ -1579,16 +1676,19 @@ public sealed class MainForm : Form
         try
         {
             var skipped = new List<string>();
+            // 抓取设置先在 UI 线程取快照，后台只做目录扫描。
+            CaptureSettings capture = CurrentCaptureSettings();
             IReadOnlyList<(string Folder, string Group, string Signature)> visible =
                 await Task.Run(() => FindVisibleAutomaticGroups(
-                    AppContext.BaseDirectory, imageRootDirectory, settings, skipped.Add));
+                    AppContext.BaseDirectory, imageRootDirectory, settings, skipped.Add, capture));
             AutoLocalOcrSettings latestSettings = AutoLocalOcrSettings.Load(AppContext.BaseDirectory);
             if (IsDisposed)
                 return;
             if (latestSettings.SelectedGroups.Count == 0)
             {
                 automaticOcrReadiness.Clear();
-                statusLabel.Text = AutomaticWaitingStatus(statusLabel.Text, null);
+                automaticWaitTarget = null;
+                statusLabel.Text = AutomaticWaitingStatus(statusLabel.Text, null, 0);
                 return;
             }
             if (isBusy || automaticLocalOcrRunning || settingsDialogOpen)
@@ -1609,13 +1709,13 @@ public sealed class MainForm : Form
             automaticOcrReadiness.KeepOnly(pending.Select(item => item.Folder)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase));
 
-            string? waitingGroup = null;
+            (string Folder, string Group, string Signature)? waiting = null;
             foreach ((string folder, string group, string signature) in pending)
             {
                 DateOnly executionDate = AutoLocalOcrSettings.DateForFolder(folder, today);
                 if (!automaticOcrReadiness.IsStable(folder, signature, now))
                 {
-                    waitingGroup ??= group;
+                    waiting ??= (folder, group, signature);
                     continue;
                 }
 
@@ -1630,18 +1730,28 @@ public sealed class MainForm : Form
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
                 {
                     statusLabel.Text = "自动本地 OCR 执行记录保存失败，已跳过本次任务。";
+                    automaticWaitTarget = null;
                     return;
                 }
 
                 automaticLocalOcrRunning = true;
+                // 已经开始执行，状态栏交给识别流程，不再倒计时。
+                automaticWaitTarget = null;
                 _ = RunAutomaticLocalOcrAsync(folder, group, executionDate);
                 return;
             }
+            automaticWaitTarget = waiting;
             if (skipped.Count == 0)
-                statusLabel.Text = AutomaticWaitingStatus(statusLabel.Text, waitingGroup);
+            {
+                statusLabel.Text = waiting is null
+                    ? AutomaticWaitingStatus(statusLabel.Text, null, 0)
+                    : AutomaticWaitingStatus(statusLabel.Text, waiting.Value.Group,
+                        automaticOcrReadiness.RemainingSeconds(waiting.Value.Folder, waiting.Value.Signature, now));
+            }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or OcrException)
         {
+            automaticWaitTarget = null;
             statusLabel.Text = "自动本地 OCR 扫描资料群失败，本轮未启动任务。";
         }
         finally
@@ -1660,20 +1770,36 @@ public sealed class MainForm : Form
             && settings.CanAttemptVisibleGroup(item.Folder, item.Group, today, nowInBeijing)).ToArray();
     }
 
-    internal static string AutomaticWaitingStatus(string currentStatus, string? waitingGroup)
+    internal const string AutomaticWaitingPrefix = "自动本地 OCR 等待图片稳定：";
+
+    internal static string AutomaticWaitingStatus(string currentStatus, string? waitingGroup, int remainingSeconds)
     {
-        const string prefix = "自动本地 OCR 等待图片稳定：";
         if (waitingGroup is not null)
-            return $"{prefix}{waitingGroup}（还需满 1 分钟）";
-        return currentStatus.StartsWith(prefix, StringComparison.Ordinal)
+            return $"{AutomaticWaitingPrefix}{waitingGroup}（还需 {Math.Max(0, remainingSeconds)} 秒）";
+        return currentStatus.StartsWith(AutomaticWaitingPrefix, StringComparison.Ordinal)
             ? "自动本地 OCR：当前没有待执行群。" : currentStatus;
+    }
+
+    // 每秒把等待中的状态栏改成剩余秒数；只认自己写的那行，别的提示不覆盖。
+    private void RefreshAutomaticWaitCountdown()
+    {
+        if (automaticWaitTarget is not { } target || isBusy || automaticLocalOcrRunning ||
+            automaticOcrDiscoveryRunning || IsDisposed)
+            return;
+        if (!statusLabel.Text.StartsWith(AutomaticWaitingPrefix, StringComparison.Ordinal))
+            return;
+        string text = AutomaticWaitingStatus(statusLabel.Text, target.Group,
+            automaticOcrReadiness.RemainingSeconds(target.Folder, target.Signature, CredentialSchedule.NowInBeijing()));
+        if (!string.Equals(statusLabel.Text, text, StringComparison.Ordinal))
+            statusLabel.Text = text;
     }
 
     internal static IReadOnlyList<(string Folder, string Group, string Signature)> FindVisibleAutomaticGroups(
         string appDirectory,
         string imageRootDirectory,
         AutoLocalOcrSettings settings,
-        Action<string>? onSkip = null)
+        Action<string>? onSkip = null,
+        CaptureSettings? capture = null)
     {
         string[] folders;
         try
@@ -1705,13 +1831,26 @@ public sealed class MainForm : Form
                 matchedGroup = group;
                 if (!settings.IsSelectedGroup(group))
                     continue;
+                // “抓取设置”里整群关掉的，自动识别也跳过；自动识别的勾选不改抓取设置。
+                if (capture is not null && !capture.IsGroupEnabled(group))
+                {
+                    onSkip?.Invoke($"自动本地 OCR 已跳过 {group}：抓取设置里已关闭。");
+                    continue;
+                }
 
                 string rulePath = RuleCatalog.PathForFolder(appDirectory, folder);
                 string[] imagePaths = ImageFolderScanner.Scan(folder);
                 if (imagePaths.Length == 0 || !File.Exists(rulePath))
                     continue;
 
-                _ = RuleCatalog.Load(rulePath);
+                // 群在、但条目被全关，等于这个群没有要识别的资料：跳过，不能记成失败锁掉当天。
+                IReadOnlyList<OcrRule> catalog = RuleCatalog.Load(rulePath);
+                if (capture is not null && capture.EnabledRules(group, catalog).Count == 0)
+                {
+                    onSkip?.Invoke($"自动本地 OCR 已跳过 {group}：抓取设置里条目已全部关闭。");
+                    continue;
+                }
+
                 visible.Add((folder, group, BuildImageSignature(imagePaths)));
             }
             catch (Exception exception) when (exception is OcrException or IOException or UnauthorizedAccessException or JsonException or ArgumentException or KeyNotFoundException or FormatException)
@@ -1823,9 +1962,9 @@ public sealed class MainForm : Form
         {
             RefreshImagesForRetry();
             if (imagePaths.Length == 0) throw new OcrException("所选目录没有可识别图片。");
-            IReadOnlyList<OcrRule> rules = RuleCatalog.Load(selectedRulePath
-                ?? throw new OcrException("请先选择要读取的子文件夹。"));
             string groupName = RuleCatalog.GroupNameForFolder(AppContext.BaseDirectory, selectedImageDirectory!);
+            IReadOnlyList<OcrRule> rules = EnabledRulesOrThrow(groupName, RuleCatalog.Load(selectedRulePath
+                ?? throw new OcrException("请先选择要读取的子文件夹。")));
             lastCloudOcrResults = CloudOcrCacheStore.Load(AppContext.BaseDirectory, groupName, issue);
             CandidateSelection selection = await SelectCandidatesAsync(
                 rules,
@@ -2568,13 +2707,21 @@ public sealed class MainForm : Form
                 AppContext.BaseDirectory, selectedImageDirectory!, lastIssue);
             // 你手工改过的条目（TXT 里已经是值、不再是"缺失"）本轮完全不碰。
             IReadOnlyDictionary<string, string> concludedLines = RefreshConcludedValueLines(groupOutputPath);
-            OcrRule[] missingRules = GroupResultFormatter.MissingRetryRules(lastRules, lastValues.Keys, concludedLines);
-            if (missingRules.Length == 0)
+            // 手动复抓也要守抓取设置：关掉的群整群不抓，关掉的条目不抓也不回写。
+            string groupName = RuleCatalog.GroupNameForFolder(AppContext.BaseDirectory, selectedImageDirectory!);
+            CaptureSettings capture = CurrentCaptureSettings();
+            if (!capture.IsGroupEnabled(groupName))
             {
-                statusLabel.Text = "没有需要复抓的条目：TXT 里的缺失行都已被手动改过，本次未改动任何文件。";
+                statusLabel.Text = $"「{groupName}」在抓取设置里已关闭：不抓取，也不复抓。";
                 return;
             }
-            string groupName = RuleCatalog.GroupNameForFolder(AppContext.BaseDirectory, selectedImageDirectory!);
+            IReadOnlyList<OcrRule> retryRules = capture.EnabledRules(groupName, lastRules);
+            OcrRule[] missingRules = GroupResultFormatter.MissingRetryRules(retryRules, lastValues.Keys, concludedLines);
+            if (missingRules.Length == 0)
+            {
+                statusLabel.Text = "没有需要复抓的条目：TXT 里的缺失行都已被手动改过，或已在抓取设置里关闭，本次未改动任何文件。";
+                return;
+            }
             // 复抓候选范围：只按缺失资料的文件夹缩小（见 RetryImageScope），
             // 缩小后的张数直接显示在状态栏，方便核对有没有漏掉目标资料。
             IReadOnlyList<string> retryScope = RetryImageScope(imagePaths, missingRules);
@@ -2593,7 +2740,7 @@ public sealed class MainForm : Form
                 missingRules,
                 lastIssue,
                 allowTemplateSubset: true,
-                completeRuleIds: lastRules.Select(rule => rule.Id).ToHashSet(StringComparer.Ordinal),
+                completeRuleIds: retryRules.Select(rule => rule.Id).ToHashSet(StringComparer.Ordinal),
                 localLimitedRuleIds: LimitedLocalRetryRuleIds(missingRules),
                 localImagePathsOverride: retryScope);
             temporaryCropFolder = selection.TemporaryCropFolder;
@@ -3574,11 +3721,16 @@ public sealed class MainForm : Form
         }
     }
 
-    private bool CanRetryMissing() =>
-        selectedImageDirectory is not null
-        && Decimal.ToInt32(issueInput.Value) == lastIssue
-        && lastRules.Any(rule =>
+    private bool CanRetryMissing()
+    {
+        if (selectedImageDirectory is null || Decimal.ToInt32(issueInput.Value) != lastIssue)
+            return false;
+        // 抓取设置里关掉的群、关掉的条目不算“还要复抓”，按钮直接置灰。
+        string groupName = RuleCatalog.GroupNameForFolder(AppContext.BaseDirectory, selectedImageDirectory);
+        IReadOnlyList<OcrRule> rules = CurrentCaptureSettings().EnabledRules(groupName, lastRules);
+        return rules.Any(rule =>
             !lastValues.ContainsKey(rule.Id) && !lastConcludedValueRuleIds.Contains(rule.Id));
+    }
 
     private bool CanManualDistribute() =>
         selectedImageDirectory is not null
@@ -3619,8 +3771,14 @@ public sealed class MainForm : Form
 
     private void RestoreRetryState(IReadOnlyList<string> lines)
     {
-        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(selectedRulePath
-            ?? throw new OcrException("请先选择要读取的子文件夹。"));
+        string? restoreGroupName = selectedImageDirectory is null
+            ? null
+            : RuleCatalog.GroupNameForFolder(AppContext.BaseDirectory, selectedImageDirectory);
+        // 恢复旧结果也按抓取设置过滤：关掉的条目当它不存在，不提示缺失。
+        // 这条路径不能抛异常打断恢复，所以只用 EnabledRules，不用 EnabledRulesOrThrow。
+        IReadOnlyList<OcrRule> rules = CurrentCaptureSettings().EnabledRules(restoreGroupName,
+            RuleCatalog.Load(selectedRulePath
+            ?? throw new OcrException("请先选择要读取的子文件夹。")));
         lastRules = rules;
         lastMissingReasons = new Dictionary<string, string>(StringComparer.Ordinal);
         lastTextRecognizedRuleIds = new HashSet<string>(StringComparer.Ordinal);
@@ -3919,7 +4077,9 @@ public sealed class MainForm : Form
             var localCandidates = new List<RecognitionCandidate>();
             IReadOnlyList<OcrRule> completeIdentityRules = selectedRulePath is null
                 ? rules
-                : RuleCatalog.Load(selectedRulePath);
+                : CurrentCaptureSettings().EnabledRules(
+                    RuleCatalog.GroupNameForFolder(AppContext.BaseDirectory, selectedImageDirectory!),
+                    RuleCatalog.Load(selectedRulePath));
             bool isYanran = RuleCatalog.IsGroupFolder(selectedImageDirectory!, "嫣然心水");
             if (isYanran)
             {
@@ -4330,6 +4490,10 @@ public sealed class MainForm : Form
         finally
         {
             settingsDialogOpen = false;
+            // “抓取设置”就在设置窗口里改的：关窗后立刻按新设置重画群列表和置灰。
+            CurrentCaptureSettings();
+            if (!IsDisposed && IsHandleCreated)
+                RefreshFolderResultMarkers();
         }
     }
 
@@ -4876,6 +5040,7 @@ public sealed class MainForm : Form
             dateTimer.Dispose();
             folderRefreshTimer.Dispose();
             automaticLocalOcrTimer.Dispose();
+            automaticWaitCountdownTimer.Dispose();
             recognitionTimer.Dispose();
             preview.Image?.Dispose();
         }

@@ -14,6 +14,8 @@ internal sealed class AutoRecognizeForm : Form
     private readonly string appDirectory;
     private readonly string imageRootDirectory;
     private readonly AutoLocalOcrSettings settings;
+    // 抓取设置里整群关掉的群在这里置灰、不可勾选（它们本来也不会被自动识别）。
+    private readonly CaptureSettings capture;
     private readonly ListBox groupList = new()
     {
         Name = "autoRecognizeGroups",
@@ -36,6 +38,7 @@ internal sealed class AutoRecognizeForm : Form
         TextAlign = ContentAlignment.TopLeft,
         Text = "勾选的群在图片稳定 1 分钟后自动执行本地主识别；每个群当天只跑一次，失败不自动重试。"
             + "勾选立即保存，重启软件后保持。嫣然心水不参与自动识别。"
+            + "灰色的群在“抓取设置”里已关闭，这里不能勾选，也不会自动识别。"
     };
     private readonly Button closeButton = new() { Text = "关闭" };
     private readonly List<string> groups = new();
@@ -46,6 +49,7 @@ internal sealed class AutoRecognizeForm : Form
         this.appDirectory = appDirectory;
         this.imageRootDirectory = imageRootDirectory;
         settings = AutoLocalOcrSettings.Load(appDirectory);
+        capture = CaptureSettings.Load(appDirectory);
 
         Text = "自动识别";
         StartPosition = FormStartPosition.CenterParent;
@@ -206,6 +210,9 @@ internal sealed class AutoRecognizeForm : Form
         if (index < 0 || index >= groups.Count)
             return;
         string group = groups[index];
+        // 抓取设置里整群关闭：只显示、不可勾选。
+        if (!capture.IsGroupEnabled(group))
+            return;
         bool selected = !settings.IsSelectedGroup(group);
         settings.SetSelectedGroup(group, selected);
         try
@@ -229,12 +236,13 @@ internal sealed class AutoRecognizeForm : Form
         if (e.Index < 0 || e.Index >= groups.Count)
             return;
         bool selected = settings.IsSelectedGroup(groups[e.Index]);
+        bool closed = !capture.IsGroupEnabled(groups[e.Index]);
         using (var background = new SolidBrush(MainForm.CardBackground))
             e.Graphics.FillRectangle(background, e.Bounds);
         var box = new Rectangle(e.Bounds.Left + 8, e.Bounds.Top + 6, 14, 14);
         using (var border = new Pen(MainForm.SecondaryText))
             e.Graphics.DrawRectangle(border, box);
-        if (selected)
+        if (selected && !closed)
         {
             using var fill = new SolidBrush(MainForm.AccentAmber);
             e.Graphics.FillRectangle(fill, Rectangle.Inflate(box, -3, -3));
@@ -242,7 +250,7 @@ internal sealed class AutoRecognizeForm : Form
         TextRenderer.DrawText(e.Graphics, groups[e.Index],
             groupList.Font,
             new Rectangle(e.Bounds.Left + 32, e.Bounds.Top, e.Bounds.Width - 36, e.Bounds.Height),
-            MainForm.PrimaryText,
+            closed ? MainForm.SecondaryText : MainForm.PrimaryText,
             TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
     }
 }

@@ -272,6 +272,20 @@ internal sealed class AutomaticOcrReadiness
         return nowInBeijing - observation.StableSince >= StabilityWindow;
     }
 
+    // 状态栏倒计时用：还没观察过、或者图片签名变了，都算“重新开始”，返回整段窗口。
+    // 这里只读不记，观察起点仍由 IsStable 在每轮扫描时记录。
+    internal int RemainingSeconds(string folder, string signature, DateTime nowInBeijing)
+    {
+        if (!observations.TryGetValue(folder, out Observation? observation) ||
+            !string.Equals(observation.Signature, signature, StringComparison.Ordinal))
+        {
+            return (int)StabilityWindow.TotalSeconds;
+        }
+
+        double remaining = (StabilityWindow - (nowInBeijing - observation.StableSince)).TotalSeconds;
+        return remaining <= 0 ? 0 : (int)Math.Ceiling(remaining);
+    }
+
     internal void KeepOnly(ISet<string> visibleFolders)
     {
         foreach (string folder in observations.Keys.Where(folder => !visibleFolders.Contains(folder)).ToArray())

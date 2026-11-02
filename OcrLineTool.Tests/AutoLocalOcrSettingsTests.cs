@@ -22,7 +22,7 @@ public sealed class AutoLocalOcrSettingsTests
 
         Assert.Empty(MainForm.PendingAutomaticGroups(settings, changed, now.AddSeconds(1)));
         Assert.Equal("自动本地 OCR：当前没有待执行群。", MainForm.AutomaticWaitingStatus(
-            "自动本地 OCR 等待图片稳定：黄大仙新澳（还需满 1 分钟）", null));
+            "自动本地 OCR 等待图片稳定：黄大仙新澳（还需 58 秒）", null, 0));
         Assert.All(settings.Executions.Values, execution => Assert.Equal(1, execution.Attempts));
     }
 
@@ -42,8 +42,8 @@ public sealed class AutoLocalOcrSettingsTests
         var readiness = new AutomaticOcrReadiness();
         Assert.False(readiness.IsStable(pending.Folder, pending.Signature, now));
         Assert.True(readiness.IsStable(pending.Folder, pending.Signature, now.AddMinutes(1)));
-        Assert.Equal("自动本地 OCR 等待图片稳定：黄大仙新澳（还需满 1 分钟）",
-            MainForm.AutomaticWaitingStatus("识别完成", pending.Group));
+        Assert.Equal("自动本地 OCR 等待图片稳定：黄大仙新澳（还需 60 秒）",
+            MainForm.AutomaticWaitingStatus("识别完成", pending.Group, 60));
         // 取消勾选后该群不再进入稳定观察窗口。
         settings.SetSelectedGroup("黄大仙新澳", false);
         Assert.Empty(MainForm.PendingAutomaticGroups(settings, visible, now));
@@ -56,7 +56,27 @@ public sealed class AutoLocalOcrSettingsTests
     [InlineData("云 OCR 限流，请继续云 OCR。")]
     public void ClearingAnObsoleteWaitDoesNotEraseOtherStatusMessages(string status)
     {
-        Assert.Equal(status, MainForm.AutomaticWaitingStatus(status, null));
+        Assert.Equal(status, MainForm.AutomaticWaitingStatus(status, null, 0));
+    }
+
+    [Fact]
+    public void WaitCountdownShowsRemainingSecondsAndRestartsWhenImagesChange()
+    {
+        DateTime now = new(2026, 10, 6, 12, 0, 0);
+        var readiness = new AutomaticOcrReadiness();
+        const string folder = "10.6-黄大仙新澳";
+
+        // 第一轮观察只记起点，状态栏从 60 秒开始，然后按秒往下掉。
+        Assert.False(readiness.IsStable(folder, "sig", now));
+        Assert.Equal(60, readiness.RemainingSeconds(folder, "sig", now));
+        Assert.Equal(45, readiness.RemainingSeconds(folder, "sig", now.AddSeconds(15)));
+        Assert.Equal(0, readiness.RemainingSeconds(folder, "sig", now.AddSeconds(90)));
+        Assert.Equal("自动本地 OCR 等待图片稳定：黄大仙新澳（还需 45 秒）",
+            MainForm.AutomaticWaitingStatus("识别完成", "黄大仙新澳",
+                readiness.RemainingSeconds(folder, "sig", now.AddSeconds(15))));
+
+        // 图片一变，倒计时重新从 60 秒开始。
+        Assert.Equal(60, readiness.RemainingSeconds(folder, "sig2", now.AddSeconds(20)));
     }
 
     [Fact]

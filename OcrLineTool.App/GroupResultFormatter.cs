@@ -97,7 +97,8 @@ public static class GroupResultFormatter
         return output.ToArray();
     }
 
-    private static string CategoryFor(string type)
+    // 抓取设置窗口按同一分类显示和分组条目，分类口径只留在这里一份。
+    internal static string CategoryFor(string type)
     {
         if (type is "头" or "头数组合" or "缺头")
             return "头";

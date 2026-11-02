@@ -213,7 +213,23 @@ public static class RuleCatalog
         !fileName.EndsWith(".templates.json", StringComparison.OrdinalIgnoreCase) &&
         !fileName.EndsWith("分发规则.json", StringComparison.OrdinalIgnoreCase) &&
         !fileName.StartsWith("云OCR缓存_", StringComparison.OrdinalIgnoreCase) &&
-        !fileName.Equals("界面设置.json", StringComparison.OrdinalIgnoreCase);
+        !fileName.Equals("界面设置.json", StringComparison.OrdinalIgnoreCase) &&
+        !fileName.Equals("抓取设置.json", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 群名 → 该群规则文件路径。抓取设置窗口要按群列出条目，不想自己再解析一遍
+    /// 「配置文件」目录，统一走这里的缓存扫描。
+    /// </summary>
+    internal static string? RulePathForGroup(string appDirectory, string groupName)
+    {
+        string normalized = NormalizeGroupName(groupName);
+        if (normalized.Length == 0)
+            return null;
+        return CachedRuleFiles(ResultFilePaths.ConfigurationDirectory(appDirectory))
+            .FirstOrDefault(item => NormalizeGroupName(item.GroupName)
+                .Equals(normalized, StringComparison.OrdinalIgnoreCase))
+            ?.Path;
+    }
 
     private static IEnumerable<RuleFileCandidate> EnumerateRuleFiles(string configurationDirectory)
     {
