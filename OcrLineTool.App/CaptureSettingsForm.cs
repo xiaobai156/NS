@@ -28,6 +28,7 @@ internal sealed class CaptureSettingsForm : Form
         public string Category { get; init; } = string.Empty;
         public string Text { get; init; } = string.Empty;
         public string Detail { get; init; } = string.Empty;
+        public bool HasFolder { get; init; } = true;
         public OcrRule? Rule { get; init; }
         public int Indent { get; init; }
         public bool GroupEnabled { get; init; } = true;
@@ -37,13 +38,17 @@ internal sealed class CaptureSettingsForm : Form
     {
         public string Name { get; init; } = string.Empty;
         public string Folders { get; init; } = string.Empty;
+        public bool HasFolder { get; init; }
         public string? LoadError { get; set; }
         public IReadOnlyList<OcrRule> Rules { get; set; } = Array.Empty<OcrRule>();
     }
 
-    private const int RowHeight = 27;
+    // 群行加高留白，展开后的分类行和条目行保持紧凑，便于一眼分清哪些是群。
+    private const int GroupRowHeight = 40;
+    private const int SubRowHeight = 24;
     private const int CheckBoxSize = 14;
-    private const int IndentStep = 26;
+    // 勾选框固定在左边同一列，层级只缩进文字；否则每深一级方框就右移，一列看起来是歪的。
+    private const int TextIndentStep = 14;
 
     private readonly string appDirectory;
     private readonly string imageRootDirectory;
@@ -62,8 +67,8 @@ internal sealed class CaptureSettingsForm : Form
         BorderStyle = BorderStyle.FixedSingle,
         Font = new Font("Microsoft YaHei UI", 10F),
         IntegralHeight = false,
-        DrawMode = DrawMode.OwnerDrawFixed,
-        ItemHeight = RowHeight,
+        DrawMode = DrawMode.OwnerDrawVariable,
+        ItemHeight = SubRowHeight,
         AccessibleName = "抓取设置列表"
     };
     private readonly Label hintLabel = new()
@@ -76,6 +81,7 @@ internal sealed class CaptureSettingsForm : Form
         Text = "点群名展开条目；点方框开关。取消勾选的群不抓取也不识别；取消勾选的条目按不存在处理，"
             + "不会出现在结果里、也不算缺失。群关掉时条目按上次保存的状态显示，重新勾选群就恢复。"
             + "勾选立即保存，新出现的群和新加的规则默认开启。"
+            + "条目显示的是结果里的规范名，鼠标停在群名上可看目录、停在条目上可看图片原文。"
     };
     private readonly Label summaryLabel = new()
     {
@@ -134,6 +140,7 @@ internal sealed class CaptureSettingsForm : Form
         };
 
         rowList.DrawItem += DrawRow;
+        rowList.MeasureItem += MeasureRow;
         rowList.MouseClick += (_, e) =>
         {
             if (e.Button == MouseButtons.Left)
@@ -146,19 +153,26 @@ internal sealed class CaptureSettingsForm : Form
             ToggleSelected();
             e.Handled = true;
         };
-        // 同群里有 keyword 完全相同的条目（例如两条“祖师公杀1肖1尾珍藏版”），
-        // 行文字必须只显示 keyword，只能靠悬停提示里的分组标签区分。
+        // 条目行显示的是规范名（label），和图片上的原文不一定一样；原文放进悬停提示，方便对着图核对。
+        // 群行的目录也只放在提示里，列表本身只显示群名，免得一行挤满长路径。
         string lastToolTip = string.Empty;
         rowList.MouseMove += (_, e) =>
         {
             string text = string.Empty;
             int index = rowList.IndexFromPoint(e.Location);
-            if (index >= 0 && index < rows.Count && rows[index].Kind == RowKind.Rule)
+            if (index >= 0 && index < rows.Count)
             {
-                OcrRule? rule = rows[index].Rule;
-                if (rule is not null && !string.IsNullOrWhiteSpace(rule.Label)
+                Row row = rows[index];
+                if (row.Kind == RowKind.Group)
+                {
+                    text = row.HasFolder ? $"目录：{row.Detail}" : "目录还没出现";
+                }
+                else if (row.Kind == RowKind.Rule && row.Rule is { } rule
+                    && !string.IsNullOrWhiteSpace(rule.Label)
                     && !string.Equals(rule.Label, rule.Keyword, StringComparison.Ordinal))
-                    text = $"分组标签：{rule.Label}";
+                {
+                    text = $"原文：{rule.Keyword}";
+                }
             }
             if (string.Equals(text, lastToolTip, StringComparison.Ordinal))
                 return;
@@ -225,13 +239,13 @@ internal sealed class CaptureSettingsForm : Form
         Dictionary<string, List<string>> foldersByGroup = FoldersByGroup();
         foreach (string name in allNames)
         {
+            bool hasFolder = foldersByGroup.TryGetValue(
+                RuleCatalog.NormalizeGroupName(name), out List<string>? folders);
             var data = new GroupData
             {
                 Name = name,
-                Folders = foldersByGroup.TryGetValue(
-                    RuleCatalog.NormalizeGroupName(name), out List<string>? folders)
-                    ? string.Join("、", folders)
-                    : "（目录还没出现）"
+                Folders = hasFolder ? string.Join("、", folders!) : string.Empty,
+                HasFolder = hasFolder
             };
             string? path = RuleCatalog.RulePathForGroup(appDirectory, name);
             if (path is null)
@@ -295,6 +309,7 @@ internal sealed class CaptureSettingsForm : Form
                 Group = group.Name,
                 Text = group.Name,
                 Detail = group.Folders,
+                HasFolder = group.HasFolder,
                 GroupEnabled = enabled
             });
 
@@ -332,7 +347,7 @@ internal sealed class CaptureSettingsForm : Form
                         Kind = RowKind.Rule,
                         Group = group.Name,
                         Category = category,
-                        Text = rule.Keyword,
+                        Text = rule.OutputLabel,
                         Rule = rule,
                         Indent = 2,
                         GroupEnabled = enabled
@@ -341,11 +356,15 @@ internal sealed class CaptureSettingsForm : Form
             }
         }
 
+        // 重填列表会把滚动条弹回顶部；记住位置再恢复，点开关时视野不会跳。
+        int topIndex = rowList.TopIndex;
         rowList.BeginUpdate();
         rowList.Items.Clear();
         foreach (Row row in rows)
             rowList.Items.Add(row.Text);
         rowList.EndUpdate();
+        if (topIndex > 0 && topIndex < rowList.Items.Count)
+            rowList.TopIndex = topIndex;
         rowList.Invalidate();
         UpdateSummary();
     }
@@ -404,7 +423,7 @@ internal sealed class CaptureSettingsForm : Form
         if (row.Kind != RowKind.Group && !row.GroupEnabled)
             return;
 
-        bool inBox = CheckBoxBounds(row, rowList.GetItemRectangle(index)).Contains(location);
+        bool inBox = CheckBoxBounds(rowList.GetItemRectangle(index)).Contains(location);
         if (row.Kind == RowKind.Group)
         {
             if (inBox)
@@ -489,11 +508,20 @@ internal sealed class CaptureSettingsForm : Form
         RebuildRows();
     }
 
-    private static Rectangle CheckBoxBounds(Row row, Rectangle bounds)
+    // 勾选框永远在最左边同一列，层级只由文字缩进体现，这样一列方框是齐的。
+    private static Rectangle CheckBoxBounds(Rectangle bounds)
     {
-        int left = bounds.Left + 10 + (row.Indent * IndentStep);
+        int left = bounds.Left + 10;
         return new Rectangle(left, bounds.Top + ((bounds.Height - CheckBoxSize) / 2),
             CheckBoxSize, CheckBoxSize);
+    }
+
+    // 群行比分类行、条目行高，群与群之间自然拉开留白。
+    private void MeasureRow(object? sender, MeasureItemEventArgs e)
+    {
+        e.ItemHeight = SubRowHeight;
+        if (e.Index >= 0 && e.Index < rows.Count && rows[e.Index].Kind == RowKind.Group)
+            e.ItemHeight = GroupRowHeight;
     }
 
     private void DrawRow(object? sender, DrawItemEventArgs e)
@@ -511,7 +539,7 @@ internal sealed class CaptureSettingsForm : Form
             e.Graphics.DrawRectangle(highlight, frame);
         }
 
-        int textLeft = e.Bounds.Left + 10 + (row.Indent * IndentStep) + CheckBoxSize + 10;
+        int textLeft = e.Bounds.Left + 10 + CheckBoxSize + 10 + (row.Indent * TextIndentStep);
         Color textColor = row.Kind switch
         {
             RowKind.Group => groupOff ? MainForm.SecondaryText : MainForm.PrimaryText,
@@ -532,18 +560,22 @@ internal sealed class CaptureSettingsForm : Form
                 return;
             case RowKind.Group:
             {
-                Rectangle box = CheckBoxBounds(row, e.Bounds);
-                DrawCheckBox(e.Graphics, box, row.GroupEnabled ? true : false, triState: false);
-                int nameWidth = TextRenderer.MeasureText(row.Text, font).Width;
-                TextRenderer.DrawText(e.Graphics, row.Text, font,
-                    new Rectangle(textLeft, e.Bounds.Top, nameWidth + 4, e.Bounds.Height),
-                    textColor, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
+                DrawCheckBox(e.Graphics, CheckBoxBounds(e.Bounds), row.GroupEnabled, triState: false);
                 string arrow = expanded.Contains(RuleCatalog.NormalizeGroupName(row.Group)) ? "▾ " : "▸ ";
-                TextRenderer.DrawText(e.Graphics, arrow + row.Detail, rowList.Font,
-                    new Rectangle(textLeft + nameWidth + 8, e.Bounds.Top,
-                        Math.Max(0, e.Bounds.Right - textLeft - nameWidth - 16), e.Bounds.Height),
-                    MainForm.SecondaryText,
+                string caption = arrow + row.Text;
+                TextRenderer.DrawText(e.Graphics, caption, font,
+                    new Rectangle(textLeft, e.Bounds.Top, e.Bounds.Right - textLeft - 8, e.Bounds.Height),
+                    textColor,
                     TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+                if (!row.HasFolder)
+                {
+                    int nameWidth = TextRenderer.MeasureText(caption, font).Width;
+                    TextRenderer.DrawText(e.Graphics, "（目录还没出现）", rowList.Font,
+                        new Rectangle(textLeft + nameWidth + 8, e.Bounds.Top,
+                            Math.Max(0, e.Bounds.Right - textLeft - nameWidth - 16), e.Bounds.Height),
+                        MainForm.SecondaryText,
+                        TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+                }
                 break;
             }
             case RowKind.Category:
@@ -561,7 +593,7 @@ internal sealed class CaptureSettingsForm : Form
                 bool? state = enabledCount == 0 ? false
                     : enabledCount == categoryRules.Count ? true
                     : null;
-                DrawCheckBox(e.Graphics, CheckBoxBounds(row, e.Bounds), state, triState: true);
+                DrawCheckBox(e.Graphics, CheckBoxBounds(e.Bounds), state, triState: true);
                 TextRenderer.DrawText(e.Graphics, row.Text, font,
                     new Rectangle(textLeft, e.Bounds.Top, e.Bounds.Right - textLeft - 8, e.Bounds.Height),
                     textColor,
@@ -571,7 +603,7 @@ internal sealed class CaptureSettingsForm : Form
             default:
             {
                 bool enabled = settings.IsRuleEnabledIgnoringGroup(row.Group, row.Rule!);
-                DrawCheckBox(e.Graphics, CheckBoxBounds(row, e.Bounds), enabled, triState: false);
+                DrawCheckBox(e.Graphics, CheckBoxBounds(e.Bounds), enabled, triState: false);
                 TextRenderer.DrawText(e.Graphics, row.Text, font,
                     new Rectangle(textLeft, e.Bounds.Top, e.Bounds.Right - textLeft - 8, e.Bounds.Height),
                     textColor,
