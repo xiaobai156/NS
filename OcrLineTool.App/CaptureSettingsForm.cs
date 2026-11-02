@@ -47,6 +47,9 @@ internal sealed class CaptureSettingsForm : Form
     // 群行加高留白，展开后的分类行和条目行保持紧凑，便于一眼分清哪些是群。
     private const int GroupRowHeight = 40;
     private const int SubRowHeight = 24;
+    // 分类行比条目行高出一截，多出来的部分当作上方空白：区块之间留出气口。
+    private const int CategoryTopGap = 10;
+    private const int CategoryRowHeight = SubRowHeight + CategoryTopGap;
     private const int CheckBoxSize = 14;
     // 勾选框固定在左边同一列，层级只缩进文字；否则每深一级方框就右移，一列看起来是歪的。
     private const int TextIndentStep = 14;
@@ -442,7 +445,11 @@ internal sealed class CaptureSettingsForm : Form
         if (row.Kind != RowKind.Group && !row.GroupEnabled)
             return;
 
-        bool inBox = CheckBoxBounds(rowList.GetItemRectangle(index)).Contains(location);
+        Rectangle itemBounds = rowList.GetItemRectangle(index);
+        // 分类行的方框跟着内容一起下移了，命中判断要用同一块矩形。
+        if (row.Kind == RowKind.Category)
+            itemBounds = CategoryContentBounds(itemBounds);
+        bool inBox = CheckBoxBounds(itemBounds).Contains(location);
         if (row.Kind == RowKind.Group)
         {
             if (inBox)
@@ -563,12 +570,22 @@ internal sealed class CaptureSettingsForm : Form
             CheckBoxSize, CheckBoxSize);
     }
 
+    // 分类行上方留一条空白当分节线，方框和文字一起下移，免得方框看着悬在文字上面。
+    private static Rectangle CategoryContentBounds(Rectangle bounds)
+        => new(bounds.Left, bounds.Top + CategoryTopGap, bounds.Width, bounds.Height - CategoryTopGap);
+
     // 群行比分类行、条目行高，群与群之间自然拉开留白。
     private void MeasureRow(object? sender, MeasureItemEventArgs e)
     {
         e.ItemHeight = SubRowHeight;
-        if (e.Index >= 0 && e.Index < rows.Count && rows[e.Index].Kind == RowKind.Group)
-            e.ItemHeight = GroupRowHeight;
+        if (e.Index < 0 || e.Index >= rows.Count)
+            return;
+        e.ItemHeight = rows[e.Index].Kind switch
+        {
+            RowKind.Group => GroupRowHeight,
+            RowKind.Category => CategoryRowHeight,
+            _ => SubRowHeight
+        };
     }
 
     private void DrawRow(object? sender, DrawItemEventArgs e)
@@ -590,7 +607,8 @@ internal sealed class CaptureSettingsForm : Form
         Color textColor = row.Kind switch
         {
             RowKind.Group => groupOff ? MainForm.SecondaryText : MainForm.PrimaryText,
-            RowKind.Category => MainForm.SecondaryText,
+            // 分类行用强调色，和上下两级的正文一眼分开。
+            RowKind.Category => groupOff ? MainForm.SecondaryText : MainForm.AccentAmber,
             _ => groupOff || !settings.IsRuleEnabledIgnoringGroup(row.Group, row.Rule!)
                 ? MainForm.SecondaryText
                 : MainForm.PrimaryText
@@ -640,9 +658,11 @@ internal sealed class CaptureSettingsForm : Form
                 bool? state = enabledCount == 0 ? false
                     : enabledCount == categoryRules.Count ? true
                     : null;
-                DrawCheckBox(e.Graphics, CheckBoxBounds(e.Bounds), state, triState: true);
+                Rectangle contentBounds = CategoryContentBounds(e.Bounds);
+                DrawCheckBox(e.Graphics, CheckBoxBounds(contentBounds), state, triState: true);
                 TextRenderer.DrawText(e.Graphics, row.Text, font,
-                    new Rectangle(textLeft, e.Bounds.Top, e.Bounds.Right - textLeft - 8, e.Bounds.Height),
+                    new Rectangle(textLeft, contentBounds.Top, contentBounds.Right - textLeft - 8,
+                        contentBounds.Height),
                     textColor,
                     TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
                 break;
