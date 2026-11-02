@@ -31,7 +31,8 @@ internal sealed class CaptureSettingsForm : Form
         public bool HasFolder { get; init; } = true;
         public OcrRule? Rule { get; init; }
         public int Indent { get; init; }
-        public bool GroupEnabled { get; init; } = true;
+        // 群开关会牵动同群所有行的显示状态，所以这个不能在构建时写死。
+        public bool GroupEnabled { get; set; } = true;
     }
 
     private sealed class GroupData
@@ -356,17 +357,35 @@ internal sealed class CaptureSettingsForm : Form
             }
         }
 
-        // 重填列表会把滚动条弹回顶部；记住位置再恢复，点开关时视野不会跳。
+        // 重填列表会把滚动条弹回顶部；记住位置再恢复，展开/收起时视野不会跳。
         int topIndex = rowList.TopIndex;
         rowList.BeginUpdate();
         rowList.Items.Clear();
         foreach (Row row in rows)
             rowList.Items.Add(row.Text);
         rowList.EndUpdate();
-        if (topIndex > 0 && topIndex < rowList.Items.Count)
-            rowList.TopIndex = topIndex;
+        RestoreTopIndex(topIndex);
         rowList.Invalidate();
         UpdateSummary();
+    }
+
+    // 原生列表清空后滚动条会回到顶部，而且自绘变高行的重新测量是延迟的：
+    // 立刻设一次 TopIndex 往往被按旧的默认行高算错，所以控件重排完成后（下一轮消息循环）再设一次。
+    private void RestoreTopIndex(int topIndex)
+    {
+        if (topIndex <= 0)
+            return;
+
+        void Apply()
+        {
+            if (IsDisposed || !rowList.IsHandleCreated || rowList.Items.Count == 0)
+                return;
+            rowList.TopIndex = Math.Clamp(topIndex, 0, rowList.Items.Count - 1);
+        }
+
+        Apply();
+        if (IsHandleCreated)
+            BeginInvoke(Apply);
     }
 
     private void UpdateSummary()
@@ -427,7 +446,9 @@ internal sealed class CaptureSettingsForm : Form
         if (row.Kind == RowKind.Group)
         {
             if (inBox)
-                Mutate(() => settings.SetGroupEnabled(row.Group, !settings.IsGroupEnabled(row.Group)));
+                ApplyStateChange(
+                    () => settings.SetGroupEnabled(row.Group, !settings.IsGroupEnabled(row.Group)),
+                    row.Group);
             else
                 ToggleExpand(row.Group);
             return;
@@ -438,7 +459,7 @@ internal sealed class CaptureSettingsForm : Form
         if (row.Kind == RowKind.Category)
             ToggleCategory(row.Group, row.Category);
         else
-            Mutate(() => settings.SetRuleEnabled(
+            ApplyStateChange(() => settings.SetRuleEnabled(
                 row.Group, row.Rule!, !settings.IsRuleEnabledIgnoringGroup(row.Group, row.Rule!)));
     }
 
@@ -451,11 +472,13 @@ internal sealed class CaptureSettingsForm : Form
         if (row.Kind != RowKind.Group && !row.GroupEnabled)
             return;
         if (row.Kind == RowKind.Group)
-            Mutate(() => settings.SetGroupEnabled(row.Group, !settings.IsGroupEnabled(row.Group)));
+            ApplyStateChange(
+                () => settings.SetGroupEnabled(row.Group, !settings.IsGroupEnabled(row.Group)),
+                row.Group);
         else if (row.Kind == RowKind.Category)
             ToggleCategory(row.Group, row.Category);
         else if (row.Kind == RowKind.Rule)
-            Mutate(() => settings.SetRuleEnabled(
+            ApplyStateChange(() => settings.SetRuleEnabled(
                 row.Group, row.Rule!, !settings.IsRuleEnabledIgnoringGroup(row.Group, row.Rule!)));
     }
 
@@ -484,28 +507,52 @@ internal sealed class CaptureSettingsForm : Form
         if (!settings.IsGroupEnabled(group))
             return;
         bool enable = !rules.All(rule => settings.IsRuleEnabledIgnoringGroup(group, rule));
-        Mutate(() =>
+        ApplyStateChange(() =>
         {
             foreach (OcrRule rule in rules)
                 settings.SetRuleEnabled(group, rule, enable);
         });
     }
 
-    private void Mutate(Action change)
+    // 点开关只是改状态：不重填列表，只刷新受影响的显示，滚动位置一点不动。
+    private void ApplyStateChange(Action change, string? group = null)
     {
         change();
+        if (!TrySave())
+        {
+            // 保存失败按磁盘内容回滚，界面跟着退回上一次真正生效的状态。
+            settings = CaptureSettings.Load(appDirectory);
+            RebuildRows();
+            return;
+        }
+
+        if (group is not null)
+        {
+            bool enabled = settings.IsGroupEnabled(group);
+            foreach (Row row in rows)
+            {
+                if (string.Equals(row.Group, group, StringComparison.OrdinalIgnoreCase))
+                    row.GroupEnabled = enabled;
+            }
+        }
+
+        rowList.Invalidate();
+        UpdateSummary();
+    }
+
+    private bool TrySave()
+    {
         try
         {
             settings.Save(appDirectory);
+            return true;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             MessageBox.Show(this, exception.Message, "抓取设置保存失败",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            // 保存失败按磁盘内容回滚，避免界面显示和实际设置不一致。
-            settings = CaptureSettings.Load(appDirectory);
+            return false;
         }
-        RebuildRows();
     }
 
     // 勾选框永远在最左边同一列，层级只由文字缩进体现，这样一列方框是齐的。
