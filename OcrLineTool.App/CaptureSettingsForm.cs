@@ -85,7 +85,7 @@ internal sealed class CaptureSettingsForm : Form
         Text = "点群名展开条目；点方框开关。取消勾选的群不抓取也不识别；取消勾选的条目按不存在处理，"
             + "不会出现在结果里、也不算缺失。群关掉时条目按上次保存的状态显示，重新勾选群就恢复。"
             + "勾选立即保存，新出现的群和新加的规则默认开启。"
-            + "条目显示的是结果里的规范名，鼠标停在群名上可看目录、停在条目上可看图片原文。"
+            + "条目显示的是结果里的规范名。"
     };
     private readonly Label summaryLabel = new()
     {
@@ -96,7 +96,6 @@ internal sealed class CaptureSettingsForm : Form
         TextAlign = ContentAlignment.MiddleLeft
     };
     private readonly Button closeButton = new() { Text = "关闭" };
-    private readonly ToolTip rowToolTip = new();
     private readonly Font groupFont = new(new FontFamily("Microsoft YaHei UI"), 10F, FontStyle.Bold);
 
     internal CaptureSettingsForm(string appDirectory, string imageRootDirectory)
@@ -157,32 +156,7 @@ internal sealed class CaptureSettingsForm : Form
             ToggleSelected();
             e.Handled = true;
         };
-        // 条目行显示的是规范名（label），和图片上的原文不一定一样；原文放进悬停提示，方便对着图核对。
-        // 群行的目录也只放在提示里，列表本身只显示群名，免得一行挤满长路径。
-        string lastToolTip = string.Empty;
-        rowList.MouseMove += (_, e) =>
-        {
-            string text = string.Empty;
-            int index = rowList.IndexFromPoint(e.Location);
-            if (index >= 0 && index < rows.Count)
-            {
-                Row row = rows[index];
-                if (row.Kind == RowKind.Group)
-                {
-                    text = row.HasFolder ? $"目录：{row.Detail}" : "目录还没出现";
-                }
-                else if (row.Kind == RowKind.Rule && row.Rule is { } rule
-                    && !string.IsNullOrWhiteSpace(rule.Label)
-                    && !string.Equals(rule.Label, rule.Keyword, StringComparison.Ordinal))
-                {
-                    text = $"原文：{rule.Keyword}";
-                }
-            }
-            if (string.Equals(text, lastToolTip, StringComparison.Ordinal))
-                return;
-            lastToolTip = text;
-            rowToolTip.SetToolTip(rowList, text);
-        };
+        // 条目行显示的是规范名（label），和图片上的原文不一定一样；群行只显示群名，不铺长路径。
         // 群行点击文字就是展开/收起，不再单独处理双击，避免一次双击把状态翻回来。
 
         closeButton.Dock = DockStyle.Right;

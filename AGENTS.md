@@ -137,7 +137,7 @@ outputs 和外部分发目录都是用户数据。只能替换用户明确指定
 “设置→抓取设置”按群、按条目控制抓取与识别，开关存 `配置文件\抓取设置.json`（`version`、`disabledGroups`、`disabledRules`：群名 → 关掉的条目 Id），与规则文件同目录，升级覆盖和“清除结果”都不影响它；`IsRuleCatalogFile` 显式排除该文件名，不会被当成规则文件。
 
 - 默认全开：文件不存在、内容损坏或没有记录时，所有群、所有条目照常抓取和识别；新增的群、新增的规则也默认开启。
-- 开关身份用 `OcrRule.Id`（label ?? keyword）：同群存在 keyword 完全相同的多条规则，用 keyword 无法区分。条目行显示 `OcrRule.OutputLabel`（label ?? keyword，与结果 TXT 的规范名一致），图片原文放在悬停提示里；群行只显示群名，目录也只在悬停提示里。
+- 开关身份用 `OcrRule.Id`（label ?? keyword）：同群存在 keyword 完全相同的多条规则，用 keyword 无法区分。条目行显示 `OcrRule.OutputLabel`（label ?? keyword，与结果 TXT 的规范名一致）；群行只显示群名，不显示目录，也不做悬停提示。类型行（分流分类）用强调色并留出上方分节空白。
 - 整群关闭：主界面该群置灰不可选，自动本地 OCR 跳过，识别入口明确报错；该群不抓取、不识别。
 - 条目关闭：当作该条不存在，不参与识别、缺失统计和写结果，手动复抓同样遵守；已写入的旧结果 TXT 不回改。
 - 群内条目按 `GroupResultFormatter.CategoryOrder` 分类显示，与群结果 TXT 的分类口径同源。
