@@ -36,8 +36,10 @@ internal sealed class AutoRecognizeForm : Form
         ForeColor = MainForm.SecondaryText,
         Font = new Font("Microsoft YaHei UI", 9F),
         TextAlign = ContentAlignment.TopLeft,
-        Text = "勾选的群在图片稳定 1 分钟后自动执行本地主识别；每个群当天只跑一次，失败不自动重试。"
-            + "勾选立即保存，重启软件后保持。嫣然心水不参与自动识别。"
+        Text = "勾选的群在抓图完成后自动执行：先等 5 秒再动，当天第一次跑整群本地主识别，"
+            + "之后再收到通知（抓图又抓来新图）就只补缺失。图片没变就不重复跑，失败也不会锁死当天。"
+            + "勾选立即保存，重启软件后保持。"
+            + "抓图程序和本程序都要开着，一边没开就收不到通知，也不会补跑。"
             + "灰色的群在“抓取设置”里已关闭，这里不能勾选，也不会自动识别。"
     };
     private readonly Button closeButton = new() { Text = "关闭" };

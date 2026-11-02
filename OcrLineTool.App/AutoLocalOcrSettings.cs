@@ -16,6 +16,9 @@ internal sealed class AutoLocalOcrExecution
     // schedules another attempt after a failed run.
     public DateTimeOffset? NextRetryAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+    // 上一次自动执行时该群图片目录的指纹（文件数/大小/时间）。抓图又抓完一轮时
+    // 只有指纹变了才值得再跑一次；指纹相同说明没有新图，直接跳过。
+    public string Signature { get; set; } = string.Empty;
 }
 
 internal sealed class AutoLocalOcrSettings
@@ -123,14 +126,6 @@ internal sealed class AutoLocalOcrSettings
             : fallback;
     }
 
-    internal bool HasRunToday(string groupName, DateTime nowInBeijing)
-    {
-        if (!IsSelectedGroup(groupName))
-            return true;
-        DateOnly today = DateOnly.FromDateTime(nowInBeijing);
-        return HasExecution(groupName, today);
-    }
-
     internal bool CanAttemptVisibleGroup(
         string folder, string groupName, DateOnly executionDate, DateTime nowInBeijing)
     {
@@ -171,7 +166,8 @@ internal sealed class AutoLocalOcrSettings
         string groupName,
         DateOnly executionDate,
         bool success,
-        DateTime nowInBeijing)
+        DateTime nowInBeijing,
+        string? signature = null)
     {
         string key = ExecutionKey(executionDate, groupName);
         DateTimeOffset now = BeijingOffset(nowInBeijing);
@@ -186,18 +182,36 @@ internal sealed class AutoLocalOcrSettings
         execution.Status = success ? "success" : "failed";
         execution.NextRetryAt = null;
         execution.UpdatedAt = now;
+        if (!string.IsNullOrEmpty(signature))
+            execution.Signature = signature;
         Executions[key] = execution;
     }
 
-    // Compatibility for callers that only need the current-date claim.
-    internal bool TryClaimVisibleGroup(string groupName, DateTime nowInBeijing)
+    // 当天已跑过的群再次收到抓图完成通知：只要图片变了就允许再跑一次，
+    // 所以这里不再受“一天一次”限制，只把次数和状态记下来。
+    internal void BeginVisibleGroupRun(
+        string folder, string groupName, DateOnly executionDate, DateTime nowInBeijing)
     {
-        DateOnly date = DateOnly.FromDateTime(nowInBeijing);
-        return TryBeginVisibleGroup(groupName, groupName, date, nowInBeijing);
+        string key = ExecutionKey(executionDate, groupName);
+        DateTimeOffset now = BeijingOffset(nowInBeijing);
+        Executions.TryGetValue(key, out AutoLocalOcrExecution? execution);
+        execution ??= new AutoLocalOcrExecution
+        {
+            Date = FormatDate(executionDate),
+            Group = groupName
+        };
+        execution.Folder = folder;
+        execution.Status = "running";
+        execution.Attempts++;
+        execution.NextRetryAt = null;
+        execution.UpdatedAt = now;
+        Executions[key] = execution;
     }
 
-    private bool HasExecution(string groupName, DateOnly date) =>
-        Executions.ContainsKey(ExecutionKey(date, groupName));
+    internal AutoLocalOcrExecution? FindExecution(string groupName, DateOnly executionDate) =>
+        Executions.TryGetValue(ExecutionKey(executionDate, groupName), out AutoLocalOcrExecution? execution)
+            ? execution
+            : null;
 
     private void RemoveExcludedGroups()
     {
@@ -250,49 +264,4 @@ internal sealed class AutoLocalOcrSettings
             return false;
         }
     }
-
-
-}
-internal sealed class AutomaticOcrReadiness
-{
-    internal static readonly TimeSpan StabilityWindow = TimeSpan.FromMinutes(1);
-
-    private readonly Dictionary<string, Observation> observations =
-        new(StringComparer.OrdinalIgnoreCase);
-
-    internal bool IsStable(string folder, string signature, DateTime nowInBeijing)
-    {
-        if (!observations.TryGetValue(folder, out Observation? observation) ||
-            !string.Equals(observation.Signature, signature, StringComparison.Ordinal))
-        {
-            observations[folder] = new Observation(signature, nowInBeijing);
-            return false;
-        }
-
-        return nowInBeijing - observation.StableSince >= StabilityWindow;
-    }
-
-    // 状态栏倒计时用：还没观察过、或者图片签名变了，都算“重新开始”，返回整段窗口。
-    // 这里只读不记，观察起点仍由 IsStable 在每轮扫描时记录。
-    internal int RemainingSeconds(string folder, string signature, DateTime nowInBeijing)
-    {
-        if (!observations.TryGetValue(folder, out Observation? observation) ||
-            !string.Equals(observation.Signature, signature, StringComparison.Ordinal))
-        {
-            return (int)StabilityWindow.TotalSeconds;
-        }
-
-        double remaining = (StabilityWindow - (nowInBeijing - observation.StableSince)).TotalSeconds;
-        return remaining <= 0 ? 0 : (int)Math.Ceiling(remaining);
-    }
-
-    internal void KeepOnly(ISet<string> visibleFolders)
-    {
-        foreach (string folder in observations.Keys.Where(folder => !visibleFolders.Contains(folder)).ToArray())
-            observations.Remove(folder);
-    }
-
-    internal void Clear() => observations.Clear();
-
-    private sealed record Observation(string Signature, DateTime StableSince);
 }

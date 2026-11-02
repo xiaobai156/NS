@@ -6,77 +6,62 @@ public sealed class AutoLocalOcrSettingsTests
     [InlineData("success")]
     [InlineData("failed")]
     [InlineData("running")]
-    public void ExecutedGroupsNeverAppearAsWaitingEvenWhenTheirImagesChange(string status)
+    public void SameGroupCanRunAgainWhenAnotherCaptureBringsNewImages(string status)
     {
         DateOnly today = new(2026, 10, 6);
         DateTime now = today.ToDateTime(new TimeOnly(12, 0));
-        AutoLocalOcrSettings settings = Selected("新澳六合彩资料", "新澳高手", "新澳高级会员", "蜻蜓一套", "黄大仙新澳");
-        string[] groups = ["新澳六合彩资料", "新澳高手", "新澳高级会员", "蜻蜓一套", "黄大仙新澳"];
-        foreach (string group in groups)
-        {
-            settings.TryBeginVisibleGroup($"10.6-{group}", group, today, now);
-            if (status != "running")
-                settings.RecordVisibleGroupResult($"10.6-{group}", group, today, status == "success", now);
-        }
-        var changed = groups.Select(group => ($"10.6-{group}", group, "new-image-signature")).ToArray();
+        AutoLocalOcrSettings settings = Selected("嫣然心水");
+        const string group = "嫣然心水";
+        const string folder = "11.2-嫣然心水";
 
-        Assert.Empty(MainForm.PendingAutomaticGroups(settings, changed, now.AddSeconds(1)));
-        Assert.Equal("自动本地 OCR：当前没有待执行群。", MainForm.AutomaticWaitingStatus(
-            "自动本地 OCR 等待图片稳定：黄大仙新澳（还需 58 秒）", null, 0));
-        Assert.All(settings.Executions.Values, execution => Assert.Equal(1, execution.Attempts));
+        // 第一次：当天还没跑过。
+        Assert.True(settings.CanAttemptVisibleGroup(folder, group, today, now));
+        settings.BeginVisibleGroupRun(folder, group, today, now);
+        if (status != "running")
+            settings.RecordVisibleGroupResult(folder, group, today, status == "success", now, "sig-1");
+
+        // 跑过之后就不是“第一次”了：第二次通知走复抓路线，但仍然允许再跑。
+        Assert.False(settings.CanAttemptVisibleGroup(folder, group, today, now.AddMinutes(1)));
+        settings.BeginVisibleGroupRun(folder, group, today, now.AddMinutes(1));
+
+        AutoLocalOcrExecution execution = Assert.IsType<AutoLocalOcrExecution>(
+            settings.FindExecution(group, today));
+        Assert.Equal(2, execution.Attempts);
+        if (status != "running")
+            Assert.Equal("sig-1", execution.Signature);
     }
 
     [Fact]
-    public void OnlyUnattemptedCurrentDateGroupsEnterTheStabilityWindow()
+    public void CapturedImagesSignatureIsStoredWithTheExecution()
     {
-        DateTime now = new(2026, 10, 6, 12, 0, 0);
-        AutoLocalOcrSettings settings = Selected("新澳六合彩资料", "新澳高手", "新澳高级会员", "蜻蜓一套", "黄大仙新澳");
-        (string Folder, string Group, string Signature)[] visible =
-        [
-            ("10.5-新澳高手", "新澳高手", "old"),
-            ("10.7-新澳高手", "新澳高手", "future"),
-            ("10.6-嫣然心水", "嫣然心水", "excluded"),
-            ("10.6-黄大仙新澳", "黄大仙新澳", "current")
-        ];
-        var pending = Assert.Single(MainForm.PendingAutomaticGroups(settings, visible, now));
-        var readiness = new AutomaticOcrReadiness();
-        Assert.False(readiness.IsStable(pending.Folder, pending.Signature, now));
-        Assert.True(readiness.IsStable(pending.Folder, pending.Signature, now.AddMinutes(1)));
-        Assert.Equal("自动本地 OCR 等待图片稳定：黄大仙新澳（还需 60 秒）",
-            MainForm.AutomaticWaitingStatus("识别完成", pending.Group, 60));
-        // 取消勾选后该群不再进入稳定观察窗口。
-        settings.SetSelectedGroup("黄大仙新澳", false);
-        Assert.Empty(MainForm.PendingAutomaticGroups(settings, visible, now));
-    }
+        DateOnly today = new(2026, 10, 6);
+        DateTime now = today.ToDateTime(new TimeOnly(12, 0));
+        AutoLocalOcrSettings settings = Selected("新澳高手");
+        const string group = "新澳高手";
+        const string folder = "11.2-新澳高手";
 
-    [Theory]
-    [InlineData("识别完成")]
-    [InlineData("自动本地 OCR 执行记录保存失败，已跳过本次任务。")]
-    [InlineData("自动本地 OCR 执行失败，当日不再自动重试。")]
-    [InlineData("云 OCR 限流，请继续云 OCR。")]
-    public void ClearingAnObsoleteWaitDoesNotEraseOtherStatusMessages(string status)
-    {
-        Assert.Equal(status, MainForm.AutomaticWaitingStatus(status, null, 0));
+        Assert.Null(settings.FindExecution(group, today));
+        settings.BeginVisibleGroupRun(folder, group, today, now);
+        settings.RecordVisibleGroupResult(folder, group, today, success: true, now, "images-1");
+        Assert.Equal("images-1", settings.FindExecution(group, today)?.Signature);
+
+        // 同一批图片：指纹没变，调用方据此跳过；换成新图片指纹才不同。
+        settings.RecordVisibleGroupResult(folder, group, today, success: true, now.AddMinutes(1), "images-1");
+        Assert.Equal("images-1", settings.FindExecution(group, today)?.Signature);
+        settings.RecordVisibleGroupResult(folder, group, today, success: true, now.AddMinutes(2), "images-2");
+        Assert.Equal("images-2", settings.FindExecution(group, today)?.Signature);
     }
 
     [Fact]
-    public void WaitCountdownShowsRemainingSecondsAndRestartsWhenImagesChange()
+    public void CaptureCompletionIsIgnoredForGroupsThatAreNotTickedInAutoRecognize()
     {
-        DateTime now = new(2026, 10, 6, 12, 0, 0);
-        var readiness = new AutomaticOcrReadiness();
-        const string folder = "10.6-黄大仙新澳";
+        DateOnly today = new(2026, 10, 6);
+        DateTime now = today.ToDateTime(new TimeOnly(12, 0));
+        var settings = new AutoLocalOcrSettings();
+        settings.SetSelectedGroup("新澳高手", true);
 
-        // 第一轮观察只记起点，状态栏从 60 秒开始，然后按秒往下掉。
-        Assert.False(readiness.IsStable(folder, "sig", now));
-        Assert.Equal(60, readiness.RemainingSeconds(folder, "sig", now));
-        Assert.Equal(45, readiness.RemainingSeconds(folder, "sig", now.AddSeconds(15)));
-        Assert.Equal(0, readiness.RemainingSeconds(folder, "sig", now.AddSeconds(90)));
-        Assert.Equal("自动本地 OCR 等待图片稳定：黄大仙新澳（还需 45 秒）",
-            MainForm.AutomaticWaitingStatus("识别完成", "黄大仙新澳",
-                readiness.RemainingSeconds(folder, "sig", now.AddSeconds(15))));
-
-        // 图片一变，倒计时重新从 60 秒开始。
-        Assert.Equal(60, readiness.RemainingSeconds(folder, "sig2", now.AddSeconds(20)));
+        Assert.True(settings.CanAttemptVisibleGroup("11.2-新澳高手", "新澳高手", today, now));
+        Assert.False(settings.CanAttemptVisibleGroup("11.2-黄大仙新澳", "黄大仙新澳", today, now));
     }
 
     [Fact]
@@ -136,21 +121,54 @@ public sealed class AutoLocalOcrSettingsTests
     }
 
     [Fact]
-    public void ImageFolderMustRemainUnchangedForOneMinuteBeforeReady()
+    public void CaptureCompletionNotificationCarriesOnlyTheGroupName()
     {
-        var readiness = new AutomaticOcrReadiness();
-        DateTime started = new(2026, 10, 5, 12, 0, 0);
+        // 抓图程序抓完一个群后喊一声，识别程序只认这三样：动作名、群名、时间。
+        const string line = "{\"action\":\"capture-completed\",\"group\":\"新澳高手\",\"date\":\"2026-11-02\",\"notified_at\":\"2026-11-02T21:30:00+08:00\"}";
+        Assert.Equal("新澳高手", CaptureNotificationProtocol.ReadGroup(line));
+        Assert.Equal("黑色六合彩", CaptureNotificationProtocol.ReadGroup("{\"Action\":\"capture-completed\",\"Group\":\"黑色六合彩\"}"));
+    }
 
-        Assert.False(readiness.IsStable("folder", "first", started));
-        Assert.False(readiness.IsStable("folder", "first", started.AddSeconds(59)));
-        Assert.True(readiness.IsStable("folder", "first", started.AddMinutes(1)));
-        Assert.False(readiness.IsStable("folder", "changed", started.AddMinutes(1).AddSeconds(1)));
-        Assert.False(readiness.IsStable("folder", "changed", started.AddMinutes(2)));
-        Assert.True(readiness.IsStable("folder", "changed", started.AddMinutes(2).AddSeconds(1)));
+    [Theory]
+    [InlineData("")]
+    [InlineData("不是 JSON")]
+    [InlineData("{\"action\":\"capture-started\",\"group\":\"新澳高手\"}")]
+    [InlineData("{\"action\":\"capture-completed\"}")]
+    [InlineData("{\"action\":\"capture-completed\",\"group\":\"   \"}")]
+    public void OtherOrIncompleteNotificationsAreIgnored(string line)
+    {
+        Assert.Null(CaptureNotificationProtocol.ReadGroup(line));
     }
 
     [Fact]
-    public void VisibleGroupDiscoveryReturnsOnlyTheFiveAutomaticGroupsWithImageSignature()
+    public void GroupNameFromNotificationIsMatchedBackToItsDatedImageFolder()
+    {
+        string root = Directory.CreateTempSubdirectory("ocr-capture-notice-").FullName;
+        string config = Path.Combine(root, "配置文件");
+        string older = Path.Combine(root, "11.1-新澳高手");
+        string newer = Path.Combine(root, "11.2-新澳高手");
+        Directory.CreateDirectory(config);
+        Directory.CreateDirectory(older);
+        Directory.CreateDirectory(newer);
+        File.WriteAllText(Path.Combine(config, "新澳高手.json"),
+            "{\"group\":\"新澳高手\",\"rules\":[{\"keyword\":\"测试\",\"type\":\"生肖\"}]}");
+        Directory.SetLastWriteTimeUtc(older, new DateTime(2026, 11, 1, 9, 0, 0, DateTimeKind.Utc));
+        Directory.SetLastWriteTimeUtc(newer, new DateTime(2026, 11, 2, 9, 0, 0, DateTimeKind.Utc));
+
+        try
+        {
+            // 通知里只有群名，目录按“最新的那个”对回去。
+            Assert.Equal(newer, MainForm.FindGroupImageFolder(root, root, "新澳高手"));
+            Assert.Null(MainForm.FindGroupImageFolder(root, root, "嫣然心水"));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void VisibleGroupDiscoveryReturnsEveryTickedGroupWithImageSignature()
     {
         string root = Directory.CreateTempSubdirectory("ocr-auto-local-visible-").FullName;
         string config = Path.Combine(root, "配置文件");
@@ -194,7 +212,7 @@ public sealed class AutoLocalOcrSettingsTests
     }
 
     [Fact]
-    public void SuccessfulRunIsLockedByFolderDateAndGroupAcrossRestarts()
+    public void FirstRunOfTheDayIsRememberedAcrossRestarts()
     {
         string directory = Directory.CreateTempSubdirectory("ocr-auto-local-execution-").FullName;
         try
@@ -220,7 +238,7 @@ public sealed class AutoLocalOcrSettingsTests
     }
 
     [Fact]
-    public void FailedRunIsLockedForTheDateWithoutAutomaticRetry()
+    public void FailedRunStillCountsAsTheFirstRunOfTheDay()
     {
         DateOnly today = new(2026, 10, 6);
         DateTime first = today.ToDateTime(new TimeOnly(12, 0));
@@ -421,8 +439,8 @@ public sealed class AutoLocalOcrSettingsTests
         {
             IReadOnlyList<string> listed =
                 AutoRecognizeForm.BuildGroupList(empty, root, ["黑色六合彩"]);
-            Assert.Single(listed.Where(name =>
-                RuleCatalog.NormalizeGroupName(name) == RuleCatalog.NormalizeGroupName("黑色六合彩")));
+            Assert.Single(listed, name =>
+                RuleCatalog.NormalizeGroupName(name) == RuleCatalog.NormalizeGroupName("黑色六合彩"));
         }
         finally
         {
