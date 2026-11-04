@@ -1391,6 +1391,44 @@ public static class RuleEngine
         if (requireCloudKeyword && !rule.AllowValueWithoutKeyword && !keywordInTarget && !keywordInHeading)
             return true;
 
+        // 单肖卡（小雨婷这类禁肖表）常把同期的四肖栏也印在同一张图上，
+        // 「禁【龙虎鼠鸡】」里的多肖括号如果参与单肖取值，本期就被判成多值冲突。
+        // 只认「本期 + 禁/杀 之后、括号里唯一一个生肖」这一种行：页脚、开奖结果、
+        // 不带括号的散字都不算；其它版式照旧走后面的分支。
+        if (rule.Type is "生肖" or "单生肖")
+        {
+            string[] issueLines = candidates
+                .Where(line => ContainsIssue(line, issue))
+                .ToArray();
+            // 只有当图上确实还印着一栏「多肖括号」（同期的四肖栏）时才做这个取舍：
+            // 单肖卡孤零零一行时交给后面的常规分支，避免把多出一行来历不明文字的
+            // 不完整卡读成答案。
+            bool hasSiblingMultiZodiacRow = issueLines.Any(line => Regex.IsMatch(
+                BeforeOpeningResult(SimplifyOcrText(line)),
+                $@"[【\[][{Zodiac}]{{2,}}[】\]]"));
+            string[] singleValues = !hasSiblingMultiZodiacRow
+                ? []
+                : issueLines
+                .Select(line =>
+                {
+                    string payload = BeforeOpeningResult(SimplifyOcrText(line));
+                    int marker = payload.LastIndexOfAny(['禁', '杀', '殺']);
+                    if (marker < 0)
+                        return null;
+                    Match bracketed = Regex.Match(
+                        payload[(marker + 1)..], $@"[【\[](?<zodiac>[{Zodiac}])[】\]]");
+                    return bracketed.Success ? bracketed.Groups["zodiac"].Value : null;
+                })
+                .Where(item => item is not null)
+                .Select(item => item!)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            if (singleValues.Length == 1)
+            {
+                value = singleValues[0];
+                return true;
+            }
+        }
         if (rule.SingleValuePerIssue && rule.Type == "头")
         {
             value = ExtractSingleHeadPerIssue(lines, issue);
