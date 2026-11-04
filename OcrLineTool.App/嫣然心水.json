@@ -1,4 +1,4 @@
-{
+﻿{
   "version": 1,
   "group": "嫣然心水",
   "rules": [
@@ -331,8 +331,7 @@
       "type": "生肖",
       "required_keyword": "烟草味",
       "folder": "烟草味",
-      "allow_folder_identity": true,
-      "require_folder_name": true
+      "allow_folder_identity": true
     },
     {
       "keyword": "恩平公式",

@@ -1393,8 +1393,9 @@ public static class RuleEngine
 
         // 单肖卡（小雨婷这类禁肖表）常把同期的四肖栏也印在同一张图上，
         // 「禁【龙虎鼠鸡】」里的多肖括号如果参与单肖取值，本期就被判成多值冲突。
-        // 只认「本期 + 禁/杀 之后、括号里唯一一个生肖」这一种行：页脚、开奖结果、
-        // 不带括号的散字都不算；其它版式照旧走后面的分支。
+        // 只认「本期行 + 括号里唯一一个生肖、且全行再没有别的生肖」这一种行：
+        // 多肖括号、同行两个单肖括号、括号外的散字都不算，仍旧回到后面的分支
+        // 交给冲突/缺失判定，绝不把可能读串的卡读成唯一答案。
         if (rule.Type is "生肖" or "单生肖")
         {
             string[] issueLines = candidates
@@ -1403,26 +1404,27 @@ public static class RuleEngine
             // 只有当图上确实还印着一栏「多肖括号」（同期的四肖栏）时才做这个取舍：
             // 单肖卡孤零零一行时交给后面的常规分支，避免把多出一行来历不明文字的
             // 不完整卡读成答案。
-            bool hasSiblingMultiZodiacRow = issueLines.Any(line => Regex.IsMatch(
+            bool hasSiblingMultiZodiacRow = candidates.Any(line => Regex.IsMatch(
                 BeforeOpeningResult(SimplifyOcrText(line)),
                 $@"[【\[][{Zodiac}]{{2,}}[】\]]"));
-            string[] singleValues = !hasSiblingMultiZodiacRow
-                ? []
-                : issueLines
-                .Select(line =>
+            // 本期每一行要么给出唯一生肖，要么根本没有括号（「308期禁」这种换行续行）；
+            // 只要有一行含糊（多肖括号后面紧跟单肖括号、括号外还有生肖）就整条放弃，
+            // 仍旧交给后面的冲突/缺失判定。
+            var picked = new List<string>();
+            bool ambiguous = false;
+            foreach (string line in issueLines)
+            {
+                string? single = SingleBracketedZodiac(line);
+                if (single is null)
                 {
-                    string payload = BeforeOpeningResult(SimplifyOcrText(line));
-                    int marker = payload.LastIndexOfAny(['禁', '杀', '殺']);
-                    if (marker < 0)
-                        return null;
-                    Match bracketed = Regex.Match(
-                        payload[(marker + 1)..], $@"[【\[](?<zodiac>[{Zodiac}])[】\]]");
-                    return bracketed.Success ? bracketed.Groups["zodiac"].Value : null;
-                })
-                .Where(item => item is not null)
-                .Select(item => item!)
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
+                    ambiguous |= HasBracketAmbiguity(line);
+                    continue;
+                }
+                picked.Add(single);
+            }
+            string[] singleValues = hasSiblingMultiZodiacRow && !ambiguous
+                ? picked.Distinct(StringComparer.Ordinal).ToArray()
+                : [];
             if (singleValues.Length == 1)
             {
                 value = singleValues[0];
@@ -5730,6 +5732,25 @@ public static class RuleEngine
         string raw = simplified[(markerIndex + markerLength)..].Trim();
         raw = raw.TrimStart(':', '：').Trim();
         return raw.Length == 0 ? null : raw;
+    }
+
+    // 返回「这一行括号里统一的生肖」：多肖括号（四肖栏）不参与，同一行两个不同的
+    // 单肖括号视为读串——这两种情况都返回 null，让调用方回到冲突/缺失判定。
+    private static string? SingleBracketedZodiac(string line)
+    {
+        string payload = BeforeOpeningResult(SimplifyOcrText(line));
+        MatchCollection singles = Regex.Matches(payload, $@"[【\[](?<zodiac>[{Zodiac}])[】\]]");
+        if (HasBracketAmbiguity(payload))
+            return null;
+        return singles.Count == 1 ? singles[0].Groups["zodiac"].Value : null;
+    }
+
+    // 一行里出现「多肖括号紧跟另一个括号」时，括号归属就说不清了（例如
+    // 「禁【龙虎】【羊】」）；这种情况一律不取单肖。
+    private static bool HasBracketAmbiguity(string line)
+    {
+        string payload = BeforeOpeningResult(SimplifyOcrText(line));
+        return Regex.IsMatch(payload, $@"[【\[][{Zodiac}]{{2,}}[】\]]\s*[【\[]");
     }
 
     private static bool HasConflictingSingleValues(string tail, string type)

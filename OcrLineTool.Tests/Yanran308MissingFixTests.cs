@@ -56,6 +56,42 @@ public sealed class Yanran308MissingFixTests
     }
 
     [Fact]
+    public void TwoSingleZodiacBracketsOnOneRowStayAConflictInsteadOfPickingOne()
+    {
+        // 本期出现两个不同的单肖括号时不能挑一个当答案，仍旧判冲突。
+        string[] lines =
+        [
+            "305期禁【羊】开蛇",
+            "306期禁【兔】开龙",
+            "307期禁【猴】开牛",
+            "308期禁【龙】开猫",
+            "禁四肖",
+            "308期禁",
+            "【龙虎鼠鸡】",
+            "开猫",
+            "308期禁【鼠】"
+        ];
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 308, Rule("小雨婷")));
+    }
+
+    [Fact]
+    public void MultiZodiacBracketOnTheSameRowIsNotTurnedIntoASingleValue()
+    {
+        // 同一行先有多肖括号再有单肖括号时也不猜。
+        string[] lines =
+        [
+            "305期禁【羊】开蛇",
+            "306期禁【兔】开龙",
+            "307期禁【猴】开牛",
+            "308期禁【龙】开猫",
+            "禁四肖",
+            "308期禁【龙虎鼠鸡】开猫",
+            "308期禁【龙虎】【羊】"
+        ];
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 308, Rule("小雨婷")));
+    }
+
+    [Fact]
     public void TobaccoCardIsIdentifiedByItsFolderBecauseTheNameIsAVerticalWatermark()
     {
         string[] lines =
@@ -78,6 +114,23 @@ public sealed class Yanran308MissingFixTests
         string[] lines = ["❤沁园春❤", "308❤沁园春❤杀【猴龙】开"];
         Assert.DoesNotContain(Match("烟草味", "20261104_123022_0f1e4b12_7934.jpg", lines),
             item => item.Id == "烟草味");
+    }
+
+    [Fact]
+    public void TobaccoStillIdentifiedByFolderWhenTheFolderHoldsSeveralImages()
+    {
+        // 当天补拍/重拍后夹里可能有 2 张：卡面名字读不出来时也要能靠目录认，
+        // 不能因为张数变多就要求卡面必须印出连续的「烟草」。
+        string[] lines = ["307期", "月禁一肖虎", "308期禁一肖虎"];
+        OcrRule rule = Rule("烟草味");
+        IReadOnlyDictionary<string, int> counts = new Dictionary<string, int>
+        {
+            [Path.GetDirectoryName(ImagePath("烟草味", "x.jpg"))!] = 2
+        };
+        Assert.Contains(
+            RuleEngine.FindMatches(
+                ImagePath("烟草味", "20261104_170815_0f1e4b12_8034.jpg"), lines, Rules, Rules, counts),
+            item => item.Id == rule.Id);
     }
 
     [Fact]
