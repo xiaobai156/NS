@@ -1,4 +1,4 @@
-namespace OcrLineTool.Tests;
+﻿namespace OcrLineTool.Tests;
 
 /// <summary>
 /// 每张卡的专属解析由配置里的 extractor 指定。这张表是代码侧认识的取值，
@@ -50,6 +50,7 @@ public sealed class ExtractorContractTests
         ["梓涵合"] = "rui_er_team_card",
         ["梓涵半头"] = "rui_er_team_card",
         ["神算子四码"] = "missing_numbers_from_49",
+        ["野狼九肖"] = "nine_zodiacs_before_opening",
     };
 
     // 代码里 switch 认得的全部取值。加分支时同步这里。
@@ -57,6 +58,7 @@ public sealed class ExtractorContractTests
     {
         "missing_wave_balls",
         "nine_zodiacs_across_wrapped_rows",
+        "nine_zodiacs_before_opening",
         "ten_numbers_across_issue_cell",
         "ten_numbers_straddling_issue",
         "perfect_two_zodiac",

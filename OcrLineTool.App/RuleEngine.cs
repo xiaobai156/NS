@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 namespace OcrLineTool;
 
@@ -1158,6 +1158,13 @@ public static class RuleEngine
             value = ExtractNineZodiacsAcrossWrappedRows(lines, issue, rule);
             return true;
         }
+        // 黄大仙新澳「野狼九肖王」：九个生肖印在『』里，同一行或下一行，行尾还跟着
+        // 「开:虎√」这类开奖栏——开奖栏里的生肖不是答案，必须先切掉再数。
+        if (rule.Extractor == "nine_zodiacs_before_opening")
+        {
+            value = ExtractNineZodiacsBeforeOpening(lines, issue);
+            return true;
+        }
         // 嫣然电报「十码必杀」：号码行被期号格和「直接不要」标签切断，必须按原始行序读。
         if (rule.Extractor == "ten_numbers_across_issue_cell")
         {
@@ -1174,6 +1181,7 @@ public static class RuleEngine
     internal static readonly IReadOnlySet<string> KnownExtractors = new HashSet<string>(StringComparer.Ordinal)
     {
         "nine_zodiacs_across_wrapped_rows",
+        "nine_zodiacs_before_opening",
         "ten_numbers_across_issue_cell",
         "ten_numbers_straddling_issue",
         "perfect_two_zodiac",
@@ -2102,6 +2110,36 @@ public static class RuleEngine
         }
         return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
     }
+
+    // 黄大仙新澳「野狼九肖王」：每期一行「293期:⑨肖中特『九个生肖』开:虎√」，
+    // 部分期被 OCR 断成两行（期号行 + 『…』开:…行）。开奖栏里的生肖不是答案，
+    // 所以每行先按「开」切掉，再只数『』里的生肖字，要求恰好九个且互不相同。
+    private static string? ExtractNineZodiacsBeforeOpening(string[] lines, int issue)
+    {
+        string[] normalized = lines.Select(SimplifyOcrText).ToArray();
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        for (int index = 0; index < normalized.Length; index++)
+        {
+            if (!ContainsIssue(normalized[index], issue))
+                continue;
+            var collected = new List<string> { CutBeforeOpening(normalized[index]) };
+            for (int forward = index + 1; forward < normalized.Length && forward - index <= 2; forward++)
+            {
+                if (ContainsOtherIssue(normalized[forward], issue))
+                    break;
+                collected.Add(CutBeforeOpening(normalized[forward]));
+            }
+            string joined = SimplifyOcrText(string.Concat(collected));
+            char[] zodiacs = joined.Where(Zodiac.Contains).ToArray();
+            if (zodiacs.Length == 9 && zodiacs.Distinct().Count() == 9)
+                observed.Add(string.Concat(zodiacs));
+        }
+        return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    // 开奖栏（开:虎√ / 开:猴X）一律切掉；「不会开」「不避」这类词里的开不算。
+    private static string CutBeforeOpening(string line) =>
+        Regex.Split(line, @"(?<!不会)(?<!不)(?<!避)开")[0];
 
     // 嫣然电报「公式杀一肖 / 公式杀尾 / 公式杀行」：卡面把同一个值重复印三遍
     //（雞雞雞 / 1 1 1 / 土 土 土）。只认本期行标签后的字段，三遍必须一致；

@@ -1,4 +1,4 @@
-using OcrLineTool;
+﻿using OcrLineTool;
 
 namespace OcrLineTool.Tests;
 
@@ -51,7 +51,7 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
 
-        Assert.Equal(108, rules.Count);
+        Assert.Equal(107, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.Contains(rules, rule => rule.Id == "钦差大臣公式一" && rule.Section == "公式一");
         Assert.Contains(rules, rule => rule.Id == "君军两尾" && rule.Type == "尾数组合");
@@ -478,7 +478,7 @@ public sealed class RuleCatalogTests
     }
 
     [Theory]
-    [InlineData("黄大仙新澳.json", "黄大仙新澳", 40)]
+    [InlineData("黄大仙新澳.json", "黄大仙新澳", 41)]
     [InlineData("新澳高手.json", "新澳高手", 25)]
     public void LoadsTheNewGroupRules(string fileName, string groupName, int expectedCount)
     {

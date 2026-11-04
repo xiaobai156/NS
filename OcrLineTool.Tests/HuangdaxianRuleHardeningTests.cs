@@ -1,4 +1,4 @@
-using OcrLineTool;
+﻿using OcrLineTool;
 
 namespace OcrLineTool.Tests;
 
@@ -38,7 +38,7 @@ public sealed class HuangdaxianRuleHardeningTests
     [Fact]
     public void CatalogEnablesStrictDynamicIssueValidationForEveryRule()
     {
-        Assert.Equal(40, Rules.Count);
+        Assert.Equal(41, Rules.Count);
         Assert.All(
             Rules.Where(rule => rule.Id != "完美两肖"),
             rule => Assert.True(rule.StrictIssueBlock));

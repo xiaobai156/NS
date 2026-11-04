@@ -1,4 +1,4 @@
-{
+﻿{
   "version": 1,
   "group": "黄大仙新澳",
   "strictIssueBlock": true,
@@ -42,6 +42,7 @@
     { "keyword": "蕊儿", "type": "生肖", "label": "蕊儿", "extractor": "rui_er_team_card", "required_keyword": "蕊儿", "folder": "蕊儿团队" },
     { "keyword": "蕊儿", "type": "尾", "label": "蕊儿尾", "extractor": "rui_er_team_card", "required_keyword": "蕊儿", "folder": "蕊儿团队" },
     { "keyword": "梓涵", "type": "合", "label": "梓涵合", "extractor": "rui_er_team_card", "required_keyword": "梓涵", "folder": "蕊儿团队" },
-    { "keyword": "梓涵", "type": "半头", "label": "梓涵半头", "extractor": "rui_er_team_card", "required_keyword": "梓涵", "folder": "蕊儿团队" }
+    { "keyword": "梓涵", "type": "半头", "label": "梓涵半头", "extractor": "rui_er_team_card", "required_keyword": "梓涵", "folder": "蕊儿团队" },
+    { "keyword": "野狼", "type": "九肖", "label": "野狼九肖", "extractor": "nine_zodiacs_before_opening", "required_keyword": "野狼", "folder": "野狼" }
   ]
 }
