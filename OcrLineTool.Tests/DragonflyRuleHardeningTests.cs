@@ -14,6 +14,9 @@ public sealed class DragonflyRuleHardeningTests
         { "黑字杀合", "4头 木 10合 开?00准", "10合" },
         { "公式杀两肖肖", "（平1*4+特-D4+平3+正1-2）=杀狗猴√", "狗猴" },
         { "公式杀两尾尾", "（平4-2-D2+正3）=杀31尾√", "3尾+1尾" },
+        { "公式杀两尾尾", "（平2-2-D2+正3）=杀50尾V", "5尾+0尾" },
+        { "公式杀两尾尾", "（平2-2-D2+正3）=杀50尾v", "5尾+0尾" },
+        { "公式杀两肖肖", "（平1*4+特-D4+平3+正1-2）=杀狗猴V", "狗猴" },
         { "红蜻蜓", "红蜻蜓必中⑨肖【马龙虎鼠牛猪兔蛇羊】开00准", "马龙虎鼠牛猪兔蛇羊" },
         { "红蜻蜓杀一肖", "红蜻蜓绝杀一肖【蛇】开00准，铁杀", "蛇" },
         { "神奇宇宙", "神秘宇宙绝杀半波【红单】开00准", "红单" },
@@ -62,6 +65,26 @@ public sealed class DragonflyRuleHardeningTests
         ];
         Assert.Equal("狗猴", RuleEngine.ExtractFinalValue(lines, 245, Assert.Single(Rules, rule => rule.Id == "公式杀两肖肖")));
         Assert.Equal("3尾+1尾", RuleEngine.ExtractFinalValue(lines, 245, Assert.Single(Rules, rule => rule.Id == "公式杀两尾尾")));
+    }
+
+    [Fact]
+    public void CheckMarkReadAsLetterStillYieldsTheKillTails()
+    {
+        // 真实的蜻蜓一套公式杀料卡：整卡 17 期，OCR 把 295 期和 308 期的行尾「√」读成 V。
+        string[] lines =
+        [
+            "294期（平2-2-D2+正3）=杀39尾√",
+            "295期（平2-2-D2+正3）=杀30尾V",
+            "306期（平2-2-D2+正3）=杀31尾√",
+            "307期（平2-2-D2+正3）=杀48尾√",
+            "308期（平2-2-D2+正3）=杀50尾V"
+        ];
+        OcrRule rule = Assert.Single(Rules, rule => rule.Id == "公式杀两尾尾");
+        Assert.Equal("5尾+0尾", RuleEngine.ExtractFinalValue(lines, 308, rule));
+        Assert.Equal("3尾+0尾", RuleEngine.ExtractFinalValue(lines, 295, rule));
+        // 别的期号不能被读成这一期的值。
+        Assert.Equal("3尾+1尾", RuleEngine.ExtractFinalValue(lines, 306, rule));
+        Assert.Equal("4尾+8尾", RuleEngine.ExtractFinalValue(lines, 307, rule));
     }
 
     [Fact]

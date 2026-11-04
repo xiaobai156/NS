@@ -111,6 +111,7 @@
     { "keyword": "亮剑团队", "type": "九肖", "label": "亮剑九肖", "ignoreIssue": true },
     { "keyword": "四季生肖", "type": "四季", "label": "白小姐四季" },
     { "keyword": "九肖来钱", "type": "九肖", "label": "白小姐来钱", "allow_opening_row": true },
-    { "keyword": "慈善网『四季生肖』付费版", "type": "四季", "label": "慈善四季" }
+    { "keyword": "慈善网『四季生肖』付费版", "type": "四季", "label": "慈善四季" },
+    { "keyword": "神算子", "type": "号码:4", "label": "神算子四码", "required_keyword": "无错45码", "extractor": "missing_numbers_from_49" }
   ]
 }

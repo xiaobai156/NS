@@ -287,7 +287,7 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "新澳六合彩资料.json"));
 
-        Assert.Equal(109, rules.Count);
+        Assert.Equal(110, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
         // v1.5.189 新增、现已撤回的 15 条资料：Id 一旦回流就报错。
         string[] removed =
@@ -407,7 +407,7 @@ public sealed class RuleCatalogTests
             "曾道人小杀肖", "心水杀肖肖肖", "聚彩堂一肖", "聚彩堂一尾", "姨妈肖杀", "姨妈尾杀",
             "彩虹半波", "超级赢家半波波", "黄大仙半波", "王不王一头", "神算子避头", "财神一头",
             "近期开奖员", "毛老二", "通天九九肖", "大赢家九肖", "亮剑九肖",
-            "白小姐四季", "白小姐来钱", "慈善四季"
+            "白小姐四季", "白小姐来钱", "慈善四季", "神算子四码"
         ], rules.Select(rule => rule.Id));
     }
 

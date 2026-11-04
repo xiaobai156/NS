@@ -1167,6 +1167,15 @@
       "CropBottomWidthRatio": 0.62,
       "FingerprintTopWidthRatio": null,
       "FingerprintBottomWidthRatio": null
+    },
+    {
+      "Id": "神算子四码",
+      "RuleIds": ["神算子四码"],
+      "Fingerprint": "FBC779F5677FD7AFFFC77FAFBFFFDFDFFFF76FFEBABFEFFFB60201BFFA6FDFFFB60001FFBEAFFFFFBB000BBFDAAEDFFFF300077EF6FDEFFEFB23352EE0F66A9FFB2335606B36629FE1B331766336721EE46335622936639FF52AB576AB16221FF72B9551B936638FF763B555A132720FF663355673B2628EF2E2B55662726ACF",
+      "CropTopWidthRatio": 0.1125,
+      "CropBottomWidthRatio": 0.2125,
+      "FingerprintTopWidthRatio": 0.1125,
+      "FingerprintBottomWidthRatio": 0.2125
     }
   ],
   "FingerprintTopWidthRatio": null,

@@ -1193,6 +1193,7 @@ public static class RuleEngine
         "jieshao_nine_zodiacs",
         "rui_er_team_card",
         "missing_wave_balls",
+        "missing_numbers_from_49",
     };
 
     private static bool TryExtractOwnCard(
@@ -1205,6 +1206,14 @@ public static class RuleEngine
         {
             case "missing_wave_balls":
                 // Pure text cannot prove the colours of the two printed balls.
+                return true;
+
+            case "missing_numbers_from_49":
+                // 「神算子【无错45码】」：印出 45 个，没印出来的那几个才是值。
+                if (requireCloudKeyword
+                    && !ContainsKeyword(Normalize(string.Concat(lines)), Normalize(rule.Keyword)))
+                    return true;
+                value = ExtractMissingNumbersFromFortyNine(lines, issue, rule);
                 return true;
 
             case "perfect_two_zodiac":
@@ -2320,7 +2329,110 @@ public static class RuleEngine
         return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
     }
 
-    // 黑色六合彩「黑客半波」：六种半波里印出五种，反推缺的那一种。
+    // 新澳六合彩资料「神算子【无错45码】付费版」：每期印出 45 个号码，没印出来的
+    // 那几个才是要的值，所以取的是 49 减去这一期号码后的补集。这张卡是「期号 +
+    // 一大片号码」的多期表，期号格竖排居中于自己那段号码之间（308期 上下各有
+    // 两、三行号码），且段与段之间没有空行或表格线，只能靠号码本身判边界：
+    // 每段号码从 01 排到 49，向上走时新行的最大号必须比已收的最小数更小，
+    // 向下走时新行的最小号必须比已收的最大数更大，越界就说明进了邻期。
+    private static string? ExtractMissingNumbersFromFortyNine(string[] lines, int issue, OcrRule rule)
+    {
+        if (!rule.Type.StartsWith("号码:", StringComparison.Ordinal)
+            || !int.TryParse(rule.Type.AsSpan("号码:".Length), out int missing)
+            || missing is < 1 or > 48)
+            return null;
+        int listed = 49 - missing;
+        string[] normalized = lines.Select(SimplifyOcrText).ToArray();
+        int anchor = Array.FindIndex(normalized, line => IsBareIssueLine(line, issue));
+        if (anchor < 0)
+            return null;
+
+        var seen = new HashSet<int>();
+        for (int index = anchor - 1; index >= 0 && seen.Count < listed; index--)
+        {
+            if (!TryParsePrintedNumberRow(normalized[index], out IReadOnlyList<int> row))
+                break;
+            // 上一段的行比本段已收的最小数更大：跨段了，停。
+            if (row[^1] >= (seen.Count == 0 ? 50 : seen.Min()))
+                break;
+            foreach (int number in row)
+                seen.Add(number);
+        }
+        for (int index = anchor + 1; index < normalized.Length && seen.Count < listed; index++)
+        {
+            string line = normalized[index];
+            if (TryParsePrintedNumberRow(line, out IReadOnlyList<int> row))
+            {
+                // 「3637 38 39 4041 42」这类粘连行也算号码行，不能当成别的期号行跳过。
+                if (seen.Count > 0 && row[0] <= seen.Max())
+                    break;
+                foreach (int number in row)
+                    seen.Add(number);
+                continue;
+            }
+            if (IsAnyBareIssueLine(line))
+                break;
+            // 开奖格（「开??」「牛42中」）夹在号码行之间，跨过去继续收本期。
+            if (IsOpeningOrResultLine(line))
+                continue;
+            break;
+        }
+        if (seen.Count != listed)
+            return null;
+        int[] complement = Enumerable.Range(1, 49).Where(number => !seen.Contains(number)).ToArray();
+        if (complement.Length != missing)
+            return null;
+        return string.Join(' ', complement.Select(number => number.ToString("00")));
+    }
+
+    // 一行只由号码和分隔符组成才算号码行；OCR 会把相邻两个号码粘成一段四位
+    // （「3637 38 39 4041 42」），只有拆成每两位都合法才接受。
+    private static bool TryParsePrintedNumberRow(string line, out IReadOnlyList<int> numbers)
+    {
+        numbers = [];
+        string text = line.Trim();
+        if (text.Length == 0 || Regex.IsMatch(text, @"[^\d\s,，.。]+"))
+            return false;
+        var parsed = new List<int>();
+        foreach (Match run in Regex.Matches(text, @"\d+"))
+        {
+            string value = run.Value;
+            if (value.Length is not (1 or 2 or 4))
+                return false;
+            for (int offset = 0; offset < value.Length; offset += 2)
+            {
+                string pair = value.Length == 1 ? value : value.Substring(offset, 2);
+                if (!int.TryParse(pair, out int number) || number is < 1 or > 49)
+                    return false;
+                parsed.Add(number);
+            }
+        }
+        if (parsed.Count == 0)
+            return false;
+        numbers = parsed;
+        return true;
+    }
+
+    // 期号格单独成行（「308期」），不带开奖结果或状态文字。
+    private static bool IsBareIssueLine(string line, int issue) =>
+        IsAnyBareIssueLine(line)
+        && int.TryParse(Regex.Match(line, @"\d{3,6}").Value, out int printed)
+        && printed == issue;
+
+    private static bool IsAnyBareIssueLine(string line) =>
+        Regex.IsMatch(line.Trim(), @"^[【\[（(]?\s*\d{3,6}\s*期\s*[】\]）)]?$");
+
+    // 开奖占位与开奖结果（「开??」「牛42中」「龍15中」）不是本期号码，但也不能
+    // 当成段边界：这张卡把它们排在期号行正下方、号码行之间。
+    private static bool IsOpeningOrResultLine(string line)
+    {
+        string text = line.Trim();
+        return text.Length > 0
+            && Regex.IsMatch(text, @"开|[中錯错]|[?？]")
+            && !TryParsePrintedNumberRow(text, out _);
+    }
+
+
     // 卡面的方括号被期号格切成两半（「数据半波【红波单红波双蓝波双」/ 期号 /
     // 「绿波单绿波双】」），所以合并本期块两侧的文字再统一识别。
     private static string? ExtractSplitHalfWaves(string[] lines, int issue, OcrRule rule)
@@ -4816,6 +4928,10 @@ public static class RuleEngine
         // the shared integrity checker instead of being flattened into a
         // digit soup that can add two incomplete containers into one value.
         string rawContainerBlock = block;
+        // 行尾的对勾「√」有时被 OCR 读成拉丁字母 V（小写 v 也见过）：它不是字段内容，
+        // 按装饰符去掉，否则「=杀50尾V」会多出一个字母而整行判缺失。别的字母（X 等）
+        // 仍按「读串」处理，不能被这里放过。
+        block = Regex.Replace(block, @"[Vv]+\s*$", string.Empty);
         // Decorations are separators, not values. Keep unknown letters and
         // digits so malformed OCR cannot silently become a successful result.
         block = Regex.Replace(block, @"[^\p{L}\p{N}\s]", " ").Trim();

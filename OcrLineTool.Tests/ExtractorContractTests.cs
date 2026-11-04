@@ -49,6 +49,7 @@ public sealed class ExtractorContractTests
         ["蕊儿尾"] = "rui_er_team_card",
         ["梓涵合"] = "rui_er_team_card",
         ["梓涵半头"] = "rui_er_team_card",
+        ["神算子四码"] = "missing_numbers_from_49",
     };
 
     // 代码里 switch 认得的全部取值。加分支时同步这里。
@@ -74,6 +75,7 @@ public sealed class ExtractorContractTests
         "author_forbidden_zodiac",
         "jieshao_nine_zodiacs",
         "rui_er_team_card",
+        "missing_numbers_from_49",
     };
 
     [Fact]
