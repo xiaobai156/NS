@@ -74,7 +74,7 @@ public sealed class ResultDistributorTests
             ["半波分发规则.json"] = ["岁月漫长", "雁塔题名半波", "华林半波", "欧阳半波", "玉亚半波", "东哥半波"],
             ["五行分发规则.json"] = ["小黄人五行"],
             ["段分发规则.json"] = ["电竞达人", "末日降临"],
-            ["杀五码分发规则.json"] = ["长安之星", "潮汕陈龙杀三码", "Alice两码", "爱晚亭", "白少华五码"]
+            ["杀五码分发规则.json"] = ["长安之星", "潮汕陈龙杀三码", "Alice两码", "爱晚亭", "白少华五码", "榴莲上跳舞"]
         };
 
         foreach ((string configName, string[] labels) in expected)

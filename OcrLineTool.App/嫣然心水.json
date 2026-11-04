@@ -762,5 +762,7 @@
     { "keyword": "至尊分享杀半波地摊料", "type": "色单双", "label": "东哥半波", "required_keyword": "至尊分享杀半波", "folder": "东哥" }
 ,
     { "keyword": "送钱宝宝镇坛九肖", "type": "九肖", "label": "送钱宝宝", "required_keyword": "送钱宝宝", "allow_folder_identity": true, "folder": "送钱宝宝", "require_folder_name": true }
+,
+    { "keyword": "榴莲上跳舞", "type": "号码:4", "required_keyword": "榴莲上跳舞", "folder": "天机阁杀料" }
   ]
 }

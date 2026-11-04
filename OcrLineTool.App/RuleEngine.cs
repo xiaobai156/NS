@@ -6578,9 +6578,7 @@ public static class RuleEngine
 
         // No own identity on this line: keep the legacy scoping used by
         // reviewed issue rows and continuation lines.
-        text = Regex.Replace(text,
-            @"(?<!\d)\d{1,2}\s*(?:个(?:中特码|特码)?|個(?:码中特碼|特碼)?|码|碼|计|計)",
-            " ");
+        text = StripPrintedCardinality(text);
 
         MatchCollection bracketPayloads = Regex.Matches(text,
             @"[【\[](?<payload>[^】\]]+)[】\]]");
@@ -6631,10 +6629,25 @@ public static class RuleEngine
     private static string ScopedContinuationPayload(string line, OcrRule rule)
     {
         string text = BeforeOpeningResult(SimplifyOcrText(RemoveIssue(line)));
-        text = Regex.Replace(text,
+        return StripPrintedCardinality(text);
+    }
+
+    // Cards print how many numbers a cell holds in several shapes: “(4码)”,
+    // “（4碼）”, “4码”, “36计”. That count is layout metadata, never a payload
+    // number, but it sits inside the value field on some cards
+    // (“30,29,33,36,(4码)开15 对”) and then inflates the count so the rule
+    // silently reports a missing value. Every scoper funnels through this one
+    // method on purpose: when the stripping lived in three places the identity
+    // -bounded field missed it, and an edit in one copy looked harmless while
+    // quietly turning the rule back into “always missing”. ParseNumbers keeps
+    // its own final safety net for the joined payload.
+    private static string StripPrintedCardinality(string text)
+    {
+        string bracketed = Regex.Replace(text,
+            @"[（(]\s*\d{1,2}\s*(?:个|個|码|碼|计|計)\s*[）)]", " ");
+        return Regex.Replace(bracketed,
             @"(?<!\d)\d{1,2}\s*(?:个(?:中特码|特码)?|個(?:码中特碼|特碼)?|码|碼|计|計)",
             " ");
-        return text;
     }
 
     // Returns the bounded raw field for lines that carry this rule's own
@@ -6728,7 +6741,9 @@ public static class RuleEngine
 
         string field = text[rawNext..];
         int marker = EarliestForeignMarker(field);
-        return (true, marker < 0 ? field : field[..marker]);
+        if (marker >= 0)
+            field = field[..marker];
+        return (true, StripPrintedCardinality(field));
     }
 
     private static int EarliestForeignMarker(string text)
