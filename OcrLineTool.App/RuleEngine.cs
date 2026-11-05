@@ -3337,6 +3337,12 @@ public static class RuleEngine
             return values.Count > 1 ? RuleExtractionResult.Conflict
                 : values.Count == 1 ? RuleExtractionResult.Success(values.Single()) : RuleExtractionResult.Missing;
         }
+        // Use the original boxes: partitioning joins the centred issue cell
+        // to numbers and separates the rest of this multi-line table.
+        if (rule.Extractor == "missing_numbers_from_49"
+            && (evidence.TokenItems ?? evidence.Items).Any(item => item.Box is not null))
+            return ExtractFixedWrappedTableRows(evidence, issue, rule) ?? RuleExtractionResult.Missing;
+
         // 唐朝杀头属于嫣然六合彩大全，不在这里；它的期号上方取值走 ExtractFinalResult
         // 里的 FindTangChaoHeadValueLine，不要再往这个新澳六合彩资料的分支里塞。
         if (rule.StrictIssueBlock && rule.Id is ("买什么杀十码" or "老码头杀七码")
@@ -3820,6 +3826,7 @@ public static class RuleEngine
 
     private static RuleExtractionResult? ExtractFixedWrappedTableRows(OcrEvidence evidence, int issue, OcrRule rule)
     {
+        bool complement = rule.Extractor == "missing_numbers_from_49";
         var observed = new HashSet<string>(rule.Type.StartsWith("号码:", StringComparison.Ordinal)
             ? ResultValues.NumberSetComparer : StringComparer.Ordinal);
         bool applies = false;
@@ -3836,7 +3843,8 @@ public static class RuleEngine
             if (selected.Length == 0)
                 continue;
             applies = true;
-            foreach (var inline in items.Where(item => ContainsIssue(item.Text, issue) && !anchors.Contains(item)))
+            foreach (var inline in items.Where(item => !complement
+                && ContainsIssue(item.Text, issue) && !anchors.Contains(item)))
             {
                 RuleExtractionResult result = ExtractFinalResult([inline.Text], issue, rule);
                 if (result.Status == RuleExtractionStatus.Conflict)
@@ -3848,6 +3856,9 @@ public static class RuleEngine
             {
                 int index = Array.IndexOf(anchors, anchor);
                 if (anchors.Length < 2)
+                    continue;
+                if (complement && ((index > 0 && !AdjacentIssue(anchors[index - 1], anchor))
+                    || (index + 1 < anchors.Length && !AdjacentIssue(anchor, anchors[index + 1]))))
                     continue;
                 double center = anchor.Box!.CenterY;
                 double top = index > 0 ? (anchors[index - 1].Box!.CenterY + center) / 2
@@ -3865,11 +3876,15 @@ public static class RuleEngine
                     continue;
                 var cell = items.Where(item => item.Box!.X >= anchor.Box.Right
                     && item.Box.Right <= opening.Box!.X
-                    && item.Box.CenterY > top && item.Box.CenterY < bottom).ToArray();
+                    && (complement ? item.Box.Bottom > top && item.Box.Y < bottom
+                        : item.Box.CenterY > top && item.Box.CenterY < bottom)).ToArray();
+                if (complement && cell.Any(item => item.Box!.Y <= top || item.Box.Bottom >= bottom))
+                    continue;
                 string field = string.Join("\n", BuildRowMajorReading(cell));
                 if (field.Contains(OcrLayoutMarkers.RegionBoundary, StringComparison.Ordinal))
                     continue;
-                string? value = ExtractStrictTableValue(SimplifyFixedCardText(field), rule);
+                string? value = complement ? MissingNumbersFromCompleteCell(field, rule)
+                    : ExtractStrictTableValue(SimplifyFixedCardText(field), rule);
                 if (value == ConflictMarker)
                     return RuleExtractionResult.Conflict;
                 if (value is not null)
@@ -3880,6 +3895,24 @@ public static class RuleEngine
             return null;
         return observed.Count > 1 ? RuleExtractionResult.Conflict
             : observed.Count == 1 ? RuleExtractionResult.Success(observed.Single()) : RuleExtractionResult.Missing;
+
+        static bool AdjacentIssue(OcrLineEvidence first, OcrLineEvidence second) =>
+            Math.Abs(int.Parse(Regex.Match(first.Text, @"\d+").Value)
+                - int.Parse(Regex.Match(second.Text, @"\d+").Value)) == 1;
+    }
+
+    private static string? MissingNumbersFromCompleteCell(string field, OcrRule rule)
+    {
+        if (!rule.Type.StartsWith("号码:", StringComparison.Ordinal)
+            || !int.TryParse(rule.Type.AsSpan("号码:".Length), out int missing)
+            || missing is < 1 or > 48
+            || Regex.IsMatch(field, @"[^0-9\s,，.。]"))
+            return null;
+        string[]? numbers = ParseNumbers(field);
+        if (FormatNumbers(numbers, 49 - missing) is null)
+            return null;
+        return string.Join(' ', Enumerable.Range(1, 49).Select(number => number.ToString("00"))
+            .Except(numbers!));
     }
 
     private static string? ExtractRedDragonflyWaves(IEnumerable<string> lines, int issue)

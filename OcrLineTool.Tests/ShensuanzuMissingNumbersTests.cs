@@ -1,5 +1,7 @@
 using System.IO;
 using System.Linq;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using OcrLineTool;
 using Xunit;
 
@@ -88,6 +90,119 @@ public sealed class ShensuanzuMissingNumbersTests
 
         Assert.Equal(RuleExtractionStatus.Success, result.Status);
         Assert.Equal("27 41 44 47", result.Value);
+    }
+
+    private static OcrLineEvidence[] RecordedTokens(string view)
+    {
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(
+            Path.Combine(AppContext.BaseDirectory, "Fixtures", "shensuanzu-309.json")));
+        return document.RootElement.EnumerateArray().Single(item => item.GetProperty("Name").GetString() == view)
+            .GetProperty("Items").EnumerateArray().Select(item =>
+            {
+                int[] box = item.GetProperty("Box").EnumerateArray().Select(value => value.GetInt32()).ToArray();
+                return new OcrLineEvidence(item.GetProperty("Text").GetString()!,
+                    new OcrBox(box[0], box[1], box[2], box[3]), 0.99, view, "main");
+            }).ToArray();
+    }
+
+    private static OcrEvidence Positioned(OcrLineEvidence[] tokens) => new(
+            "source", "input", "source-hash", "input-hash", "paddle",
+            OcrEvidenceLayout.Partition(tokens), tokens);
+
+    [Theory]
+    [InlineData("crop", 309, "14 33 34 36")]
+    [InlineData("crop", 308, "27 41 44 47")]
+    [InlineData("crop", 307, "28 44 47 48")]
+    [InlineData("crop", 306, "01 12 34 39")]
+    [InlineData("original", 309, "14 33 34 36")]
+    [InlineData("original", 308, "27 41 44 47")]
+    [InlineData("original", 307, "28 44 47 48")]
+    [InlineData("original", 306, "01 12 34 39")]
+    public void RecordedCoordinatesSurviveProductionPartitioning(string view, int issue, string expected)
+    {
+        // Exact medium OCR text and boxes from the failing crop and original.
+        RuleExtractionResult result = RuleEngine.ExtractFinalResult(Positioned(RecordedTokens(view)), issue, Rule);
+
+        Assert.Equal(RuleExtractionStatus.Success, result.Status);
+        Assert.Equal(expected, result.Value);
+    }
+
+    [Theory]
+    [InlineData("01 02 03 04 05 06 07 08", false)]
+    [InlineData("01 02 03 04 05 06 07 08 08", false)]
+    [InlineData("01 02 03 04 05 06 07 08 09 09", false)]
+    [InlineData("01 02 03 04 05 06 07 08 09 14", false)]
+    [InlineData("1 02 03 04 05 06 07 08 09", false)]
+    [InlineData("50 02 03 04 05 06 07 08 09", false)]
+    [InlineData("010203040506070809", true)]
+    public void WholeCellRequiresExactlyFortyFiveValidUniquePairs(string firstRow, bool valid)
+    {
+        OcrLineEvidence[] tokens = RecordedTokens("crop");
+        tokens[1] = tokens[1] with { Text = firstRow };
+        Assert.Equal(valid ? "14 33 34 36" : null,
+            RuleEngine.ExtractFinalValue(Positioned(tokens), 309, Rule));
+    }
+
+    [Fact]
+    public void MissingTopRowsCannotBorrowFromFollowingPeriod()
+    {
+        OcrLineEvidence[] tokens = RecordedTokens("crop").Where(item => item.Box!.Y >= 187).ToArray();
+        Assert.Null(RuleEngine.ExtractFinalValue(Positioned(tokens), 309, Rule));
+    }
+
+    [Fact]
+    public void WholeBoxMustStayInsideTheTargetPeriod()
+    {
+        OcrLineEvidence[] tokens = RecordedTokens("crop");
+        // The centre is inside 309, but the box crosses the next period boundary.
+        tokens[8] = tokens[8] with { Box = new OcrBox(138, 325, 96, 35) };
+        Assert.Null(RuleEngine.ExtractFinalValue(Positioned(tokens), 309, Rule));
+    }
+
+    [Fact]
+    public void DifferentViewsAndExplicitRegionsCannotCompleteOneAnother()
+    {
+        OcrLineEvidence[] tokens = RecordedTokens("crop");
+        OcrLineEvidence[] otherView = tokens.Select((item, index) =>
+            index == 8 ? item with { ViewId = "other" } : item).ToArray();
+        OcrLineEvidence[] otherRegion = tokens.Select((item, index) =>
+            index == 8 ? item with { RegionId = "other" } : item).ToArray();
+        Assert.Null(RuleEngine.ExtractFinalValue(Positioned(otherView), 309, Rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(Positioned(otherRegion), 309, Rule));
+    }
+
+    [Fact]
+    public void DifferentCompleteReadingsConflict()
+    {
+        OcrLineEvidence[] tokens = RecordedTokens("crop");
+        OcrLineEvidence[] other = tokens.Select((item, index) => item with
+        {
+            ViewId = "other",
+            Text = index == 2 ? item.Text.Replace("13", "14") : item.Text
+        }).ToArray();
+        Assert.Equal(RuleExtractionStatus.Conflict,
+            RuleEngine.ExtractFinalResult(Positioned([.. tokens, .. other]), 309, Rule).Status);
+    }
+
+    [Theory]
+    [InlineData("309期")]
+    [InlineData("308期")]
+    [InlineData("开??")]
+    public void MissingOwnershipEvidenceStaysMissing(string removed)
+    {
+        OcrLineEvidence[] tokens = RecordedTokens("crop").Where(item => item.Text != removed).ToArray();
+        Assert.Null(RuleEngine.ExtractFinalValue(Positioned(tokens), 309, Rule));
+    }
+
+    [Fact]
+    public void TargetIssueIsDynamic()
+    {
+        OcrLineEvidence[] tokens = RecordedTokens("crop").Select(item => item with
+        {
+            Text = Regex.Replace(item.Text, @"\d{3}(?=期)", match => (int.Parse(match.Value) - 99).ToString())
+        }).ToArray();
+        Assert.Equal("14 33 34 36", RuleEngine.ExtractFinalValue(Positioned(tokens), 210, Rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(Positioned(tokens), 309, Rule));
     }
 
     [Fact]
