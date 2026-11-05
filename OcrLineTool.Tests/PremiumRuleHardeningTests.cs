@@ -217,7 +217,7 @@ public sealed class PremiumRuleHardeningTests
                 // 黑色六合彩、嫣然电报：卡面数据行印在期号格上方，目录默认非严格；
                 // 只有「天宫杀头」这一条按卡面走严格期块。
                 bool explicitNewGroupStrict = Path.GetFileName(path) == "黑色六合彩.json"
-                    && rule.Id is "天宫杀头" or "锦囊杀十码" or "红牛四行" or "黑客四行" or "黑客半波";
+                    && rule.Id is "天宫杀头" or "锦囊杀十码" or "红牛四行" or "黑客四行" or "黑客半波" or "红蜻蜓双波";
                 Assert.Equal(
                     hardenedCatalog && !explicitHuangdaxianNonStrict && !explicitMacauNonStrict
                         || explicitYanranStrict || explicitZhanShaStrict

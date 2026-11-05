@@ -1,0 +1,6330 @@
+[
+  {
+    "fileName": "20261105_144556_a760b29a_82690.jpg",
+    "small": [
+      {
+        "Text": "292期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 6,
+          "Y": 12,
+          "Width": 458,
+          "Height": 50
+        },
+        "Confidence": 0.9936919808387756,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【羊蛇兔鸡猴马狗鼠龙】",
+        "Box": {
+          "X": 480,
+          "Y": 14,
+          "Width": 463,
+          "Height": 48
+        },
+        "Confidence": 0.9968215823173523,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开36准",
+        "Box": {
+          "X": 964,
+          "Y": 12,
+          "Width": 157,
+          "Height": 53
+        },
+        "Confidence": 0.9992085695266724,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "293期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 6,
+          "Y": 83,
+          "Width": 456,
+          "Height": 54
+        },
+        "Confidence": 0.9910091161727905,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛猪蛇兔鸡猴狗鼠虎】",
+        "Box": {
+          "X": 483,
+          "Y": 86,
+          "Width": 460,
+          "Height": 51
+        },
+        "Confidence": 0.9983753561973572,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开05准",
+        "Box": {
+          "X": 964,
+          "Y": 84,
+          "Width": 157,
+          "Height": 54
+        },
+        "Confidence": 0.9996569156646729,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "294期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 6,
+          "Y": 156,
+          "Width": 455,
+          "Height": 54
+        },
+        "Confidence": 0.9922330379486084,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猪羊兔鸡猴狗鼠马龙】",
+        "Box": {
+          "X": 485,
+          "Y": 159,
+          "Width": 458,
+          "Height": 51
+        },
+        "Confidence": 0.9995965361595154,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开28准",
+        "Box": {
+          "X": 964,
+          "Y": 158,
+          "Width": 157,
+          "Height": 53
+        },
+        "Confidence": 0.9994155168533325,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "295期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 5,
+          "Y": 230,
+          "Width": 456,
+          "Height": 53
+        },
+        "Confidence": 0.9921383261680603,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛蛇羊兔鸡猴鼠马龙】",
+        "Box": {
+          "X": 482,
+          "Y": 228,
+          "Width": 463,
+          "Height": 56
+        },
+        "Confidence": 0.9995229244232178,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开25准",
+        "Box": {
+          "X": 964,
+          "Y": 231,
+          "Width": 157,
+          "Height": 53
+        },
+        "Confidence": 0.9995664358139038,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "296期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 6,
+          "Y": 302,
+          "Width": 455,
+          "Height": 54
+        },
+        "Confidence": 0.9899643063545227,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛猪兔鸡猴鼠马虎狗】",
+        "Box": {
+          "X": 485,
+          "Y": 305,
+          "Width": 459,
+          "Height": 51
+        },
+        "Confidence": 0.9995431303977966,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开23准",
+        "Box": {
+          "X": 964,
+          "Y": 304,
+          "Width": 157,
+          "Height": 53
+        },
+        "Confidence": 0.9995306730270386,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "297期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 6,
+          "Y": 374,
+          "Width": 455,
+          "Height": 55
+        },
+        "Confidence": 0.9940839409828186,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛猪兔鸡蛇猴马虎狗】",
+        "Box": {
+          "X": 483,
+          "Y": 377,
+          "Width": 461,
+          "Height": 51
+        },
+        "Confidence": 0.999346911907196,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开13准",
+        "Box": {
+          "X": 963,
+          "Y": 377,
+          "Width": 158,
+          "Height": 53
+        },
+        "Confidence": 0.9996447563171387,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "298期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 6,
+          "Y": 448,
+          "Width": 456,
+          "Height": 53
+        },
+        "Confidence": 0.9916349649429321,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛猪兔鸡羊猴马虎鼠】",
+        "Box": {
+          "X": 482,
+          "Y": 449,
+          "Width": 463,
+          "Height": 53
+        },
+        "Confidence": 0.9995947480201721,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开08准",
+        "Box": {
+          "X": 964,
+          "Y": 449,
+          "Width": 158,
+          "Height": 53
+        },
+        "Confidence": 0.9995118379592896,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "299期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 6,
+          "Y": 523,
+          "Width": 455,
+          "Height": 51
+        },
+        "Confidence": 0.9911178350448608,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛猪兔蛇羊龙猴马虎】",
+        "Box": {
+          "X": 482,
+          "Y": 520,
+          "Width": 463,
+          "Height": 56
+        },
+        "Confidence": 0.9994234442710876,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开23准",
+        "Box": {
+          "X": 964,
+          "Y": 521,
+          "Width": 158,
+          "Height": 53
+        },
+        "Confidence": 0.9992330074310303,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "300期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 5,
+          "Y": 592,
+          "Width": 456,
+          "Height": 56
+        },
+        "Confidence": 0.9930683374404907,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鸡猪兔蛇龙猴狗马虎】",
+        "Box": {
+          "X": 486,
+          "Y": 595,
+          "Width": 460,
+          "Height": 54
+        },
+        "Confidence": 0.9990150332450867,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开38准",
+        "Box": {
+          "X": 964,
+          "Y": 595,
+          "Width": 157,
+          "Height": 53
+        },
+        "Confidence": 0.9995854496955872,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "301期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 4,
+          "Y": 667,
+          "Width": 457,
+          "Height": 53
+        },
+        "Confidence": 0.9930867552757263,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鸡猪兔牛羊鼠猴狗虎】",
+        "Box": {
+          "X": 488,
+          "Y": 667,
+          "Width": 461,
+          "Height": 53
+        },
+        "Confidence": 0.9995883703231812,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开17准",
+        "Box": {
+          "X": 960,
+          "Y": 670,
+          "Width": 160,
+          "Height": 50
+        },
+        "Confidence": 0.9993696808815002,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "302期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 4,
+          "Y": 740,
+          "Width": 457,
+          "Height": 53
+        },
+        "Confidence": 0.9927968382835388,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鸡猪兔蛇羊鼠猴狗马】开45准",
+        "Box": {
+          "X": 487,
+          "Y": 742,
+          "Width": 633,
+          "Height": 51
+        },
+        "Confidence": 0.999474823474884,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "303期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 5,
+          "Y": 815,
+          "Width": 456,
+          "Height": 51
+        },
+        "Confidence": 0.9937105774879456,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猪兔蛇羊虎龙猴狗马】",
+        "Box": {
+          "X": 487,
+          "Y": 813,
+          "Width": 460,
+          "Height": 53
+        },
+        "Confidence": 0.990790605545044,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开17准",
+        "Box": {
+          "X": 962,
+          "Y": 816,
+          "Width": 158,
+          "Height": 50
+        },
+        "Confidence": 0.9992862939834595,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "304期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 4,
+          "Y": 885,
+          "Width": 457,
+          "Height": 55
+        },
+        "Confidence": 0.9940984845161438,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鸡兔蛇羊虎鼠猴狗马】",
+        "Box": {
+          "X": 487,
+          "Y": 888,
+          "Width": 460,
+          "Height": 51
+        },
+        "Confidence": 0.9994558691978455,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开21准",
+        "Box": {
+          "X": 963,
+          "Y": 887,
+          "Width": 158,
+          "Height": 53
+        },
+        "Confidence": 0.9997513890266418,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "305期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 4,
+          "Y": 958,
+          "Width": 458,
+          "Height": 54
+        },
+        "Confidence": 0.992936372756958,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛猪兔蛇羊虎鼠龙马】",
+        "Box": {
+          "X": 483,
+          "Y": 961,
+          "Width": 465,
+          "Height": 51
+        },
+        "Confidence": 0.9994893670082092,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开26准",
+        "Box": {
+          "X": 964,
+          "Y": 962,
+          "Width": 156,
+          "Height": 50
+        },
+        "Confidence": 0.9991886019706726,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "306期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 4,
+          "Y": 1031,
+          "Width": 457,
+          "Height": 54
+        },
+        "Confidence": 0.9924213886260986,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猪兔鸡羊虎狗猴龙马】",
+        "Box": {
+          "X": 485,
+          "Y": 1034,
+          "Width": 462,
+          "Height": 51
+        },
+        "Confidence": 0.9973846673965454,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开15准",
+        "Box": {
+          "X": 962,
+          "Y": 1033,
+          "Width": 158,
+          "Height": 53
+        },
+        "Confidence": 0.9994214177131653,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "307期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 4,
+          "Y": 1104,
+          "Width": 457,
+          "Height": 54
+        },
+        "Confidence": 0.9917927384376526,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猪牛蛇鸡羊虎狗猴马】",
+        "Box": {
+          "X": 487,
+          "Y": 1107,
+          "Width": 460,
+          "Height": 51
+        },
+        "Confidence": 0.9997603893280029,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开42准",
+        "Box": {
+          "X": 963,
+          "Y": 1105,
+          "Width": 158,
+          "Height": 53
+        },
+        "Confidence": 0.9996269345283508,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "308期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 5,
+          "Y": 1179,
+          "Width": 455,
+          "Height": 50
+        },
+        "Confidence": 0.9934396147727966,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猪牛蛇鸡龙虎狗猴马】",
+        "Box": {
+          "X": 486,
+          "Y": 1180,
+          "Width": 461,
+          "Height": 51
+        },
+        "Confidence": 0.9997503161430359,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开46准",
+        "Box": {
+          "X": 963,
+          "Y": 1179,
+          "Width": 158,
+          "Height": 53
+        },
+        "Confidence": 0.9995735883712769,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "309期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 4,
+          "Y": 1251,
+          "Width": 463,
+          "Height": 52
+        },
+        "Confidence": 0.9936937689781189,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猪牛蛇鸡兔龙虎鼠狗】",
+        "Box": {
+          "X": 482,
+          "Y": 1254,
+          "Width": 470,
+          "Height": 48
+        },
+        "Confidence": 0.9997001886367798,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开00准",
+        "Box": {
+          "X": 958,
+          "Y": 1252,
+          "Width": 161,
+          "Height": 50
+        },
+        "Confidence": 0.9993772506713867,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "309期：",
+        "Box": {
+          "X": 6,
+          "Y": 1487,
+          "Width": 165,
+          "Height": 46
+        },
+        "Confidence": 0.9973748326301575,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 173,
+          "Y": 1487,
+          "Width": 334,
+          "Height": 48
+        },
+        "Confidence": 0.9971920251846313,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猴】",
+        "Box": {
+          "X": 531,
+          "Y": 1487,
+          "Width": 88,
+          "Height": 49
+        },
+        "Confidence": 0.9995365142822266,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开00准，铁杀",
+        "Box": {
+          "X": 652,
+          "Y": 1483,
+          "Width": 295,
+          "Height": 54
+        },
+        "Confidence": 0.9993972182273865,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "308期：",
+        "Box": {
+          "X": 5,
+          "Y": 1558,
+          "Width": 162,
+          "Height": 50
+        },
+        "Confidence": 0.9847592115402222,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 178,
+          "Y": 1557,
+          "Width": 331,
+          "Height": 53
+        },
+        "Confidence": 0.99627685546875,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【羊】",
+        "Box": {
+          "X": 527,
+          "Y": 1557,
+          "Width": 97,
+          "Height": 53
+        },
+        "Confidence": 0.9970958828926086,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开46准，铁杀",
+        "Box": {
+          "X": 653,
+          "Y": 1558,
+          "Width": 294,
+          "Height": 52
+        },
+        "Confidence": 0.9996501207351685,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "307期：",
+        "Box": {
+          "X": 5,
+          "Y": 1631,
+          "Width": 161,
+          "Height": 50
+        },
+        "Confidence": 0.9792394638061523,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 178,
+          "Y": 1631,
+          "Width": 331,
+          "Height": 51
+        },
+        "Confidence": 0.9966550469398499,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鼠】",
+        "Box": {
+          "X": 530,
+          "Y": 1632,
+          "Width": 90,
+          "Height": 50
+        },
+        "Confidence": 0.9993105530738831,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开42准，铁杀",
+        "Box": {
+          "X": 654,
+          "Y": 1631,
+          "Width": 292,
+          "Height": 52
+        },
+        "Confidence": 0.9996333122253418,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "306期：",
+        "Box": {
+          "X": 5,
+          "Y": 1704,
+          "Width": 161,
+          "Height": 50
+        },
+        "Confidence": 0.9849129915237427,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 179,
+          "Y": 1702,
+          "Width": 330,
+          "Height": 53
+        },
+        "Confidence": 0.9947282671928406,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛】",
+        "Box": {
+          "X": 526,
+          "Y": 1705,
+          "Width": 96,
+          "Height": 50
+        },
+        "Confidence": 0.9961023330688477,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开15准，铁杀",
+        "Box": {
+          "X": 653,
+          "Y": 1704,
+          "Width": 293,
+          "Height": 52
+        },
+        "Confidence": 0.999639093875885,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "心",
+        "Box": {
+          "X": 1063,
+          "Y": 1713,
+          "Width": 93,
+          "Height": 84
+        },
+        "Confidence": 0.14962618052959442,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "305期：",
+        "Box": {
+          "X": 5,
+          "Y": 1777,
+          "Width": 160,
+          "Height": 50
+        },
+        "Confidence": 0.9847990274429321,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 180,
+          "Y": 1777,
+          "Width": 327,
+          "Height": 51
+        },
+        "Confidence": 0.9966561198234558,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猴】",
+        "Box": {
+          "X": 529,
+          "Y": 1776,
+          "Width": 92,
+          "Height": 54
+        },
+        "Confidence": 0.9996153712272644,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开26准，铁杀",
+        "Box": {
+          "X": 654,
+          "Y": 1777,
+          "Width": 293,
+          "Height": 52
+        },
+        "Confidence": 0.9995338320732117,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "蜓",
+        "Box": {
+          "X": 972,
+          "Y": 1779,
+          "Width": 127,
+          "Height": 139
+        },
+        "Confidence": 0.9628684520721436,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "304期：",
+        "Box": {
+          "X": 5,
+          "Y": 1850,
+          "Width": 160,
+          "Height": 50
+        },
+        "Confidence": 0.9915830492973328,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 181,
+          "Y": 1850,
+          "Width": 327,
+          "Height": 51
+        },
+        "Confidence": 0.9976145029067993,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛】",
+        "Box": {
+          "X": 527,
+          "Y": 1849,
+          "Width": 96,
+          "Height": 53
+        },
+        "Confidence": 0.9975683093070984,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开21准，铁杀",
+        "Box": {
+          "X": 653,
+          "Y": 1850,
+          "Width": 294,
+          "Height": 52
+        },
+        "Confidence": 0.9997291564941406,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "303期：",
+        "Box": {
+          "X": 4,
+          "Y": 1921,
+          "Width": 162,
+          "Height": 52
+        },
+        "Confidence": 0.9855844378471375,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 180,
+          "Y": 1923,
+          "Width": 330,
+          "Height": 51
+        },
+        "Confidence": 0.9971931576728821,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鸡】",
+        "Box": {
+          "X": 529,
+          "Y": 1924,
+          "Width": 93,
+          "Height": 49
+        },
+        "Confidence": 0.9989006519317627,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开17准，铁杀",
+        "Box": {
+          "X": 652,
+          "Y": 1921,
+          "Width": 294,
+          "Height": 54
+        },
+        "Confidence": 0.9996482133865356,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "302期：",
+        "Box": {
+          "X": 5,
+          "Y": 1996,
+          "Width": 161,
+          "Height": 50
+        },
+        "Confidence": 0.9918529391288757,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 180,
+          "Y": 1996,
+          "Width": 328,
+          "Height": 51
+        },
+        "Confidence": 0.9977320432662964,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【龙】",
+        "Box": {
+          "X": 530,
+          "Y": 1996,
+          "Width": 90,
+          "Height": 50
+        },
+        "Confidence": 0.9989068508148193,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开45准，铁杀",
+        "Box": {
+          "X": 653,
+          "Y": 1996,
+          "Width": 294,
+          "Height": 52
+        },
+        "Confidence": 0.9995735883712769,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "301期：",
+        "Box": {
+          "X": 4,
+          "Y": 2067,
+          "Width": 164,
+          "Height": 53
+        },
+        "Confidence": 0.9679648280143738,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 179,
+          "Y": 2067,
+          "Width": 330,
+          "Height": 53
+        },
+        "Confidence": 0.9937359094619751,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【龙】",
+        "Box": {
+          "X": 529,
+          "Y": 2068,
+          "Width": 94,
+          "Height": 53
+        },
+        "Confidence": 0.9985440373420715,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开17准，铁杀",
+        "Box": {
+          "X": 653,
+          "Y": 2068,
+          "Width": 294,
+          "Height": 52
+        },
+        "Confidence": 0.9996287226676941,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "300期：",
+        "Box": {
+          "X": 5,
+          "Y": 2141,
+          "Width": 162,
+          "Height": 50
+        },
+        "Confidence": 0.9903281927108765,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 178,
+          "Y": 2142,
+          "Width": 331,
+          "Height": 51
+        },
+        "Confidence": 0.9974137544631958,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【羊】",
+        "Box": {
+          "X": 527,
+          "Y": 2141,
+          "Width": 94,
+          "Height": 50
+        },
+        "Confidence": 0.9983176589012146,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开38准，铁杀",
+        "Box": {
+          "X": 653,
+          "Y": 2142,
+          "Width": 293,
+          "Height": 51
+        },
+        "Confidence": 0.9996563792228699,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "299期：",
+        "Box": {
+          "X": 6,
+          "Y": 2214,
+          "Width": 164,
+          "Height": 49
+        },
+        "Confidence": 0.9824771881103516,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 177,
+          "Y": 2212,
+          "Width": 332,
+          "Height": 53
+        },
+        "Confidence": 0.9975404739379883,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【狗】",
+        "Box": {
+          "X": 526,
+          "Y": 2213,
+          "Width": 97,
+          "Height": 53
+        },
+        "Confidence": 0.998898983001709,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开23准，铁杀",
+        "Box": {
+          "X": 653,
+          "Y": 2213,
+          "Width": 294,
+          "Height": 52
+        },
+        "Confidence": 0.999674916267395,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "298期：",
+        "Box": {
+          "X": 6,
+          "Y": 2287,
+          "Width": 160,
+          "Height": 50
+        },
+        "Confidence": 0.9774220585823059,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 178,
+          "Y": 2285,
+          "Width": 330,
+          "Height": 51
+        },
+        "Confidence": 0.9972208738327026,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【龙】",
+        "Box": {
+          "X": 526,
+          "Y": 2287,
+          "Width": 94,
+          "Height": 50
+        },
+        "Confidence": 0.9984973073005676,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开08准，铁杀",
+        "Box": {
+          "X": 653,
+          "Y": 2287,
+          "Width": 294,
+          "Height": 51
+        },
+        "Confidence": 0.999555230140686,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "297期：",
+        "Box": {
+          "X": 6,
+          "Y": 2359,
+          "Width": 160,
+          "Height": 50
+        },
+        "Confidence": 0.9622285962104797,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 180,
+          "Y": 2360,
+          "Width": 329,
+          "Height": 51
+        },
+        "Confidence": 0.9977437853813171,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鼠】",
+        "Box": {
+          "X": 521,
+          "Y": 2359,
+          "Width": 99,
+          "Height": 53
+        },
+        "Confidence": 0.9995895028114319,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开13准，铁杀",
+        "Box": {
+          "X": 654,
+          "Y": 2359,
+          "Width": 293,
+          "Height": 52
+        },
+        "Confidence": 0.999676525592804,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "296期：",
+        "Box": {
+          "X": 6,
+          "Y": 2431,
+          "Width": 161,
+          "Height": 52
+        },
+        "Confidence": 0.9853647947311401,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 179,
+          "Y": 2433,
+          "Width": 329,
+          "Height": 48
+        },
+        "Confidence": 0.9956032633781433,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【蛇】",
+        "Box": {
+          "X": 525,
+          "Y": 2433,
+          "Width": 95,
+          "Height": 49
+        },
+        "Confidence": 0.9990422129631042,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开23准，铁杀",
+        "Box": {
+          "X": 653,
+          "Y": 2432,
+          "Width": 294,
+          "Height": 52
+        },
+        "Confidence": 0.9996968507766724,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "295期：",
+        "Box": {
+          "X": 6,
+          "Y": 2506,
+          "Width": 163,
+          "Height": 49
+        },
+        "Confidence": 0.9824358224868774,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 175,
+          "Y": 2502,
+          "Width": 335,
+          "Height": 55
+        },
+        "Confidence": 0.9976609349250793,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【虎】",
+        "Box": {
+          "X": 525,
+          "Y": 2504,
+          "Width": 95,
+          "Height": 53
+        },
+        "Confidence": 0.9992639422416687,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开25准，铁杀",
+        "Box": {
+          "X": 651,
+          "Y": 2502,
+          "Width": 297,
+          "Height": 57
+        },
+        "Confidence": 0.9997411370277405,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      }
+    ],
+    "medium": [
+      {
+        "Text": "292期红蜻蜓必中⑨肖【羊蛇兔鸡猴马狗鼠龙】开36准",
+        "Box": {
+          "X": 7,
+          "Y": 14,
+          "Width": 1111,
+          "Height": 47
+        },
+        "Confidence": 0.9983116388320923,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "293期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 6,
+          "Y": 87,
+          "Width": 455,
+          "Height": 47
+        },
+        "Confidence": 0.995745837688446,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛猪蛇兔鸡猴狗鼠虎】开05准",
+        "Box": {
+          "X": 485,
+          "Y": 87,
+          "Width": 633,
+          "Height": 47
+        },
+        "Confidence": 0.9996517896652222,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "294期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 5,
+          "Y": 158,
+          "Width": 455,
+          "Height": 50
+        },
+        "Confidence": 0.9978539943695068,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猪羊兔鸡猴狗鼠马龙】开28准",
+        "Box": {
+          "X": 487,
+          "Y": 160,
+          "Width": 631,
+          "Height": 47
+        },
+        "Confidence": 0.9995944499969482,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "295期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 5,
+          "Y": 231,
+          "Width": 455,
+          "Height": 50
+        },
+        "Confidence": 0.9976842403411865,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛蛇羊兔鸡猴鼠马龙】开25准",
+        "Box": {
+          "X": 484,
+          "Y": 232,
+          "Width": 635,
+          "Height": 50
+        },
+        "Confidence": 0.9999487400054932,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "296期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 6,
+          "Y": 306,
+          "Width": 454,
+          "Height": 47
+        },
+        "Confidence": 0.996478259563446,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛猪兔鸡猴鼠马虎狗】开23准",
+        "Box": {
+          "X": 484,
+          "Y": 305,
+          "Width": 635,
+          "Height": 50
+        },
+        "Confidence": 0.999908447265625,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "297期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 6,
+          "Y": 379,
+          "Width": 454,
+          "Height": 47
+        },
+        "Confidence": 0.9965560436248779,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛猪兔鸡蛇猴马虎狗】开13准",
+        "Box": {
+          "X": 485,
+          "Y": 378,
+          "Width": 635,
+          "Height": 50
+        },
+        "Confidence": 0.979956328868866,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "W",
+        "Box": {
+          "X": 1134,
+          "Y": 389,
+          "Width": 110,
+          "Height": 102
+        },
+        "Confidence": 0.3014286756515503,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "298期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 7,
+          "Y": 452,
+          "Width": 454,
+          "Height": 47
+        },
+        "Confidence": 0.9979715943336487,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛猪兔鸡羊猴马虎鼠】开08准",
+        "Box": {
+          "X": 484,
+          "Y": 450,
+          "Width": 636,
+          "Height": 50
+        },
+        "Confidence": 0.9998762607574463,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "299期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 6,
+          "Y": 525,
+          "Width": 455,
+          "Height": 47
+        },
+        "Confidence": 0.9959935545921326,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛猪兔蛇羊龙猴马虎】开23准",
+        "Box": {
+          "X": 485,
+          "Y": 525,
+          "Width": 635,
+          "Height": 47
+        },
+        "Confidence": 0.9997158646583557,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "300期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 6,
+          "Y": 597,
+          "Width": 452,
+          "Height": 47
+        },
+        "Confidence": 0.9969884753227234,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鸡猪兔蛇龙猴狗马虎】开38准",
+        "Box": {
+          "X": 487,
+          "Y": 598,
+          "Width": 631,
+          "Height": 47
+        },
+        "Confidence": 0.9997243285179138,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "301期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 6,
+          "Y": 671,
+          "Width": 454,
+          "Height": 47
+        },
+        "Confidence": 0.9937446713447571,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鸡猪兔牛羊鼠猴狗虎】开17准",
+        "Box": {
+          "X": 488,
+          "Y": 671,
+          "Width": 630,
+          "Height": 47
+        },
+        "Confidence": 0.9997578859329224,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "302期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 6,
+          "Y": 744,
+          "Width": 453,
+          "Height": 47
+        },
+        "Confidence": 0.9972436428070068,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鸡猪兔蛇羊鼠猴狗马】开45准",
+        "Box": {
+          "X": 488,
+          "Y": 744,
+          "Width": 630,
+          "Height": 47
+        },
+        "Confidence": 0.9996759295463562,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "303期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 6,
+          "Y": 817,
+          "Width": 453,
+          "Height": 47
+        },
+        "Confidence": 0.9951345324516296,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猪兔蛇羊虎龙猴狗马】开17准",
+        "Box": {
+          "X": 489,
+          "Y": 817,
+          "Width": 629,
+          "Height": 47
+        },
+        "Confidence": 0.999599277973175,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "304期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 6,
+          "Y": 890,
+          "Width": 453,
+          "Height": 47
+        },
+        "Confidence": 0.996015727519989,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鸡兔蛇羊虎鼠猴狗马】开21准",
+        "Box": {
+          "X": 487,
+          "Y": 890,
+          "Width": 631,
+          "Height": 47
+        },
+        "Confidence": 0.999709963798523,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "305期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 6,
+          "Y": 963,
+          "Width": 454,
+          "Height": 47
+        },
+        "Confidence": 0.9967111349105835,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛猪兔蛇羊虎鼠龙马】开26准",
+        "Box": {
+          "X": 484,
+          "Y": 961,
+          "Width": 635,
+          "Height": 50
+        },
+        "Confidence": 0.9998542070388794,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "306期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 5,
+          "Y": 1033,
+          "Width": 454,
+          "Height": 50
+        },
+        "Confidence": 0.9979280829429626,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猪兔鸡羊虎狗猴龙马】开15准",
+        "Box": {
+          "X": 487,
+          "Y": 1035,
+          "Width": 631,
+          "Height": 47
+        },
+        "Confidence": 0.9996903538703918,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "307期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 5,
+          "Y": 1107,
+          "Width": 454,
+          "Height": 49
+        },
+        "Confidence": 0.997501790523529,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猪牛蛇鸡羊虎狗猴马】开42准",
+        "Box": {
+          "X": 488,
+          "Y": 1108,
+          "Width": 630,
+          "Height": 47
+        },
+        "Confidence": 0.9998103976249695,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "308期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 5,
+          "Y": 1180,
+          "Width": 455,
+          "Height": 49
+        },
+        "Confidence": 0.997768759727478,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猪牛蛇鸡龙虎狗猴马】开46准",
+        "Box": {
+          "X": 486,
+          "Y": 1180,
+          "Width": 632,
+          "Height": 49
+        },
+        "Confidence": 0.9996344447135925,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "309期红蜻蜓必中⑨肖",
+        "Box": {
+          "X": 7,
+          "Y": 1253,
+          "Width": 454,
+          "Height": 47
+        },
+        "Confidence": 0.997209906578064,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猪牛蛇鸡兔龙虎鼠狗】开00准",
+        "Box": {
+          "X": 485,
+          "Y": 1254,
+          "Width": 632,
+          "Height": 47
+        },
+        "Confidence": 0.9993177652359009,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "309期：红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 6,
+          "Y": 1487,
+          "Width": 501,
+          "Height": 47
+        },
+        "Confidence": 0.9988169074058533,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猴】开00准，铁杀",
+        "Box": {
+          "X": 527,
+          "Y": 1484,
+          "Width": 419,
+          "Height": 51
+        },
+        "Confidence": 0.9997736215591431,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "308期：红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 6,
+          "Y": 1560,
+          "Width": 502,
+          "Height": 47
+        },
+        "Confidence": 0.9990398287773132,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【羊】",
+        "Box": {
+          "X": 528,
+          "Y": 1560,
+          "Width": 109,
+          "Height": 48
+        },
+        "Confidence": 0.9993972182273865,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开46准，铁杀",
+        "Box": {
+          "X": 617,
+          "Y": 1560,
+          "Width": 328,
+          "Height": 48
+        },
+        "Confidence": 0.9995600581169128,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "W",
+        "Box": {
+          "X": 1128,
+          "Y": 1602,
+          "Width": 116,
+          "Height": 106
+        },
+        "Confidence": 0.8715472221374512,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "307期：红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 6,
+          "Y": 1633,
+          "Width": 501,
+          "Height": 47
+        },
+        "Confidence": 0.9991366863250732,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鼠】",
+        "Box": {
+          "X": 532,
+          "Y": 1632,
+          "Width": 93,
+          "Height": 49
+        },
+        "Confidence": 0.9996304512023926,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开42准，铁杀",
+        "Box": {
+          "X": 652,
+          "Y": 1633,
+          "Width": 294,
+          "Height": 48
+        },
+        "Confidence": 0.9998928308486938,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "306期：红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 6,
+          "Y": 1706,
+          "Width": 502,
+          "Height": 48
+        },
+        "Confidence": 0.999382495880127,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛】",
+        "Box": {
+          "X": 529,
+          "Y": 1706,
+          "Width": 100,
+          "Height": 48
+        },
+        "Confidence": 0.9998311996459961,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开15准，铁杀",
+        "Box": {
+          "X": 649,
+          "Y": 1704,
+          "Width": 298,
+          "Height": 51
+        },
+        "Confidence": 0.999860405921936,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "305期：红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 6,
+          "Y": 1779,
+          "Width": 501,
+          "Height": 48
+        },
+        "Confidence": 0.9993169903755188,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猴】",
+        "Box": {
+          "X": 531,
+          "Y": 1776,
+          "Width": 94,
+          "Height": 53
+        },
+        "Confidence": 0.9995104670524597,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开26准，铁杀",
+        "Box": {
+          "X": 651,
+          "Y": 1777,
+          "Width": 295,
+          "Height": 51
+        },
+        "Confidence": 0.9998032450675964,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "304期：红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 6,
+          "Y": 1852,
+          "Width": 502,
+          "Height": 47
+        },
+        "Confidence": 0.9992198348045349,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛】",
+        "Box": {
+          "X": 528,
+          "Y": 1852,
+          "Width": 99,
+          "Height": 48
+        },
+        "Confidence": 0.9995761513710022,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开21准，铁杀",
+        "Box": {
+          "X": 650,
+          "Y": 1850,
+          "Width": 296,
+          "Height": 51
+        },
+        "Confidence": 0.9998345971107483,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "303期：红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 5,
+          "Y": 1923,
+          "Width": 501,
+          "Height": 50
+        },
+        "Confidence": 0.9993932843208313,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鸡】",
+        "Box": {
+          "X": 531,
+          "Y": 1923,
+          "Width": 94,
+          "Height": 50
+        },
+        "Confidence": 0.9998005032539368,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开17准，铁杀",
+        "Box": {
+          "X": 651,
+          "Y": 1923,
+          "Width": 295,
+          "Height": 51
+        },
+        "Confidence": 0.999836802482605,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "302期：红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 6,
+          "Y": 1998,
+          "Width": 500,
+          "Height": 47
+        },
+        "Confidence": 0.9989586472511292,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【龙】",
+        "Box": {
+          "X": 530,
+          "Y": 1996,
+          "Width": 98,
+          "Height": 51
+        },
+        "Confidence": 0.9993977546691895,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开45准，铁杀",
+        "Box": {
+          "X": 649,
+          "Y": 1996,
+          "Width": 296,
+          "Height": 51
+        },
+        "Confidence": 0.9998902678489685,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "301期：红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 5,
+          "Y": 2068,
+          "Width": 501,
+          "Height": 50
+        },
+        "Confidence": 0.9995220303535461,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【龙】",
+        "Box": {
+          "X": 529,
+          "Y": 2068,
+          "Width": 100,
+          "Height": 52
+        },
+        "Confidence": 0.9996111989021301,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开17准，铁杀",
+        "Box": {
+          "X": 649,
+          "Y": 2069,
+          "Width": 297,
+          "Height": 51
+        },
+        "Confidence": 0.9998592734336853,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "300期：红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 5,
+          "Y": 2141,
+          "Width": 503,
+          "Height": 50
+        },
+        "Confidence": 0.9995532631874084,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【羊】",
+        "Box": {
+          "X": 529,
+          "Y": 2143,
+          "Width": 100,
+          "Height": 48
+        },
+        "Confidence": 0.9994352459907532,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开38准，铁杀",
+        "Box": {
+          "X": 650,
+          "Y": 2143,
+          "Width": 296,
+          "Height": 48
+        },
+        "Confidence": 0.9998115301132202,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "299期：红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 5,
+          "Y": 2213,
+          "Width": 501,
+          "Height": 50
+        },
+        "Confidence": 0.9994671940803528,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【狗】",
+        "Box": {
+          "X": 531,
+          "Y": 2213,
+          "Width": 96,
+          "Height": 53
+        },
+        "Confidence": 0.9996840357780457,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开23准，铁杀",
+        "Box": {
+          "X": 651,
+          "Y": 2214,
+          "Width": 296,
+          "Height": 51
+        },
+        "Confidence": 0.9998384118080139,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "298期：红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 5,
+          "Y": 2286,
+          "Width": 504,
+          "Height": 50
+        },
+        "Confidence": 0.9994120001792908,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【龙】",
+        "Box": {
+          "X": 528,
+          "Y": 2288,
+          "Width": 98,
+          "Height": 48
+        },
+        "Confidence": 0.9992981553077698,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开08准，铁杀",
+        "Box": {
+          "X": 651,
+          "Y": 2288,
+          "Width": 295,
+          "Height": 48
+        },
+        "Confidence": 0.999796986579895,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "297期：红蜻蜓绝杀一肖【鼠】",
+        "Box": {
+          "X": 5,
+          "Y": 2360,
+          "Width": 621,
+          "Height": 50
+        },
+        "Confidence": 0.998831570148468,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开13准，铁杀",
+        "Box": {
+          "X": 652,
+          "Y": 2359,
+          "Width": 293,
+          "Height": 51
+        },
+        "Confidence": 0.9997842907905579,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "296期：红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 5,
+          "Y": 2432,
+          "Width": 503,
+          "Height": 50
+        },
+        "Confidence": 0.9994696974754333,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【蛇】",
+        "Box": {
+          "X": 529,
+          "Y": 2433,
+          "Width": 94,
+          "Height": 50
+        },
+        "Confidence": 0.9995043873786926,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开23准，铁杀",
+        "Box": {
+          "X": 652,
+          "Y": 2433,
+          "Width": 294,
+          "Height": 51
+        },
+        "Confidence": 0.9994058609008789,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "295期：红蜻蜓绝杀一肖",
+        "Box": {
+          "X": 6,
+          "Y": 2507,
+          "Width": 502,
+          "Height": 48
+        },
+        "Confidence": 0.9992527365684509,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【虎】",
+        "Box": {
+          "X": 528,
+          "Y": 2504,
+          "Width": 97,
+          "Height": 53
+        },
+        "Confidence": 0.9995221495628357,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开25准，铁杀",
+        "Box": {
+          "X": 652,
+          "Y": 2506,
+          "Width": 295,
+          "Height": 51
+        },
+        "Confidence": 0.9995107650756836,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      }
+    ]
+  },
+  {
+    "fileName": "20261105_144556_a760b29a_82691.jpg",
+    "small": [
+      {
+        "Text": "293期：【红蜻蜓两波中特】---（绿波+红波)---开05准主一波：绿",
+        "Box": {
+          "X": 13,
+          "Y": 15,
+          "Width": 999,
+          "Height": 39
+        },
+        "Confidence": 0.9717486500740051,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "294期：【红蜻蜓两波中特】---（绿波+红波)---开28准主一波：绿",
+        "Box": {
+          "X": 14,
+          "Y": 70,
+          "Width": 997,
+          "Height": 37
+        },
+        "Confidence": 0.9678552150726318,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "295期:【红蜻蜓两波中特】-",
+        "Box": {
+          "X": 10,
+          "Y": 114,
+          "Width": 478,
+          "Height": 52
+        },
+        "Confidence": 0.9550827145576477,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(蓝波+红波)---开25准主一波：蓝",
+        "Box": {
+          "X": 486,
+          "Y": 123,
+          "Width": 526,
+          "Height": 37
+        },
+        "Confidence": 0.9804895520210266,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "296期:【红蜻蜓两波中特】---(绿波+红波)---开23准主一波：红",
+        "Box": {
+          "X": 14,
+          "Y": 177,
+          "Width": 998,
+          "Height": 38
+        },
+        "Confidence": 0.9690861105918884,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "297期：【红蜻蜓两波中特】---(绿波+红波)---开13准主一波：红",
+        "Box": {
+          "X": 14,
+          "Y": 231,
+          "Width": 998,
+          "Height": 37
+        },
+        "Confidence": 0.9675305485725403,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "298期：【红蜻蜓两波中特】---(绿波+红波)---开08准主一波：红",
+        "Box": {
+          "X": 13,
+          "Y": 284,
+          "Width": 999,
+          "Height": 38
+        },
+        "Confidence": 0.9759717583656311,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "299期：【红蜻蜓两波中特】---（蓝波+红波)---开23准主一波：红",
+        "Box": {
+          "X": 13,
+          "Y": 336,
+          "Width": 999,
+          "Height": 40
+        },
+        "Confidence": 0.9687371850013733,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "300期:【红蜻蜓两波中特】---(绿波+红波)---开38准",
+        "Box": {
+          "X": 13,
+          "Y": 391,
+          "Width": 829,
+          "Height": 38
+        },
+        "Confidence": 0.9722075462341309,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "301期:【红蜻蜓两波中特】---(绿波+红波)---开17准",
+        "Box": {
+          "X": 13,
+          "Y": 444,
+          "Width": 829,
+          "Height": 38
+        },
+        "Confidence": 0.9724047183990479,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "302期：【红蜻蜓两波中特】---（蓝波+红波)---开45准主一波：红",
+        "Box": {
+          "X": 13,
+          "Y": 497,
+          "Width": 998,
+          "Height": 39
+        },
+        "Confidence": 0.9709284901618958,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "V",
+        "Box": {
+          "X": 1120,
+          "Y": 495,
+          "Width": 96,
+          "Height": 91
+        },
+        "Confidence": 0.43071866035461426,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "303期:【红蜻蜓两波中特】---（蓝波+绿波)---开17准",
+        "Box": {
+          "X": 13,
+          "Y": 552,
+          "Width": 829,
+          "Height": 37
+        },
+        "Confidence": 0.9706670045852661,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "304期：【红蜻蜓两波中特】---(蓝波+红波)---开21错",
+        "Box": {
+          "X": 12,
+          "Y": 605,
+          "Width": 830,
+          "Height": 38
+        },
+        "Confidence": 0.9656391739845276,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "心",
+        "Box": {
+          "X": 1035,
+          "Y": 593,
+          "Width": 114,
+          "Height": 93
+        },
+        "Confidence": 0.28292733430862427,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "305期:【红蜻蜓两波中特】---(绿波+红波)---开26靠靠靠",
+        "Box": {
+          "X": 14,
+          "Y": 659,
+          "Width": 895,
+          "Height": 38
+        },
+        "Confidence": 0.9789503812789917,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "306期：【红蜻蜓两波中特】---（绿波+蓝波)---开15准主一波：蓝，博一波蓝",
+        "Box": {
+          "X": 13,
+          "Y": 778,
+          "Width": 1168,
+          "Height": 37
+        },
+        "Confidence": 0.9779981374740601,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "307期：【红蜻蜓两波中特】---(红波+蓝波)---开42准主一波：蓝，继续博一波蓝，",
+        "Box": {
+          "X": 13,
+          "Y": 886,
+          "Width": 1248,
+          "Height": 39
+        },
+        "Confidence": 0.9717132449150085,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "308期:【红蜻蜓两波中特】---(红波+绿波)---开46准",
+        "Box": {
+          "X": 13,
+          "Y": 942,
+          "Width": 830,
+          "Height": 37
+        },
+        "Confidence": 0.9798778295516968,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "309期：【红蜻蜓两波中特】---（蓝波+绿波)---开00准主一波：蓝，试博一波蓝，",
+        "Box": {
+          "X": 13,
+          "Y": 1059,
+          "Width": 1216,
+          "Height": 38
+        },
+        "Confidence": 0.9766400456428528,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      }
+    ],
+    "medium": [
+      {
+        "Text": "293期：【红蜻蜓两波中特】---(绿波+红波)---开05准主一波：绿",
+        "Box": {
+          "X": 15,
+          "Y": 18,
+          "Width": 995,
+          "Height": 35
+        },
+        "Confidence": 0.9800487160682678,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "294期：【红蜻蜓两波中特】",
+        "Box": {
+          "X": 15,
+          "Y": 74,
+          "Width": 390,
+          "Height": 31
+        },
+        "Confidence": 0.9833517074584961,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(绿波+红波)---开28准主一波：绿",
+        "Box": {
+          "X": 478,
+          "Y": 73,
+          "Width": 533,
+          "Height": 33
+        },
+        "Confidence": 0.996005117893219,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "295期：【红蜻蜓两波中特】",
+        "Box": {
+          "X": 13,
+          "Y": 124,
+          "Width": 391,
+          "Height": 36
+        },
+        "Confidence": 0.9711757898330688,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "(蓝波+红波)---开25准主一波：蓝",
+        "Box": {
+          "X": 488,
+          "Y": 126,
+          "Width": 522,
+          "Height": 34
+        },
+        "Confidence": 0.9932228922843933,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "296期：【红蜻蜓两波中特】---(绿波+红波)---开23准主一波：红",
+        "Box": {
+          "X": 15,
+          "Y": 180,
+          "Width": 995,
+          "Height": 34
+        },
+        "Confidence": 0.990143358707428,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "297期：【红蜻蜓两波中特】---(绿波+红波)---开13准主一波：红",
+        "Box": {
+          "X": 14,
+          "Y": 233,
+          "Width": 996,
+          "Height": 34
+        },
+        "Confidence": 0.9884541630744934,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "298期：【红蜻蜓两波中特】---(绿波+红波)---开08准主一波：红",
+        "Box": {
+          "X": 13,
+          "Y": 286,
+          "Width": 998,
+          "Height": 35
+        },
+        "Confidence": 0.9932639002799988,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "299期：【红蜻蜓两波中特】---(蓝波+红波)---开23准主一波：红",
+        "Box": {
+          "X": 14,
+          "Y": 340,
+          "Width": 996,
+          "Height": 34
+        },
+        "Confidence": 0.9917876124382019,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "300期：【红蜻蜓两波中特】---(绿波+红波)---开38准",
+        "Box": {
+          "X": 14,
+          "Y": 394,
+          "Width": 827,
+          "Height": 34
+        },
+        "Confidence": 0.9828329682350159,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "301期：【红蜻蜓两波中特】---(绿波+红波)---开17准",
+        "Box": {
+          "X": 14,
+          "Y": 447,
+          "Width": 827,
+          "Height": 34
+        },
+        "Confidence": 0.9852747917175293,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "302期：【红蜻蜓两波中特】---(蓝波+红波)---开45准主一波：红",
+        "Box": {
+          "X": 14,
+          "Y": 501,
+          "Width": 996,
+          "Height": 35
+        },
+        "Confidence": 0.9920462369918823,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "303期：【红蜻蜓两波中特】---(蓝波+绿波)---开17准",
+        "Box": {
+          "X": 14,
+          "Y": 553,
+          "Width": 825,
+          "Height": 34
+        },
+        "Confidence": 0.9776207208633423,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "304期：【红蜻蜓两波中特】---(蓝波+红波)---开21错",
+        "Box": {
+          "X": 14,
+          "Y": 608,
+          "Width": 827,
+          "Height": 34
+        },
+        "Confidence": 0.9886362552642822,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "305期：【红蜻蜓两波中特】---(绿波+红波)---开26靠靠靠",
+        "Box": {
+          "X": 14,
+          "Y": 661,
+          "Width": 893,
+          "Height": 34
+        },
+        "Confidence": 0.9846773147583008,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "306期：【红蜻蜓两波中特】---(绿波+蓝波)---开15准主一波：蓝，博一波蓝",
+        "Box": {
+          "X": 14,
+          "Y": 780,
+          "Width": 1165,
+          "Height": 33
+        },
+        "Confidence": 0.9876400232315063,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "307期：【红蜻蜓两波中特】---(红波+蓝波)---开42准主一波：蓝，继续博一波蓝，",
+        "Box": {
+          "X": 13,
+          "Y": 887,
+          "Width": 1249,
+          "Height": 39
+        },
+        "Confidence": 0.9885103702545166,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "308期：【红蜻蜓两波中特】---(红波+绿波)---开46准",
+        "Box": {
+          "X": 13,
+          "Y": 943,
+          "Width": 829,
+          "Height": 35
+        },
+        "Confidence": 0.9877593517303467,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "309期：【红蜻蜓两波中特】---(蓝波+绿波)---开00准主一波：蓝，试博一波蓝，",
+        "Box": {
+          "X": 12,
+          "Y": 1060,
+          "Width": 1215,
+          "Height": 36
+        },
+        "Confidence": 0.9859194159507751,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      }
+    ]
+  },
+  {
+    "fileName": "20261105_144556_a760b29a_82692.jpg",
+    "small": [
+      {
+        "Text": "272期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 17,
+          "Y": 14,
+          "Width": 463,
+          "Height": 44
+        },
+        "Confidence": 0.9996249079704285,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【羊】开02准，耶稣也留不住",
+        "Box": {
+          "X": 507,
+          "Y": 12,
+          "Width": 546,
+          "Height": 47
+        },
+        "Confidence": 0.9979144930839539,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "273期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 16,
+          "Y": 79,
+          "Width": 463,
+          "Height": 47
+        },
+        "Confidence": 0.9996742606163025,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鼠】开05准，耶稣也留不住",
+        "Box": {
+          "X": 506,
+          "Y": 78,
+          "Width": 550,
+          "Height": 51
+        },
+        "Confidence": 0.9942985773086548,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "274期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 16,
+          "Y": 148,
+          "Width": 463,
+          "Height": 47
+        },
+        "Confidence": 0.9996147751808167,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【虎】开32准，耶稣也留不住",
+        "Box": {
+          "X": 508,
+          "Y": 145,
+          "Width": 548,
+          "Height": 51
+        },
+        "Confidence": 0.9991928935050964,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "275期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 15,
+          "Y": 213,
+          "Width": 466,
+          "Height": 49
+        },
+        "Confidence": 0.9997096657752991,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【羊】开17准，耶稣也留不住",
+        "Box": {
+          "X": 508,
+          "Y": 212,
+          "Width": 548,
+          "Height": 51
+        },
+        "Confidence": 0.9992449879646301,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "276期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 15,
+          "Y": 280,
+          "Width": 466,
+          "Height": 49
+        },
+        "Confidence": 0.9997639656066895,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鸡】开14准，耶稣也留不住",
+        "Box": {
+          "X": 507,
+          "Y": 278,
+          "Width": 548,
+          "Height": 51
+        },
+        "Confidence": 0.9985397458076477,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "277期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 15,
+          "Y": 348,
+          "Width": 467,
+          "Height": 49
+        },
+        "Confidence": 0.9997593760490417,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【蛇】开11准，耶稣也留不住",
+        "Box": {
+          "X": 507,
+          "Y": 347,
+          "Width": 549,
+          "Height": 51
+        },
+        "Confidence": 0.9975110292434692,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "278期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 16,
+          "Y": 417,
+          "Width": 469,
+          "Height": 47
+        },
+        "Confidence": 0.9998107552528381,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【羊】开02准，耶稣也留不住",
+        "Box": {
+          "X": 505,
+          "Y": 416,
+          "Width": 550,
+          "Height": 48
+        },
+        "Confidence": 0.9984976053237915,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "279期墨羽尘曦精杀一肖【龙】",
+        "Box": {
+          "X": 16,
+          "Y": 483,
+          "Width": 614,
+          "Height": 47
+        },
+        "Confidence": 0.999613344669342,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开10准，耶稣也留不住",
+        "Box": {
+          "X": 603,
+          "Y": 482,
+          "Width": 451,
+          "Height": 47
+        },
+        "Confidence": 0.9989175200462341,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "280期墨羽尘曦精杀一肖【虎】开15准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 550,
+          "Width": 1039,
+          "Height": 47
+        },
+        "Confidence": 0.9987047910690308,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "281期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 14,
+          "Y": 613,
+          "Width": 469,
+          "Height": 53
+        },
+        "Confidence": 0.9997096061706543,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【龙】开10准，耶稣也留不住",
+        "Box": {
+          "X": 507,
+          "Y": 617,
+          "Width": 548,
+          "Height": 48
+        },
+        "Confidence": 0.9981817007064819,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "282期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 14,
+          "Y": 680,
+          "Width": 468,
+          "Height": 54
+        },
+        "Confidence": 0.9998194575309753,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鸡】",
+        "Box": {
+          "X": 509,
+          "Y": 684,
+          "Width": 100,
+          "Height": 48
+        },
+        "Confidence": 0.9992868304252625,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开23准，耶稣也留不住",
+        "Box": {
+          "X": 584,
+          "Y": 685,
+          "Width": 471,
+          "Height": 47
+        },
+        "Confidence": 0.9986190795898438,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "283期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 16,
+          "Y": 753,
+          "Width": 465,
+          "Height": 47
+        },
+        "Confidence": 0.9998130798339844,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猪】",
+        "Box": {
+          "X": 509,
+          "Y": 753,
+          "Width": 115,
+          "Height": 47
+        },
+        "Confidence": 0.9990496635437012,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开18准，耶稣也留不住",
+        "Box": {
+          "X": 603,
+          "Y": 751,
+          "Width": 451,
+          "Height": 48
+        },
+        "Confidence": 0.9982389807701111,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "284期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 16,
+          "Y": 820,
+          "Width": 463,
+          "Height": 47
+        },
+        "Confidence": 0.9996790289878845,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鼠】",
+        "Box": {
+          "X": 510,
+          "Y": 820,
+          "Width": 93,
+          "Height": 45
+        },
+        "Confidence": 0.9993427395820618,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开32准，耶稣也留不住",
+        "Box": {
+          "X": 605,
+          "Y": 819,
+          "Width": 449,
+          "Height": 47
+        },
+        "Confidence": 0.997941255569458,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "285期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 15,
+          "Y": 885,
+          "Width": 466,
+          "Height": 50
+        },
+        "Confidence": 0.9997501969337463,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【兔】",
+        "Box": {
+          "X": 511,
+          "Y": 888,
+          "Width": 93,
+          "Height": 45
+        },
+        "Confidence": 0.9992544651031494,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开19准，耶稣也留不住",
+        "Box": {
+          "X": 602,
+          "Y": 886,
+          "Width": 452,
+          "Height": 48
+        },
+        "Confidence": 0.9990548491477966,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "286期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 16,
+          "Y": 954,
+          "Width": 463,
+          "Height": 47
+        },
+        "Confidence": 0.9996305108070374,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猪】开24准，耶稣也留不住",
+        "Box": {
+          "X": 507,
+          "Y": 951,
+          "Width": 550,
+          "Height": 54
+        },
+        "Confidence": 0.9985440969467163,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "287期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 15,
+          "Y": 1021,
+          "Width": 467,
+          "Height": 49
+        },
+        "Confidence": 0.9997940063476562,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猴】开08准，耶稣也留不住",
+        "Box": {
+          "X": 507,
+          "Y": 1020,
+          "Width": 548,
+          "Height": 51
+        },
+        "Confidence": 0.9985589981079102,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "288期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 15,
+          "Y": 1088,
+          "Width": 467,
+          "Height": 49
+        },
+        "Confidence": 0.999813973903656,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鼠】开25准，耶稣也留不住",
+        "Box": {
+          "X": 507,
+          "Y": 1087,
+          "Width": 551,
+          "Height": 51
+        },
+        "Confidence": 0.9968953728675842,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "289期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 16,
+          "Y": 1155,
+          "Width": 463,
+          "Height": 47
+        },
+        "Confidence": 0.9995942115783691,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【蛇】开38错",
+        "Box": {
+          "X": 507,
+          "Y": 1153,
+          "Width": 250,
+          "Height": 52
+        },
+        "Confidence": 0.9993773102760315,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "290期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 15,
+          "Y": 1222,
+          "Width": 467,
+          "Height": 49
+        },
+        "Confidence": 0.9997671246528625,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【龙】开40准，耶稣也留不住",
+        "Box": {
+          "X": 506,
+          "Y": 1219,
+          "Width": 550,
+          "Height": 53
+        },
+        "Confidence": 0.9953575730323792,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "291期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 15,
+          "Y": 1288,
+          "Width": 466,
+          "Height": 51
+        },
+        "Confidence": 0.9996845722198486,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猪】",
+        "Box": {
+          "X": 510,
+          "Y": 1292,
+          "Width": 94,
+          "Height": 45
+        },
+        "Confidence": 0.996329128742218,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开17准，耶稣也留不住",
+        "Box": {
+          "X": 604,
+          "Y": 1291,
+          "Width": 451,
+          "Height": 47
+        },
+        "Confidence": 0.9973621368408203,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "292期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 15,
+          "Y": 1357,
+          "Width": 465,
+          "Height": 49
+        },
+        "Confidence": 0.9997255802154541,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猪】",
+        "Box": {
+          "X": 509,
+          "Y": 1358,
+          "Width": 96,
+          "Height": 48
+        },
+        "Confidence": 0.9986154437065125,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开36准，耶稣也留不住",
+        "Box": {
+          "X": 605,
+          "Y": 1357,
+          "Width": 450,
+          "Height": 48
+        },
+        "Confidence": 0.994612455368042,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "293期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 15,
+          "Y": 1424,
+          "Width": 466,
+          "Height": 49
+        },
+        "Confidence": 0.9997557997703552,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【马】",
+        "Box": {
+          "X": 510,
+          "Y": 1426,
+          "Width": 90,
+          "Height": 45
+        },
+        "Confidence": 0.9833174347877502,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开05准，耶稣也留不住",
+        "Box": {
+          "X": 607,
+          "Y": 1425,
+          "Width": 448,
+          "Height": 47
+        },
+        "Confidence": 0.998835563659668,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "294期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 16,
+          "Y": 1493,
+          "Width": 465,
+          "Height": 47
+        },
+        "Confidence": 0.9997069239616394,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【蛇】",
+        "Box": {
+          "X": 509,
+          "Y": 1493,
+          "Width": 95,
+          "Height": 45
+        },
+        "Confidence": 0.9993100762367249,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开28准，耶稣也留不住",
+        "Box": {
+          "X": 607,
+          "Y": 1492,
+          "Width": 448,
+          "Height": 47
+        },
+        "Confidence": 0.9987121224403381,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "295期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 16,
+          "Y": 1560,
+          "Width": 468,
+          "Height": 47
+        },
+        "Confidence": 0.9997583031654358,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【狗】",
+        "Box": {
+          "X": 506,
+          "Y": 1561,
+          "Width": 98,
+          "Height": 45
+        },
+        "Confidence": 0.9983232617378235,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "】开25准，耶稣也留不住",
+        "Box": {
+          "X": 580,
+          "Y": 1559,
+          "Width": 474,
+          "Height": 47
+        },
+        "Confidence": 0.9841032028198242,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "296期墨羽尘曦精杀一肖【鸡】",
+        "Box": {
+          "X": 15,
+          "Y": 1626,
+          "Width": 587,
+          "Height": 51
+        },
+        "Confidence": 0.9998322129249573,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开23准，耶稣也留不住",
+        "Box": {
+          "X": 603,
+          "Y": 1627,
+          "Width": 451,
+          "Height": 48
+        },
+        "Confidence": 0.998558759689331,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "297期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 15,
+          "Y": 1692,
+          "Width": 467,
+          "Height": 52
+        },
+        "Confidence": 0.9996770024299622,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【羊】开13准，耶稣也留不住",
+        "Box": {
+          "X": 505,
+          "Y": 1693,
+          "Width": 551,
+          "Height": 51
+        },
+        "Confidence": 0.9957827925682068,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "298期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 15,
+          "Y": 1760,
+          "Width": 469,
+          "Height": 49
+        },
+        "Confidence": 0.9995958209037781,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【羊】开08准，耶稣也留不住",
+        "Box": {
+          "X": 507,
+          "Y": 1761,
+          "Width": 548,
+          "Height": 47
+        },
+        "Confidence": 0.997207522392273,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "299期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 16,
+          "Y": 1829,
+          "Width": 465,
+          "Height": 48
+        },
+        "Confidence": 0.9996117949485779,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鸡】开23准，耶稣也留不住",
+        "Box": {
+          "X": 508,
+          "Y": 1828,
+          "Width": 547,
+          "Height": 48
+        },
+        "Confidence": 0.9975714087486267,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "300期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 15,
+          "Y": 1894,
+          "Width": 467,
+          "Height": 50
+        },
+        "Confidence": 0.9997735023498535,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【龙】开38准，耶稣也留不住",
+        "Box": {
+          "X": 508,
+          "Y": 1896,
+          "Width": 547,
+          "Height": 48
+        },
+        "Confidence": 0.998106062412262,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "301期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 15,
+          "Y": 1963,
+          "Width": 466,
+          "Height": 49
+        },
+        "Confidence": 0.9997234344482422,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛】开17准，耶稣也留不住",
+        "Box": {
+          "X": 508,
+          "Y": 1963,
+          "Width": 547,
+          "Height": 48
+        },
+        "Confidence": 0.9973887801170349,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "302期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 15,
+          "Y": 2029,
+          "Width": 465,
+          "Height": 49
+        },
+        "Confidence": 0.999806821346283,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛】开45准，耶稣也留不住",
+        "Box": {
+          "X": 509,
+          "Y": 2030,
+          "Width": 546,
+          "Height": 48
+        },
+        "Confidence": 0.9953290224075317,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "303期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 15,
+          "Y": 2096,
+          "Width": 467,
+          "Height": 49
+        },
+        "Confidence": 0.9997807145118713,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【牛】开17准，耶稣也留不住",
+        "Box": {
+          "X": 507,
+          "Y": 2094,
+          "Width": 548,
+          "Height": 53
+        },
+        "Confidence": 0.9986779093742371,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "304期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 16,
+          "Y": 2166,
+          "Width": 464,
+          "Height": 47
+        },
+        "Confidence": 0.9996553063392639,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【猪】",
+        "Box": {
+          "X": 509,
+          "Y": 2165,
+          "Width": 119,
+          "Height": 48
+        },
+        "Confidence": 0.9987893104553223,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开21准，耶稣也留不住",
+        "Box": {
+          "X": 602,
+          "Y": 2164,
+          "Width": 451,
+          "Height": 50
+        },
+        "Confidence": 0.9992162585258484,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "305期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 16,
+          "Y": 2233,
+          "Width": 465,
+          "Height": 47
+        },
+        "Confidence": 0.9997484087944031,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鸡】开26准，耶稣也留不住",
+        "Box": {
+          "X": 507,
+          "Y": 2231,
+          "Width": 550,
+          "Height": 51
+        },
+        "Confidence": 0.9980728030204773,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "306期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 16,
+          "Y": 2301,
+          "Width": 465,
+          "Height": 47
+        },
+        "Confidence": 0.999775230884552,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鼠】开15准，耶稣也留不住",
+        "Box": {
+          "X": 507,
+          "Y": 2298,
+          "Width": 549,
+          "Height": 51
+        },
+        "Confidence": 0.9970669746398926,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "307期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 16,
+          "Y": 2366,
+          "Width": 465,
+          "Height": 47
+        },
+        "Confidence": 0.9996288418769836,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【龙】开42准，耶稣也留不住",
+        "Box": {
+          "X": 507,
+          "Y": 2366,
+          "Width": 548,
+          "Height": 48
+        },
+        "Confidence": 0.9984182119369507,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "308期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 15,
+          "Y": 2433,
+          "Width": 467,
+          "Height": 49
+        },
+        "Confidence": 0.9997722506523132,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【鼠】开46准，耶稣也留不住",
+        "Box": {
+          "X": 508,
+          "Y": 2434,
+          "Width": 547,
+          "Height": 48
+        },
+        "Confidence": 0.9977656602859497,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "309期墨羽尘曦精杀一肖",
+        "Box": {
+          "X": 14,
+          "Y": 2500,
+          "Width": 469,
+          "Height": 49
+        },
+        "Confidence": 0.999640166759491,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【马】开00准，耶稣也留不住",
+        "Box": {
+          "X": 507,
+          "Y": 2501,
+          "Width": 548,
+          "Height": 48
+        },
+        "Confidence": 0.9982005953788757,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      }
+    ],
+    "medium": [
+      {
+        "Text": "272期墨羽尘曦精杀一肖【羊】开02准，耶稣也留不住",
+        "Box": {
+          "X": 17,
+          "Y": 15,
+          "Width": 1035,
+          "Height": 40
+        },
+        "Confidence": 0.9983615875244141,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "273期墨羽尘曦精杀一肖【鼠】开05准，耶稣也留不住",
+        "Box": {
+          "X": 17,
+          "Y": 82,
+          "Width": 1034,
+          "Height": 40
+        },
+        "Confidence": 0.9978905916213989,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "274期墨羽尘曦精杀一肖【虎】开32准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 149,
+          "Width": 1037,
+          "Height": 43
+        },
+        "Confidence": 0.9992719888687134,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "275期墨羽尘曦精杀一肖【羊】开17准，耶稣也留不住",
+        "Box": {
+          "X": 17,
+          "Y": 217,
+          "Width": 1035,
+          "Height": 40
+        },
+        "Confidence": 0.9918897151947021,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "276期墨羽尘曦精杀一肖【鸡】开14准，耶稣也留不住",
+        "Box": {
+          "X": 17,
+          "Y": 284,
+          "Width": 1034,
+          "Height": 40
+        },
+        "Confidence": 0.998191237449646,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "277期墨羽尘曦精杀一肖【蛇】开11准，耶稣也留不住",
+        "Box": {
+          "X": 17,
+          "Y": 352,
+          "Width": 1035,
+          "Height": 40
+        },
+        "Confidence": 0.9984500408172607,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "278期墨羽尘曦精杀一肖【羊】开02准，耶稣也留不住",
+        "Box": {
+          "X": 17,
+          "Y": 420,
+          "Width": 1035,
+          "Height": 40
+        },
+        "Confidence": 0.9976635575294495,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "279期墨羽尘曦精杀一肖【龙】开10准，耶稣也留不住",
+        "Box": {
+          "X": 17,
+          "Y": 486,
+          "Width": 1035,
+          "Height": 40
+        },
+        "Confidence": 0.998475193977356,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "280期墨羽尘曦精杀一肖【虎】开15准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 552,
+          "Width": 1037,
+          "Height": 43
+        },
+        "Confidence": 0.9993061423301697,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "281期墨羽尘曦精杀一肖【龙】开10准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 619,
+          "Width": 1037,
+          "Height": 43
+        },
+        "Confidence": 0.9991714954376221,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "282期墨羽尘曦精杀一肖【鸡】开23准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 686,
+          "Width": 1036,
+          "Height": 43
+        },
+        "Confidence": 0.9993337988853455,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "283期墨羽尘曦精杀一肖【猪】开18准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 755,
+          "Width": 1037,
+          "Height": 43
+        },
+        "Confidence": 0.9992638826370239,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "284期墨羽尘曦精杀一肖【鼠】开32准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 821,
+          "Width": 1036,
+          "Height": 43
+        },
+        "Confidence": 0.9993213415145874,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "285期墨羽尘曦精杀一肖【兔】开19准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 889,
+          "Width": 1035,
+          "Height": 43
+        },
+        "Confidence": 0.9992965459823608,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "286期墨羽尘曦精杀一肖【猪】开24准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 956,
+          "Width": 1036,
+          "Height": 43
+        },
+        "Confidence": 0.9993504285812378,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "i",
+        "Box": {
+          "X": 1058,
+          "Y": 958,
+          "Width": 96,
+          "Height": 90
+        },
+        "Confidence": 0.25096866488456726,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "287期墨羽尘曦精杀一肖【猴】开08准，耶稣也留不住",
+        "Box": {
+          "X": 17,
+          "Y": 1025,
+          "Width": 1034,
+          "Height": 40
+        },
+        "Confidence": 0.9973599910736084,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "288期墨羽尘曦精杀一肖【鼠】开25准，耶稣也留不住",
+        "Box": {
+          "X": 17,
+          "Y": 1091,
+          "Width": 1037,
+          "Height": 43
+        },
+        "Confidence": 0.9991450905799866,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "289期墨羽尘曦精杀一肖【蛇】开38错",
+        "Box": {
+          "X": 15,
+          "Y": 1155,
+          "Width": 740,
+          "Height": 46
+        },
+        "Confidence": 0.999470055103302,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "290期墨羽尘曦精杀一肖【龙】开40准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 1225,
+          "Width": 1036,
+          "Height": 43
+        },
+        "Confidence": 0.9994606375694275,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "291期墨羽尘曦精杀一肖【猪】开17准，耶稣也留不住",
+        "Box": {
+          "X": 17,
+          "Y": 1294,
+          "Width": 1035,
+          "Height": 40
+        },
+        "Confidence": 0.9984517693519592,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "292期墨羽尘曦精杀一肖【猪】开36准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 1360,
+          "Width": 1037,
+          "Height": 43
+        },
+        "Confidence": 0.9993391633033752,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "293期墨羽尘曦精杀一肖【马】开05准，耶稣也留不住",
+        "Box": {
+          "X": 18,
+          "Y": 1428,
+          "Width": 1033,
+          "Height": 40
+        },
+        "Confidence": 0.9987595081329346,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "294期墨羽尘曦精杀一肖【蛇】开28准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 1494,
+          "Width": 1036,
+          "Height": 43
+        },
+        "Confidence": 0.9992347359657288,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "295期墨羽尘曦精杀一肖【狗】开25准，耶稣也留不住",
+        "Box": {
+          "X": 17,
+          "Y": 1563,
+          "Width": 1035,
+          "Height": 40
+        },
+        "Confidence": 0.9985109567642212,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "296期墨羽尘曦精杀一肖【鸡】开23准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 1629,
+          "Width": 1037,
+          "Height": 43
+        },
+        "Confidence": 0.9984513521194458,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "297期墨羽尘曦精杀一肖【羊】开13准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 1697,
+          "Width": 1037,
+          "Height": 43
+        },
+        "Confidence": 0.9992997646331787,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "298期墨羽尘曦精杀一肖【羊】开08准，耶稣也留不住",
+        "Box": {
+          "X": 17,
+          "Y": 1763,
+          "Width": 1036,
+          "Height": 44
+        },
+        "Confidence": 0.9995158314704895,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "299期墨羽尘曦精杀一肖【鸡】开23准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 1831,
+          "Width": 1037,
+          "Height": 43
+        },
+        "Confidence": 0.9993752241134644,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "300期墨羽尘曦精杀一肖【龙】开38准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 1898,
+          "Width": 1037,
+          "Height": 43
+        },
+        "Confidence": 0.9985436797142029,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "301期墨羽尘曦精杀一肖【牛】开17准，耶稣也留不住",
+        "Box": {
+          "X": 17,
+          "Y": 1967,
+          "Width": 1035,
+          "Height": 40
+        },
+        "Confidence": 0.9894223809242249,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "302期墨羽尘曦精杀一肖【牛】开45准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 2032,
+          "Width": 1037,
+          "Height": 43
+        },
+        "Confidence": 0.9993840456008911,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "行",
+        "Box": {
+          "X": 1063,
+          "Y": 2083,
+          "Width": 89,
+          "Height": 82
+        },
+        "Confidence": 0.20629321038722992,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "303期墨羽尘曦精杀一肖【牛】开17准，耶稣也留不住",
+        "Box": {
+          "X": 17,
+          "Y": 2099,
+          "Width": 1036,
+          "Height": 43
+        },
+        "Confidence": 0.999169111251831,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "304期墨羽尘曦精杀一肖【猪】开21准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 2167,
+          "Width": 1036,
+          "Height": 43
+        },
+        "Confidence": 0.9992616176605225,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "305期墨羽尘曦精杀一肖【鸡】开26准，耶稣也留不住",
+        "Box": {
+          "X": 17,
+          "Y": 2236,
+          "Width": 1036,
+          "Height": 40
+        },
+        "Confidence": 0.998065710067749,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "306期墨羽尘曦精杀一肖【鼠】开15准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 2301,
+          "Width": 1036,
+          "Height": 43
+        },
+        "Confidence": 0.9991251826286316,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "307期墨羽尘曦精杀一肖【龙】开42准，耶稣也留不住",
+        "Box": {
+          "X": 17,
+          "Y": 2370,
+          "Width": 1035,
+          "Height": 40
+        },
+        "Confidence": 0.9986537098884583,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "308期墨羽尘曦精杀一肖【鼠】开46准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 2435,
+          "Width": 1036,
+          "Height": 43
+        },
+        "Confidence": 0.9991109371185303,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "309期墨羽尘曦精杀一肖【马】开00准，耶稣也留不住",
+        "Box": {
+          "X": 16,
+          "Y": 2504,
+          "Width": 1037,
+          "Height": 43
+        },
+        "Confidence": 0.9994709491729736,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      }
+    ]
+  },
+  {
+    "fileName": "20261105_144556_a760b29a_82693.jpg",
+    "small": [
+      {
+        "Text": "287期：",
+        "Box": {
+          "X": 22,
+          "Y": 18,
+          "Width": 168,
+          "Height": 61
+        },
+        "Confidence": 0.9435659646987915,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 212,
+          "Y": 23,
+          "Width": 231,
+          "Height": 53
+        },
+        "Confidence": 0.999833881855011,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 468,
+          "Y": 24,
+          "Width": 239,
+          "Height": 52
+        },
+        "Confidence": 0.984104335308075,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+龙虎狗】",
+        "Box": {
+          "X": 734,
+          "Y": 24,
+          "Width": 307,
+          "Height": 52
+        },
+        "Confidence": 0.9997867345809937,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：猪08准",
+        "Box": {
+          "X": 1060,
+          "Y": 22,
+          "Width": 258,
+          "Height": 55
+        },
+        "Confidence": 0.9989359378814697,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "288期：",
+        "Box": {
+          "X": 23,
+          "Y": 97,
+          "Width": 166,
+          "Height": 56
+        },
+        "Confidence": 0.979341983795166,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 212,
+          "Y": 98,
+          "Width": 238,
+          "Height": 55
+        },
+        "Confidence": 0.999869167804718,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 465,
+          "Y": 99,
+          "Width": 244,
+          "Height": 54
+        },
+        "Confidence": 0.9839608073234558,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+虎猴马】",
+        "Box": {
+          "X": 731,
+          "Y": 97,
+          "Width": 311,
+          "Height": 57
+        },
+        "Confidence": 0.9999133348464966,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：马25准",
+        "Box": {
+          "X": 1061,
+          "Y": 101,
+          "Width": 257,
+          "Height": 51
+        },
+        "Confidence": 0.9992864727973938,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "289期：",
+        "Box": {
+          "X": 23,
+          "Y": 172,
+          "Width": 165,
+          "Height": 57
+        },
+        "Confidence": 0.9572411775588989,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 211,
+          "Y": 173,
+          "Width": 234,
+          "Height": 56
+        },
+        "Confidence": 0.9999049305915833,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 466,
+          "Y": 174,
+          "Width": 242,
+          "Height": 55
+        },
+        "Confidence": 0.9806079864501953,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+虎猴鼠】",
+        "Box": {
+          "X": 733,
+          "Y": 174,
+          "Width": 306,
+          "Height": 52
+        },
+        "Confidence": 0.99993896484375,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：蛇38准",
+        "Box": {
+          "X": 1063,
+          "Y": 175,
+          "Width": 256,
+          "Height": 52
+        },
+        "Confidence": 0.999244213104248,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "290期：",
+        "Box": {
+          "X": 21,
+          "Y": 246,
+          "Width": 168,
+          "Height": 59
+        },
+        "Confidence": 0.9799162149429321,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 212,
+          "Y": 250,
+          "Width": 231,
+          "Height": 53
+        },
+        "Confidence": 0.9998130202293396,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 467,
+          "Y": 249,
+          "Width": 241,
+          "Height": 55
+        },
+        "Confidence": 0.9813462495803833,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【单数+牛猪兔】",
+        "Box": {
+          "X": 730,
+          "Y": 248,
+          "Width": 310,
+          "Height": 56
+        },
+        "Confidence": 0.9952234029769897,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：兔40准",
+        "Box": {
+          "X": 1062,
+          "Y": 250,
+          "Width": 255,
+          "Height": 52
+        },
+        "Confidence": 0.9962974190711975,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "291期：",
+        "Box": {
+          "X": 22,
+          "Y": 320,
+          "Width": 166,
+          "Height": 60
+        },
+        "Confidence": 0.9459722638130188,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 214,
+          "Y": 325,
+          "Width": 229,
+          "Height": 52
+        },
+        "Confidence": 0.9997734427452087,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 467,
+          "Y": 325,
+          "Width": 242,
+          "Height": 54
+        },
+        "Confidence": 0.9743302464485168,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+马龙猴】",
+        "Box": {
+          "X": 731,
+          "Y": 322,
+          "Width": 309,
+          "Height": 57
+        },
+        "Confidence": 0.9999362230300903,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：虎41错",
+        "Box": {
+          "X": 1061,
+          "Y": 324,
+          "Width": 258,
+          "Height": 54
+        },
+        "Confidence": 0.999129593372345,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "292期：",
+        "Box": {
+          "X": 22,
+          "Y": 394,
+          "Width": 166,
+          "Height": 61
+        },
+        "Confidence": 0.9705828428268433,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 210,
+          "Y": 398,
+          "Width": 234,
+          "Height": 56
+        },
+        "Confidence": 0.9998221397399902,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 466,
+          "Y": 399,
+          "Width": 242,
+          "Height": 55
+        },
+        "Confidence": 0.9815899133682251,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【单数+兔蛇羊】",
+        "Box": {
+          "X": 733,
+          "Y": 400,
+          "Width": 308,
+          "Height": 52
+        },
+        "Confidence": 0.9933246374130249,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：羊36准",
+        "Box": {
+          "X": 1062,
+          "Y": 400,
+          "Width": 256,
+          "Height": 52
+        },
+        "Confidence": 0.9989097118377686,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "293期：",
+        "Box": {
+          "X": 21,
+          "Y": 471,
+          "Width": 168,
+          "Height": 59
+        },
+        "Confidence": 0.9830158352851868,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 212,
+          "Y": 475,
+          "Width": 233,
+          "Height": 53
+        },
+        "Confidence": 0.9998106956481934,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 466,
+          "Y": 474,
+          "Width": 242,
+          "Height": 55
+        },
+        "Confidence": 0.9812555313110352,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+虎鼠猴】",
+        "Box": {
+          "X": 732,
+          "Y": 476,
+          "Width": 304,
+          "Height": 52
+        },
+        "Confidence": 0.9999151825904846,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：虎05准",
+        "Box": {
+          "X": 1062,
+          "Y": 476,
+          "Width": 256,
+          "Height": 52
+        },
+        "Confidence": 0.999619722366333,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "294期：",
+        "Box": {
+          "X": 22,
+          "Y": 548,
+          "Width": 166,
+          "Height": 56
+        },
+        "Confidence": 0.9803048372268677,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 213,
+          "Y": 548,
+          "Width": 234,
+          "Height": 56
+        },
+        "Confidence": 0.9997305274009705,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 466,
+          "Y": 549,
+          "Width": 242,
+          "Height": 55
+        },
+        "Confidence": 0.9846129417419434,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【单数+兔鸡猪】",
+        "Box": {
+          "X": 732,
+          "Y": 551,
+          "Width": 308,
+          "Height": 52
+        },
+        "Confidence": 0.9943892955780029,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：兔28准",
+        "Box": {
+          "X": 1061,
+          "Y": 549,
+          "Width": 258,
+          "Height": 55
+        },
+        "Confidence": 0.9877429008483887,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "295期：",
+        "Box": {
+          "X": 23,
+          "Y": 623,
+          "Width": 166,
+          "Height": 57
+        },
+        "Confidence": 0.9661462903022766,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 211,
+          "Y": 624,
+          "Width": 234,
+          "Height": 56
+        },
+        "Confidence": 0.9999052882194519,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 467,
+          "Y": 625,
+          "Width": 241,
+          "Height": 55
+        },
+        "Confidence": 0.9782875180244446,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+龙鼠马】",
+        "Box": {
+          "X": 731,
+          "Y": 624,
+          "Width": 311,
+          "Height": 55
+        },
+        "Confidence": 0.9997988343238831,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：马25准",
+        "Box": {
+          "X": 1060,
+          "Y": 623,
+          "Width": 259,
+          "Height": 59
+        },
+        "Confidence": 0.999321460723877,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "296期：",
+        "Box": {
+          "X": 22,
+          "Y": 697,
+          "Width": 166,
+          "Height": 59
+        },
+        "Confidence": 0.9519029855728149,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 211,
+          "Y": 699,
+          "Width": 235,
+          "Height": 56
+        },
+        "Confidence": 0.9998946189880371,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 466,
+          "Y": 700,
+          "Width": 243,
+          "Height": 55
+        },
+        "Confidence": 0.9812948107719421,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【单数+牛羊猪】开：猴23准",
+        "Box": {
+          "X": 730,
+          "Y": 699,
+          "Width": 591,
+          "Height": 58
+        },
+        "Confidence": 0.9995444416999817,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "297期：",
+        "Box": {
+          "X": 21,
+          "Y": 771,
+          "Width": 167,
+          "Height": 59
+        },
+        "Confidence": 0.9488416910171509,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 213,
+          "Y": 774,
+          "Width": 232,
+          "Height": 56
+        },
+        "Confidence": 0.9998024106025696,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 466,
+          "Y": 773,
+          "Width": 242,
+          "Height": 57
+        },
+        "Confidence": 0.9806262850761414,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+马狗虎】",
+        "Box": {
+          "X": 734,
+          "Y": 776,
+          "Width": 312,
+          "Height": 52
+        },
+        "Confidence": 0.9998468160629272,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：马13准",
+        "Box": {
+          "X": 1053,
+          "Y": 776,
+          "Width": 265,
+          "Height": 52
+        },
+        "Confidence": 0.9993305802345276,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "298期：",
+        "Box": {
+          "X": 23,
+          "Y": 848,
+          "Width": 165,
+          "Height": 57
+        },
+        "Confidence": 0.9724321365356445,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 212,
+          "Y": 849,
+          "Width": 230,
+          "Height": 56
+        },
+        "Confidence": 0.9998337626457214,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 467,
+          "Y": 850,
+          "Width": 241,
+          "Height": 55
+        },
+        "Confidence": 0.9808318018913269,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+鼠猴虎】",
+        "Box": {
+          "X": 734,
+          "Y": 851,
+          "Width": 311,
+          "Height": 52
+        },
+        "Confidence": 0.9998404383659363,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：猪08准",
+        "Box": {
+          "X": 1059,
+          "Y": 850,
+          "Width": 261,
+          "Height": 56
+        },
+        "Confidence": 0.9992639422416687,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "299期：",
+        "Box": {
+          "X": 23,
+          "Y": 923,
+          "Width": 164,
+          "Height": 57
+        },
+        "Confidence": 0.9512388110160828,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 212,
+          "Y": 924,
+          "Width": 232,
+          "Height": 56
+        },
+        "Confidence": 0.9998424649238586,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 465,
+          "Y": 924,
+          "Width": 244,
+          "Height": 57
+        },
+        "Confidence": 0.9718330502510071,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+马龙虎】",
+        "Box": {
+          "X": 731,
+          "Y": 925,
+          "Width": 310,
+          "Height": 55
+        },
+        "Confidence": 0.9999328851699829,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：猴23错",
+        "Box": {
+          "X": 1061,
+          "Y": 925,
+          "Width": 258,
+          "Height": 55
+        },
+        "Confidence": 0.9996528625488281,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "300期：",
+        "Box": {
+          "X": 22,
+          "Y": 998,
+          "Width": 165,
+          "Height": 57
+        },
+        "Confidence": 0.978756308555603,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 214,
+          "Y": 1000,
+          "Width": 229,
+          "Height": 53
+        },
+        "Confidence": 0.9998197555541992,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 466,
+          "Y": 997,
+          "Width": 242,
+          "Height": 58
+        },
+        "Confidence": 0.9876106381416321,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【单数+蛇鸡猪】",
+        "Box": {
+          "X": 731,
+          "Y": 999,
+          "Width": 309,
+          "Height": 55
+        },
+        "Confidence": 0.9968445301055908,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：蛇38准",
+        "Box": {
+          "X": 1062,
+          "Y": 1001,
+          "Width": 257,
+          "Height": 52
+        },
+        "Confidence": 0.9993560314178467,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "301期：",
+        "Box": {
+          "X": 21,
+          "Y": 1073,
+          "Width": 168,
+          "Height": 59
+        },
+        "Confidence": 0.9625550508499146,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 215,
+          "Y": 1076,
+          "Width": 229,
+          "Height": 53
+        },
+        "Confidence": 0.9991596341133118,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 466,
+          "Y": 1076,
+          "Width": 241,
+          "Height": 54
+        },
+        "Confidence": 0.9816697835922241,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+猴鼠虎】",
+        "Box": {
+          "X": 733,
+          "Y": 1077,
+          "Width": 306,
+          "Height": 52
+        },
+        "Confidence": 0.999894380569458,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：虎17准",
+        "Box": {
+          "X": 1062,
+          "Y": 1078,
+          "Width": 257,
+          "Height": 52
+        },
+        "Confidence": 0.9995579123497009,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "302期：",
+        "Box": {
+          "X": 21,
+          "Y": 1148,
+          "Width": 167,
+          "Height": 59
+        },
+        "Confidence": 0.9673574566841125,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 212,
+          "Y": 1151,
+          "Width": 236,
+          "Height": 54
+        },
+        "Confidence": 0.9998600482940674,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 466,
+          "Y": 1151,
+          "Width": 242,
+          "Height": 54
+        },
+        "Confidence": 0.984501838684082,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+猴鼠马】",
+        "Box": {
+          "X": 731,
+          "Y": 1150,
+          "Width": 312,
+          "Height": 57
+        },
+        "Confidence": 0.999904990196228,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：狗45错",
+        "Box": {
+          "X": 1061,
+          "Y": 1151,
+          "Width": 257,
+          "Height": 54
+        },
+        "Confidence": 0.9990851283073425,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "303期：",
+        "Box": {
+          "X": 23,
+          "Y": 1224,
+          "Width": 165,
+          "Height": 57
+        },
+        "Confidence": 0.9666178822517395,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 213,
+          "Y": 1226,
+          "Width": 231,
+          "Height": 53
+        },
+        "Confidence": 0.999732255935669,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 465,
+          "Y": 1223,
+          "Width": 243,
+          "Height": 58
+        },
+        "Confidence": 0.9783592224121094,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【单数+羊蛇兔】",
+        "Box": {
+          "X": 731,
+          "Y": 1225,
+          "Width": 311,
+          "Height": 54
+        },
+        "Confidence": 0.9962251782417297,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：虎17准",
+        "Box": {
+          "X": 1062,
+          "Y": 1226,
+          "Width": 258,
+          "Height": 55
+        },
+        "Confidence": 0.9994204044342041,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "304期：",
+        "Box": {
+          "X": 21,
+          "Y": 1298,
+          "Width": 168,
+          "Height": 59
+        },
+        "Confidence": 0.9856066703796387,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 213,
+          "Y": 1300,
+          "Width": 233,
+          "Height": 56
+        },
+        "Confidence": 0.9997925758361816,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 465,
+          "Y": 1301,
+          "Width": 242,
+          "Height": 55
+        },
+        "Confidence": 0.982254683971405,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【单数+羊蛇兔】",
+        "Box": {
+          "X": 732,
+          "Y": 1302,
+          "Width": 310,
+          "Height": 52
+        },
+        "Confidence": 0.9976444840431213,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：狗21准",
+        "Box": {
+          "X": 1062,
+          "Y": 1301,
+          "Width": 258,
+          "Height": 55
+        },
+        "Confidence": 0.9995352625846863,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "305期：",
+        "Box": {
+          "X": 22,
+          "Y": 1375,
+          "Width": 166,
+          "Height": 56
+        },
+        "Confidence": 0.9553825259208679,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 211,
+          "Y": 1375,
+          "Width": 237,
+          "Height": 55
+        },
+        "Confidence": 0.9998655319213867,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 466,
+          "Y": 1378,
+          "Width": 241,
+          "Height": 51
+        },
+        "Confidence": 0.9707192182540894,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+虎鼠马】",
+        "Box": {
+          "X": 732,
+          "Y": 1376,
+          "Width": 310,
+          "Height": 54
+        },
+        "Confidence": 0.9998552799224854,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：蛇26准",
+        "Box": {
+          "X": 1060,
+          "Y": 1378,
+          "Width": 258,
+          "Height": 51
+        },
+        "Confidence": 0.9989235401153564,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "306期：",
+        "Box": {
+          "X": 23,
+          "Y": 1449,
+          "Width": 165,
+          "Height": 58
+        },
+        "Confidence": 0.9857422113418579,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 211,
+          "Y": 1450,
+          "Width": 233,
+          "Height": 56
+        },
+        "Confidence": 0.9998597502708435,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 466,
+          "Y": 1449,
+          "Width": 243,
+          "Height": 58
+        },
+        "Confidence": 0.9821048974990845,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【单数+兔猪鸡】",
+        "Box": {
+          "X": 731,
+          "Y": 1451,
+          "Width": 311,
+          "Height": 52
+        },
+        "Confidence": 0.9898960590362549,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：龙15准",
+        "Box": {
+          "X": 1061,
+          "Y": 1451,
+          "Width": 257,
+          "Height": 52
+        },
+        "Confidence": 0.9992313385009766,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "307期：",
+        "Box": {
+          "X": 23,
+          "Y": 1527,
+          "Width": 165,
+          "Height": 54
+        },
+        "Confidence": 0.9386731386184692,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 212,
+          "Y": 1528,
+          "Width": 231,
+          "Height": 53
+        },
+        "Confidence": 0.9998247623443604,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 467,
+          "Y": 1527,
+          "Width": 241,
+          "Height": 55
+        },
+        "Confidence": 0.9830902218818665,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+马狗虎】",
+        "Box": {
+          "X": 733,
+          "Y": 1528,
+          "Width": 308,
+          "Height": 52
+        },
+        "Confidence": 0.9999091029167175,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：牛42准",
+        "Box": {
+          "X": 1060,
+          "Y": 1529,
+          "Width": 259,
+          "Height": 52
+        },
+        "Confidence": 0.9988257884979248,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "308期：",
+        "Box": {
+          "X": 21,
+          "Y": 1599,
+          "Width": 168,
+          "Height": 59
+        },
+        "Confidence": 0.9443032145500183,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 214,
+          "Y": 1601,
+          "Width": 230,
+          "Height": 55
+        },
+        "Confidence": 0.9996557235717773,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 466,
+          "Y": 1600,
+          "Width": 242,
+          "Height": 58
+        },
+        "Confidence": 0.9860721826553345,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【单数+牛鸡蛇】",
+        "Box": {
+          "X": 732,
+          "Y": 1603,
+          "Width": 309,
+          "Height": 51
+        },
+        "Confidence": 0.9975062608718872,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：鸡46准",
+        "Box": {
+          "X": 1062,
+          "Y": 1604,
+          "Width": 256,
+          "Height": 51
+        },
+        "Confidence": 0.9988405108451843,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "309期：",
+        "Box": {
+          "X": 23,
+          "Y": 1675,
+          "Width": 171,
+          "Height": 57
+        },
+        "Confidence": 0.9732317924499512,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 207,
+          "Y": 1676,
+          "Width": 239,
+          "Height": 56
+        },
+        "Confidence": 0.9998641014099121,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 466,
+          "Y": 1677,
+          "Width": 243,
+          "Height": 55
+        },
+        "Confidence": 0.9803348779678345,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+虎鼠龙】",
+        "Box": {
+          "X": 731,
+          "Y": 1675,
+          "Width": 312,
+          "Height": 57
+        },
+        "Confidence": 0.9998279809951782,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "开：？00准",
+        "Box": {
+          "X": 1059,
+          "Y": 1677,
+          "Width": 261,
+          "Height": 55
+        },
+        "Confidence": 0.9955151081085205,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      }
+    ],
+    "medium": [
+      {
+        "Text": "287期：",
+        "Box": {
+          "X": 25,
+          "Y": 25,
+          "Width": 175,
+          "Height": 50
+        },
+        "Confidence": 0.9999063611030579,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】单双加三肖",
+        "Box": {
+          "X": 197,
+          "Y": 23,
+          "Width": 529,
+          "Height": 54
+        },
+        "Confidence": 0.9995412826538086,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+龙虎狗】开：猪08准",
+        "Box": {
+          "X": 710,
+          "Y": 26,
+          "Width": 605,
+          "Height": 48
+        },
+        "Confidence": 0.99990314245224,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "288期：【美丽邂逅】",
+        "Box": {
+          "X": 23,
+          "Y": 99,
+          "Width": 427,
+          "Height": 53
+        },
+        "Confidence": 0.9976726770401001,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 464,
+          "Y": 102,
+          "Width": 266,
+          "Height": 48
+        },
+        "Confidence": 0.9710113406181335,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+虎猴马】开：马25准",
+        "Box": {
+          "X": 706,
+          "Y": 103,
+          "Width": 609,
+          "Height": 46
+        },
+        "Confidence": 0.9974315762519836,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "289期：【美丽邂逅】",
+        "Box": {
+          "X": 22,
+          "Y": 174,
+          "Width": 429,
+          "Height": 54
+        },
+        "Confidence": 0.9988256692886353,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 464,
+          "Y": 176,
+          "Width": 244,
+          "Height": 49
+        },
+        "Confidence": 0.9692566990852356,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+虎猴鼠】开：蛇38准",
+        "Box": {
+          "X": 722,
+          "Y": 177,
+          "Width": 593,
+          "Height": 47
+        },
+        "Confidence": 0.9998406767845154,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "290期：【美丽邂逅】单双加三肖【单数+牛猪兔】开：兔40准",
+        "Box": {
+          "X": 24,
+          "Y": 251,
+          "Width": 1292,
+          "Height": 51
+        },
+        "Confidence": 0.9951210021972656,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "291期：【美丽邂逅】单双加三肖【双数+马龙猴】开：虎41错",
+        "Box": {
+          "X": 24,
+          "Y": 326,
+          "Width": 1291,
+          "Height": 50
+        },
+        "Confidence": 0.9984191656112671,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "292期：【美丽邂逅】",
+        "Box": {
+          "X": 23,
+          "Y": 399,
+          "Width": 430,
+          "Height": 54
+        },
+        "Confidence": 0.9943944811820984,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖【单数+兔蛇羊】开：羊36准",
+        "Box": {
+          "X": 462,
+          "Y": 401,
+          "Width": 854,
+          "Height": 50
+        },
+        "Confidence": 0.9915799498558044,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "293期：【美丽邂逅】",
+        "Box": {
+          "X": 24,
+          "Y": 476,
+          "Width": 428,
+          "Height": 51
+        },
+        "Confidence": 0.9959405660629272,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖【双数+虎鼠猴】开：虎05准",
+        "Box": {
+          "X": 463,
+          "Y": 476,
+          "Width": 853,
+          "Height": 51
+        },
+        "Confidence": 0.9962869882583618,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "294期：",
+        "Box": {
+          "X": 25,
+          "Y": 552,
+          "Width": 183,
+          "Height": 49
+        },
+        "Confidence": 0.9999550580978394,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】单双加三肖【单数+兔鸡猪】开：兔28准",
+        "Box": {
+          "X": 193,
+          "Y": 551,
+          "Width": 1123,
+          "Height": 51
+        },
+        "Confidence": 0.9978410601615906,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "295期：【美丽邂逅】",
+        "Box": {
+          "X": 22,
+          "Y": 625,
+          "Width": 433,
+          "Height": 54
+        },
+        "Confidence": 0.9980533123016357,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 463,
+          "Y": 628,
+          "Width": 261,
+          "Height": 48
+        },
+        "Confidence": 0.9819210767745972,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+龙鼠马】开：马25准",
+        "Box": {
+          "X": 709,
+          "Y": 626,
+          "Width": 606,
+          "Height": 50
+        },
+        "Confidence": 0.9775343537330627,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "296期：【美丽邂逅】",
+        "Box": {
+          "X": 24,
+          "Y": 702,
+          "Width": 426,
+          "Height": 51
+        },
+        "Confidence": 0.9974380731582642,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖【单数+牛羊猪】开：猴23准",
+        "Box": {
+          "X": 464,
+          "Y": 702,
+          "Width": 852,
+          "Height": 51
+        },
+        "Confidence": 0.9934859871864319,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "297期：【美丽邂逅】单双加三肖",
+        "Box": {
+          "X": 24,
+          "Y": 776,
+          "Width": 700,
+          "Height": 51
+        },
+        "Confidence": 0.9946752786636353,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+马狗虎】开：马13准",
+        "Box": {
+          "X": 713,
+          "Y": 776,
+          "Width": 602,
+          "Height": 50
+        },
+        "Confidence": 0.9940275549888611,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "298期：【美丽邂逅】单双加三肖",
+        "Box": {
+          "X": 22,
+          "Y": 850,
+          "Width": 687,
+          "Height": 54
+        },
+        "Confidence": 0.9874314069747925,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+鼠猴虎】开：猪08准",
+        "Box": {
+          "X": 722,
+          "Y": 853,
+          "Width": 593,
+          "Height": 48
+        },
+        "Confidence": 0.9998842477798462,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "299期：",
+        "Box": {
+          "X": 25,
+          "Y": 927,
+          "Width": 171,
+          "Height": 50
+        },
+        "Confidence": 0.9998982548713684,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 197,
+          "Y": 926,
+          "Width": 264,
+          "Height": 52
+        },
+        "Confidence": 0.999857485294342,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 450,
+          "Y": 928,
+          "Width": 258,
+          "Height": 49
+        },
+        "Confidence": 0.9887970089912415,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+马龙虎】开：猴23错",
+        "Box": {
+          "X": 716,
+          "Y": 925,
+          "Width": 599,
+          "Height": 53
+        },
+        "Confidence": 0.9998825788497925,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "300期：",
+        "Box": {
+          "X": 24,
+          "Y": 1002,
+          "Width": 169,
+          "Height": 49
+        },
+        "Confidence": 0.9998447299003601,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】单双加三肖【单数+蛇鸡猪】开：蛇38准",
+        "Box": {
+          "X": 205,
+          "Y": 1001,
+          "Width": 1111,
+          "Height": 51
+        },
+        "Confidence": 0.9975059032440186,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "301期：",
+        "Box": {
+          "X": 24,
+          "Y": 1078,
+          "Width": 169,
+          "Height": 50
+        },
+        "Confidence": 0.9997869729995728,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】单双加三肖【双数+猴鼠虎】开：虎17准",
+        "Box": {
+          "X": 205,
+          "Y": 1078,
+          "Width": 1111,
+          "Height": 51
+        },
+        "Confidence": 0.9981338977813721,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "302期：",
+        "Box": {
+          "X": 25,
+          "Y": 1154,
+          "Width": 183,
+          "Height": 49
+        },
+        "Confidence": 0.9999701380729675,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】单双加三肖【双数+猴鼠马】开：狗45错",
+        "Box": {
+          "X": 189,
+          "Y": 1153,
+          "Width": 1126,
+          "Height": 51
+        },
+        "Confidence": 0.9962617754936218,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "303期：【美丽邂逅】",
+        "Box": {
+          "X": 23,
+          "Y": 1226,
+          "Width": 426,
+          "Height": 54
+        },
+        "Confidence": 0.9972948431968689,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖【单数+羊蛇兔】开：虎17准",
+        "Box": {
+          "X": 463,
+          "Y": 1228,
+          "Width": 853,
+          "Height": 50
+        },
+        "Confidence": 0.9929801821708679,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "304期：",
+        "Box": {
+          "X": 24,
+          "Y": 1303,
+          "Width": 179,
+          "Height": 49
+        },
+        "Confidence": 0.999951183795929,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】单双加三肖【单数+羊蛇兔】开：狗21准",
+        "Box": {
+          "X": 197,
+          "Y": 1303,
+          "Width": 1119,
+          "Height": 51
+        },
+        "Confidence": 0.9966617822647095,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "305期：",
+        "Box": {
+          "X": 25,
+          "Y": 1379,
+          "Width": 195,
+          "Height": 48
+        },
+        "Confidence": 0.9996859431266785,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】单双加三肖【双数+虎鼠马】开：蛇26准",
+        "Box": {
+          "X": 193,
+          "Y": 1378,
+          "Width": 1123,
+          "Height": 50
+        },
+        "Confidence": 0.9958981275558472,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "306期：",
+        "Box": {
+          "X": 24,
+          "Y": 1451,
+          "Width": 168,
+          "Height": 53
+        },
+        "Confidence": 0.9998695254325867,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 205,
+          "Y": 1452,
+          "Width": 248,
+          "Height": 52
+        },
+        "Confidence": 0.9999445080757141,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖【单数+兔猪鸡】开：龙15准",
+        "Box": {
+          "X": 463,
+          "Y": 1453,
+          "Width": 853,
+          "Height": 50
+        },
+        "Confidence": 0.992625892162323,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "307期：",
+        "Box": {
+          "X": 24,
+          "Y": 1530,
+          "Width": 167,
+          "Height": 49
+        },
+        "Confidence": 0.9998518824577332,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【美丽邂逅】",
+        "Box": {
+          "X": 206,
+          "Y": 1530,
+          "Width": 242,
+          "Height": 49
+        },
+        "Confidence": 0.9998727440834045,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "单双加三肖",
+        "Box": {
+          "X": 465,
+          "Y": 1530,
+          "Width": 244,
+          "Height": 49
+        },
+        "Confidence": 0.987725555896759,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+马狗虎】开：牛42准",
+        "Box": {
+          "X": 718,
+          "Y": 1531,
+          "Width": 597,
+          "Height": 47
+        },
+        "Confidence": 0.9998694062232971,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "308期：【美丽邂逅】单双加三肖【单数+牛鸡蛇】开：鸡46准",
+        "Box": {
+          "X": 24,
+          "Y": 1604,
+          "Width": 1292,
+          "Height": 50
+        },
+        "Confidence": 0.9986593723297119,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "309期：【美丽邂逅】单双加三肖",
+        "Box": {
+          "X": 24,
+          "Y": 1679,
+          "Width": 684,
+          "Height": 51
+        },
+        "Confidence": 0.9932990074157715,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      },
+      {
+        "Text": "【双数+虎鼠龙】开：？00准",
+        "Box": {
+          "X": 722,
+          "Y": 1680,
+          "Width": 593,
+          "Height": 48
+        },
+        "Confidence": 0.9972915649414062,
+        "ViewId": "paddle/original",
+        "RegionId": "main"
+      }
+    ]
+  }
+]

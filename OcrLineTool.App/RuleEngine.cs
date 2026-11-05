@@ -388,9 +388,11 @@ public static class RuleEngine
     // 目录身份判定（候选识别与缺项补读共用同一套判断）：目录段精确相等，
     // 允许规则的资料夹出现在图片的任一级祖先目录（作者\子目录\图片.jpg 仍属于该作者），
     // 但绝不按名称包含或前缀相等放宽。
-    public static bool MatchesRuleFolder(string imagePath, OcrRule rule)
+    public static bool MatchesRuleFolder(string imagePath, OcrRule rule) =>
+        MatchesFolder(imagePath, rule.Folder ?? rule.Keyword);
+
+    internal static bool MatchesFolder(string imagePath, string expectedFolder)
     {
-        string expectedFolder = rule.Folder ?? rule.Keyword;
         if (string.IsNullOrWhiteSpace(expectedFolder))
             return false;
         string parent = Path.GetFileName(Path.GetDirectoryName(imagePath)) ?? string.Empty;
@@ -1201,6 +1203,7 @@ public static class RuleEngine
         "jieshao_nine_zodiacs",
         "rui_er_team_card",
         "missing_wave_balls",
+        "red_dragonfly_two_waves",
         "missing_numbers_from_49",
     };
 
@@ -1212,6 +1215,10 @@ public static class RuleEngine
         value = null;
         switch (rule.Extractor)
         {
+            case "red_dragonfly_two_waves":
+                value = ExtractRedDragonflyWaves(lines, issue);
+                return true;
+
             case "missing_wave_balls":
                 // Pure text cannot prove the colours of the two printed balls.
                 return true;
@@ -3266,6 +3273,19 @@ public static class RuleEngine
             return ExtractPositionedHalfWaves(evidence, issue);
         if (rule.Extractor == "missing_wave_balls" && rule.Type == "波")
             return ColorBallMatcher.ExtractMissingWave(evidence, issue);
+        if (rule.Extractor == "red_dragonfly_two_waves")
+        {
+            // Rejoin split cells only within their physical row and original view/region.
+            var rows = new List<string>();
+            foreach (var region in (evidence.TokenItems ?? evidence.Items).GroupBy(item => (item.ViewId, item.RegionId)))
+            {
+                OcrLineEvidence[] items = region.Select(item => item.Confidence is < 0.8
+                    ? item with { Text = "低置信度" } : item).ToArray();
+                rows.AddRange(items.All(item => item.Box is { Width: > 0, Height: > 0 })
+                    ? BuildRowMajorReading(items) : items.Select(item => item.Text));
+            }
+            return ExtractFinalResult(rows, issue, rule);
+        }
         if (rule.Type == "生肖" && IsZodiacSummary(evidence.Lines))
         {
             // Read each physical view independently; a vertical merged column is not a row cell.
@@ -3852,6 +3872,30 @@ public static class RuleEngine
             : observed.Count == 1 ? RuleExtractionResult.Success(observed.Single()) : RuleExtractionResult.Missing;
     }
 
+    private static string? ExtractRedDragonflyWaves(IEnumerable<string> lines, int issue)
+    {
+        var values = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string source in lines)
+        {
+            // A complete row must own its issue, identity and closed pair; no wrapped-text fallback.
+            string line = Regex.Replace(SimplifyOcrText(source).Replace('兩', '两'), @"[ \t\u3000]", "");
+            if (line.Contains('\n') || line.Contains('\r') || IssueRegex.Matches(line).Count != 1)
+                continue;
+            Match row = Regex.Match(line,
+                @"^(?<issue>\d{1,3})期[:：]?[【\[]?红蜻蜓两波中特[】\]]?[-—:：]*[（(](?<pair>[^()（）]*)[）)][-—]*(?:开[^\r\n]*|)$",
+                RegexOptions.CultureInvariant, RegexTimeout);
+            if (!row.Success || !int.TryParse(row.Groups["issue"].Value, out int rowIssue) || rowIssue != issue)
+                continue;
+            Match pair = Regex.Match(row.Groups["pair"].Value, @"^(?<first>[红蓝绿])波[+＋](?<second>[红蓝绿])波$",
+                RegexOptions.CultureInvariant, RegexTimeout);
+            if (!pair.Success || pair.Groups["first"].Value == pair.Groups["second"].Value)
+                continue;
+            values.Add("红蓝绿".Single(color => color != pair.Groups["first"].Value[0]
+                && color != pair.Groups["second"].Value[0]) + "波");
+        }
+        return values.Count > 1 ? ConflictMarker : values.SingleOrDefault();
+    }
+
     // Row-major reading order with the same row tolerance the layout builder
     // uses. Cells of one visual row are joined into one physical line and only
     // split where the horizontal gap is wide or the rendered view changes, so
@@ -4110,6 +4154,8 @@ public static class RuleEngine
             return $"已找到图片和文字，但未识别到第{issue}期";
         if (rule.Extractor == "missing_wave_balls")
             return $"已找到{issue}期文字，但未确认当期完整表格行内的两种不同波色（期号坐标或色球校验未通过）";
+        if (rule.Extractor == "red_dragonfly_two_waves")
+            return $"已找到{issue}期文字，但未确认红蜻蜓两波中特同一行括号内的两个不同波色（身份、完整性或行归属校验未通过）";
         if (rule.Folder == "杰少" && !string.IsNullOrWhiteSpace(rule.Section))
         {
             string[] rows = SplitInlineIssueRows(lines.Select(Normalize).ToArray());

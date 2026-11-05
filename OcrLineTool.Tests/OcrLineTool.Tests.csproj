@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="..\OcrLineTool.App\OcrLineTool.App.csproj" />
     <Content Include="Fixtures\dayingjia-two-balls.*" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Fixtures\red-dragonfly-waves.*" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\native\win-x64\cuda_hash.dll" TargetPath="cuda_hash.dll" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -12,6 +12,7 @@
     { "keyword": "锦囊杀10码", "type": "号码:10", "label": "锦囊杀十码", "extractor": "ten_numbers_straddling_issue", "required_keyword": "锦囊", "strictIssueBlock": true },
     { "keyword": "四行中特", "type": "缺五行", "label": "红牛四行", "extractor": "four_elements_bullseye", "required_keyword": "红牛", "strictIssueBlock": true },
     { "keyword": "五行必中", "type": "缺五行", "label": "黑客四行", "extractor": "four_elements_bracket", "required_keyword": "GPT解4行", "strictIssueBlock": true },
-    { "keyword": "数据半波", "type": "缺半波", "label": "黑客半波", "extractor": "labelled_half_waves", "required_keyword": "GPT半波预测", "strictIssueBlock": true }
+    { "keyword": "数据半波", "type": "缺半波", "label": "黑客半波", "extractor": "labelled_half_waves", "required_keyword": "GPT半波预测", "strictIssueBlock": true },
+    { "keyword": "红蜻蜓两波中特", "type": "波", "label": "红蜻蜓双波", "extractor": "red_dragonfly_two_waves", "folder": "红蜻蜓", "required_keyword": "红蜻蜓两波中特", "strictIssueBlock": true }
   ]
 }

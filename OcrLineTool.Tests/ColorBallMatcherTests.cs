@@ -25,7 +25,8 @@ public sealed class ColorBallMatcherTests
         Assert.Equal("{issue}期-一波.txt", config.RootElement.GetProperty("targetFile").GetString());
         Assert.Equal(@"C:\Users\Administrator\Desktop\每天工具\爬虫合集\七类数据统一归纳",
             config.RootElement.GetProperty("targetDirectory").GetString());
-        var source = Assert.Single(config.RootElement.GetProperty("sources").EnumerateArray());
+        var source = Assert.Single(config.RootElement.GetProperty("sources").EnumerateArray(),
+            item => item.GetProperty("sourceGroup").GetString() == "新澳六合彩资料");
         Assert.Equal("新澳六合彩资料", source.GetProperty("sourceGroup").GetString());
         Assert.Equal([Rule.Id], source.GetProperty("labels").EnumerateArray().Select(item => item.GetString()));
     }

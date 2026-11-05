@@ -112,6 +112,16 @@
       "CropBottomWidthRatio": 0.41,
       "FingerprintTopWidthRatio": 0.19,
       "FingerprintBottomWidthRatio": 0.3
+    },
+    {
+      "Id": "红蜻蜓双波",
+      "RuleIds": ["红蜻蜓双波"],
+      "SourceFolder": "红蜻蜓",
+      "Fingerprint": "3FFFFFFFFFDFFFFF3FFFFFFFFF9FFFFF3FFFF6E6639E6ED33FFFF6E6738E76923FFFF6E8678756123FFFF6E6369336103FFFF6E073866C1A3FFFF6C6730E6ED23FFFFEEFFFCFFEDF3FFFF6DFFF8FFF9F3FFFF6E6738E76D23FFFF6E8638F16123FFFF66A369376143FFFF6E2379736983FFFF6C8730E6C127FFFF6C673167AD3",
+      "CropTopWidthRatio": 0,
+      "CropBottomWidthRatio": 1,
+      "FingerprintTopWidthRatio": 0,
+      "FingerprintBottomWidthRatio": 0.08
     }
   ],
   "FingerprintTopWidthRatio": null,

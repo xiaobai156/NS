@@ -14,7 +14,8 @@ public sealed record VisualTemplateDefinition(
     double CropTopWidthRatio,
     double CropBottomWidthRatio,
     double? FingerprintTopWidthRatio = null,
-    double? FingerprintBottomWidthRatio = null);
+    double? FingerprintBottomWidthRatio = null,
+    string? SourceFolder = null);
 
 public sealed record VisualTemplateSet(
     int Version,
@@ -292,7 +293,7 @@ public static class VisualTemplateMatcher
                 try
                 {
                     // Derive the content identity and fingerprints from one byte read.
-                    // Duplicate images are removed in the deterministic pass below.
+                    // Duplicate images are removed within each template's eligible paths below.
                     byte[] bytes = File.ReadAllBytes(path);
                     string contentHash = Convert.ToHexString(SHA256.HashData(bytes));
                     using var stream = new MemoryStream(bytes, writable: false);
@@ -320,24 +321,21 @@ public static class VisualTemplateMatcher
                 .First(PaddleLocalOcrClient.IsCudaUnavailable);
         }
 
-        var firstIndexByContent = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        for (int index = 0; index < imageHashes.Length; index++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            string contentHash = imageHashes[index].SourceHash;
-            if (contentHash.Length == 0 || firstIndexByContent.TryAdd(contentHash, index))
-                continue;
-            imageHashes[index] = (imageHashes[index].Path, contentHash, []);
-        }
-
         var pairs = new List<Score>(templates.Count * imagePaths.Count);
         for (int templateIndex = 0; templateIndex < templates.Count; templateIndex++)
         {
+            var seenContent = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             for (int imageIndex = 0; imageIndex < imageHashes.Length; imageIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                // An out-of-folder duplicate must not hide the authorized source copy.
+                if (templates[templateIndex].SourceFolder is { Length: > 0 } folder
+                    && !RuleEngine.MatchesFolder(imageHashes[imageIndex].Path, folder))
+                    continue;
                 if (!imageHashes[imageIndex].Hashes.TryGetValue(
                     templateRegions[templateIndex], out ulong[][]? variants))
+                    continue;
+                if (!seenContent.Add(imageHashes[imageIndex].SourceHash))
                     continue;
 
                 int bestDistance = int.MaxValue;
@@ -376,6 +374,7 @@ public static class VisualTemplateMatcher
 
         var usedTemplates = new HashSet<int>();
         var usedImages = new HashSet<int>();
+        var usedContent = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var matches = new List<VisualTemplateMatch>();
         foreach (Score score in pairs
             .OrderBy(item => item.Distance)
@@ -384,10 +383,12 @@ public static class VisualTemplateMatcher
             .ThenBy(item => imageHashes[item.ImageIndex].Path, StringComparer.OrdinalIgnoreCase))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (usedTemplates.Contains(score.TemplateIndex) || usedImages.Contains(score.ImageIndex))
+            if (usedTemplates.Contains(score.TemplateIndex) || usedImages.Contains(score.ImageIndex)
+                || usedContent.Contains(imageHashes[score.ImageIndex].SourceHash))
                 continue;
             usedTemplates.Add(score.TemplateIndex);
             usedImages.Add(score.ImageIndex);
+            usedContent.Add(imageHashes[score.ImageIndex].SourceHash);
             matches.Add(new VisualTemplateMatch(
                 imageHashes[score.ImageIndex].Path,
                 templates[score.TemplateIndex],

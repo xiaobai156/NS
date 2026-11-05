@@ -10,6 +10,7 @@ public sealed class ExtractorContractTests
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
         ["大赢家双波"] = "missing_wave_balls",
+        ["红蜻蜓双波"] = "red_dragonfly_two_waves",
         ["黑客九肖"] = "nine_zodiacs_across_wrapped_rows",
         ["嫣然电报十码必杀"] = "ten_numbers_across_issue_cell",
         ["锦囊杀十码"] = "ten_numbers_straddling_issue",
@@ -57,6 +58,7 @@ public sealed class ExtractorContractTests
     private static readonly HashSet<string> Known = new(StringComparer.Ordinal)
     {
         "missing_wave_balls",
+        "red_dragonfly_two_waves",
         "nine_zodiacs_across_wrapped_rows",
         "nine_zodiacs_before_opening",
         "ten_numbers_across_issue_cell",

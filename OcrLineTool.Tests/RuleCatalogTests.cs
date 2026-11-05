@@ -780,7 +780,7 @@ public sealed class RuleCatalogTests
     // 黑色六合彩、嫣然电报、嫣然六合彩大全：各自独立的规则与模板目录，必须一一对应；
     // 前两群的数据行印在期号格上方，除「天宫杀头」外目录默认非严格。
     [Theory]
-    [InlineData("黑色六合彩", 10)]
+    [InlineData("黑色六合彩", 11)]
     [InlineData("嫣然电报", 7)]
     [InlineData("嫣然六合彩大全", 4)]
     public void LoadsTheTwoNewTemplateGroupsWithMatchingTemplates(string group, int expectedCount)
