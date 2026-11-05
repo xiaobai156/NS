@@ -157,11 +157,18 @@ public sealed class MainForm : Form
 
     public MainForm() : this(UiSettings.ResolveImageRootDirectory(AppContext.BaseDirectory), info => Process.Start(info)) { }
 
+    private static Icon? LoadAppIcon()
+    {
+        using Stream? stream = typeof(MainForm).Assembly.GetManifestResourceStream("app.ico");
+        return stream is null ? null : new Icon(stream);
+    }
+
     internal MainForm(string imageDirectory, Action<ProcessStartInfo> openFile)
     {
         imageRootDirectory = imageDirectory;
         this.openFile = openFile;
         Text = $"OCR 整行提取工具 NVIDIA CUDA版 v{typeof(MainForm).Assembly.GetName().Version?.ToString(3)}";
+        Icon = LoadAppIcon();
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(1100, 700);
         Size = new Size(1440, 860);

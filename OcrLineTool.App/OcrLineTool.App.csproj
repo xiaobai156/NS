@@ -9,7 +9,8 @@
     <RootNamespace>OcrLineTool</RootNamespace>
     <Product>OCR 整行提取工具 NVIDIA CUDA版</Product>
     <Description>使用 NVIDIA CUDA 从本地图片中提取指定期号的完整一行</Description>
-    <Version>1.5.237</Version>
+    <Version>1.5.238</Version>
+    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
@@ -18,6 +19,7 @@
     <DebugSymbols Condition="'$(Configuration)' == 'Release'">false</DebugSymbols>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Resources\app.ico" LogicalName="app.ico" />
     <Content Include="paddle_local_ocr.py" TargetPath="运行组件\paddle_local_ocr.py" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
     <Content Include="..\native\win-x64\cuda_hash.dll" TargetPath="cuda_hash.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
     <Content Include="..\检查NVIDIA-CUDA环境.py" TargetPath="运行组件\检查NVIDIA-CUDA环境.py" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
