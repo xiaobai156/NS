@@ -205,6 +205,62 @@ public sealed class ShensuanzuMissingNumbersTests
         Assert.Null(RuleEngine.ExtractFinalValue(Positioned(tokens), 309, Rule));
     }
 
+    [Theory]
+    [InlineData("1 02 03 04 05 06 07 08 09")]
+    [InlineData("01 02 03 04 05 06 07 08 09 09")]
+    [InlineData("01 02 03 04 05 06 07 08 09 14")]
+    public void LegacyTextAlsoRejectsInvalidCardinality(string firstRow)
+    {
+        string[] lines = RecordedTokens("crop").Select(item => item.Text).ToArray();
+        lines[1] = firstRow;
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 309, Rule));
+    }
+
+    [Theory]
+    [InlineData("14")]
+    [InlineData("49")]
+    [InlineData("14X")]
+    [InlineData("14错")]
+    public void LegacyTextCannotStopAfterFortyFiveAndIgnoreAnExtraRow(string extra)
+    {
+        string[] lines = RecordedTokens("crop").Select(item => item.Text).ToArray();
+        Assert.Null(RuleEngine.ExtractFinalValue([.. lines.Take(9), extra, .. lines.Skip(9)], 309, Rule));
+        Assert.Null(RuleEngine.ExtractFinalValue([lines[0], extra, .. lines.Skip(1)], 309, Rule));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LegacyCompleteReadingsMustAgree(bool separateViews)
+    {
+        string[] lines = RecordedTokens("crop").Select(item => item.Text).ToArray();
+        string[] other = lines.Select((line, index) => index == 2 ? line.Replace("13", "14") : line).ToArray();
+        var tokens = lines.Select(line => new OcrLineEvidence(line, ViewId: "first"))
+            .Concat(other.Select(line => new OcrLineEvidence(line, ViewId: separateViews ? "second" : "first")))
+            .ToArray();
+        Assert.Equal(RuleExtractionStatus.Conflict,
+            RuleEngine.ExtractFinalResult(Positioned(tokens), 309, Rule).Status);
+    }
+
+    [Fact]
+    public void CenteredIssueCannotClaimACompleteTableOnlyAboveOrBelowIt()
+    {
+        string[] numbers = RecordedTokens("crop").Take(9)
+            .Where(item => Regex.IsMatch(item.Text, @"^[0-9 ]+$")).Select(item => item.Text).ToArray();
+        Assert.Null(RuleEngine.ExtractFinalValue(["308期", .. numbers, "309期", "开??"], 309, Rule));
+        Assert.Null(RuleEngine.ExtractFinalValue(["309期", "开??", .. numbers, "308期"], 309, Rule));
+    }
+
+    [Theory]
+    [InlineData(100, 40)]
+    [InlineData(645, 35)]
+    public void NumberBoxesCrossingHorizontalCellBordersCannotBeIgnored(int x, int width)
+    {
+        OcrLineEvidence[] tokens = RecordedTokens("crop");
+        OcrLineEvidence extra = new("14", new OcrBox(x, 297, width, 33), 0.99, "crop", "main");
+        Assert.Null(RuleEngine.ExtractFinalValue(Positioned([.. tokens, extra]), 309, Rule));
+    }
+
     [Fact]
     public void StaysInsideTheBlockOfTheRequestedIssue()
     {

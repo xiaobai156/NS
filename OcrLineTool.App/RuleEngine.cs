@@ -2434,46 +2434,105 @@ public static class RuleEngine
             return null;
         int listed = 49 - missing;
         string[] normalized = lines.Select(SimplifyOcrText).ToArray();
-        int anchor = Array.FindIndex(normalized, line => IsBareIssueLine(line, issue));
-        if (anchor < 0)
-            return null;
+        var observed = new HashSet<string>(StringComparer.Ordinal);
+        for (int anchor = 0; anchor < normalized.Length; anchor++)
+        {
+            if (!IsBareIssueLine(normalized[anchor], issue))
+                continue;
+            string? value = ReadBlock(anchor);
+            if (value is not null)
+                observed.Add(value);
+        }
+        return observed.Count > 1 ? ConflictMarker : observed.SingleOrDefault();
 
-        var seen = new HashSet<int>();
-        for (int index = anchor - 1; index >= 0 && seen.Count < listed; index--)
+        string? ReadBlock(int anchor)
         {
-            if (!TryParsePrintedNumberRow(normalized[index], out IReadOnlyList<int> row))
-                break;
-            // 上一段的行比本段已收的最小数更大：跨段了，停。
-            if (row[^1] >= (seen.Count == 0 ? 50 : seen.Min()))
-                break;
-            foreach (int number in row)
-                seen.Add(number);
-        }
-        for (int index = anchor + 1; index < normalized.Length && seen.Count < listed; index++)
-        {
-            string line = normalized[index];
-            if (TryParsePrintedNumberRow(line, out IReadOnlyList<int> row))
+            var seen = new HashSet<int>();
+            for (int index = anchor - 1; index >= 0; index--)
             {
-                // 「3637 38 39 4041 42」这类粘连行也算号码行，不能当成别的期号行跳过。
-                if (seen.Count > 0 && row[0] <= seen.Max())
+                if (!TryParsePrintedNumberRow(normalized[index], out IReadOnlyList<int> row))
+                {
+                    if (Regex.IsMatch(normalized[index], @"\d")
+                        && !IsAnyBareIssueLine(normalized[index])
+                        && !IsOpeningOrResultLine(normalized[index])
+                        && !ContainsRuleIdentity([normalized[index]], rule))
+                        return null;
                     break;
+                }
+                if (row[^1] >= (seen.Count == 0 ? 50 : seen.Min()))
+                {
+                    if (!EndsOtherPeriod(index))
+                        return null;
+                    break;
+                }
                 foreach (int number in row)
-                    seen.Add(number);
-                continue;
+                    if (!seen.Add(number))
+                        return null;
             }
-            if (IsAnyBareIssueLine(line))
+            int beforeCount = seen.Count;
+            if (beforeCount == 0 || beforeCount >= listed)
+                return null;
+            for (int index = anchor + 1; index < normalized.Length; index++)
+            {
+                string line = normalized[index];
+                if (TryParsePrintedNumberRow(line, out IReadOnlyList<int> row))
+                {
+                    if (seen.Count > 0 && row[0] <= seen.Max())
+                    {
+                        // A reset is a new period only if its own increasing
+                        // number run leads to a different printed issue.
+                        if (!StartsOtherPeriod(index))
+                            return null;
+                        break;
+                    }
+                    foreach (int number in row)
+                        if (!seen.Add(number))
+                            return null;
+                    continue;
+                }
+                if (IsAnyBareIssueLine(line))
+                    break;
+                if (IsOpeningOrResultLine(line))
+                    continue;
+                if (Regex.IsMatch(line, @"\d") && !ContainsRuleIdentity([line], rule))
+                    return null;
                 break;
-            // 开奖格（「开??」「牛42中」）夹在号码行之间，跨过去继续收本期。
-            if (IsOpeningOrResultLine(line))
-                continue;
-            break;
+            }
+            return seen.Count == listed && seen.Count > beforeCount
+                ? string.Join(' ', Enumerable.Range(1, 49).Where(number => !seen.Contains(number))
+                    .Select(number => number.ToString("00")))
+                : null;
         }
-        if (seen.Count != listed)
-            return null;
-        int[] complement = Enumerable.Range(1, 49).Where(number => !seen.Contains(number)).ToArray();
-        if (complement.Length != missing)
-            return null;
-        return string.Join(' ', complement.Select(number => number.ToString("00")));
+
+        bool StartsOtherPeriod(int start)
+        {
+            int maximum = 0;
+            for (int index = start; index < normalized.Length; index++)
+            {
+                if (IsAnyBareIssueLine(normalized[index]))
+                    return !IsBareIssueLine(normalized[index], issue);
+                if (!TryParsePrintedNumberRow(normalized[index], out IReadOnlyList<int> row) || row[0] <= maximum)
+                    return false;
+                maximum = row[^1];
+            }
+            return false;
+        }
+
+        bool EndsOtherPeriod(int end)
+        {
+            int minimum = 50;
+            for (int index = end; index >= 0; index--)
+            {
+                if (IsAnyBareIssueLine(normalized[index]))
+                    return !IsBareIssueLine(normalized[index], issue);
+                if (IsOpeningOrResultLine(normalized[index]))
+                    continue;
+                if (!TryParsePrintedNumberRow(normalized[index], out IReadOnlyList<int> row) || row[^1] >= minimum)
+                    return false;
+                minimum = row[0];
+            }
+            return false;
+        }
     }
 
     // 一行只由号码和分隔符组成才算号码行；OCR 会把相邻两个号码粘成一段四位
@@ -2488,12 +2547,14 @@ public static class RuleEngine
         foreach (Match run in Regex.Matches(text, @"\d+"))
         {
             string value = run.Value;
-            if (value.Length is not (1 or 2 or 4))
+            if (value.Length % 2 != 0)
                 return false;
             for (int offset = 0; offset < value.Length; offset += 2)
             {
-                string pair = value.Length == 1 ? value : value.Substring(offset, 2);
+                string pair = value.Substring(offset, 2);
                 if (!int.TryParse(pair, out int number) || number is < 1 or > 49)
+                    return false;
+                if (parsed.Count > 0 && number <= parsed[^1])
                     return false;
                 parsed.Add(number);
             }
@@ -2518,9 +2579,7 @@ public static class RuleEngine
     private static bool IsOpeningOrResultLine(string line)
     {
         string text = line.Trim();
-        return text.Length > 0
-            && Regex.IsMatch(text, @"开|[中錯错]|[?？]")
-            && !TryParsePrintedNumberRow(text, out _);
+        return Regex.IsMatch(text, $@"^(?:开\s*[?？]+|[{Zodiac}]\s*\d{{2}}\s*[中错])$");
     }
 
 
@@ -3397,7 +3456,8 @@ public static class RuleEngine
                 RuleExtractionResult holistic = ExtractFinalResult(items.Select(item => item.Text), issue, rule);
                 // 反推型解析器读的是整张表（49 码减补集、期行两侧的九肖），单行永远
                 // 凑不出结果；再要求「逐行原子值 == 整页值」等于把正确结果丢掉。
-                if (holistic.Status == RuleExtractionStatus.Success && ReadsWholeTable(rule))
+                if (holistic.Status == RuleExtractionStatus.Success && ReadsWholeTable(rule)
+                    && rule.Extractor != "missing_numbers_from_49")
                     return holistic;
                 if (holistic.Status == RuleExtractionStatus.Conflict)
                 {
@@ -3432,7 +3492,7 @@ public static class RuleEngine
                 bool unpositionedPurpleSection = rule.Id == "紫蝴蝶"
                     && items.All(item => item.Box is null);
                 regional = holistic.Status == RuleExtractionStatus.Success
-                    && (unpositionedPurpleSection
+                    && (unpositionedPurpleSection || rule.Extractor == "missing_numbers_from_49"
                         || atomic.Count == 1 && atomic.Contains(holistic.Value!))
                     ? holistic
                     : RuleExtractionResult.Missing;
@@ -3873,6 +3933,11 @@ public static class RuleEngine
                         $@"^(?:开\s*[?？]+|[{Zodiac}]\s*\d{{1,2}}\s*[中错])$"))
                     .OrderBy(item => item.Box!.X).FirstOrDefault();
                 if (opening is null)
+                    continue;
+                if (complement && items.Any(item => item.Box!.Bottom > top && item.Box.Y < bottom
+                    && item.Box.Right > anchor.Box.Right && item.Box.X < opening.Box!.X
+                    && (item.Box.X < anchor.Box.Right || item.Box.Right > opening.Box.X)
+                    && Regex.IsMatch(item.Text, @"^[0-9\s,，.。]+$")))
                     continue;
                 var cell = items.Where(item => item.Box!.X >= anchor.Box.Right
                     && item.Box.Right <= opening.Box!.X
