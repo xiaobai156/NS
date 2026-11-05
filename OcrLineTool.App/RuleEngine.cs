@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 
 namespace OcrLineTool;
 
@@ -1206,6 +1206,12 @@ public static class RuleEngine
         "red_dragonfly_two_waves",
         "missing_numbers_from_49",
     };
+
+    // 这些解析器必须拿到整张表的连续文字才能算：49 码减补集要收集 45 个号码，
+    // 九肖要跨期号行两侧拼；单行输入一律凑不出值，所以证据聚合时不能再用
+    // 「逐行原子值」去否决整页结果。
+    private static bool ReadsWholeTable(OcrRule rule) =>
+        rule.Extractor is "missing_numbers_from_49" or "nine_zodiacs_before_opening";
 
     private static bool TryExtractOwnCard(
         string[] lines, int issue, OcrRule rule, bool requireCloudKeyword,
@@ -3383,6 +3389,10 @@ public static class RuleEngine
             else
             {
                 RuleExtractionResult holistic = ExtractFinalResult(items.Select(item => item.Text), issue, rule);
+                // 反推型解析器读的是整张表（49 码减补集、期行两侧的九肖），单行永远
+                // 凑不出结果；再要求「逐行原子值 == 整页值」等于把正确结果丢掉。
+                if (holistic.Status == RuleExtractionStatus.Success && ReadsWholeTable(rule))
+                    return holistic;
                 if (holistic.Status == RuleExtractionStatus.Conflict)
                 {
                     if (anchored)

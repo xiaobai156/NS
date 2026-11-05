@@ -75,6 +75,22 @@ public sealed class ShensuanzuMissingNumbersTests
     }
 
     [Fact]
+    public void WholeCardReadingSurvivesTheEvidenceAggregator()
+    {
+        // 现场 309 期报「未通过4个两位数号码校验」：整页能算出 4 码，但证据聚合还要
+        // 求逐行单独也算出同一个值，单行永远算不出，正确结果就被丢掉。走证据入口
+        // （生产真实路径）必须同样拿到补集。
+        var evidence = new OcrEvidence(
+            "card.jpg", "card.jpg", "source-hash", "input-hash", "local-primary/medium",
+            Lines.Select(line => new OcrLineEvidence(line, null, null, "local-primary/medium", "main")).ToArray());
+
+        RuleExtractionResult result = RuleEngine.ExtractFinalResult(evidence, 308, Rule);
+
+        Assert.Equal(RuleExtractionStatus.Success, result.Status);
+        Assert.Equal("27 41 44 47", result.Value);
+    }
+
+    [Fact]
     public void StaysInsideTheBlockOfTheRequestedIssue()
     {
         // 307 期上面那段属于 308 期，25 属于 307 自己、27 属于 308：相邻段的号码不能串。

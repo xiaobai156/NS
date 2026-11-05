@@ -53,6 +53,20 @@ public sealed class YelangNineZodiacsTests
         Assert.Null(RuleEngine.ExtractFinalValue(Lines, 250, Rule));
 
     [Fact]
+    public void WholeCardReadingSurvivesTheEvidenceAggregator()
+    {
+        // 九肖跨期号行两侧拼，单行凑不出九个不同生肖；证据聚合不能因此丢掉整页结果。
+        var evidence = new OcrEvidence(
+            "card.jpg", "card.jpg", "source-hash", "input-hash", "local-primary/medium",
+            Lines.Select(line => new OcrLineEvidence(line, null, null, "local-primary/medium", "main")).ToArray());
+
+        RuleExtractionResult result = RuleEngine.ExtractFinalResult(evidence, 308, Rule);
+
+        Assert.Equal(RuleExtractionStatus.Success, result.Status);
+        Assert.Equal("兔羊鸡牛狗猪猴蛇龙", result.Value);
+    }
+
+    [Fact]
     public void RuleIsBoundToTheWildWolfFolderWithItsOwnExtractor()
     {
         Assert.Equal("九肖", Rule.Type);
