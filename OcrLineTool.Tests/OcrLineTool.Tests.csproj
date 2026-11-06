@@ -23,6 +23,8 @@
     <Content Include="Fixtures\shensuanzu-309.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Fixtures\five-card-310.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Fixtures\heike-tail-strips.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Fixtures\ruier-owned-310.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Fixtures\macau-two-zodiac-identity.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\native\win-x64\cuda_hash.dll" TargetPath="cuda_hash.dll" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

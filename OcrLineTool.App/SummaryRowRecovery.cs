@@ -75,7 +75,8 @@ internal static class SummaryRowRecovery
     internal static bool SupportsHeikeTailRecovery(OcrRule rule) =>
         rule.Id == "黑客杀尾" && rule.Type == "缺尾" && rule.Extractor == "heike_nine_tails";
 
-    internal static bool RecoversBeforeCloud(OcrRule rule) => rule.RequireRowStructure || SupportsHeikeTailRecovery(rule);
+    internal static bool RecoversBeforeCloud(OcrRule rule) => rule.RequireRowStructure
+        || SupportsHeikeTailRecovery(rule) || RuiErTeamRecovery.Supports(rule);
 
     internal static async Task<IReadOnlyDictionary<SummaryRowRecoveryRequest, SummaryRowRecoveryResult>> TryRecoverBatchAsync(
         PaddleLocalOcrClient client,
@@ -87,9 +88,10 @@ internal static class SummaryRowRecovery
         CancellationToken cancellationToken,
         IProgress<LocalOcrProgress>? progress = null)
     {
-        requests = requests.Where(request => request.Kind != SummaryRowRecoveryKind.HeikeTail
-            || SupportsHeikeTailRecovery(request.Rule)
-                && RuleCatalog.PathBelongsToGroup(request.ImagePath, "黑色六合彩")).ToArray();
+        requests = requests.Where(request => !RuiErTeamRecovery.Supports(request.Rule)
+            && (request.Kind != SummaryRowRecoveryKind.HeikeTail
+                || SupportsHeikeTailRecovery(request.Rule)
+                    && RuleCatalog.PathBelongsToGroup(request.ImagePath, "黑色六合彩"))).ToArray();
         var results = await RecoverOnceAsync(client, requests, catalog, issue, titleRatio, detectionMaxSide, cancellationToken,
             progress: progress);
         if (detectionMaxSide is not null)

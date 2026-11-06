@@ -97,4 +97,31 @@ public sealed class RuiErTeamCardTests
 
         Assert.Null(RuleEngine.ExtractFinalValue(lines, 305, rule));
     }
+
+    [Fact]
+    public void AnotherAuthorClosesTheCardEvenWhenTheTargetAuthorWasSeen()
+    {
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["安之若素", "蕊儿", "新菜310期：杀①肖【蛇+1尾】T00肖"],
+            310, Card("安之若素", "生肖", "安之若素")));
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["安之若素", "蕊儿310期：杀①肖【蛇+1尾】T00肖"],
+            310, Card("安之若素", "生肖", "安之若素")));
+    }
+
+    [Fact]
+    public void AContinuationCannotBorrowTheNextPeriodsBracket()
+    {
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["安之若素", "新菜310期：杀①肖", "新菜309期：杀①肖【鸡+5尾】T13马"],
+            310, Card("安之若素", "生肖", "安之若素")));
+    }
+
+    [Fact]
+    public void TwoDifferentOwnValuesRemainAConflict()
+    {
+        Assert.Equal(RuleExtractionStatus.Conflict, RuleEngine.ExtractFinalResult(
+            Lines("安之若素", "新菜310期：杀①肖【虎+7尾】", "新菜310期：杀①肖【龙+7尾】"),
+            310, Card("安之若素", "生肖", "安之若素")).Status);
+    }
 }

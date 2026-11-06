@@ -3180,7 +3180,8 @@ public sealed class MainForm : Form
             // row recovery runs here exactly like in the main recognition flow.
             await RecoverSummaryRowValuesAsync(
                 lastRules.Where(rule => !SummaryRowRecovery.SupportsHeikeTailRecovery(rule)
-                    && (!retryUsesLocalOcr || !rule.RequireRowStructure)).ToArray(), lastValues, lastEvidenceLedger, lastMissingReasons,
+                    && !RuiErTeamRecovery.Supports(rule)
+                    && (!retryUsesLocalOcr || !SummaryRowRecovery.RecoversBeforeCloud(rule))).ToArray(), lastValues, lastEvidenceLedger, lastMissingReasons,
                 selection.Candidates, lastIssue, recoveryInputFolder, ActiveToken);
 
             ActiveToken.ThrowIfCancellationRequested();
@@ -3608,12 +3609,39 @@ public sealed class MainForm : Form
     {
         if (selectedImageDirectory is null)
             return;
+        var ownedRequests = candidates.SelectMany(candidate => rules
+                .Where(rule => RuiErTeamRecovery.Supports(rule)
+                    && candidate.Rules.Any(item => item.Id == rule.Id))
+                .Select(rule => (candidate.SourcePath, rule))).Distinct().ToArray();
+        if (ownedRequests.Length > 0)
+        {
+            var ownedClient = new PaddleLocalOcrClient(ocrDevice);
+            TrackLocalOcrClient("蕊儿团队：本人区域复核", ownedClient);
+            var progress = new Progress<LocalOcrProgress>(item =>
+                statusLabel.Text = $"蕊儿团队：本人区域复核 {item.Completed}/{item.Total}");
+            try
+            {
+                foreach (var item in await RuiErTeamRecovery.ReadAsync(ownedClient, ownedRequests,
+                    recoveryInputFolder, cancellationToken, progress))
+                {
+                    AddExtractedEvidenceValues(item.Evidence, [item.Rule], issue, values, evidenceLedger);
+                    if (values.ContainsKey(item.Rule.Id)) missingReasons.Remove(item.Rule.Id);
+                }
+            }
+            catch (OcrException exception) when (!PaddleLocalOcrClient.IsCudaUnavailable(exception))
+            {
+                // A failed image remains eligible for normal cloud fallback; device failures stay fatal.
+            }
+        }
+        // The generic full-width issue strip cannot establish authorship on a collage.
         OcrRule[] recoverable = rules
+            .Where(rule => !RuiErTeamRecovery.Supports(rule))
             .Where(rule => !values.ContainsKey(rule.Id)
                 && rule.Type == "生肖"
                 && rule.AllowIssueLessSummary)
             .ToArray();
         OcrRule[] issueRowRules = rules
+            .Where(rule => !RuiErTeamRecovery.Supports(rule))
             .Where(rule => !values.ContainsKey(rule.Id)
                 && rule.Type is "生肖" or "单生肖"
                 && !string.IsNullOrWhiteSpace(rule.Folder)

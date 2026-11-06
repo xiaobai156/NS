@@ -224,7 +224,7 @@ public static partial class RuleEngine
 
     public static IReadOnlyList<OcrRule> FindMatches(IEnumerable<string> localLines, IEnumerable<OcrRule> rules)
     {
-        string text = Normalize(string.Concat(localLines));
+        string text = string.Concat(localLines);
         return rules.Where(rule => MatchesText(text, rule)).ToArray();
     }
 
@@ -264,7 +264,8 @@ public static partial class RuleEngine
         OcrRule[] requestedRules = rules.ToArray();
         OcrRule[] identityRules = completeRules?.ToArray() ?? [];
         bool hasCompleteIdentityCatalog = completeRules is not null;
-        string text = Normalize(string.Concat(lines));
+        string rawText = string.Concat(lines);
+        string text = Normalize(rawText);
         // 嫣然心水: the subfolder alone is not identity when the image actually
         // shows another material's name and none of this rule's own names.
         bool guardForeignIdentity = RuleCatalog.PathBelongsToGroup(imagePath, "嫣然心水");
@@ -275,15 +276,19 @@ public static partial class RuleEngine
                 .ToHashSet(StringComparer.Ordinal)
             : [];
         HashSet<string> exactIdentityIds = hasCompleteIdentityCatalog
-            ? identityRules.Where(item => HasExactIdentity(text, item))
+            ? identityRules.Where(item => HasExactIdentity(rawText, item))
                 .Select(item => item.Id).ToHashSet(StringComparer.Ordinal)
             : [];
         return requestedRules.Where(rule =>
         {
+            // These full titles must also guard folder/value-only retry paths.
+            if (MacauTwoZodiacIdentity(rawText, rule) is bool exactTwoZodiacIdentity)
+                return exactTwoZodiacIdentity && MatchesText(rawText, rule)
+                    && (string.IsNullOrWhiteSpace(rule.Folder) || MatchesRuleFolder(imagePath, rule));
             string expectedFolder = rule.Folder ?? rule.Keyword;
             bool folderMatches = MatchesRuleFolder(imagePath, rule);
             if (!folderMatches)
-                return string.IsNullOrWhiteSpace(rule.Folder) && MatchesText(text, rule);
+                return string.IsNullOrWhiteSpace(rule.Folder) && MatchesText(rawText, rule);
             if (guardForeignIdentity && YanranAuthorCards.Supports(rule))
                 return !presentIdentities.Any(value => value != Normalize(rule.Keyword))
                     && YanranAuthorCards.HasIdentity(lines, rule)
@@ -365,7 +370,7 @@ public static partial class RuleEngine
                     || LooksLikePerIssueZodiacTable(lines)
                     || text.Contains("杀1肖", StringComparison.Ordinal);
             }
-            bool explicitIdentity = MatchesText(text, rule)
+            bool explicitIdentity = MatchesText(rawText, rule)
                 && (string.IsNullOrWhiteSpace(rule.Section)
                     || ContainsSectionMarker(text, rule.Section));
             if (explicitIdentity)
@@ -514,6 +519,8 @@ public static partial class RuleEngine
 
     private static bool MatchesText(string text, OcrRule rule)
     {
+        bool? fullTwoZodiacIdentity = MacauTwoZodiacIdentity(text, rule);
+        text = Normalize(text);
         if (rule.StrictIssueBlock)
             text = SimplifyFixedCardText(text);
         // The generic portrait title must not borrow another card's longer
@@ -521,8 +528,9 @@ public static partial class RuleEngine
         if (rule.StrictIssueBlock && rule.Keyword == "禁肖图"
             && Regex.IsMatch(text, "(?:佛祖|三怪|澳门)禁肖图"))
             return false;
-        bool identityMatched = BlackTableIdentity(text, rule) ?? ContainsKeyword(text, Normalize(rule.Keyword));
+        bool identityMatched = fullTwoZodiacIdentity ?? BlackTableIdentity(text, rule) ?? ContainsKeyword(text, Normalize(rule.Keyword));
         if (!identityMatched
+            && fullTwoZodiacIdentity is null
             && IsSummaryText(text)
             && !string.IsNullOrWhiteSpace(rule.Label))
         {
@@ -534,6 +542,23 @@ public static partial class RuleEngine
                 || RequiredKeywordMatches(text, rule.RequiredKeyword, rule))
             && (rule.RequiredKeywordsAny is not { Count: > 0 }
                 || rule.RequiredKeywordsAny.Any(value => RequiredKeywordMatches(text, value, rule)));
+    }
+
+    // 地域和颜色是身份的一部分，不能容错成别的资料；只允许已确认的完整标题顺序。
+    private static bool? MacauTwoZodiacIdentity(string text, OcrRule rule)
+    {
+        if (!rule.StrictIssueBlock || rule.Type != "生肖组合")
+            return null;
+        string keyword = Normalize(rule.Keyword);
+        string? alternate = keyword == "江西两肖必杀" ? "江西必杀两肖" : null;
+        bool regional = Regex.IsMatch(keyword,
+            @"^(?:广东|福建|广西|贵州|海南|江西)两肖必杀$|^湖南报杀两肖$|^(?:上海|深圳|云南|四川)必杀两肖$");
+        if (keyword != "绿杀两肖" && !regional)
+            return null;
+        return text.Split(OcrLayoutMarkers.RegionBoundary, StringSplitOptions.None)
+            .Select(part => Normalize(SimplifyFixedCardText(part)))
+            .Any(normalized => normalized.Contains(keyword, StringComparison.Ordinal)
+                || alternate is not null && normalized.Contains(alternate, StringComparison.Ordinal));
     }
 
     public static bool IsZodiacSummary(IEnumerable<string> lines) =>
@@ -642,8 +667,11 @@ public static partial class RuleEngine
 
     private static bool HasExactIdentity(string text, OcrRule rule)
     {
-        bool identityMatched = BlackTableIdentity(text, rule) ?? ContainsKeywordExact(text, Normalize(rule.Keyword));
+        bool? fullTwoZodiacIdentity = MacauTwoZodiacIdentity(text, rule);
+        text = Normalize(text);
+        bool identityMatched = fullTwoZodiacIdentity ?? BlackTableIdentity(text, rule) ?? ContainsKeywordExact(text, Normalize(rule.Keyword));
         if (!identityMatched
+            && fullTwoZodiacIdentity is null
             && IsSummaryText(text)
             && !string.IsNullOrWhiteSpace(rule.Label))
         {
@@ -3013,22 +3041,39 @@ public static partial class RuleEngine
     // 括号右边是开奖结果（T17虎 之类），算进去就会拿到别人的生肖。
     private static string? ExtractRuiErTeamCard(string[] lines, int issue, OcrRule rule)
     {
-        // 作者名只出现在图头，用它挡掉同版式的别人卡。
-        if (!HasKeywordInHeading(lines, Normalize(rule.Keyword)))
+        // 没有坐标时只接受一张可证明身份的独立卡。拼图必须走坐标入口。
+        int heading = Array.FindIndex(lines, line => Normalize(line) == Normalize(rule.Keyword));
+        if (heading < 0 || lines.Take(heading).Any(line => !string.IsNullOrWhiteSpace(line))
+            || lines.Any(line => Normalize(line).Contains("统计", StringComparison.Ordinal)))
             return null;
 
         var observed = new HashSet<string>(StringComparer.Ordinal);
-        for (int index = 0; index < lines.Length; index++)
+        for (int index = heading + 1; index < lines.Length; index++)
         {
+            string normalized = Normalize(lines[index]);
+            if (OcrLayoutMarkers.IsBoundary(lines[index]))
+                break;
+            if (!ContainsAnyIssue(lines[index]) && !Regex.IsMatch(lines[index], @"期\s*[:：]?\s*\d+")
+                && !RuiErDetachedPayload(lines[index])
+                && !Regex.IsMatch(normalized, @"^(澳门六合彩|NEW|天天开奖|6合彩|\d{4}.*|)$"))
+                break;
             if (!RowBelongsToIssue(lines[index], issue))
                 continue;
+            if (!normalized.Contains("杀", StringComparison.Ordinal))
+                continue;
+            if (!Regex.IsMatch(lines[index], @"^\s*(?:新[菜莱澳奥])?(?:期\s*[:：]?\s*)?\d{1,6}")
+                || FindIssues([lines[index]]).Any(found => found != issue))
+                return null;
 
             // 方括号可能被 OCR 切到下一行（碧水蓝天 302 期、蕊儿 302 期就是这样）。
             string row = lines[index];
-            if (!row.Contains('【') && index + 1 < lines.Length && lines[index + 1].Contains('【'))
+            if (!row.Contains('【') && index + 1 < lines.Length
+                && RuiErDetachedPayload(lines[index + 1])
+                && !ContainsAnyIssue(lines[index + 1])
+                && !Regex.IsMatch(lines[index + 1], @"期\s*[:：]?\s*\d+"))
                 row += lines[index + 1];
 
-            Match payload = Regex.Match(row, "【(?<value>[^】]*)】");
+            Match payload = RuiErPayload(row);
             if (!payload.Success)
                 continue;
 
@@ -3036,7 +3081,7 @@ public static partial class RuleEngine
                 observed.Add(value);
         }
 
-        return observed.Count == 1 ? observed.Single() : null;
+        return observed.Count > 1 ? ConflictMarker : observed.SingleOrDefault();
     }
 
     // 这一族卡的期号有两种写法：「新菜304期」和「新菜期:300」。
@@ -3048,19 +3093,23 @@ public static partial class RuleEngine
     }
 
     // 括号里是「虎」/「猴+7尾」/「01」/「4头双」这类短串，按规则类型各取各的。
+    private static Match RuiErPayload(string row) => row.Count(c => "【】[]".Contains(c)) == 2
+        ? Regex.Match(SimplifyOcrText(row), @"(?:【(?<value>[^【】\[\]]*)】|\[(?<value>[^【】\[\]]*)\])")
+        : Match.Empty;
+
     private static string? ParseRuiErTeamPayload(string type, string payload)
     {
-        string value = payload.Trim();
+        string value = Regex.Replace(SimplifyOcrText(payload), @"\s+", "");
         if (value.Length == 0)
             return null;
 
         switch (type)
         {
             case "生肖":
-                return ExtractSingleZodiac(value);
+                return Regex.IsMatch(value, $"^[{Zodiac}](?:\\+[0-9]尾)?$") ? value[..1] : null;
             case "尾":
             {
-                Match tail = Regex.Match(value, "(?<digit>[0-9])尾");
+                Match tail = Regex.Match(value, $"^[{Zodiac}]\\+(?<digit>[0-9])尾$");
                 return tail.Success ? tail.Groups["digit"].Value + "尾" : null;
             }
             case "合":
@@ -3334,6 +3383,8 @@ public static partial class RuleEngine
         ArgumentNullException.ThrowIfNull(evidence);
         if (!rule.IgnoreIssue)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(issue);
+        if (rule.Extractor == "rui_er_team_card")
+            return ExtractRuiErTeamEvidence(evidence, issue, rule);
         if (UsesBoundedTableCell(evidence.SourcePath, rule))
             return ExtractBoundedTableCell(evidence, issue, rule);
         if (rule.Id == "黑客半波" && rule.Type == "缺半波")
