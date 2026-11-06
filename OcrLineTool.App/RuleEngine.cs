@@ -52,7 +52,7 @@ public sealed record RuleExtractionResult(RuleExtractionStatus Status, string? V
     public static RuleExtractionResult Success(string value) => new(RuleExtractionStatus.Success, value);
 }
 
-public static class RuleEngine
+public static partial class RuleEngine
 {
     // 正则回溯上限：云 OCR 返回超长或病态文本时，没有上限的正则会卡住 UI 线程且
     // 无法取消。5 秒对正常卡片文本远远够用，超时按“取不到值”处理。
@@ -521,7 +521,7 @@ public static class RuleEngine
         if (rule.StrictIssueBlock && rule.Keyword == "禁肖图"
             && Regex.IsMatch(text, "(?:佛祖|三怪|澳门)禁肖图"))
             return false;
-        bool identityMatched = ContainsKeyword(text, Normalize(rule.Keyword));
+        bool identityMatched = BlackTableIdentity(text, rule) ?? ContainsKeyword(text, Normalize(rule.Keyword));
         if (!identityMatched
             && IsSummaryText(text)
             && !string.IsNullOrWhiteSpace(rule.Label))
@@ -642,7 +642,7 @@ public static class RuleEngine
 
     private static bool HasExactIdentity(string text, OcrRule rule)
     {
-        bool identityMatched = ContainsKeywordExact(text, Normalize(rule.Keyword));
+        bool identityMatched = BlackTableIdentity(text, rule) ?? ContainsKeywordExact(text, Normalize(rule.Keyword));
         if (!identityMatched
             && IsSummaryText(text)
             && !string.IsNullOrWhiteSpace(rule.Label))
@@ -3334,6 +3334,8 @@ public static class RuleEngine
         ArgumentNullException.ThrowIfNull(evidence);
         if (!rule.IgnoreIssue)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(issue);
+        if (UsesBoundedTableCell(evidence.SourcePath, rule))
+            return ExtractBoundedTableCell(evidence, issue, rule);
         if (rule.Id == "黑客半波" && rule.Type == "缺半波")
             return ExtractPositionedHalfWaves(evidence, issue);
         if (rule.Extractor == "missing_wave_balls" && rule.Type == "波")
