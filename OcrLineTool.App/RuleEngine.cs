@@ -282,8 +282,8 @@ public static partial class RuleEngine
         return requestedRules.Where(rule =>
         {
             // These full titles must also guard folder/value-only retry paths.
-            if (MacauTwoZodiacIdentity(rawText, rule) is bool exactTwoZodiacIdentity)
-                return exactTwoZodiacIdentity && MatchesText(rawText, rule)
+            if (FullCardIdentity(rawText, rule) is bool exactCardIdentity)
+                return exactCardIdentity && MatchesText(rawText, rule)
                     && (string.IsNullOrWhiteSpace(rule.Folder) || MatchesRuleFolder(imagePath, rule));
             string expectedFolder = rule.Folder ?? rule.Keyword;
             bool folderMatches = MatchesRuleFolder(imagePath, rule);
@@ -519,7 +519,7 @@ public static partial class RuleEngine
 
     private static bool MatchesText(string text, OcrRule rule)
     {
-        bool? fullTwoZodiacIdentity = MacauTwoZodiacIdentity(text, rule);
+        bool? fullCardIdentity = FullCardIdentity(text, rule);
         text = Normalize(text);
         if (rule.StrictIssueBlock)
             text = SimplifyFixedCardText(text);
@@ -528,9 +528,9 @@ public static partial class RuleEngine
         if (rule.StrictIssueBlock && rule.Keyword == "禁肖图"
             && Regex.IsMatch(text, "(?:佛祖|三怪|澳门)禁肖图"))
             return false;
-        bool identityMatched = fullTwoZodiacIdentity ?? BlackTableIdentity(text, rule) ?? ContainsKeyword(text, Normalize(rule.Keyword));
+        bool identityMatched = fullCardIdentity ?? BlackTableIdentity(text, rule) ?? ContainsKeyword(text, Normalize(rule.Keyword));
         if (!identityMatched
-            && fullTwoZodiacIdentity is null
+            && fullCardIdentity is null
             && IsSummaryText(text)
             && !string.IsNullOrWhiteSpace(rule.Label))
         {
@@ -544,21 +544,43 @@ public static partial class RuleEngine
                 || rule.RequiredKeywordsAny.Any(value => RequiredKeywordMatches(text, value, rule)));
     }
 
-    // 地域和颜色是身份的一部分，不能容错成别的资料；只允许已确认的完整标题顺序。
-    private static bool? MacauTwoZodiacIdentity(string text, OcrRule rule)
+    // 完整资料名和类型共同确定候选；不得跨物理区域拼标题或用一字容错串入别人的卡。
+    internal static bool? FullCardIdentity(string text, OcrRule rule)
     {
-        if (!rule.StrictIssueBlock || rule.Type != "生肖组合")
-            return null;
         string keyword = Normalize(rule.Keyword);
-        string? alternate = keyword == "江西两肖必杀" ? "江西必杀两肖" : null;
-        bool regional = Regex.IsMatch(keyword,
-            @"^(?:广东|福建|广西|贵州|海南|江西)两肖必杀$|^湖南报杀两肖$|^(?:上海|深圳|云南|四川)必杀两肖$");
-        if (keyword != "绿杀两肖" && !regional)
-            return null;
-        return text.Split(OcrLayoutMarkers.RegionBoundary, StringSplitOptions.None)
-            .Select(part => Normalize(SimplifyFixedCardText(part)))
-            .Any(normalized => normalized.Contains(keyword, StringComparison.Ordinal)
-                || alternate is not null && normalized.Contains(alternate, StringComparison.Ordinal));
+        string? title = (rule.Id, keyword, rule.Type) switch
+        {
+            ("超级赢家半波波", "绝杀半波", "色单双") => "大赢家绝杀半波",
+            ("黄大仙半波", "杀半个波色", "色单双") => "黄大仙杀半个波色",
+            (_, "唐朝杀一肖", "生肖") when rule.StrictIssueBlock => keyword,
+            (_, "唐朝杀一尾", "尾") when rule.StrictIssueBlock => keyword,
+            (_, "唐朝杀一头", "头") when rule.StrictIssueBlock => keyword,
+            (_, "唐朝杀一行", "单五行") when rule.StrictIssueBlock => keyword,
+            _ => null
+        };
+        string? alternate = null;
+        if (title is null)
+        {
+            if (!rule.StrictIssueBlock || rule.Type != "生肖组合")
+                return null;
+            bool regional = Regex.IsMatch(keyword,
+                @"^(?:广东|福建|广西|贵州|海南|江西)两肖必杀$|^湖南报杀两肖$|^(?:上海|深圳|云南|四川)必杀两肖$");
+            if (keyword != "绿杀两肖" && !regional)
+                return null;
+            title = keyword;
+            alternate = keyword == "江西两肖必杀" ? "江西必杀两肖" : null;
+        }
+        string[] regions = text.Split(OcrLayoutMarkers.RegionBoundary, StringSplitOptions.None)
+            .Select(part => Normalize(SimplifyFixedCardText(part)).Replace('黃', '黄').Replace('個', '个'))
+            .ToArray();
+        if (regions.Any(normalized => normalized.Contains(title, StringComparison.Ordinal)
+                || alternate is not null && normalized.Contains(alternate, StringComparison.Ordinal)))
+            return true;
+        // 已复核的「肖→当」只在本人完整生肖字段佐证、且没有另一种唐朝标题时放行。
+        return title == "唐朝杀一肖"
+            && regions.Any(part => part.Contains("唐朝杀一当", StringComparison.Ordinal))
+            && !regions.Any(part => Regex.IsMatch(part, "唐朝杀一[尾头行波]"))
+            && regions.Any(part => Regex.IsMatch(part, $@"唐朝绝杀(?<z>[{Zodiac}])\k<z>{{2}}肖稳杀"));
     }
 
     public static bool IsZodiacSummary(IEnumerable<string> lines) =>
@@ -667,11 +689,11 @@ public static partial class RuleEngine
 
     private static bool HasExactIdentity(string text, OcrRule rule)
     {
-        bool? fullTwoZodiacIdentity = MacauTwoZodiacIdentity(text, rule);
+        bool? fullCardIdentity = FullCardIdentity(text, rule);
         text = Normalize(text);
-        bool identityMatched = fullTwoZodiacIdentity ?? BlackTableIdentity(text, rule) ?? ContainsKeywordExact(text, Normalize(rule.Keyword));
+        bool identityMatched = fullCardIdentity ?? BlackTableIdentity(text, rule) ?? ContainsKeywordExact(text, Normalize(rule.Keyword));
         if (!identityMatched
-            && fullTwoZodiacIdentity is null
+            && fullCardIdentity is null
             && IsSummaryText(text)
             && !string.IsNullOrWhiteSpace(rule.Label))
         {

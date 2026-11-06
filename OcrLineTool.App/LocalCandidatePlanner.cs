@@ -60,6 +60,8 @@ public static class LocalCandidatePlanner
                 string imageFolder = Path.GetFileName(Path.GetDirectoryName(path)) ?? string.Empty;
                 matchedRules = matchedRules
                     .Concat(rules.Where(rule => rule.Type is "生肖" or "单生肖" or "生肖组合" or "统计生肖")
+                        // Dedicated cards cannot bypass full identity via a statistics title.
+                        .Where(rule => RuleEngine.FullCardIdentity(string.Empty, rule) is null)
                         .Where(rule => rule.Type != "统计生肖"
                             || string.IsNullOrWhiteSpace(rule.Folder)
                             || imageFolder.Equals(rule.Folder, StringComparison.OrdinalIgnoreCase))
