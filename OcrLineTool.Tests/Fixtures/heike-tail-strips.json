@@ -1,0 +1,2397 @@
+{
+  "sourceSha256": "D47892303E81EE7A3AC93AB5D3E3C623E0C7D6E94E3C4B179669C1FBEA0340AC",
+  "model": "PP-OCRv6_medium",
+  "device": "gpu:0",
+  "scale": 2,
+  "rows": [
+    {
+      "issue": 310,
+      "expectedDigits": "012345678",
+      "expectedTail": "9尾",
+      "items": [
+        {
+          "text": "310期",
+          "confidence": 0.9999971389770508,
+          "box": [
+            24,
+            11,
+            187,
+            73
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "数据分析",
+          "confidence": 0.9999945163726807,
+          "box": [
+            261,
+            10,
+            270,
+            74
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "0",
+          "confidence": 0.9999325275421143,
+          "box": [
+            552,
+            18,
+            50,
+            59
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "2",
+          "confidence": 0.9999905824661255,
+          "box": [
+            696,
+            19,
+            50,
+            58
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "3",
+          "confidence": 0.9999961853027344,
+          "box": [
+            770,
+            20,
+            46,
+            56
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "5",
+          "confidence": 0.9999754428863525,
+          "box": [
+            911,
+            18,
+            50,
+            58
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "7",
+          "confidence": 0.9999815225601196,
+          "box": [
+            1054,
+            18,
+            52,
+            58
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "8",
+          "confidence": 0.9999865293502808,
+          "box": [
+            1127,
+            18,
+            50,
+            60
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "尾",
+          "confidence": 0.9999864101409912,
+          "box": [
+            1199,
+            15,
+            75,
+            65
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "开??",
+          "confidence": 0.9896367192268372,
+          "box": [
+            1372,
+            11,
+            149,
+            73
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "1",
+          "confidence": 0.9996138215065002,
+          "box": [
+            632,
+            21,
+            34,
+            53
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "4",
+          "confidence": 0.9999914169311523,
+          "box": [
+            839,
+            21,
+            53,
+            55
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "6",
+          "confidence": 0.9999892711639404,
+          "box": [
+            983,
+            17,
+            53,
+            60
+          ],
+          "viewId": "original"
+        }
+      ]
+    },
+    {
+      "issue": 309,
+      "expectedDigits": "012346789",
+      "expectedTail": "5尾",
+      "items": [
+        {
+          "text": "309期",
+          "confidence": 0.999997615814209,
+          "box": [
+            26,
+            13,
+            184,
+            72
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "数据分析",
+          "confidence": 0.9999921321868896,
+          "box": [
+            261,
+            10,
+            272,
+            77
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "3",
+          "confidence": 0.9999871253967285,
+          "box": [
+            764,
+            13,
+            57,
+            70
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "尾",
+          "confidence": 0.9999834299087524,
+          "box": [
+            1196,
+            15,
+            80,
+            68
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "馬13中",
+          "confidence": 0.9999914169311523,
+          "box": [
+            1341,
+            9,
+            209,
+            77
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "0",
+          "confidence": 0.999916672706604,
+          "box": [
+            551,
+            19,
+            52,
+            61
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "1",
+          "confidence": 0.9997997879981995,
+          "box": [
+            622,
+            17,
+            52,
+            63
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "2",
+          "confidence": 0.9999886751174927,
+          "box": [
+            696,
+            20,
+            46,
+            59
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "4",
+          "confidence": 0.9999759197235107,
+          "box": [
+            843,
+            22,
+            48,
+            55
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "6",
+          "confidence": 0.9999806880950928,
+          "box": [
+            908,
+            18,
+            55,
+            62
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "7",
+          "confidence": 0.9999929666519165,
+          "box": [
+            986,
+            20,
+            45,
+            58
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "8",
+          "confidence": 0.9999959468841553,
+          "box": [
+            1056,
+            20,
+            50,
+            60
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "9",
+          "confidence": 0.9999912977218628,
+          "box": [
+            1122,
+            15,
+            61,
+            68
+          ],
+          "viewId": "original"
+        }
+      ]
+    },
+    {
+      "issue": 308,
+      "expectedDigits": "012345679",
+      "expectedTail": "8尾",
+      "items": [
+        {
+          "text": "308期",
+          "confidence": 0.999997615814209,
+          "box": [
+            24,
+            13,
+            185,
+            71
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "数据分析",
+          "confidence": 0.9999911785125732,
+          "box": [
+            262,
+            12,
+            270,
+            72
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "0",
+          "confidence": 0.9999415874481201,
+          "box": [
+            554,
+            21,
+            48,
+            55
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "2",
+          "confidence": 0.9999902248382568,
+          "box": [
+            697,
+            22,
+            46,
+            56
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "3",
+          "confidence": 0.9999971389770508,
+          "box": [
+            770,
+            21,
+            46,
+            57
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "5",
+          "confidence": 0.9999812841415405,
+          "box": [
+            904,
+            21,
+            54,
+            57
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "6",
+          "confidence": 0.9998311996459961,
+          "box": [
+            986,
+            15,
+            48,
+            66
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "7",
+          "confidence": 0.9999908208847046,
+          "box": [
+            1061,
+            21,
+            46,
+            56
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "9尾",
+          "confidence": 0.9999901652336121,
+          "box": [
+            1119,
+            13,
+            159,
+            73
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "雞46中",
+          "confidence": 0.9999152421951294,
+          "box": [
+            1340,
+            11,
+            210,
+            76
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "1",
+          "confidence": 0.9998688697814941,
+          "box": [
+            621,
+            20,
+            48,
+            58
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "4",
+          "confidence": 0.9998304843902588,
+          "box": [
+            835,
+            18,
+            63,
+            64
+          ],
+          "viewId": "original"
+        }
+      ]
+    },
+    {
+      "issue": 307,
+      "expectedDigits": "012456789",
+      "expectedTail": "3尾",
+      "items": [
+        {
+          "text": "307期",
+          "confidence": 0.9999971389770508,
+          "box": [
+            24,
+            11,
+            187,
+            73
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "数据分析",
+          "confidence": 0.9999902248382568,
+          "box": [
+            261,
+            9,
+            272,
+            75
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "1",
+          "confidence": 0.9999299049377441,
+          "box": [
+            619,
+            20,
+            48,
+            55
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "2",
+          "confidence": 0.9999936819076538,
+          "box": [
+            697,
+            15,
+            48,
+            63
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "4",
+          "confidence": 0.9999699592590332,
+          "box": [
+            770,
+            20,
+            52,
+            56
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "5",
+          "confidence": 0.9999836683273315,
+          "box": [
+            835,
+            16,
+            57,
+            62
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "6",
+          "confidence": 0.9999804496765137,
+          "box": [
+            908,
+            17,
+            56,
+            61
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "7",
+          "confidence": 0.999970555305481,
+          "box": [
+            986,
+            19,
+            46,
+            56
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "8",
+          "confidence": 0.9999927282333374,
+          "box": [
+            1056,
+            19,
+            50,
+            58
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "9",
+          "confidence": 0.9999921321868896,
+          "box": [
+            1127,
+            18,
+            51,
+            59
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "尾",
+          "confidence": 0.9999589920043945,
+          "box": [
+            1193,
+            14,
+            83,
+            67
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "牛42中",
+          "confidence": 0.9999765157699585,
+          "box": [
+            1342,
+            11,
+            207,
+            72
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "0",
+          "confidence": 0.9998250603675842,
+          "box": [
+            546,
+            14,
+            63,
+            66
+          ],
+          "viewId": "original"
+        }
+      ]
+    },
+    {
+      "issue": 306,
+      "expectedDigits": "012345689",
+      "expectedTail": "7尾",
+      "items": [
+        {
+          "text": "306期",
+          "confidence": 0.9999961853027344,
+          "box": [
+            24,
+            11,
+            187,
+            73
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "数据分析",
+          "confidence": 0.9999945163726807,
+          "box": [
+            261,
+            10,
+            270,
+            74
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "0",
+          "confidence": 0.9999325275421143,
+          "box": [
+            552,
+            18,
+            50,
+            59
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "2",
+          "confidence": 0.9999902248382568,
+          "box": [
+            697,
+            20,
+            46,
+            56
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "3",
+          "confidence": 0.9999961853027344,
+          "box": [
+            770,
+            20,
+            46,
+            56
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "5",
+          "confidence": 0.9999533891677856,
+          "box": [
+            914,
+            13,
+            48,
+            65
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "6",
+          "confidence": 0.999988317489624,
+          "box": [
+            988,
+            19,
+            45,
+            56
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "8",
+          "confidence": 0.9999972581863403,
+          "box": [
+            1058,
+            19,
+            46,
+            57
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "9",
+          "confidence": 0.9999958276748657,
+          "box": [
+            1130,
+            19,
+            47,
+            58
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "尾",
+          "confidence": 0.9999750852584839,
+          "box": [
+            1191,
+            15,
+            83,
+            65
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "龍15中",
+          "confidence": 0.999911904335022,
+          "box": [
+            1342,
+            11,
+            208,
+            73
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "1",
+          "confidence": 0.9942154288291931,
+          "box": [
+            627,
+            18,
+            41,
+            58
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "4",
+          "confidence": 0.9999740123748779,
+          "box": [
+            833,
+            17,
+            58,
+            63
+          ],
+          "viewId": "original"
+        }
+      ]
+    },
+    {
+      "issue": 305,
+      "expectedDigits": "012345679",
+      "expectedTail": "8尾",
+      "items": [
+        {
+          "text": "305期",
+          "confidence": 0.9999889731407166,
+          "box": [
+            24,
+            13,
+            185,
+            72
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "数据分析",
+          "confidence": 0.9999942779541016,
+          "box": [
+            263,
+            12,
+            270,
+            73
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "0",
+          "confidence": 0.9999130964279175,
+          "box": [
+            552,
+            20,
+            52,
+            59
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "1",
+          "confidence": 0.9999550580978394,
+          "box": [
+            628,
+            21,
+            44,
+            57
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "2",
+          "confidence": 0.9999963045120239,
+          "box": [
+            699,
+            21,
+            45,
+            56
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "3",
+          "confidence": 0.9999926090240479,
+          "box": [
+            769,
+            22,
+            47,
+            56
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "4",
+          "confidence": 0.9999798536300659,
+          "box": [
+            840,
+            22,
+            57,
+            56
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "5",
+          "confidence": 0.9999603033065796,
+          "box": [
+            899,
+            20,
+            60,
+            59
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "6",
+          "confidence": 0.9999557733535767,
+          "box": [
+            986,
+            16,
+            48,
+            65
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "尾",
+          "confidence": 0.9999709129333496,
+          "box": [
+            1180,
+            15,
+            96,
+            68
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "蛇26中",
+          "confidence": 0.9999490976333618,
+          "box": [
+            1341,
+            13,
+            208,
+            71
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "7",
+          "confidence": 0.999988317489624,
+          "box": [
+            1056,
+            18,
+            55,
+            60
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "9",
+          "confidence": 0.999983549118042,
+          "box": [
+            1117,
+            12,
+            74,
+            73
+          ],
+          "viewId": "original"
+        }
+      ]
+    },
+    {
+      "issue": 304,
+      "expectedDigits": "023456789",
+      "expectedTail": "1尾",
+      "items": [
+        {
+          "text": "304期",
+          "confidence": 0.9999964237213135,
+          "box": [
+            26,
+            14,
+            184,
+            71
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "数据分析",
+          "confidence": 0.9999909400939941,
+          "box": [
+            262,
+            12,
+            271,
+            73
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "0",
+          "confidence": 0.9999302625656128,
+          "box": [
+            550,
+            17,
+            56,
+            63
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "2",
+          "confidence": 0.9999964237213135,
+          "box": [
+            622,
+            20,
+            51,
+            58
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "3",
+          "confidence": 0.9999873638153076,
+          "box": [
+            697,
+            21,
+            46,
+            56
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "5",
+          "confidence": 0.9999831914901733,
+          "box": [
+            841,
+            20,
+            47,
+            58
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "6",
+          "confidence": 0.9999788999557495,
+          "box": [
+            911,
+            20,
+            51,
+            59
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "7",
+          "confidence": 0.9999936819076538,
+          "box": [
+            986,
+            20,
+            45,
+            58
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "8",
+          "confidence": 0.9999972581863403,
+          "box": [
+            1058,
+            21,
+            46,
+            57
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "9",
+          "confidence": 0.9999932050704956,
+          "box": [
+            1126,
+            17,
+            56,
+            64
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "尾",
+          "confidence": 0.999984622001648,
+          "box": [
+            1176,
+            16,
+            100,
+            67
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "狗21错",
+          "confidence": 0.9998648166656494,
+          "box": [
+            1341,
+            12,
+            211,
+            74
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "4",
+          "confidence": 0.9999775886535645,
+          "box": [
+            770,
+            22,
+            48,
+            56
+          ],
+          "viewId": "original"
+        }
+      ]
+    },
+    {
+      "issue": 303,
+      "expectedDigits": "012346789",
+      "expectedTail": "5尾",
+      "items": [
+        {
+          "text": "303期",
+          "confidence": 0.9999971389770508,
+          "box": [
+            24,
+            11,
+            187,
+            73
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "数据分析",
+          "confidence": 0.9999861121177673,
+          "box": [
+            262,
+            10,
+            272,
+            74
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "7",
+          "confidence": 0.9998167157173157,
+          "box": [
+            987,
+            18,
+            44,
+            55
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "9",
+          "confidence": 0.9999911785125732,
+          "box": [
+            1124,
+            18,
+            57,
+            60
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "尾",
+          "confidence": 0.9999715089797974,
+          "box": [
+            1190,
+            14,
+            86,
+            66
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "虎17中",
+          "confidence": 0.9999475479125977,
+          "box": [
+            1341,
+            10,
+            209,
+            73
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "0",
+          "confidence": 0.9998250603675842,
+          "box": [
+            546,
+            14,
+            63,
+            66
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "1",
+          "confidence": 0.9999759197235107,
+          "box": [
+            630,
+            21,
+            41,
+            53
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "2",
+          "confidence": 0.9999868869781494,
+          "box": [
+            698,
+            21,
+            46,
+            54
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "3",
+          "confidence": 0.999994158744812,
+          "box": [
+            768,
+            21,
+            48,
+            54
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "4",
+          "confidence": 0.9999901056289673,
+          "box": [
+            838,
+            21,
+            55,
+            55
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "6",
+          "confidence": 0.9999790191650391,
+          "box": [
+            907,
+            20,
+            52,
+            56
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "8",
+          "confidence": 0.9999959468841553,
+          "box": [
+            1059,
+            20,
+            47,
+            55
+          ],
+          "viewId": "original"
+        }
+      ]
+    },
+    {
+      "issue": 302,
+      "expectedDigits": "012345689",
+      "expectedTail": "7尾",
+      "items": [
+        {
+          "text": "302期",
+          "confidence": 0.9999973177909851,
+          "box": [
+            26,
+            15,
+            184,
+            69
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "数据分析",
+          "confidence": 0.9999920725822449,
+          "box": [
+            261,
+            12,
+            271,
+            74
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "0",
+          "confidence": 0.9999353885650635,
+          "box": [
+            552,
+            20,
+            50,
+            58
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "5",
+          "confidence": 0.9999686479568481,
+          "box": [
+            916,
+            17,
+            46,
+            63
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "9",
+          "confidence": 0.9999929666519165,
+          "box": [
+            1129,
+            20,
+            50,
+            58
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "尾",
+          "confidence": 0.9999853372573853,
+          "box": [
+            1186,
+            17,
+            88,
+            65
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "狗45中",
+          "confidence": 0.999975860118866,
+          "box": [
+            1341,
+            12,
+            209,
+            73
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "1",
+          "confidence": 0.9999144077301025,
+          "box": [
+            625,
+            20,
+            43,
+            56
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "2",
+          "confidence": 0.999984860420227,
+          "box": [
+            698,
+            22,
+            45,
+            55
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "3",
+          "confidence": 0.999994158744812,
+          "box": [
+            770,
+            22,
+            46,
+            55
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "4",
+          "confidence": 0.9999821186065674,
+          "box": [
+            834,
+            21,
+            56,
+            59
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "6",
+          "confidence": 0.9999874830245972,
+          "box": [
+            988,
+            22,
+            45,
+            55
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "8",
+          "confidence": 0.9999891519546509,
+          "box": [
+            1058,
+            22,
+            46,
+            55
+          ],
+          "viewId": "original"
+        }
+      ]
+    },
+    {
+      "issue": 301,
+      "expectedDigits": "013456789",
+      "expectedTail": "2尾",
+      "items": [
+        {
+          "text": "301期",
+          "confidence": 0.9999974966049194,
+          "box": [
+            24,
+            12,
+            187,
+            75
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "数据分析",
+          "confidence": 0.9999908208847046,
+          "box": [
+            262,
+            11,
+            272,
+            76
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "3",
+          "confidence": 0.9999957084655762,
+          "box": [
+            697,
+            21,
+            46,
+            57
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "4",
+          "confidence": 0.9999902248382568,
+          "box": [
+            763,
+            20,
+            58,
+            60
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "5",
+          "confidence": 0.9999849796295166,
+          "box": [
+            839,
+            19,
+            50,
+            60
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "7",
+          "confidence": 0.9999674558639526,
+          "box": [
+            985,
+            17,
+            50,
+            58
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "8",
+          "confidence": 0.99998939037323,
+          "box": [
+            1058,
+            21,
+            48,
+            56
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "9",
+          "confidence": 0.9999881982803345,
+          "box": [
+            1127,
+            20,
+            52,
+            60
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "尾",
+          "confidence": 0.999970555305481,
+          "box": [
+            1189,
+            14,
+            87,
+            69
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "虎17中",
+          "confidence": 0.9999598264694214,
+          "box": [
+            1342,
+            12,
+            208,
+            74
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "0",
+          "confidence": 0.999695897102356,
+          "box": [
+            546,
+            16,
+            63,
+            66
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "1",
+          "confidence": 0.9999778270721436,
+          "box": [
+            630,
+            22,
+            41,
+            55
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "6",
+          "confidence": 0.9999831914901733,
+          "box": [
+            904,
+            19,
+            58,
+            62
+          ],
+          "viewId": "original"
+        }
+      ]
+    },
+    {
+      "issue": 300,
+      "expectedDigits": "012345789",
+      "expectedTail": "6尾",
+      "items": [
+        {
+          "text": "300期",
+          "confidence": 0.999996542930603,
+          "box": [
+            27,
+            13,
+            183,
+            70
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "数据分析",
+          "confidence": 0.999993085861206,
+          "box": [
+            262,
+            12,
+            268,
+            71
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "0",
+          "confidence": 0.9999544620513916,
+          "box": [
+            553,
+            20,
+            48,
+            55
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "2",
+          "confidence": 0.999984860420227,
+          "box": [
+            698,
+            20,
+            45,
+            55
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "3",
+          "confidence": 0.999994158744812,
+          "box": [
+            770,
+            20,
+            46,
+            55
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "5",
+          "confidence": 0.9999833106994629,
+          "box": [
+            912,
+            20,
+            48,
+            55
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "7",
+          "confidence": 0.9999700784683228,
+          "box": [
+            980,
+            15,
+            51,
+            63
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "8",
+          "confidence": 0.9999903440475464,
+          "box": [
+            1058,
+            16,
+            49,
+            61
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "9",
+          "confidence": 0.9999933242797852,
+          "box": [
+            1130,
+            17,
+            57,
+            61
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "尾",
+          "confidence": 0.999984622001648,
+          "box": [
+            1176,
+            14,
+            100,
+            67
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "蛇38中",
+          "confidence": 0.9998018741607666,
+          "box": [
+            1341,
+            12,
+            208,
+            69
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "1",
+          "confidence": 0.9977560639381409,
+          "box": [
+            627,
+            19,
+            41,
+            56
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "4",
+          "confidence": 0.9998890161514282,
+          "box": [
+            836,
+            17,
+            60,
+            63
+          ],
+          "viewId": "original"
+        }
+      ]
+    },
+    {
+      "issue": 299,
+      "expectedDigits": "012346789",
+      "expectedTail": "5尾",
+      "items": [
+        {
+          "text": "299期",
+          "confidence": 0.999997615814209,
+          "box": [
+            24,
+            13,
+            186,
+            72
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "数据分析",
+          "confidence": 0.9999921321868896,
+          "box": [
+            261,
+            10,
+            272,
+            77
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "0",
+          "confidence": 0.9999035596847534,
+          "box": [
+            552,
+            19,
+            51,
+            61
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "2",
+          "confidence": 0.9999886751174927,
+          "box": [
+            696,
+            20,
+            46,
+            59
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "3",
+          "confidence": 0.9999936819076538,
+          "box": [
+            769,
+            16,
+            49,
+            65
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "4",
+          "confidence": 0.9999926090240479,
+          "box": [
+            842,
+            21,
+            51,
+            58
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "6",
+          "confidence": 0.9999756813049316,
+          "box": [
+            908,
+            18,
+            55,
+            62
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "7",
+          "confidence": 0.9999929666519165,
+          "box": [
+            986,
+            20,
+            45,
+            58
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "8",
+          "confidence": 0.9999973773956299,
+          "box": [
+            1058,
+            21,
+            46,
+            57
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "尾",
+          "confidence": 0.9999805688858032,
+          "box": [
+            1198,
+            16,
+            76,
+            66
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "猴23中",
+          "confidence": 0.999985933303833,
+          "box": [
+            1340,
+            12,
+            210,
+            74
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "1",
+          "confidence": 0.9998062252998352,
+          "box": [
+            624,
+            18,
+            49,
+            62
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "9",
+          "confidence": 0.9999895095825195,
+          "box": [
+            1124,
+            17,
+            57,
+            65
+          ],
+          "viewId": "original"
+        }
+      ]
+    },
+    {
+      "issue": 298,
+      "expectedDigits": "012345678",
+      "expectedTail": "9尾",
+      "items": [
+        {
+          "text": "298期",
+          "confidence": 0.9999977350234985,
+          "box": [
+            24,
+            13,
+            185,
+            71
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "数据分析",
+          "confidence": 0.9999930262565613,
+          "box": [
+            261,
+            11,
+            272,
+            76
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "0",
+          "confidence": 0.9999381303787231,
+          "box": [
+            552,
+            19,
+            50,
+            60
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "1",
+          "confidence": 0.9997523427009583,
+          "box": [
+            630,
+            22,
+            36,
+            54
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "2",
+          "confidence": 0.9999837875366211,
+          "box": [
+            697,
+            21,
+            46,
+            57
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "3",
+          "confidence": 0.9999971389770508,
+          "box": [
+            770,
+            21,
+            46,
+            57
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "5",
+          "confidence": 0.9999697208404541,
+          "box": [
+            912,
+            21,
+            48,
+            57
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "6",
+          "confidence": 0.9999860525131226,
+          "box": [
+            986,
+            21,
+            46,
+            57
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "7",
+          "confidence": 0.9999494552612305,
+          "box": [
+            1049,
+            16,
+            55,
+            64
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "8",
+          "confidence": 0.9999823570251465,
+          "box": [
+            1129,
+            15,
+            50,
+            67
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "尾",
+          "confidence": 0.9999586343765259,
+          "box": [
+            1200,
+            13,
+            77,
+            73
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "豬08中",
+          "confidence": 0.9992070198059082,
+          "box": [
+            1340,
+            12,
+            209,
+            74
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "4",
+          "confidence": 0.9995208978652954,
+          "box": [
+            832,
+            17,
+            67,
+            68
+          ],
+          "viewId": "original"
+        }
+      ]
+    },
+    {
+      "issue": 297,
+      "expectedDigits": "012345679",
+      "expectedTail": "8尾",
+      "items": [
+        {
+          "text": "297期",
+          "confidence": 0.9999948740005493,
+          "box": [
+            23,
+            13,
+            188,
+            73
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "数据分析",
+          "confidence": 0.9999730587005615,
+          "box": [
+            262,
+            11,
+            271,
+            74
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "0",
+          "confidence": 0.9999344348907471,
+          "box": [
+            552,
+            21,
+            52,
+            57
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "3",
+          "confidence": 0.9999921321868896,
+          "box": [
+            767,
+            16,
+            51,
+            65
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "9",
+          "confidence": 0.9999920129776001,
+          "box": [
+            1127,
+            21,
+            53,
+            57
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "尾",
+          "confidence": 0.9999715089797974,
+          "box": [
+            1190,
+            16,
+            86,
+            66
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "馬13中",
+          "confidence": 0.999992847442627,
+          "box": [
+            1342,
+            12,
+            208,
+            73
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "1",
+          "confidence": 0.999639630317688,
+          "box": [
+            619,
+            17,
+            59,
+            62
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "2",
+          "confidence": 0.9999957084655762,
+          "box": [
+            693,
+            22,
+            48,
+            55
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "4",
+          "confidence": 0.9999868869781494,
+          "box": [
+            843,
+            23,
+            57,
+            53
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "5",
+          "confidence": 0.9999796152114868,
+          "box": [
+            907,
+            19,
+            57,
+            61
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "6",
+          "confidence": 0.9999837875366211,
+          "box": [
+            982,
+            20,
+            53,
+            60
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "7",
+          "confidence": 0.9999719858169556,
+          "box": [
+            1059,
+            23,
+            48,
+            53
+          ],
+          "viewId": "original"
+        }
+      ]
+    },
+    {
+      "issue": 296,
+      "expectedDigits": "013456789",
+      "expectedTail": "2尾",
+      "items": [
+        {
+          "text": "296期",
+          "confidence": 0.9999964833259583,
+          "box": [
+            24,
+            11,
+            187,
+            73
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "数据分析",
+          "confidence": 0.9999935626983643,
+          "box": [
+            261,
+            10,
+            269,
+            74
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "0",
+          "confidence": 0.9999544620513916,
+          "box": [
+            553,
+            20,
+            48,
+            55
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "3",
+          "confidence": 0.9999899864196777,
+          "box": [
+            700,
+            13,
+            44,
+            64
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "4",
+          "confidence": 0.999994158744812,
+          "box": [
+            772,
+            20,
+            46,
+            56
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "5",
+          "confidence": 0.9999762773513794,
+          "box": [
+            841,
+            19,
+            47,
+            57
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "6",
+          "confidence": 0.9999788999557495,
+          "box": [
+            911,
+            18,
+            51,
+            59
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "7",
+          "confidence": 0.9999938011169434,
+          "box": [
+            987,
+            19,
+            44,
+            57
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "8",
+          "confidence": 0.9999972581863403,
+          "box": [
+            1058,
+            19,
+            46,
+            57
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "9",
+          "confidence": 0.9999946355819702,
+          "box": [
+            1130,
+            19,
+            47,
+            57
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "尾",
+          "confidence": 0.9999750852584839,
+          "box": [
+            1191,
+            15,
+            83,
+            65
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "猴23中",
+          "confidence": 0.9999803304672241,
+          "box": [
+            1340,
+            12,
+            210,
+            72
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "1",
+          "confidence": 0.9998389482498169,
+          "box": [
+            620,
+            18,
+            47,
+            59
+          ],
+          "viewId": "original"
+        }
+      ]
+    },
+    {
+      "issue": 295,
+      "expectedDigits": "123456789",
+      "expectedTail": "0尾",
+      "items": [
+        {
+          "text": "295期",
+          "confidence": 0.9999960660934448,
+          "box": [
+            24,
+            13,
+            186,
+            72
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "数据分析",
+          "confidence": 0.999992847442627,
+          "box": [
+            261,
+            10,
+            271,
+            77
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "1",
+          "confidence": 0.9999468326568604,
+          "box": [
+            552,
+            20,
+            47,
+            58
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "2",
+          "confidence": 0.9999954700469971,
+          "box": [
+            622,
+            20,
+            54,
+            59
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "3",
+          "confidence": 0.9999949932098389,
+          "box": [
+            693,
+            20,
+            51,
+            59
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "4",
+          "confidence": 0.9999912977218628,
+          "box": [
+            763,
+            21,
+            54,
+            59
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "5",
+          "confidence": 0.9999271631240845,
+          "box": [
+            840,
+            14,
+            49,
+            67
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "6",
+          "confidence": 0.999981164932251,
+          "box": [
+            912,
+            19,
+            50,
+            59
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "7",
+          "confidence": 0.9999929666519165,
+          "box": [
+            986,
+            20,
+            45,
+            58
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "8",
+          "confidence": 0.9999951124191284,
+          "box": [
+            1053,
+            20,
+            53,
+            60
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "尾",
+          "confidence": 0.9999834299087524,
+          "box": [
+            1196,
+            15,
+            80,
+            68
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "馬25中",
+          "confidence": 0.9999833106994629,
+          "box": [
+            1342,
+            12,
+            208,
+            74
+          ],
+          "viewId": "original"
+        },
+        {
+          "text": "9",
+          "confidence": 0.9999903440475464,
+          "box": [
+            1122,
+            15,
+            61,
+            68
+          ],
+          "viewId": "original"
+        }
+      ]
+    }
+  ]
+}

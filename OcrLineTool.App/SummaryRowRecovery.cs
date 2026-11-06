@@ -1,10 +1,11 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 
 namespace OcrLineTool;
 
-internal enum SummaryRowRecoveryKind { Summary, IssueZodiac, IssueNumbers, RightBlock }
+internal enum SummaryRowRecoveryKind { Summary, IssueZodiac, IssueNumbers, RightBlock, HeikeTail }
 
 internal sealed record SummaryRowRecoveryRequest(string ImagePath, OcrRule Rule, SummaryRowRecoveryKind Kind)
 {
@@ -12,11 +13,36 @@ internal sealed record SummaryRowRecoveryRequest(string ImagePath, OcrRule Rule,
     {
         SummaryRowRecoveryKind.Summary => "summary-row-strip",
         SummaryRowRecoveryKind.RightBlock => "right-block-strip",
+        SummaryRowRecoveryKind.HeikeTail => "heike-tail-row-strip",
         _ => "issue-row-strip"
     };
 }
 
-internal sealed record SummaryRowRecoveryResult(string Value, IReadOnlyList<string> StripLines, string SourceHash);
+internal sealed record SummaryRowRecoveryResult(string Value, IReadOnlyList<string> StripLines, string SourceHash,
+    OcrEvidence? StripEvidence = null, byte[]? InputBytes = null)
+{
+    internal OcrEvidence CreateEvidence(SummaryRowRecoveryRequest request, string inputFolder)
+    {
+        if (request.Kind != SummaryRowRecoveryKind.HeikeTail)
+            return OcrEvidence.FromLines(request.ImagePath, StripLines, request.ViewId).Bind(
+                new(request.ImagePath, request.ImagePath, SourceHash, SourceHash, request.ViewId));
+        if (StripEvidence is null || InputBytes is null)
+            throw new OcrException("补读裁图证据缺失，请重新识别。", "OCR_IMAGE_CHANGED");
+        try
+        {
+            Directory.CreateDirectory(inputFolder);
+            string input = Path.Combine(inputFolder, Guid.NewGuid().ToString("N") + ".png");
+            File.WriteAllBytes(input, InputBytes);
+            // The task owns this input until SaveAsync copies it into the durable evidence store.
+            new OcrEvidenceIdentity(request.ImagePath, input, SourceHash, StripEvidence.InputHash, request.ViewId).EnsureCurrent();
+            return StripEvidence with { InputPath = input };
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new OcrException("无法保存补读裁图证据，请重新识别。", "OCR_IMAGE_IDENTITY_ERROR");
+        }
+    }
+}
 
 /// <summary>
 /// 给补读进度加上阶段前缀（定位/裁剪重读），便于界面区分；同步转发（不用 Progress&lt;T&gt; 的异步投递），
@@ -46,6 +72,11 @@ internal static class SummaryRowRecovery
 
     internal static bool SupportsRightBlockRecovery(OcrRule rule) => RightBlockRuleIds.Contains(rule.Id);
 
+    internal static bool SupportsHeikeTailRecovery(OcrRule rule) =>
+        rule.Id == "黑客杀尾" && rule.Type == "缺尾" && rule.Extractor == "heike_nine_tails";
+
+    internal static bool RecoversBeforeCloud(OcrRule rule) => rule.RequireRowStructure || SupportsHeikeTailRecovery(rule);
+
     internal static async Task<IReadOnlyDictionary<SummaryRowRecoveryRequest, SummaryRowRecoveryResult>> TryRecoverBatchAsync(
         PaddleLocalOcrClient client,
         IReadOnlyList<SummaryRowRecoveryRequest> requests,
@@ -56,6 +87,9 @@ internal static class SummaryRowRecovery
         CancellationToken cancellationToken,
         IProgress<LocalOcrProgress>? progress = null)
     {
+        requests = requests.Where(request => request.Kind != SummaryRowRecoveryKind.HeikeTail
+            || SupportsHeikeTailRecovery(request.Rule)
+                && RuleCatalog.PathBelongsToGroup(request.ImagePath, "黑色六合彩")).ToArray();
         var results = await RecoverOnceAsync(client, requests, catalog, issue, titleRatio, detectionMaxSide, cancellationToken,
             progress: progress);
         if (detectionMaxSide is not null)
@@ -101,7 +135,7 @@ internal static class SummaryRowRecovery
         var located = await ReadBatchAsync(client, sources, titleRatio, detectionMaxSide, true, cancellationToken, locatorModel,
             progress is null ? null : new PrefixedProgress(progress, locatePrefix));
         var pending = new List<(SummaryRowRecoveryRequest Request, string Path, OcrEvidenceIdentity Source,
-            Func<IReadOnlyList<string>, string?> Parse)>();
+            Func<IReadOnlyList<string>, string?>? Parse)>();
         string folder = Path.Combine(Path.GetTempPath(), "OcrLineTool-NVIDIA-CUDA", "strips", Guid.NewGuid().ToString("N"));
         try
         {
@@ -122,8 +156,17 @@ internal static class SummaryRowRecovery
                     {
                         source.EnsureCurrent();
                         (int X, int Y, int Width, int Height)? rect;
-                        Func<IReadOnlyList<string>, string?> parse;
-                        if (request.Kind == SummaryRowRecoveryKind.Summary)
+                        Func<IReadOnlyList<string>, string?>? parse;
+                        if (request.Kind == SummaryRowRecoveryKind.HeikeTail)
+                        {
+                            if (!RuleEngine.FindMatches(request.ImagePath, original.Lines, [request.Rule], catalog)
+                                .Any(rule => rule.Id == request.Rule.Id))
+                                continue;
+                            var band = ComputeHeikeTailBand(original.Evidence.TokenItems ?? original.Evidence.Items, issue);
+                            rect = band is null ? null : (0, band.Value.Top, 0, band.Value.Height);
+                            parse = null; // The strip must retain coordinates and confidence for the table extractor.
+                        }
+                        else if (request.Kind == SummaryRowRecoveryKind.Summary)
                         {
                             if (request.Rule.AllowIssueLessSummary
                                 && !RuleEngine.HasCurrentSummaryAuthor(original.Lines, issue, request.Rule))
@@ -178,7 +221,8 @@ internal static class SummaryRowRecovery
             // 仍会丢值列，所以按规则声明的 read_model 分组，分别用对应模型重读。
             var strips = new Dictionary<string, (IReadOnlyList<string> Lines, OcrEvidence Evidence)>(
                 StringComparer.OrdinalIgnoreCase);
-            foreach (var group in pending.GroupBy(item => item.Request.Rule.ReadModel == "small"))
+            foreach (var group in pending.GroupBy(item => item.Request.Kind != SummaryRowRecoveryKind.HeikeTail
+                && item.Request.Rule.ReadModel == "small"))
             {
                 var groupStrips = await ReadBatchAsync(client, group.Select(item => item.Path).ToArray(),
                     1.0, StripDetectionMaxSide, false, cancellationToken,
@@ -197,8 +241,24 @@ internal static class SummaryRowRecovery
                     {
                         var lines = item.Request.Rule.RequireRowStructure
                             ? RuleEngine.RowCandidateLines(strip.Evidence) : strip.Lines;
-                        if (item.Parse(lines) is { } value)
-                            results[item.Request] = new SummaryRowRecoveryResult(value, lines, item.Source.SourceHash);
+                        string? value = item.Request.Kind == SummaryRowRecoveryKind.HeikeTail
+                            ? ExtractHeikeTailStrip(strip.Evidence with { SourcePath = item.Request.ImagePath }, issue, item.Request.Rule)
+                            : item.Parse!(lines);
+                        if (value is not null)
+                        {
+                            OcrEvidence? evidence = null;
+                            byte[]? inputBytes = null;
+                            if (item.Request.Kind == SummaryRowRecoveryKind.HeikeTail)
+                            {
+                                inputBytes = File.ReadAllBytes(item.Path);
+                                evidence = OcrEvidence.FromCapturedBytes(item.Path, inputBytes, strip.Evidence.ViewId,
+                                    strip.Evidence.Items, strip.Evidence.TokenItems).Bind(new(
+                                        item.Request.ImagePath, item.Path, item.Source.SourceHash,
+                                        strip.Evidence.InputHash, item.Request.ViewId));
+                            }
+                            results[item.Request] = new SummaryRowRecoveryResult(value, lines, item.Source.SourceHash,
+                                evidence, inputBytes);
+                        }
                     }
                 }
                 catch (Exception exception) when (IsRecoverableError(exception)) { }
@@ -243,6 +303,46 @@ internal static class SummaryRowRecovery
     private static bool IsRecoverableError(Exception exception) => exception is OcrException ocr
         ? !PaddleLocalOcrClient.IsCudaUnavailable(ocr)
         : exception is IOException or UnauthorizedAccessException;
+
+    private static readonly Regex ExplicitPeriod = new(@"(?<!\d)(?<issue>[0-9]{1,6})\s*期", RegexOptions.CultureInvariant);
+
+    internal static string? ExtractHeikeTailStrip(OcrEvidence evidence, int issue, OcrRule rule)
+    {
+        if (!SupportsHeikeTailRecovery(rule) || !RuleCatalog.PathBelongsToGroup(evidence.SourcePath, "黑色六合彩"))
+            return null;
+        var tokens = evidence.TokenItems ?? evidence.Items;
+        var periods = tokens.SelectMany(item => ExplicitPeriod.Matches(item.Text).Cast<Match>()).ToArray();
+        // A second period on the strip means the crop or OCR joined rows; never borrow its digits.
+        return periods.Length == 1 && int.Parse(periods[0].Groups["issue"].Value) == issue
+            ? RuleEngine.ExtractFinalValue(evidence, issue, rule) : null;
+    }
+
+    internal static (int Top, int Height)? ComputeHeikeTailBand(IReadOnlyList<OcrLineEvidence> items, int issue)
+    {
+        // The header can repeat last period as "309期开"; only the table's pure period cells locate rows.
+        var periods = items.Where(item => ExplicitPeriod.IsMatch(item.Text)).ToArray();
+        var targets = periods.Where(item => Regex.IsMatch(item.Text, @"^\s*[0-9]{1,6}\s*期\s*$")
+            && ExplicitPeriod.Matches(item.Text).Cast<Match>()
+            .Any(match => int.Parse(match.Groups["issue"].Value) == issue)).ToArray();
+        if (targets.Length != 1 || targets[0].Box is not { Height: > 0, Width: > 0 } anchor)
+            return null;
+        var target = targets[0];
+        if (target.ViewId != "paddle/original" || target.Confidence is not double confidence
+            || !double.IsFinite(confidence) || confidence < .8 || confidence > 1)
+            return null;
+        var neighbors = periods.Where(item => item != target && item.ViewId == target.ViewId
+            && item.RegionId == target.RegionId && item.Box is { Height: > 0, Width: > 0 } box
+            && box.X < anchor.Right && box.Right > anchor.X).ToArray();
+        if (neighbors.Length == 0)
+            return null;
+        double gap = neighbors.Min(item => Math.Abs(item.Box!.CenterY - anchor.CenterY));
+        int top = Math.Max(0, (int)Math.Floor(anchor.CenterY - gap * BandHalfPitch));
+        int bottom = (int)Math.Ceiling(anchor.CenterY + gap * BandHalfPitch);
+        if (bottom - top < 12 || anchor.Y < top || anchor.Bottom > bottom
+            || neighbors.Any(item => item.Box!.Bottom > top && item.Box.Y < bottom))
+            return null;
+        return (top, bottom - top);
+    }
 
     internal static (int Top, int Height)? ComputeSummaryBand(IReadOnlyList<OcrLineEvidence> items, OcrRule rule)
     {

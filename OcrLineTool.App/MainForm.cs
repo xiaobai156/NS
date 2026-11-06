@@ -1188,6 +1188,7 @@ public sealed class MainForm : Form
     {
         int issue = Decimal.ToInt32(issueInput.Value);
         string? temporaryCropFolder = null;
+        string recoveryInputFolder = Path.Combine(Path.GetTempPath(), "OcrLineTool-NVIDIA-CUDA", "recovery", Guid.NewGuid().ToString("N"));
         // 诊断用任务标识与开始时间：让诊断能区分“哪一轮、什么模式、是否完成”。
         string taskId = Guid.NewGuid().ToString("N");
         DateTimeOffset startedAt = DateTimeOffset.Now;
@@ -1324,10 +1325,10 @@ public sealed class MainForm : Form
             }
 
             var cloudRulesByPath = new Dictionary<(string SourcePath, string OcrPath), List<OcrRule>>();
-            // Confirmed number tables reread their current physical row before cloud fallback.
+            // Confirmed tables reread their current physical row before cloud fallback.
             await RecoverSummaryRowValuesAsync(
-                rules.Where(rule => rule.RequireRowStructure).ToArray(), values, evidenceLedger,
-                new Dictionary<string, string>(StringComparer.Ordinal), candidates, issue, ActiveToken);
+                rules.Where(SummaryRowRecovery.RecoversBeforeCloud).ToArray(), values, evidenceLedger,
+                new Dictionary<string, string>(StringComparer.Ordinal), candidates, issue, recoveryInputFolder, ActiveToken);
             void AddCloudRule(string sourcePath, string ocrPath, OcrRule rule)
             {
                 var key = (sourcePath, ocrPath);
@@ -1562,8 +1563,8 @@ public sealed class MainForm : Form
             ApplyGapFillNotes(gapFillNotes, missingReasons);
 
             await RecoverSummaryRowValuesAsync(
-                rules.Where(rule => !rule.RequireRowStructure).ToArray(), values, evidenceLedger, missingReasons,
-                candidates.Concat(cloudCandidates).ToArray(), issue, ActiveToken);
+                rules.Where(rule => !SummaryRowRecovery.RecoversBeforeCloud(rule)).ToArray(), values, evidenceLedger, missingReasons,
+                candidates.Concat(cloudCandidates).ToArray(), issue, recoveryInputFolder, ActiveToken);
 
             ActiveToken.ThrowIfCancellationRequested();
             using IDisposable publishGuard = RecognitionStateStore.LockValidEvidenceForPublish(
@@ -1661,6 +1662,7 @@ public sealed class MainForm : Form
             {
                 TryDeleteTemporaryFolder(temporaryCropFolder);
             }
+            TryDeleteTemporaryFolder(recoveryInputFolder);
             StopRecognitionTiming();
             SetBusy(false);
             RefreshCredentialLabel();
@@ -2913,6 +2915,7 @@ public sealed class MainForm : Form
 
         bool succeeded = false;
         string? temporaryCropFolder = null;
+        string recoveryInputFolder = Path.Combine(Path.GetTempPath(), "OcrLineTool-NVIDIA-CUDA", "recovery", Guid.NewGuid().ToString("N"));
         // 诊断用：任务标识、开始时间与云请求计数在 try 外声明，取消/GPU 故障/失败路径同样能记录真实状态。
         string retryTaskId = Guid.NewGuid().ToString("N");
         DateTimeOffset retryStartedAt = DateTimeOffset.Now;
@@ -2983,8 +2986,8 @@ public sealed class MainForm : Form
             {
                 await RetryMissingByLocalOcrAsync(selection.Candidates, lastIssue, ActiveToken);
                 await RecoverSummaryRowValuesAsync(
-                    missingRules.Where(rule => rule.RequireRowStructure).ToArray(), lastValues,
-                    lastEvidenceLedger, lastMissingReasons, selection.Candidates, lastIssue, ActiveToken);
+                    missingRules.Where(SummaryRowRecovery.RecoversBeforeCloud).ToArray(), lastValues,
+                    lastEvidenceLedger, lastMissingReasons, selection.Candidates, lastIssue, recoveryInputFolder, ActiveToken);
             }
 
             OcrCredential initialCredential = credentialSelector.SelectedIndex <= 0
@@ -3176,8 +3179,9 @@ public sealed class MainForm : Form
             // (for example the period column of a number card). Best-effort local
             // row recovery runs here exactly like in the main recognition flow.
             await RecoverSummaryRowValuesAsync(
-                lastRules.Where(rule => !retryUsesLocalOcr || !rule.RequireRowStructure).ToArray(), lastValues, lastEvidenceLedger, lastMissingReasons,
-                selection.Candidates, lastIssue, ActiveToken);
+                lastRules.Where(rule => !SummaryRowRecovery.SupportsHeikeTailRecovery(rule)
+                    && (!retryUsesLocalOcr || !rule.RequireRowStructure)).ToArray(), lastValues, lastEvidenceLedger, lastMissingReasons,
+                selection.Candidates, lastIssue, recoveryInputFolder, ActiveToken);
 
             ActiveToken.ThrowIfCancellationRequested();
             int saveStageToken = BeginRecognitionStage("复抓：保存结果");
@@ -3295,6 +3299,9 @@ public sealed class MainForm : Form
             {
                 TryDeleteTemporaryFolder(temporaryCropFolder);
             }
+            if (DiscardUnpersistedRecoveryValues(recoveryInputFolder, lastValues, lastEvidenceLedger, lastMissingReasons) > 0)
+                resultsBox.Text = string.Join(Environment.NewLine, RuleEngine.FormatOutput(lastRules, lastValues, lastMissingReasons));
+            TryDeleteTemporaryFolder(recoveryInputFolder);
             StopRecognitionTiming();
             SetBusy(false);
             RefreshCredentialLabel();
@@ -3596,6 +3603,7 @@ public sealed class MainForm : Form
         IDictionary<string, string> missingReasons,
         IReadOnlyList<RecognitionCandidate> candidates,
         int issue,
+        string recoveryInputFolder,
         CancellationToken cancellationToken)
     {
         if (selectedImageDirectory is null)
@@ -3616,6 +3624,8 @@ public sealed class MainForm : Form
                 && rule.Type.StartsWith("号码", StringComparison.Ordinal)
                 && !string.IsNullOrWhiteSpace(rule.Folder))
             .ToArray();
+        OcrRule[] tailTableRules = rules.Where(rule => !values.ContainsKey(rule.Id)
+            && SummaryRowRecovery.SupportsHeikeTailRecovery(rule)).ToArray();
         // 右侧小块补读同时充当「按作者名横带」的回落：简单爱这类海报式卡面把作者名
         // 印在角落、与期号表格错位，横带算不出行距会直接跳过。它本来就在这个集合里，
         // 横带阶段没取到值时，下面的右侧批次会按目标期号那一行再裁一次。
@@ -3625,7 +3635,7 @@ public sealed class MainForm : Form
                 && SummaryRowRecovery.SupportsRightBlockRecovery(rule))
             .ToArray();
         if (recoverable.Length == 0 && issueRowRules.Length == 0
-            && issueRowNumberRules.Length == 0 && rightBlockRules.Length == 0)
+            && issueRowNumberRules.Length == 0 && rightBlockRules.Length == 0 && tailTableRules.Length == 0)
             return;
 
         var client = new PaddleLocalOcrClient(ocrDevice);
@@ -3638,6 +3648,7 @@ public sealed class MainForm : Form
         AddRequests(recoverable, SummaryRowRecoveryKind.Summary);
         AddRequests(issueRowRules, SummaryRowRecoveryKind.IssueZodiac);
         AddRequests(issueRowNumberRules, SummaryRowRecoveryKind.IssueNumbers);
+        AddRequests(tailTableRules, SummaryRowRecoveryKind.HeikeTail);
         await ApplyBatchAsync("横带");
 
         // 横带补读之后仍然没有值的规则，再按目标期号那一行裁一次右侧小块。
@@ -3652,13 +3663,13 @@ public sealed class MainForm : Form
             {
                 if (values.ContainsKey(rule.Id) || ResultValues.IsConflict(values, rule.Id))
                     continue;
-                RecognitionCandidate? candidate = candidates.FirstOrDefault(
+                var matching = candidates.Where(
                     item => item.Rules.Any(candidateRule => candidateRule.Id == rule.Id));
-                if (candidate is null || !File.Exists(candidate.SourcePath))
-                    continue;
-                if (!AllowsSummaryRowRecoveryCandidate(candidate.SourcePath, rule, kind))
-                    continue;
-                requests.Add(new SummaryRowRecoveryRequest(candidate.SourcePath, rule, kind));
+                // Every eligible tail card contributes independently, so differing complete values remain conflicts.
+                foreach (var candidate in kind == SummaryRowRecoveryKind.HeikeTail
+                    ? matching.DistinctBy(item => item.SourcePath, StringComparer.OrdinalIgnoreCase) : matching.Take(1))
+                    if (File.Exists(candidate.SourcePath) && AllowsSummaryRowRecoveryCandidate(candidate.SourcePath, rule, kind))
+                        requests.Add(new SummaryRowRecoveryRequest(candidate.SourcePath, rule, kind));
             }
         }
 
@@ -3694,11 +3705,7 @@ public sealed class MainForm : Form
                     continue;
                 try
                 {
-                    var identity = new OcrEvidenceIdentity(request.ImagePath, request.ImagePath,
-                        result.SourceHash, result.SourceHash, request.ViewId);
-                    OcrEvidence evidence = OcrEvidence.FromLines(request.ImagePath, result.StripLines, request.ViewId)
-                        .Bind(identity);
-                    evidenceLedger.Observe(values, request.Rule, result.Value, evidence);
+                    ApplySummaryRowRecoveryResult(request, result, recoveryInputFolder, values, evidenceLedger);
                     missingReasons.Remove(request.Rule.Id);
                 }
                 catch (OcrException exception) when (!PaddleLocalOcrClient.IsCudaUnavailable(exception))
@@ -3709,13 +3716,34 @@ public sealed class MainForm : Form
         }
     }
 
+    internal static void ApplySummaryRowRecoveryResult(SummaryRowRecoveryRequest request, SummaryRowRecoveryResult result,
+        string inputFolder, ResultValues values, ResultEvidenceLedger evidenceLedger) =>
+        evidenceLedger.Observe(values, request.Rule, result.Value, result.CreateEvidence(request, inputFolder));
+
+    internal static int DiscardUnpersistedRecoveryValues(string inputFolder, ResultValues values,
+        ResultEvidenceLedger ledger, IDictionary<string, string> missingReasons)
+    {
+        // SaveAsync moves trusted inputs out of this task directory. Aborted successes must remain retryable.
+        var unsaved = ledger.Records.Values.Where(record => record.Status == "success"
+            && string.Equals(Path.GetDirectoryName(record.InputPath), inputFolder, StringComparison.OrdinalIgnoreCase)).ToArray();
+        foreach (var record in unsaved)
+        {
+            values.Remove(record.RuleId);
+            ledger.Remove(record.RuleId);
+            missingReasons[record.RuleId] = "补读证据尚未保存，请重新复抓";
+        }
+        return unsaved.Length;
+    }
+
     // 缺项补读入口的身份过滤：号码/期行补读只接受与规则同资料夹的候选图，
     // 判定与候选识别阶段完全一致（RuleEngine.MatchesRuleFolder：目录段精确相等，允许下级目录）。
     internal static bool AllowsSummaryRowRecoveryCandidate(
         string sourcePath,
         OcrRule rule,
         SummaryRowRecoveryKind kind)
-        => kind is not (SummaryRowRecoveryKind.IssueZodiac or SummaryRowRecoveryKind.IssueNumbers)
+        => kind == SummaryRowRecoveryKind.HeikeTail
+            ? SummaryRowRecovery.SupportsHeikeTailRecovery(rule) && RuleCatalog.PathBelongsToGroup(sourcePath, "黑色六合彩")
+            : kind is not (SummaryRowRecoveryKind.IssueZodiac or SummaryRowRecoveryKind.IssueNumbers)
             || RuleEngine.MatchesRuleFolder(sourcePath, rule);
 
     internal static void AddExtractedEvidenceValues(
