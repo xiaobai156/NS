@@ -23,8 +23,10 @@ public sealed class MainForm : Form
     internal static readonly Color AccentAmber = Color.FromArgb(255, 171, 86);
     internal static readonly Color OnAccent = Color.FromArgb(36, 22, 8);
     internal static readonly Color DangerRed = Color.FromArgb(242, 165, 165);
-    // 群名绿色：当期有结果 TXT，但一条「（已分流）」都没有（多半是忘了点手动分流）。
+    // 群名绿色：当期有结果 TXT，但一条「（已分流）」都没有（一次都没分流过）。
     private static readonly Color ReadyGreen = Color.FromArgb(146, 208, 128);
+    // 群名蓝色：分流过，但后来补抓又来了没分流的行（有新内容等着再分流）。
+    private static readonly Color ReadyBlue = Color.FromArgb(126, 178, 236);
     private static readonly Color DangerBorder = Color.FromArgb(96, 64, 68);
     private static readonly Color DisabledBackground = Color.FromArgb(54, 56, 50);
     internal const int CardRadius = 10;
@@ -64,6 +66,10 @@ public sealed class MainForm : Form
     private readonly HashSet<string> foldersWithCurrentIssueResult = new(StringComparer.OrdinalIgnoreCase);
     // 当期有结果 TXT、但里面一条「（已分流）」都没有的群：群名显示绿色，提醒还没分流。
     private readonly HashSet<string> foldersWithoutDistribution = new(StringComparer.OrdinalIgnoreCase);
+    // 分流过、但还有可分流数据行没带「（已分流）」的群（多半是补抓来了新行）：群名显示蓝色。
+    private readonly HashSet<string> foldersWithPendingDistribution = new(StringComparer.OrdinalIgnoreCase);
+    // 已经记过日志的读取失败文件，避免每 2 秒刷新时重复刷日志；读成功后移出。
+    private readonly HashSet<string> distributionReadFailures = new(StringComparer.OrdinalIgnoreCase);
     private readonly Button recognizeButton = new DarkButton() { Text = "开始识别", AutoSize = true, Padding = new Padding(12, 5, 12, 5), Enabled = false };
     private readonly Button localPrimaryButton = new DarkButton() { Text = "本地主识别", AutoSize = true, Padding = new Padding(12, 5, 12, 5), Enabled = false };
     private readonly Button retryMissingButton = new DarkButton() { Text = "手动复抓缺失", AutoSize = true, Padding = new Padding(12, 5, 12, 5), Enabled = false };
@@ -849,16 +855,17 @@ public sealed class MainForm : Form
 
         bool hasResult = folderList.Items[e.Index] is DirectoryInfo folder
             && foldersWithCurrentIssueResult.Contains(folder.FullName);
-        // 有结果但一条都没分流 → 绿色提醒；已分流过 → 原来的红色；没结果 → 正常色。
+        // 一次都没分流 → 绿色；分流过但补抓又来了没分流的行 → 蓝色；全分流完 → 原来的红色；没结果 → 正常色。
         bool undistributed = hasResult
             && folderList.Items[e.Index] is DirectoryInfo pendingFolder
             && foldersWithoutDistribution.Contains(pendingFolder.FullName);
+        bool pendingDistribution = hasResult
+            && folderList.Items[e.Index] is DirectoryInfo pendingDistributionFolder
+            && foldersWithPendingDistribution.Contains(pendingDistributionFolder.FullName);
         // 抓取设置里关掉的群：置灰表示不抓取、也不能识别；仍然列出来，方便看清目录还在。
         bool captureDisabled = folderList.Items[e.Index] is DirectoryInfo captureFolder
             && !captureSettings.IsGroupEnabled(GroupNameForFolderItem(captureFolder));
-        Color foreground = captureDisabled
-            ? SecondaryText
-            : undistributed ? ReadyGreen : hasResult ? DangerRed : PrimaryText;
+        Color foreground = GetFolderForeground(hasResult, undistributed, pendingDistribution, captureDisabled);
         TextRenderer.DrawText(
             e.Graphics,
             folderList.GetItemText(folderList.Items[e.Index]),
@@ -869,6 +876,18 @@ public sealed class MainForm : Form
             TextFormatFlags.EndEllipsis);
         if (selected)
             e.DrawFocusRectangle();
+    }
+
+    // 群名颜色只由这四个状态决定，单独抽出来方便测试优先级：灰 > 蓝 > 绿 > 红 > 正常。
+    internal static Color GetFolderForeground(bool hasResult, bool undistributed, bool pendingDistribution, bool captureDisabled)
+    {
+        if (captureDisabled)
+            return SecondaryText;
+        if (pendingDistribution)
+            return ReadyBlue;
+        if (undistributed)
+            return ReadyGreen;
+        return hasResult ? DangerRed : PrimaryText;
     }
 
     private void RefreshCredentialLabel()
@@ -1007,12 +1026,14 @@ public sealed class MainForm : Form
         string[] folders = folderList.Items.Cast<DirectoryInfo>().Select(folder => folder.FullName).ToArray();
         HashSet<string> updated;
         HashSet<string> undistributed;
+        HashSet<string> pendingDistribution;
         try
         {
             if (folderGroupNames.Count == 0 && folders.Length > 0)
                 folderGroupNames = RuleCatalog.GroupNamesForFolders(AppContext.BaseDirectory, folders);
             var withResult = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var withoutDistribution = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var withPendingDistribution = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (string folder in folders)
             {
                 if (!folderGroupNames.TryGetValue(folder, out string? groupName))
@@ -1021,20 +1042,35 @@ public sealed class MainForm : Form
                 if (!File.Exists(path))
                     continue;
                 withResult.Add(folder);
-                // 一条「（已分流）」都没有 → 这期还没分流完整，群名显示绿色提醒。
-                // 缺失行也算未分流（用户口径），所以这里不做任何过滤。
-                if (!HasAnyDistributedLine(path))
+                // 一条「（已分流）」都没有 → 一次都没分流过，群名绿色提醒。
+                // 分流过、但还有可分流数据行没带「（已分流）」→ 补抓来了新行，群名蓝色提醒。
+                (bool anyDistributed, bool anyUndistributed, Exception? readFailure) = CountDistributionLines(path);
+                if (readFailure is not null)
+                {
+                    // 读不到就按「一次都没分流」处理（绿色提醒），但要留一次日志，别把权限/占用问题吞掉。
+                    if (distributionReadFailures.Add(path))
+                        OperationLog.AppendException(AppContext.BaseDirectory, "刷新群列表颜色", groupName, issue, readFailure);
+                }
+                else
+                {
+                    distributionReadFailures.Remove(path);
+                }
+                if (!anyDistributed)
                     withoutDistribution.Add(folder);
+                else if (anyUndistributed)
+                    withPendingDistribution.Add(folder);
             }
             updated = withResult;
             undistributed = withoutDistribution;
+            pendingDistribution = withPendingDistribution;
         }
         catch (Exception exception) when (exception is OcrException or IOException or UnauthorizedAccessException or ArgumentException)
         {
             return;
         }
         if (foldersWithCurrentIssueResult.SetEquals(updated)
-            && foldersWithoutDistribution.SetEquals(undistributed))
+            && foldersWithoutDistribution.SetEquals(undistributed)
+            && foldersWithPendingDistribution.SetEquals(pendingDistribution))
         {
             // 结果集没变也要重画：抓取设置刚改过群开关时，置灰必须立刻生效。
             folderList.Invalidate();
@@ -1044,28 +1080,43 @@ public sealed class MainForm : Form
         foldersWithCurrentIssueResult.UnionWith(updated);
         foldersWithoutDistribution.Clear();
         foldersWithoutDistribution.UnionWith(undistributed);
+        foldersWithPendingDistribution.Clear();
+        foldersWithPendingDistribution.UnionWith(pendingDistribution);
         folderList.Invalidate();
     }
 
-    // 群结果 TXT 里是否至少有一行带「（已分流）」后缀。读不到时按「没有」处理，
-    // 让群名保持绿色提醒，宁可多提醒一次也不要漏掉未分流。
-    private static bool HasAnyDistributedLine(string path)
+    // 统计群结果 TXT 里的可分流数据行：是否有已分流的、是否还有没分流的。
+    // 空行、分类标题【…】、「来源：…」行、旧版「—— 子文件夹=…」后缀和「缺失…」行都不算可分流数据行。
+    // 读不到时返回 failure，调用方按「没有」处理（群名保持绿色提醒）并记一次日志。
+    private static (bool AnyDistributed, bool AnyUndistributed, Exception? Failure) CountDistributionLines(string path)
     {
+        bool anyDistributed = false;
+        bool anyUndistributed = false;
         try
         {
-            foreach (string line in File.ReadLines(path))
+            foreach (string rawLine in File.ReadLines(path))
             {
+                string line = GroupResultFormatter.RemoveLegacySourceSuffix(rawLine).Trim();
+                if (line.Length == 0
+                    || line.StartsWith("来源：", StringComparison.Ordinal)
+                    || line.StartsWith("缺失", StringComparison.Ordinal)
+                    || line.StartsWith("【", StringComparison.Ordinal) && line.EndsWith("】", StringComparison.Ordinal))
+                    continue;
                 if (line.EndsWith("（已分流）", StringComparison.Ordinal))
-                    return true;
+                    anyDistributed = true;
+                else
+                    anyUndistributed = true;
             }
         }
-        catch (IOException)
+        catch (IOException exception)
         {
+            return (false, false, exception);
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException exception)
         {
+            return (false, false, exception);
         }
-        return false;
+        return (anyDistributed, anyUndistributed, null);
     }
 
     private void SelectFolderListItem(object? sender, EventArgs e)

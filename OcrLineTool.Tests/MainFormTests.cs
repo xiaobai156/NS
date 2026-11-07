@@ -1398,7 +1398,7 @@ public sealed class MainFormTests
     }
 
     [Fact]
-    public void MarksGroupsWithoutAnyDistributedLineAsUndistributed()
+    public void SeparatesGroupsThatNeverDistributedFromThoseWithNewUndistributedRows()
     {
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
         string root = Directory.CreateTempSubdirectory("ocr-group-undistributed-").FullName;
@@ -1412,6 +1412,8 @@ public sealed class MainFormTests
                 .GetField("foldersWithCurrentIssueResult", flags)!.GetValue(form)!;
             var undistributed = (HashSet<string>)typeof(MainForm)
                 .GetField("foldersWithoutDistribution", flags)!.GetValue(form)!;
+            var pending = (HashSet<string>)typeof(MainForm)
+                .GetField("foldersWithPendingDistribution", flags)!.GetValue(form)!;
 
             const int issue = 999994;
             issueInput.Value = issue;
@@ -1421,26 +1423,45 @@ public sealed class MainFormTests
             var timer = (System.Windows.Forms.Timer)typeof(MainForm).GetField("folderRefreshTimer", flags)!.GetValue(form)!;
             void Tick() => typeof(System.Windows.Forms.Timer).GetMethod("OnTick", flags)!.Invoke(timer, [EventArgs.Empty]);
 
-            // 一条「（已分流）」都没有（含缺失行）→ 有结果，且算未分流（群名绿色）。
+            // 一条「（已分流）」都没有（缺失行不算）→ 绿色集合。
             File.WriteAllLines(resultPath,
                 ["【头】", "0头 齐天大圣", "缺失（未找到对应图片） 王者肖肖"]);
             Tick();
             Assert.Contains(folder, markers);
             Assert.Contains(folder, undistributed);
+            Assert.DoesNotContain(folder, pending);
 
-            // 只要出现一条已分流 → 不再算未分流（群名回到红色）。
+            // 部分分流：一条已分流、另一条还是新的 → 蓝色集合，不在绿色集合。
             File.WriteAllLines(resultPath,
-                ["【头】", "0头 齐天大圣（已分流）", "缺失（未找到对应图片） 王者肖肖"]);
+                ["【头】", "0头 齐天大圣（已分流）", "4头 辣椒炒肉", "缺失（未找到对应图片） 王者肖肖"]);
             Tick();
             Assert.Contains(folder, markers);
             Assert.DoesNotContain(folder, undistributed);
+            Assert.Contains(folder, pending);
 
-            // TXT 被删掉 → 两个集合都不含它（正常色）。
+            // 全部可分流数据行都带上「（已分流）」→ 回到红色：两个集合都不含它。
+            File.WriteAllLines(resultPath,
+                ["【头】", "0头 齐天大圣（已分流）", "4头 辣椒炒肉（已分流）", "缺失（未找到对应图片） 王者肖肖"]);
+            Tick();
+            Assert.Contains(folder, markers);
+            Assert.DoesNotContain(folder, undistributed);
+            Assert.DoesNotContain(folder, pending);
+
+            // 旧版「—— 子文件夹=…」后缀和「来源：…」行不算可分流数据行（全部已分流 → 红色）。
+            File.WriteAllLines(resultPath,
+                ["【头】", "0头 齐天大圣（已分流）—— 子文件夹=乙群", "来源：自动识别", "缺失（未找到对应图片） 王者肖肖"]);
+            Tick();
+            Assert.Contains(folder, markers);
+            Assert.DoesNotContain(folder, undistributed);
+            Assert.DoesNotContain(folder, pending);
+
+            // TXT 被删掉 → 三个集合都不含它（正常色）。
             File.Delete(resultPath);
             resultPath = null;
             Tick();
             Assert.DoesNotContain(folder, markers);
             Assert.DoesNotContain(folder, undistributed);
+            Assert.DoesNotContain(folder, pending);
         }
         finally
         {
@@ -1448,6 +1469,17 @@ public sealed class MainFormTests
                 File.Delete(resultPath);
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    [Fact]
+    public void FolderForegroundPriorityKeepsDisabledAndBlueAboveEverythingElse()
+    {
+        // 灰（抓取设置关闭）压过其它一切；蓝（有新增未分流）压过绿；绿（从未分流）；红（全分流完）；正常色。
+        Assert.Equal(Color.FromArgb(180, 184, 166), MainForm.GetFolderForeground(true, true, true, true));
+        Assert.Equal(Color.FromArgb(126, 178, 236), MainForm.GetFolderForeground(true, true, true, false));
+        Assert.Equal(Color.FromArgb(146, 208, 128), MainForm.GetFolderForeground(true, true, false, false));
+        Assert.Equal(Color.FromArgb(242, 165, 165), MainForm.GetFolderForeground(true, false, false, false));
+        Assert.Equal(Color.FromArgb(231, 232, 220), MainForm.GetFolderForeground(false, false, false, false));
     }
 
     [Fact]
