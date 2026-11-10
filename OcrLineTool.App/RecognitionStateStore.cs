@@ -17,7 +17,8 @@ public sealed record ResultEvidenceRecord(
     string ViewId,
     string[] RegionIds,
     double? MinimumConfidence,
-    int ExtractorRevision = 0);
+    int ExtractorRevision = 0,
+    OcrEvidence? StatisticsEvidence = null);
 
 internal sealed class ResultEvidenceLedger
 {
@@ -68,7 +69,8 @@ internal sealed class ResultEvidenceLedger
                 .Distinct(StringComparer.Ordinal)
                 .ToArray(),
             evidence.MinimumConfidence,
-            RecognitionStateStore.ExtractorRevision);
+            RecognitionStateStore.ExtractorRevision,
+            rule.Type == "统计生肖" ? evidence with { Items = evidence.TokenItems ?? evidence.Items } : null);
 
     internal void ObserveConflict(ResultValues values, OcrRule rule, OcrEvidence evidence)
     {
@@ -91,7 +93,7 @@ internal static class RecognitionStateStore
     // Extraction contract revision. Bump this whenever RuleEngine output
     // semantics change so an older Success produced by a buggy extractor is
     // never restored as a trusted value. Conflicts stay reusable.
-    internal const int ExtractorRevision = 19;
+    internal const int ExtractorRevision = 20;
     private sealed record StateDocument(int Version, string Group, int Issue, List<ResultEvidenceRecord> Results);
 
     internal static string RuleSignature(OcrRule rule)
@@ -172,6 +174,13 @@ internal static class RecognitionStateStore
                 {
                     continue;
                 }
+
+                if (rule.Type == "统计生肖"
+                    && (record.StatisticsEvidence is not { } statistics
+                        || statistics.SourceHash != record.SourceHash || statistics.InputHash != record.InputHash
+                        || !ResultValues.NumberSetComparer.Equals(
+                            RuleEngine.ExtractFinalResult(statistics, issue, rule).Value, record.Value)))
+                    continue;
 
                 ResultValues.AddTo(values, rule.Id, record.Value!);
                 if (!ResultValues.IsConflict(values, rule.Id))

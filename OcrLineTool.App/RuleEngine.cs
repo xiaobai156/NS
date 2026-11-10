@@ -3207,127 +3207,6 @@ public static partial class RuleEngine
         return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
     }
 
-    private static string? ExtractMostFrequentZodiac(string[] lines, int issue, OcrRule rule)
-    {
-        int start = 0;
-        if (!string.IsNullOrWhiteSpace(rule.Section))
-        {
-            start = Array.FindIndex(lines, line => ContainsSectionMarker(line, rule.Section));
-            if (start < 0)
-                return null;
-        }
-
-        bool inTargetIssue = false;
-        int blockStart = -1;
-        int blockEnd = lines.Length;
-        var rows = new List<(int Count, string Value)>();
-        for (int index = start; index < lines.Length; index++)
-        {
-            string line = lines[index];
-            if (ContainsIssue(line, issue))
-            {
-                if (!inTargetIssue)
-                    blockStart = index;
-                inTargetIssue = true;
-            }
-            else if (ContainsIssueBoundary(line, issue))
-            {
-                if (inTargetIssue)
-                {
-                    blockEnd = index;
-                    break;
-                }
-                continue;
-            }
-
-            if (!inTargetIssue || !TryExtractFrequencyRow(line, out int count, out string rowValue))
-                continue;
-            if (rowValue.Length == 0)
-            {
-                for (int next = index + 1; next < lines.Length; next++)
-                {
-                    if (ContainsIssue(lines[next], issue)
-                        || ContainsIssueBoundary(lines[next], issue)
-                        || Regex.IsMatch(lines[next], @"(?<!\d)\d{1,2}\s*次"))
-                        break;
-                    string nextValue = string.Concat(Regex.Matches(SimplifyOcrText(lines[next]), $"[{Zodiac}]")
-                        .Select(item => item.Value).Distinct());
-                    if (nextValue.Length > 0)
-                    {
-                        rowValue = nextValue;
-                        break;
-                    }
-                }
-            }
-            rows.Add((count, rowValue));
-        }
-
-        if (rows.Count == 0)
-            return null;
-
-        // Empty frequency buckets are normal on these sheets (no zodiac reached
-        // that count). Only buckets that actually list zodiacs compete for the
-        // maximum; however an empty bucket that sits above the valued maximum
-        // and before the table's last valued row means the top row was not read
-        // and the whole table stays missing.
-        (int Count, string Value)[] valuedRows = rows.Where(row => row.Value.Length > 0).ToArray();
-        if (valuedRows.Length == 0)
-            return null;
-        // 这些统计表都会印「总次数:44次」「统计(14人)」或「共26人」：Σ(次数×该行生肖数)
-        // 必须正好等于本期块自己的那个总量。次数被读错（例如 11次 → 1次）时总数对不上，
-        // 直接判缺失；块内出现两个不同总量说明表读串了，同样判缺失，绝不拿上一期的总量。
-        if (blockStart >= 0 && blockEnd > blockStart
-            && TryReadPrintedTotal(lines, blockStart..blockEnd, out int printedTotal))
-        {
-            int total = valuedRows.Sum(row => row.Count * row.Value.Length);
-            if (total != printedTotal)
-                return null;
-        }
-        int maximum = valuedRows.Max(row => row.Count);
-        int lastValuedIndex = rows.FindLastIndex(row => row.Value.Length > 0);
-        for (int index = 0; index < lastValuedIndex; index++)
-        {
-            if (rows[index].Value.Length == 0 && rows[index].Count > maximum)
-                return null;
-        }
-        (int Count, string Value)[] maximumRows = valuedRows.Where(row => row.Count == maximum).ToArray();
-        string result = string.Concat(maximumRows
-            .Select(row => row.Value)
-            .SelectMany(item => item)
-            .Distinct());
-        return result.Length > 0 ? result : null;
-    }
-
-    // 统计表上印的总量：品鉴是「【生肖统计】(总次数:44次)」，小慧慧是「统计结果（共26人）」，
-    // 灰灰团是「第296期统计(14人)」。读不到就跳过一致性校验，绝不用猜的总数否决结果。
-    private static bool TryReadPrintedTotal(string[] lines, Range range, out int total)
-    {
-        total = 0;
-        int start = range.Start.GetOffset(lines.Length);
-        int end = range.End.GetOffset(lines.Length);
-        bool found = false;
-        for (int index = start; index < Math.Min(end, lines.Length); index++)
-        {
-            // 用简化后的原文匹配：Normalize 会把括号和空格去掉，
-            // 那样「第253期统计(14人)」就永远对不上「人前必须有括号」的条件。
-            string line = SimplifyOcrText(lines[index]);
-            Match match = Regex.Match(line,
-                @"(?:总次数|總次數)\s*[:：]?\s*(?<n>\d{1,3})\s*次|共\s*(?<n2>\d{1,3})\s*人|(?<!\d)(?<n3>\d{1,3})\s*人");
-            if (!match.Success)
-                continue;
-            string value = match.Groups["n"].Success ? match.Groups["n"].Value
-                : match.Groups["n2"].Success ? match.Groups["n2"].Value
-                : match.Groups["n3"].Value;
-            if (!int.TryParse(value, out int parsed))
-                continue;
-            if (found && parsed != total)
-                return false;   // 同一期块出现两个不同总量：表读串了，不用任何一个
-            total = parsed;
-            found = true;
-        }
-        return found;
-    }
-
     private static bool TryExtractFrequencyRow(string line, out int count, out string value)
     {
         string normalized = Normalize(line);
@@ -3405,6 +3284,8 @@ public static partial class RuleEngine
         ArgumentNullException.ThrowIfNull(evidence);
         if (!rule.IgnoreIssue)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(issue);
+        if (rule.Type == "统计生肖")
+            return ExtractStatisticsEvidence(evidence, issue, rule, out _);
         if (rule.Extractor == "rui_er_team_card")
             return ExtractRuiErTeamEvidence(evidence, issue, rule);
         if (UsesBoundedTableCell(evidence.SourcePath, rule))
@@ -4315,6 +4196,16 @@ public static partial class RuleEngine
         }
     }
 
+    public static string DescribeExtractionFailure(OcrEvidence? evidence, int issue, OcrRule rule)
+    {
+        if (evidence is not null && rule.Type == "统计生肖")
+        {
+            ExtractStatisticsEvidence(evidence, issue, rule, out string? reason);
+            return reason ?? $"未确认本人{issue}期的完整统计块（身份、期号或行归属校验未通过）";
+        }
+        return DescribeExtractionFailure(evidence?.Lines ?? [], issue, rule);
+    }
+
     public static string DescribeExtractionFailure(IEnumerable<string> cloudLines, int issue, OcrRule rule)
     {
         try
@@ -4389,7 +4280,15 @@ public static partial class RuleEngine
         if (rule.Type is "生肖" or "单生肖")
             return $"已找到{issue}期文字，但未识别到唯一有效生肖";
         if (rule.Type == "统计生肖")
-            return $"已找到{issue}期文字，但未提取到最高次数生肖";
+        {
+            // 与 ExtractValueCore 看同一批行（固定卡面先简化、其余按期号拆行），
+            // 再走同一个判定入口取真实原因；确实取不到才回退原来那句笼统文案。
+            string[] typed = rule.StrictIssueBlock
+                ? lines.Select(SimplifyFixedCardText).ToArray()
+                : SplitInlineIssueRows(lines);
+            ReadMostFrequentZodiac(typed, issue, rule, out string? zodiacReason);
+            return zodiacReason ?? $"已找到{issue}期文字，但未提取到最高次数生肖";
+        }
         return $"已找到{issue}期文字，但未提取到符合规则的{rule.OutputLabel}值";
     }
 

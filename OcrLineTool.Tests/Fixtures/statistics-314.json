@@ -1,0 +1,5991 @@
+[
+  {
+    "Rule": "品鉴",
+    "Issue": 314,
+    "Expected": "鸡",
+    "Medium": {
+      "SourcePath": "C:\\Users\\Administrator\\Desktop\\每天工具\\飞机抓图\\结果\\11.10-嫣然心水\\品鉴\\20261110_142024_0f1e4b12_10479.jpg",
+      "InputPath": "C:\\Users\\Administrator\\Desktop\\每天工具\\飞机抓图\\结果\\11.10-嫣然心水\\品鉴\\20261110_142024_0f1e4b12_10479.jpg",
+      "SourceHash": "62C07B92DB54CF2C2079EB876F182002A209DA890670A87F9C6EF354FAEAE202",
+      "InputHash": "62C07B92DB54CF2C2079EB876F182002A209DA890670A87F9C6EF354FAEAE202",
+      "ViewId": "paddle",
+      "Items": [
+        {
+          "Text": "【❤品鉴新澳杀一肖❤】",
+          "Box": {
+            "X": 32,
+            "Y": 5,
+            "Width": 155,
+            "Height": 17,
+            "Right": 187,
+            "Bottom": 22,
+            "CenterX": 109.5,
+            "CenterY": 13.5
+          },
+          "Confidence": 0.96331787109375,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【阿龙阿龙月错0】马",
+          "Box": {
+            "X": 28,
+            "Y": 42,
+            "Width": 161,
+            "Height": 17,
+            "Right": 189,
+            "Bottom": 59,
+            "CenterX": 108.5,
+            "CenterY": 50.5
+          },
+          "Confidence": 0.9696989059448242,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【建宇建宇月错0】狗",
+          "Box": {
+            "X": 25,
+            "Y": 58,
+            "Width": 165,
+            "Height": 21,
+            "Right": 190,
+            "Bottom": 79,
+            "CenterX": 107.5,
+            "CenterY": 68.5
+          },
+          "Confidence": 0.9918560981750488,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【哭包哭包月错1】鸡",
+          "Box": {
+            "X": 28,
+            "Y": 79,
+            "Width": 161,
+            "Height": 17,
+            "Right": 189,
+            "Bottom": 96,
+            "CenterX": 108.5,
+            "CenterY": 87.5
+          },
+          "Confidence": 0.9518847465515137,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【烟雨沫沫月错1】龙",
+          "Box": {
+            "X": 27,
+            "Y": 96,
+            "Width": 163,
+            "Height": 20,
+            "Right": 190,
+            "Bottom": 116,
+            "CenterX": 108.5,
+            "CenterY": 106
+          },
+          "Confidence": 0.9992069005966187,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【云云一一月错1】狗",
+          "Box": {
+            "X": 27,
+            "Y": 116,
+            "Width": 163,
+            "Height": 17,
+            "Right": 190,
+            "Bottom": 133,
+            "CenterX": 108.5,
+            "CenterY": 124.5
+          },
+          "Confidence": 0.9313977956771851,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【德哥——月错0】虎",
+          "Box": {
+            "X": 26,
+            "Y": 133,
+            "Width": 165,
+            "Height": 20,
+            "Right": 191,
+            "Bottom": 153,
+            "CenterX": 108.5,
+            "CenterY": 143
+          },
+          "Confidence": 0.9762428402900696,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【猫哥—一月错0】牛",
+          "Box": {
+            "X": 28,
+            "Y": 153,
+            "Width": 161,
+            "Height": 17,
+            "Right": 189,
+            "Bottom": 170,
+            "CenterX": 108.5,
+            "CenterY": 161.5
+          },
+          "Confidence": 0.9066125154495239,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【梁微微一月错0】猪",
+          "Box": {
+            "X": 27,
+            "Y": 170,
+            "Width": 163,
+            "Height": 20,
+            "Right": 190,
+            "Bottom": 190,
+            "CenterX": 108.5,
+            "CenterY": 180
+          },
+          "Confidence": 0.9976975321769714,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【小米小米月错1】鸡",
+          "Box": {
+            "X": 27,
+            "Y": 190,
+            "Width": 162,
+            "Height": 17,
+            "Right": 189,
+            "Bottom": 207,
+            "CenterX": 108,
+            "CenterY": 198.5
+          },
+          "Confidence": 0.999523937702179,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【扬帆——月错1】羊",
+          "Box": {
+            "X": 26,
+            "Y": 207,
+            "Width": 164,
+            "Height": 20,
+            "Right": 190,
+            "Bottom": 227,
+            "CenterX": 108,
+            "CenterY": 217
+          },
+          "Confidence": 0.9710127115249634,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【云朵一一月错0】兔",
+          "Box": {
+            "X": 27,
+            "Y": 227,
+            "Width": 162,
+            "Height": 17,
+            "Right": 189,
+            "Bottom": 244,
+            "CenterX": 108,
+            "CenterY": 235.5
+          },
+          "Confidence": 0.9676002264022827,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【東南仔一月错2】马",
+          "Box": {
+            "X": 26,
+            "Y": 244,
+            "Width": 164,
+            "Height": 20,
+            "Right": 190,
+            "Bottom": 264,
+            "CenterX": 108,
+            "CenterY": 254
+          },
+          "Confidence": 0.9903181791305542,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【熊猫爪爪月错1】鸡",
+          "Box": {
+            "X": 26,
+            "Y": 262,
+            "Width": 164,
+            "Height": 20,
+            "Right": 190,
+            "Bottom": 282,
+            "CenterX": 108,
+            "CenterY": 272
+          },
+          "Confidence": 0.9989455938339233,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【小糊涂一月错1】猪",
+          "Box": {
+            "X": 26,
+            "Y": 281,
+            "Width": 164,
+            "Height": 20,
+            "Right": 190,
+            "Bottom": 301,
+            "CenterX": 108,
+            "CenterY": 291
+          },
+          "Confidence": 0.9991613626480103,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【小苹果一月错0】蛇",
+          "Box": {
+            "X": 27,
+            "Y": 301,
+            "Width": 162,
+            "Height": 17,
+            "Right": 189,
+            "Bottom": 318,
+            "CenterX": 108,
+            "CenterY": 309.5
+          },
+          "Confidence": 0.9993442296981812,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【小芳——月错0】蛇",
+          "Box": {
+            "X": 26,
+            "Y": 318,
+            "Width": 164,
+            "Height": 20,
+            "Right": 190,
+            "Bottom": 338,
+            "CenterX": 108,
+            "CenterY": 328
+          },
+          "Confidence": 0.9514694213867188,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【大中华一月错0】龙",
+          "Box": {
+            "X": 27,
+            "Y": 338,
+            "Width": 162,
+            "Height": 17,
+            "Right": 189,
+            "Bottom": 355,
+            "CenterX": 108,
+            "CenterY": 346.5
+          },
+          "Confidence": 0.9985626339912415,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【天渊——月错0】龙",
+          "Box": {
+            "X": 26,
+            "Y": 355,
+            "Width": 164,
+            "Height": 20,
+            "Right": 190,
+            "Bottom": 375,
+            "CenterX": 108,
+            "CenterY": 365
+          },
+          "Confidence": 0.9634020924568176,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【天涯才子月错0】虎",
+          "Box": {
+            "X": 27,
+            "Y": 375,
+            "Width": 162,
+            "Height": 17,
+            "Right": 189,
+            "Bottom": 392,
+            "CenterX": 108,
+            "CenterY": 383.5
+          },
+          "Confidence": 0.9993866086006165,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【笑看人生月错0】兔",
+          "Box": {
+            "X": 27,
+            "Y": 392,
+            "Width": 162,
+            "Height": 19,
+            "Right": 189,
+            "Bottom": 411,
+            "CenterX": 108,
+            "CenterY": 401.5
+          },
+          "Confidence": 0.9994212985038757,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【柠檬茶茶月错1】虎",
+          "Box": {
+            "X": 28,
+            "Y": 412,
+            "Width": 161,
+            "Height": 17,
+            "Right": 189,
+            "Bottom": 429,
+            "CenterX": 108.5,
+            "CenterY": 420.5
+          },
+          "Confidence": 0.9993907809257507,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【金钢刀一月错1】鸡",
+          "Box": {
+            "X": 28,
+            "Y": 433,
+            "Width": 178,
+            "Height": 17,
+            "Right": 206,
+            "Bottom": 450,
+            "CenterX": 117,
+            "CenterY": 441.5
+          },
+          "Confidence": 0.9925258755683899,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【鸿运先生月错0】虎",
+          "Box": {
+            "X": 27,
+            "Y": 450,
+            "Width": 163,
+            "Height": 19,
+            "Right": 190,
+            "Bottom": 469,
+            "CenterX": 108.5,
+            "CenterY": 459.5
+          },
+          "Confidence": 0.9991092681884766,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【孤城公子月错1】狗",
+          "Box": {
+            "X": 28,
+            "Y": 470,
+            "Width": 162,
+            "Height": 17,
+            "Right": 190,
+            "Bottom": 487,
+            "CenterX": 109,
+            "CenterY": 478.5
+          },
+          "Confidence": 0.9983027577400208,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【陌陌子琪月错0】蛇",
+          "Box": {
+            "X": 26,
+            "Y": 487,
+            "Width": 165,
+            "Height": 20,
+            "Right": 191,
+            "Bottom": 507,
+            "CenterX": 108.5,
+            "CenterY": 497
+          },
+          "Confidence": 0.9987629055976868,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【萱萱——月错1】鸡",
+          "Box": {
+            "X": 26,
+            "Y": 508,
+            "Width": 182,
+            "Height": 20,
+            "Right": 208,
+            "Bottom": 528,
+            "CenterX": 117,
+            "CenterY": 518
+          },
+          "Confidence": 0.9370613098144531,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【财神爷一月错0】猪",
+          "Box": {
+            "X": 28,
+            "Y": 528,
+            "Width": 161,
+            "Height": 17,
+            "Right": 189,
+            "Bottom": 545,
+            "CenterX": 108.5,
+            "CenterY": 536.5
+          },
+          "Confidence": 0.9995214343070984,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【高端纹绣月错1】羊",
+          "Box": {
+            "X": 27,
+            "Y": 545,
+            "Width": 163,
+            "Height": 20,
+            "Right": 190,
+            "Bottom": 565,
+            "CenterX": 108.5,
+            "CenterY": 555
+          },
+          "Confidence": 0.9995492100715637,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "品鉴",
+          "Box": {
+            "X": 220,
+            "Y": 542,
+            "Width": 107,
+            "Height": 222,
+            "Right": 327,
+            "Bottom": 764,
+            "CenterX": 273.5,
+            "CenterY": 653
+          },
+          "Confidence": 0.9996239542961121,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【朝阳晨曦月错1】龙",
+          "Box": {
+            "X": 28,
+            "Y": 565,
+            "Width": 162,
+            "Height": 17,
+            "Right": 190,
+            "Bottom": 582,
+            "CenterX": 109,
+            "CenterY": 573.5
+          },
+          "Confidence": 0.9993447065353394,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【篮色空间月错1】龙",
+          "Box": {
+            "X": 25,
+            "Y": 581,
+            "Width": 184,
+            "Height": 24,
+            "Right": 209,
+            "Bottom": 605,
+            "CenterX": 117,
+            "CenterY": 593
+          },
+          "Confidence": 0.9972991943359375,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【————月错1】鼠",
+          "Box": {
+            "X": 24,
+            "Y": 601,
+            "Width": 166,
+            "Height": 23,
+            "Right": 190,
+            "Bottom": 624,
+            "CenterX": 107,
+            "CenterY": 612.5
+          },
+          "Confidence": 0.971673309803009,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【烟雨行舟月错0】鼠",
+          "Box": {
+            "X": 28,
+            "Y": 622,
+            "Width": 160,
+            "Height": 17,
+            "Right": 188,
+            "Bottom": 639,
+            "CenterX": 108,
+            "CenterY": 630.5
+          },
+          "Confidence": 0.9497231245040894,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【中华神鹰月错1】羊",
+          "Box": {
+            "X": 27,
+            "Y": 642,
+            "Width": 180,
+            "Height": 21,
+            "Right": 207,
+            "Bottom": 663,
+            "CenterX": 117,
+            "CenterY": 652.5
+          },
+          "Confidence": 0.999400794506073,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【月亮——月错1】鸡",
+          "Box": {
+            "X": 26,
+            "Y": 661,
+            "Width": 164,
+            "Height": 20,
+            "Right": 190,
+            "Bottom": 681,
+            "CenterX": 108,
+            "CenterY": 671
+          },
+          "Confidence": 0.9550902247428894,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【乐琴—一月错0】猴",
+          "Box": {
+            "X": 27,
+            "Y": 681,
+            "Width": 163,
+            "Height": 17,
+            "Right": 190,
+            "Bottom": 698,
+            "CenterX": 108.5,
+            "CenterY": 689.5
+          },
+          "Confidence": 0.9247144460678101,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【独步黄昏月错2】狗",
+          "Box": {
+            "X": 28,
+            "Y": 699,
+            "Width": 161,
+            "Height": 17,
+            "Right": 189,
+            "Bottom": 716,
+            "CenterX": 108.5,
+            "CenterY": 707.5
+          },
+          "Confidence": 0.9995112419128418,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【紫色的花月错0】猪",
+          "Box": {
+            "X": 28,
+            "Y": 718,
+            "Width": 161,
+            "Height": 17,
+            "Right": 189,
+            "Bottom": 735,
+            "CenterX": 108.5,
+            "CenterY": 726.5
+          },
+          "Confidence": 0.9991354942321777,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【勇哥——月错1】蛇",
+          "Box": {
+            "X": 26,
+            "Y": 737,
+            "Width": 181,
+            "Height": 20,
+            "Right": 207,
+            "Bottom": 757,
+            "CenterX": 116.5,
+            "CenterY": 747
+          },
+          "Confidence": 0.9784196615219116,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【概率数据月错1】狗",
+          "Box": {
+            "X": 28,
+            "Y": 757,
+            "Width": 161,
+            "Height": 17,
+            "Right": 189,
+            "Bottom": 774,
+            "CenterX": 108.5,
+            "CenterY": 765.5
+          },
+          "Confidence": 0.9993396997451782,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【老顽童一月错0】鸡",
+          "Box": {
+            "X": 26,
+            "Y": 774,
+            "Width": 164,
+            "Height": 20,
+            "Right": 190,
+            "Bottom": 794,
+            "CenterX": 108,
+            "CenterY": 784
+          },
+          "Confidence": 0.9992094039916992,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【独傲洒脱月错0】牛",
+          "Box": {
+            "X": 28,
+            "Y": 794,
+            "Width": 162,
+            "Height": 17,
+            "Right": 190,
+            "Bottom": 811,
+            "CenterX": 109,
+            "CenterY": 802.5
+          },
+          "Confidence": 0.9897695779800415,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【杨丽珠一月错0】龙",
+          "Box": {
+            "X": 28,
+            "Y": 813,
+            "Width": 162,
+            "Height": 17,
+            "Right": 190,
+            "Bottom": 830,
+            "CenterX": 109,
+            "CenterY": 821.5
+          },
+          "Confidence": 0.9988845586776733,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【君临天下月错2】羊",
+          "Box": {
+            "X": 28,
+            "Y": 833,
+            "Width": 176,
+            "Height": 17,
+            "Right": 204,
+            "Bottom": 850,
+            "CenterX": 116,
+            "CenterY": 841.5
+          },
+          "Confidence": 0.9995640516281128,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【午夜六合月错4】猪",
+          "Box": {
+            "X": 27,
+            "Y": 854,
+            "Width": 177,
+            "Height": 17,
+            "Right": 204,
+            "Bottom": 871,
+            "CenterX": 115.5,
+            "CenterY": 862.5
+          },
+          "Confidence": 0.999779224395752,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "甲午午4年年甲年",
+          "Box": {
+            "X": 24,
+            "Y": 912,
+            "Width": 134,
+            "Height": 17,
+            "Right": 158,
+            "Bottom": 929,
+            "CenterX": 91,
+            "CenterY": 920.5
+          },
+          "Confidence": 0.4227610230445862,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【恭喜几位大神月",
+          "Box": {
+            "X": 26,
+            "Y": 931,
+            "Width": 136,
+            "Height": 17,
+            "Right": 162,
+            "Bottom": 948,
+            "CenterX": 94,
+            "CenterY": 939.5
+          },
+          "Confidence": 0.9974780082702637,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "晨光拾级,君临天下,孤城公子,陌陌",
+          "Box": {
+            "X": 20,
+            "Y": 951,
+            "Width": 231,
+            "Height": 14,
+            "Right": 251,
+            "Bottom": 965,
+            "CenterX": 135.5,
+            "CenterY": 958
+          },
+          "Confidence": 0.9396432042121887,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "子琪.高端纹绣.勇哥.[玫瑰][玫瑰]",
+          "Box": {
+            "X": 17,
+            "Y": 967,
+            "Width": 225,
+            "Height": 18,
+            "Right": 242,
+            "Bottom": 985,
+            "CenterX": 129.5,
+            "CenterY": 976
+          },
+          "Confidence": 0.9984170794487,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "[玫瑰]]",
+          "Box": {
+            "X": 16,
+            "Y": 984,
+            "Width": 57,
+            "Height": 22,
+            "Right": 73,
+            "Bottom": 1006,
+            "CenterX": 44.5,
+            "CenterY": 995
+          },
+          "Confidence": 0.9157417416572571,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【305次：",
+          "Box": {
+            "X": 22,
+            "Y": 1003,
+            "Width": 64,
+            "Height": 21,
+            "Right": 86,
+            "Bottom": 1024,
+            "CenterX": 54,
+            "CenterY": 1013.5
+          },
+          "Confidence": 0.9882299304008484,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "1-1-5-0-3-4-6-3-8-】",
+          "Box": {
+            "X": 19,
+            "Y": 1027,
+            "Width": 157,
+            "Height": 14,
+            "Right": 176,
+            "Bottom": 1041,
+            "CenterX": 97.5,
+            "CenterY": 1034
+          },
+          "Confidence": 0.9787920117378235,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "314期您的统计结果",
+          "Box": {
+            "X": 20,
+            "Y": 1064,
+            "Width": 168,
+            "Height": 14,
+            "Right": 188,
+            "Bottom": 1078,
+            "CenterX": 104,
+            "CenterY": 1071
+          },
+          "Confidence": 0.9999788999557495,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【生肖统计】(总次数:43次)",
+          "Box": {
+            "X": 27,
+            "Y": 1099,
+            "Width": 181,
+            "Height": 17,
+            "Right": 208,
+            "Bottom": 1116,
+            "CenterX": 117.5,
+            "CenterY": 1107.5
+          },
+          "Confidence": 0.9209780097007751,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "[01次】猴×××××",
+          "Box": {
+            "X": 24,
+            "Y": 1118,
+            "Width": 169,
+            "Height": 21,
+            "Right": 193,
+            "Bottom": 1139,
+            "CenterX": 108.5,
+            "CenterY": 1128.5
+          },
+          "Confidence": 0.8068643808364868,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "[02次]鼠牛兔马",
+          "Box": {
+            "X": 26,
+            "Y": 1138,
+            "Width": 136,
+            "Height": 20,
+            "Right": 162,
+            "Bottom": 1158,
+            "CenterX": 94,
+            "CenterY": 1148
+          },
+          "Confidence": 0.9381885528564453,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "[04次】虎蛇羊",
+          "Box": {
+            "X": 26,
+            "Y": 1158,
+            "Width": 117,
+            "Height": 17,
+            "Right": 143,
+            "Bottom": 1175,
+            "CenterX": 84.5,
+            "CenterY": 1166.5
+          },
+          "Confidence": 0.8900153636932373,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "[05次】猪狗×××××",
+          "Box": {
+            "X": 26,
+            "Y": 1177,
+            "Width": 181,
+            "Height": 19,
+            "Right": 207,
+            "Bottom": 1196,
+            "CenterX": 116.5,
+            "CenterY": 1186.5
+          },
+          "Confidence": 0.8871614933013916,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "[06次】龙×××××",
+          "Box": {
+            "X": 26,
+            "Y": 1198,
+            "Width": 166,
+            "Height": 19,
+            "Right": 192,
+            "Bottom": 1217,
+            "CenterX": 109,
+            "CenterY": 1207.5
+          },
+          "Confidence": 0.9096956849098206,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "[07次】鸡×××××",
+          "Box": {
+            "X": 26,
+            "Y": 1219,
+            "Width": 167,
+            "Height": 19,
+            "Right": 193,
+            "Bottom": 1238,
+            "CenterX": 109.5,
+            "CenterY": 1228.5
+          },
+          "Confidence": 0.9054126143455505,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【2026/11/1012:35:18】",
+          "Box": {
+            "X": 28,
+            "Y": 1258,
+            "Width": 166,
+            "Height": 17,
+            "Right": 194,
+            "Bottom": 1275,
+            "CenterX": 111,
+            "CenterY": 1266.5
+          },
+          "Confidence": 0.9991227388381958,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        }
+      ]
+    },
+    "Small": {
+      "SourcePath": "C:\\Users\\Administrator\\Desktop\\每天工具\\飞机抓图\\结果\\11.10-嫣然心水\\品鉴\\20261110_142024_0f1e4b12_10479.jpg",
+      "InputPath": "C:\\Users\\Administrator\\Desktop\\每天工具\\飞机抓图\\结果\\11.10-嫣然心水\\品鉴\\20261110_142024_0f1e4b12_10479.jpg",
+      "SourceHash": "62C07B92DB54CF2C2079EB876F182002A209DA890670A87F9C6EF354FAEAE202",
+      "InputHash": "62C07B92DB54CF2C2079EB876F182002A209DA890670A87F9C6EF354FAEAE202",
+      "ViewId": "paddle",
+      "Items": [
+        {
+          "Text": "【❤品鉴新澳杀一肖❤】",
+          "Box": {
+            "X": 27,
+            "Y": 5,
+            "Width": 161,
+            "Height": 17,
+            "Right": 188,
+            "Bottom": 22,
+            "CenterX": 107.5,
+            "CenterY": 13.5
+          },
+          "Confidence": 0.9739315509796143,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【阿龙阿龙月错0禁】马",
+          "Box": {
+            "X": 28,
+            "Y": 42,
+            "Width": 160,
+            "Height": 17,
+            "Right": 188,
+            "Bottom": 59,
+            "CenterX": 108,
+            "CenterY": 50.5
+          },
+          "Confidence": 0.9968790411949158,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【建宇建宇月错0禁】狗",
+          "Box": {
+            "X": 27,
+            "Y": 59,
+            "Width": 162,
+            "Height": 20,
+            "Right": 189,
+            "Bottom": 79,
+            "CenterX": 108,
+            "CenterY": 69
+          },
+          "Confidence": 0.9760435223579407,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【哭包哭包月错1禁】鸡",
+          "Box": {
+            "X": 28,
+            "Y": 78,
+            "Width": 161,
+            "Height": 21,
+            "Right": 189,
+            "Bottom": 99,
+            "CenterX": 108.5,
+            "CenterY": 88.5
+          },
+          "Confidence": 0.992983877658844,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【烟雨沫沫月错1】龙",
+          "Box": {
+            "X": 26,
+            "Y": 93,
+            "Width": 165,
+            "Height": 27,
+            "Right": 191,
+            "Bottom": 120,
+            "CenterX": 108.5,
+            "CenterY": 106.5
+          },
+          "Confidence": 0.9909873008728027,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【云云",
+          "Box": {
+            "X": 28,
+            "Y": 116,
+            "Width": 43,
+            "Height": 19,
+            "Right": 71,
+            "Bottom": 135,
+            "CenterX": 49.5,
+            "CenterY": 125.5
+          },
+          "Confidence": 0.9014027714729309,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "月错1禁】",
+          "Box": {
+            "X": 94,
+            "Y": 115,
+            "Width": 77,
+            "Height": 21,
+            "Right": 171,
+            "Bottom": 136,
+            "CenterX": 132.5,
+            "CenterY": 125.5
+          },
+          "Confidence": 0.9919301867485046,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "狗",
+          "Box": {
+            "X": 169,
+            "Y": 114,
+            "Width": 18,
+            "Height": 20,
+            "Right": 187,
+            "Bottom": 134,
+            "CenterX": 178,
+            "CenterY": 124
+          },
+          "Confidence": 0.9999591112136841,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【德哥",
+          "Box": {
+            "X": 28,
+            "Y": 134,
+            "Width": 45,
+            "Height": 19,
+            "Right": 73,
+            "Bottom": 153,
+            "CenterX": 50.5,
+            "CenterY": 143.5
+          },
+          "Confidence": 0.9972936511039734,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "一一月错0禁】",
+          "Box": {
+            "X": 63,
+            "Y": 133,
+            "Width": 110,
+            "Height": 21,
+            "Right": 173,
+            "Bottom": 154,
+            "CenterX": 118,
+            "CenterY": 143.5
+          },
+          "Confidence": 0.8353198766708374,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "虎",
+          "Box": {
+            "X": 169,
+            "Y": 132,
+            "Width": 18,
+            "Height": 21,
+            "Right": 187,
+            "Bottom": 153,
+            "CenterX": 178,
+            "CenterY": 142.5
+          },
+          "Confidence": 0.9996700286865234,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【猫哥一一月错0】",
+          "Box": {
+            "X": 26,
+            "Y": 150,
+            "Width": 147,
+            "Height": 23,
+            "Right": 173,
+            "Bottom": 173,
+            "CenterX": 99.5,
+            "CenterY": 161.5
+          },
+          "Confidence": 0.9729595184326172,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "牛",
+          "Box": {
+            "X": 169,
+            "Y": 151,
+            "Width": 18,
+            "Height": 19,
+            "Right": 187,
+            "Bottom": 170,
+            "CenterX": 178,
+            "CenterY": 160.5
+          },
+          "Confidence": 0.9920586943626404,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【梁微微一月错0】",
+          "Box": {
+            "X": 28,
+            "Y": 170,
+            "Width": 145,
+            "Height": 21,
+            "Right": 173,
+            "Bottom": 191,
+            "CenterX": 100.5,
+            "CenterY": 180.5
+          },
+          "Confidence": 0.99923175573349,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "猪",
+          "Box": {
+            "X": 169,
+            "Y": 170,
+            "Width": 18,
+            "Height": 19,
+            "Right": 187,
+            "Bottom": 189,
+            "CenterX": 178,
+            "CenterY": 179.5
+          },
+          "Confidence": 0.9915220737457275,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【小米小米月错1】",
+          "Box": {
+            "X": 27,
+            "Y": 189,
+            "Width": 146,
+            "Height": 20,
+            "Right": 173,
+            "Bottom": 209,
+            "CenterX": 100,
+            "CenterY": 199
+          },
+          "Confidence": 0.9990618824958801,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "鸡",
+          "Box": {
+            "X": 169,
+            "Y": 187,
+            "Width": 18,
+            "Height": 21,
+            "Right": 187,
+            "Bottom": 208,
+            "CenterX": 178,
+            "CenterY": 197.5
+          },
+          "Confidence": 0.9998083710670471,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【扬帆——月错1】",
+          "Box": {
+            "X": 25,
+            "Y": 205,
+            "Width": 148,
+            "Height": 23,
+            "Right": 173,
+            "Bottom": 228,
+            "CenterX": 99,
+            "CenterY": 216.5
+          },
+          "Confidence": 0.924393892288208,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "羊兔马",
+          "Box": {
+            "X": 167,
+            "Y": 205,
+            "Width": 22,
+            "Height": 62,
+            "Right": 189,
+            "Bottom": 267,
+            "CenterX": 178,
+            "CenterY": 236
+          },
+          "Confidence": 0.9986119866371155,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【云朵一一月错0禁】",
+          "Box": {
+            "X": 27,
+            "Y": 226,
+            "Width": 140,
+            "Height": 20,
+            "Right": 167,
+            "Bottom": 246,
+            "CenterX": 97,
+            "CenterY": 236
+          },
+          "Confidence": 0.9531803131103516,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【東南仔一月错2】",
+          "Box": {
+            "X": 28,
+            "Y": 244,
+            "Width": 143,
+            "Height": 20,
+            "Right": 171,
+            "Bottom": 264,
+            "CenterX": 99.5,
+            "CenterY": 254
+          },
+          "Confidence": 0.9985144138336182,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【熊猫爪爪月错1】",
+          "Box": {
+            "X": 28,
+            "Y": 263,
+            "Width": 145,
+            "Height": 20,
+            "Right": 173,
+            "Bottom": 283,
+            "CenterX": 100.5,
+            "CenterY": 273
+          },
+          "Confidence": 0.9994605183601379,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "鸡",
+          "Box": {
+            "X": 170,
+            "Y": 260,
+            "Width": 17,
+            "Height": 21,
+            "Right": 187,
+            "Bottom": 281,
+            "CenterX": 178.5,
+            "CenterY": 270.5
+          },
+          "Confidence": 0.9996693134307861,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【小糊涂一月错1】",
+          "Box": {
+            "X": 27,
+            "Y": 281,
+            "Width": 146,
+            "Height": 21,
+            "Right": 173,
+            "Bottom": 302,
+            "CenterX": 100,
+            "CenterY": 291.5
+          },
+          "Confidence": 0.9990758895874023,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "猪",
+          "Box": {
+            "X": 170,
+            "Y": 281,
+            "Width": 17,
+            "Height": 20,
+            "Right": 187,
+            "Bottom": 301,
+            "CenterX": 178.5,
+            "CenterY": 291
+          },
+          "Confidence": 0.996986448764801,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【小苹果一月错0禁】",
+          "Box": {
+            "X": 27,
+            "Y": 298,
+            "Width": 145,
+            "Height": 21,
+            "Right": 172,
+            "Bottom": 319,
+            "CenterX": 99.5,
+            "CenterY": 308.5
+          },
+          "Confidence": 0.9473453760147095,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "蛇",
+          "Box": {
+            "X": 170,
+            "Y": 299,
+            "Width": 17,
+            "Height": 21,
+            "Right": 187,
+            "Bottom": 320,
+            "CenterX": 178.5,
+            "CenterY": 309.5
+          },
+          "Confidence": 0.9999525547027588,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【小芳一",
+          "Box": {
+            "X": 27,
+            "Y": 319,
+            "Width": 57,
+            "Height": 18,
+            "Right": 84,
+            "Bottom": 337,
+            "CenterX": 55.5,
+            "CenterY": 328
+          },
+          "Confidence": 0.9949677586555481,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "月错0】",
+          "Box": {
+            "X": 94,
+            "Y": 318,
+            "Width": 79,
+            "Height": 21,
+            "Right": 173,
+            "Bottom": 339,
+            "CenterX": 133.5,
+            "CenterY": 328.5
+          },
+          "Confidence": 0.9345034956932068,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "蛇",
+          "Box": {
+            "X": 169,
+            "Y": 318,
+            "Width": 18,
+            "Height": 20,
+            "Right": 187,
+            "Bottom": 338,
+            "CenterX": 178,
+            "CenterY": 328
+          },
+          "Confidence": 0.9999520778656006,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【大中华一月错0禁】",
+          "Box": {
+            "X": 27,
+            "Y": 335,
+            "Width": 145,
+            "Height": 21,
+            "Right": 172,
+            "Bottom": 356,
+            "CenterX": 99.5,
+            "CenterY": 345.5
+          },
+          "Confidence": 0.9979567527770996,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "龙",
+          "Box": {
+            "X": 169,
+            "Y": 337,
+            "Width": 19,
+            "Height": 20,
+            "Right": 188,
+            "Bottom": 357,
+            "CenterX": 178.5,
+            "CenterY": 347
+          },
+          "Confidence": 0.9998499155044556,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【天渊—一月错0】",
+          "Box": {
+            "X": 25,
+            "Y": 353,
+            "Width": 148,
+            "Height": 23,
+            "Right": 173,
+            "Bottom": 376,
+            "CenterX": 99,
+            "CenterY": 364.5
+          },
+          "Confidence": 0.9056122899055481,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "龙",
+          "Box": {
+            "X": 170,
+            "Y": 355,
+            "Width": 18,
+            "Height": 21,
+            "Right": 188,
+            "Bottom": 376,
+            "CenterX": 179,
+            "CenterY": 365.5
+          },
+          "Confidence": 0.9999045133590698,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【天涯才子月错0】",
+          "Box": {
+            "X": 28,
+            "Y": 374,
+            "Width": 149,
+            "Height": 20,
+            "Right": 177,
+            "Bottom": 394,
+            "CenterX": 102.5,
+            "CenterY": 384
+          },
+          "Confidence": 0.9986398220062256,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "虎",
+          "Box": {
+            "X": 169,
+            "Y": 373,
+            "Width": 19,
+            "Height": 19,
+            "Right": 188,
+            "Bottom": 392,
+            "CenterX": 178.5,
+            "CenterY": 382.5
+          },
+          "Confidence": 0.9998557567596436,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【笑看人生月错0】兔",
+          "Box": {
+            "X": 27,
+            "Y": 390,
+            "Width": 163,
+            "Height": 24,
+            "Right": 190,
+            "Bottom": 414,
+            "CenterX": 108.5,
+            "CenterY": 402
+          },
+          "Confidence": 0.9980738759040833,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【柠檬茶茶月错1】虎",
+          "Box": {
+            "X": 27,
+            "Y": 408,
+            "Width": 164,
+            "Height": 24,
+            "Right": 191,
+            "Bottom": 432,
+            "CenterX": 109,
+            "CenterY": 420
+          },
+          "Confidence": 0.998160183429718,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【金钢刀一月错1】鸡×",
+          "Box": {
+            "X": 27,
+            "Y": 430,
+            "Width": 179,
+            "Height": 22,
+            "Right": 206,
+            "Bottom": 452,
+            "CenterX": 116.5,
+            "CenterY": 441
+          },
+          "Confidence": 0.9527768492698669,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【鸿运先生月错0】虎",
+          "Box": {
+            "X": 28,
+            "Y": 450,
+            "Width": 162,
+            "Height": 21,
+            "Right": 190,
+            "Bottom": 471,
+            "CenterX": 109,
+            "CenterY": 460.5
+          },
+          "Confidence": 0.9992748498916626,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【孤城公子月错1】狗",
+          "Box": {
+            "X": 26,
+            "Y": 467,
+            "Width": 164,
+            "Height": 23,
+            "Right": 190,
+            "Bottom": 490,
+            "CenterX": 108,
+            "CenterY": 478.5
+          },
+          "Confidence": 0.9965912103652954,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【陌陌子琪月错0禁】蛇",
+          "Box": {
+            "X": 28,
+            "Y": 486,
+            "Width": 163,
+            "Height": 21,
+            "Right": 191,
+            "Bottom": 507,
+            "CenterX": 109.5,
+            "CenterY": 496.5
+          },
+          "Confidence": 0.9622182250022888,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【萱萱一一月错1】鸡×",
+          "Box": {
+            "X": 26,
+            "Y": 506,
+            "Width": 181,
+            "Height": 22,
+            "Right": 207,
+            "Bottom": 528,
+            "CenterX": 116.5,
+            "CenterY": 517
+          },
+          "Confidence": 0.9263282418251038,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【财神爷一月错0】猪",
+          "Box": {
+            "X": 28,
+            "Y": 527,
+            "Width": 162,
+            "Height": 20,
+            "Right": 190,
+            "Bottom": 547,
+            "CenterX": 109,
+            "CenterY": 537
+          },
+          "Confidence": 0.9993432760238647,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【高端纹绣月错1】羊",
+          "Box": {
+            "X": 27,
+            "Y": 545,
+            "Width": 163,
+            "Height": 21,
+            "Right": 190,
+            "Bottom": 566,
+            "CenterX": 108.5,
+            "CenterY": 555.5
+          },
+          "Confidence": 0.998102068901062,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "品鉴",
+          "Box": {
+            "X": 220,
+            "Y": 547,
+            "Width": 107,
+            "Height": 217,
+            "Right": 327,
+            "Bottom": 764,
+            "CenterX": 273.5,
+            "CenterY": 655.5
+          },
+          "Confidence": 0.9996311068534851,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【朝阳晨曦月错1禁】龙",
+          "Box": {
+            "X": 28,
+            "Y": 562,
+            "Width": 162,
+            "Height": 21,
+            "Right": 190,
+            "Bottom": 583,
+            "CenterX": 109,
+            "CenterY": 572.5
+          },
+          "Confidence": 0.9446435570716858,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【篮色空间月错1】龙",
+          "Box": {
+            "X": 28,
+            "Y": 584,
+            "Width": 178,
+            "Height": 21,
+            "Right": 206,
+            "Bottom": 605,
+            "CenterX": 117,
+            "CenterY": 594.5
+          },
+          "Confidence": 0.9990057945251465,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "月错1禁】鼠",
+          "Box": {
+            "X": 95,
+            "Y": 603,
+            "Width": 95,
+            "Height": 21,
+            "Right": 190,
+            "Bottom": 624,
+            "CenterX": 142.5,
+            "CenterY": 613.5
+          },
+          "Confidence": 0.9927272200584412,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【烟雨行舟月错0】鼠",
+          "Box": {
+            "X": 26,
+            "Y": 619,
+            "Width": 165,
+            "Height": 24,
+            "Right": 191,
+            "Bottom": 643,
+            "CenterX": 108.5,
+            "CenterY": 631
+          },
+          "Confidence": 0.9989197850227356,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【中华神鹰月错1】羊×",
+          "Box": {
+            "X": 27,
+            "Y": 642,
+            "Width": 179,
+            "Height": 21,
+            "Right": 206,
+            "Bottom": 663,
+            "CenterX": 116.5,
+            "CenterY": 652.5
+          },
+          "Confidence": 0.9598325490951538,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【月亮—一月错1禁】鸡",
+          "Box": {
+            "X": 26,
+            "Y": 659,
+            "Width": 165,
+            "Height": 24,
+            "Right": 191,
+            "Bottom": 683,
+            "CenterX": 108.5,
+            "CenterY": 671
+          },
+          "Confidence": 0.9178773760795593,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【乐琴——月错0】猴",
+          "Box": {
+            "X": 26,
+            "Y": 677,
+            "Width": 166,
+            "Height": 24,
+            "Right": 192,
+            "Bottom": 701,
+            "CenterX": 109,
+            "CenterY": 689
+          },
+          "Confidence": 0.9150058031082153,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【独步黄昏月错2】狗",
+          "Box": {
+            "X": 27,
+            "Y": 695,
+            "Width": 164,
+            "Height": 24,
+            "Right": 191,
+            "Bottom": 719,
+            "CenterX": 109,
+            "CenterY": 707
+          },
+          "Confidence": 0.9971755146980286,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【紫色的花月错0】猪",
+          "Box": {
+            "X": 28,
+            "Y": 716,
+            "Width": 162,
+            "Height": 21,
+            "Right": 190,
+            "Bottom": 737,
+            "CenterX": 109,
+            "CenterY": 726.5
+          },
+          "Confidence": 0.9994992017745972,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【勇哥一一月错1】蛇X",
+          "Box": {
+            "X": 27,
+            "Y": 737,
+            "Width": 178,
+            "Height": 21,
+            "Right": 205,
+            "Bottom": 758,
+            "CenterX": 116,
+            "CenterY": 747.5
+          },
+          "Confidence": 0.9171671271324158,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【概率数据月错1】狗",
+          "Box": {
+            "X": 28,
+            "Y": 756,
+            "Width": 162,
+            "Height": 20,
+            "Right": 190,
+            "Bottom": 776,
+            "CenterX": 109,
+            "CenterY": 766
+          },
+          "Confidence": 0.9985321760177612,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【老顽童一月错0】鸡",
+          "Box": {
+            "X": 28,
+            "Y": 774,
+            "Width": 162,
+            "Height": 20,
+            "Right": 190,
+            "Bottom": 794,
+            "CenterX": 109,
+            "CenterY": 784
+          },
+          "Confidence": 0.9994063377380371,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【独傲洒脱月错0禁】牛",
+          "Box": {
+            "X": 28,
+            "Y": 792,
+            "Width": 162,
+            "Height": 20,
+            "Right": 190,
+            "Bottom": 812,
+            "CenterX": 109,
+            "CenterY": 802
+          },
+          "Confidence": 0.9753727316856384,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【杨丽珠一月错0】龙",
+          "Box": {
+            "X": 28,
+            "Y": 811,
+            "Width": 162,
+            "Height": 20,
+            "Right": 190,
+            "Bottom": 831,
+            "CenterX": 109,
+            "CenterY": 821
+          },
+          "Confidence": 0.9991039037704468,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【君临天下月错2】羊X",
+          "Box": {
+            "X": 28,
+            "Y": 832,
+            "Width": 177,
+            "Height": 20,
+            "Right": 205,
+            "Bottom": 852,
+            "CenterX": 116.5,
+            "CenterY": 842
+          },
+          "Confidence": 0.9569132328033447,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【午夜六合月错4】猪×",
+          "Box": {
+            "X": 25,
+            "Y": 852,
+            "Width": 181,
+            "Height": 21,
+            "Right": 206,
+            "Bottom": 873,
+            "CenterX": 115.5,
+            "CenterY": 862.5
+          },
+          "Confidence": 0.9602335095405579,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "4444年44年",
+          "Box": {
+            "X": 19,
+            "Y": 909,
+            "Width": 142,
+            "Height": 23,
+            "Right": 161,
+            "Bottom": 932,
+            "CenterX": 90,
+            "CenterY": 920.5
+          },
+          "Confidence": 0.27918070554733276,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【恭喜几位大神月",
+          "Box": {
+            "X": 26,
+            "Y": 930,
+            "Width": 139,
+            "Height": 20,
+            "Right": 165,
+            "Bottom": 950,
+            "CenterX": 95.5,
+            "CenterY": 940
+          },
+          "Confidence": 0.9983279705047607,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "晨光拾级.君临天下.孤城公子.陌陌",
+          "Box": {
+            "X": 19,
+            "Y": 950,
+            "Width": 232,
+            "Height": 17,
+            "Right": 251,
+            "Bottom": 967,
+            "CenterX": 135,
+            "CenterY": 958.5
+          },
+          "Confidence": 0.9993924498558044,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "子琪.高端纹绣.勇哥.[玫瑰][玫瑰]",
+          "Box": {
+            "X": 18,
+            "Y": 968,
+            "Width": 226,
+            "Height": 17,
+            "Right": 244,
+            "Bottom": 985,
+            "CenterX": 131,
+            "CenterY": 976.5
+          },
+          "Confidence": 0.9986010193824768,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "[玫瑰]】",
+          "Box": {
+            "X": 16,
+            "Y": 986,
+            "Width": 55,
+            "Height": 18,
+            "Right": 71,
+            "Bottom": 1004,
+            "CenterX": 43.5,
+            "CenterY": 995
+          },
+          "Confidence": 0.9384053945541382,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【305次：",
+          "Box": {
+            "X": 24,
+            "Y": 1003,
+            "Width": 63,
+            "Height": 21,
+            "Right": 87,
+            "Bottom": 1024,
+            "CenterX": 55.5,
+            "CenterY": 1013.5
+          },
+          "Confidence": 0.9768627285957336,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "1-1-5-0-3-4-6-3-8-】",
+          "Box": {
+            "X": 17,
+            "Y": 1026,
+            "Width": 161,
+            "Height": 17,
+            "Right": 178,
+            "Bottom": 1043,
+            "CenterX": 97.5,
+            "CenterY": 1034.5
+          },
+          "Confidence": 0.998590886592865,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "314期您的统计结果",
+          "Box": {
+            "X": 19,
+            "Y": 1063,
+            "Width": 170,
+            "Height": 17,
+            "Right": 189,
+            "Bottom": 1080,
+            "CenterX": 104,
+            "CenterY": 1071.5
+          },
+          "Confidence": 0.9999645948410034,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【生肖统计】(总次数:43次)",
+          "Box": {
+            "X": 28,
+            "Y": 1099,
+            "Width": 180,
+            "Height": 17,
+            "Right": 208,
+            "Bottom": 1116,
+            "CenterX": 118,
+            "CenterY": 1107.5
+          },
+          "Confidence": 0.9235637784004211,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "[01次〗猴×××××",
+          "Box": {
+            "X": 26,
+            "Y": 1118,
+            "Width": 168,
+            "Height": 21,
+            "Right": 194,
+            "Bottom": 1139,
+            "CenterX": 110,
+            "CenterY": 1128.5
+          },
+          "Confidence": 0.8524675965309143,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【02次】鼠牛兔马",
+          "Box": {
+            "X": 27,
+            "Y": 1137,
+            "Width": 135,
+            "Height": 20,
+            "Right": 162,
+            "Bottom": 1157,
+            "CenterX": 94.5,
+            "CenterY": 1147
+          },
+          "Confidence": 0.9073264002799988,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "[04次】虎蛇羊",
+          "Box": {
+            "X": 27,
+            "Y": 1157,
+            "Width": 116,
+            "Height": 20,
+            "Right": 143,
+            "Bottom": 1177,
+            "CenterX": 85,
+            "CenterY": 1167
+          },
+          "Confidence": 0.8648113012313843,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "[05次】猪狗×××××",
+          "Box": {
+            "X": 27,
+            "Y": 1178,
+            "Width": 181,
+            "Height": 20,
+            "Right": 208,
+            "Bottom": 1198,
+            "CenterX": 117.5,
+            "CenterY": 1188
+          },
+          "Confidence": 0.8435210585594177,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "[06次】龙×××××",
+          "Box": {
+            "X": 28,
+            "Y": 1200,
+            "Width": 165,
+            "Height": 17,
+            "Right": 193,
+            "Bottom": 1217,
+            "CenterX": 110.5,
+            "CenterY": 1208.5
+          },
+          "Confidence": 0.799038290977478,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "[07次〗鸡×××××",
+          "Box": {
+            "X": 27,
+            "Y": 1219,
+            "Width": 167,
+            "Height": 20,
+            "Right": 194,
+            "Bottom": 1239,
+            "CenterX": 110.5,
+            "CenterY": 1229
+          },
+          "Confidence": 0.844403088092804,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【2026/11/1012:35:18】",
+          "Box": {
+            "X": 28,
+            "Y": 1258,
+            "Width": 166,
+            "Height": 17,
+            "Right": 194,
+            "Bottom": 1275,
+            "CenterX": 111,
+            "CenterY": 1266.5
+          },
+          "Confidence": 0.9998688697814941,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        }
+      ]
+    }
+  },
+  {
+    "Rule": "灰灰团",
+    "Issue": 314,
+    "Expected": "鸡",
+    "Medium": {
+      "SourcePath": "C:\\Users\\Administrator\\Desktop\\每天工具\\飞机抓图\\结果\\11.10-嫣然心水\\灰灰团\\20261110_142023_0f1e4b12_10478.jpg",
+      "InputPath": "C:\\Users\\Administrator\\Desktop\\每天工具\\飞机抓图\\结果\\11.10-嫣然心水\\灰灰团\\20261110_142023_0f1e4b12_10478.jpg",
+      "SourceHash": "476357732C88E2B6166BA5A3CA1A172F5E2542BFCD8A16BA0F354B707B2F0627",
+      "InputHash": "476357732C88E2B6166BA5A3CA1A172F5E2542BFCD8A16BA0F354B707B2F0627",
+      "ViewId": "paddle",
+      "Items": [
+        {
+          "Text": "wilie985团队",
+          "Box": {
+            "X": 54,
+            "Y": 27,
+            "Width": 186,
+            "Height": 20,
+            "Right": 240,
+            "Bottom": 47,
+            "CenterX": 147,
+            "CenterY": 37
+          },
+          "Confidence": 0.9992541074752808,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "P0000000000",
+          "Box": {
+            "X": 31,
+            "Y": 56,
+            "Width": 195,
+            "Height": 13,
+            "Right": 226,
+            "Bottom": 69,
+            "CenterX": 128.5,
+            "CenterY": 62.5
+          },
+          "Confidence": 0.49669772386550903,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "新澳11月份(杀错排名推后)",
+          "Box": {
+            "X": 30,
+            "Y": 79,
+            "Width": 209,
+            "Height": 17,
+            "Right": 239,
+            "Bottom": 96,
+            "CenterX": 134.5,
+            "CenterY": 87.5
+          },
+          "Confidence": 0.9900173544883728,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【淡紫幽夜】月错0狗",
+          "Box": {
+            "X": 40,
+            "Y": 129,
+            "Width": 186,
+            "Height": 17,
+            "Right": 226,
+            "Bottom": 146,
+            "CenterX": 133,
+            "CenterY": 137.5
+          },
+          "Confidence": 0.9953099489212036,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【淡淡烟草】月错0票猴",
+          "Box": {
+            "X": 39,
+            "Y": 153,
+            "Width": 189,
+            "Height": 20,
+            "Right": 228,
+            "Bottom": 173,
+            "CenterX": 133.5,
+            "CenterY": 163
+          },
+          "Confidence": 0.958767294883728,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【乐彦正正】月错0蛇",
+          "Box": {
+            "X": 39,
+            "Y": 178,
+            "Width": 188,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 198,
+            "CenterX": 133,
+            "CenterY": 188
+          },
+          "Confidence": 0.9898955225944519,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【景逸一正】月错0鸡",
+          "Box": {
+            "X": 39,
+            "Y": 203,
+            "Width": 188,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 223,
+            "CenterX": 133,
+            "CenterY": 213
+          },
+          "Confidence": 0.9708751440048218,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【紫琼正正】月错0龙",
+          "Box": {
+            "X": 39,
+            "Y": 228,
+            "Width": 188,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 248,
+            "CenterX": 133,
+            "CenterY": 238
+          },
+          "Confidence": 0.9903348684310913,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【赛华佗正】月错0鼠",
+          "Box": {
+            "X": 38,
+            "Y": 253,
+            "Width": 189,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 273,
+            "CenterX": 132.5,
+            "CenterY": 263
+          },
+          "Confidence": 0.9882209897041321,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【宁静正正】月错0鼠",
+          "Box": {
+            "X": 38,
+            "Y": 278,
+            "Width": 189,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 298,
+            "CenterX": 132.5,
+            "CenterY": 288
+          },
+          "Confidence": 0.9918801188468933,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【疲惫身躯】月错0鸡",
+          "Box": {
+            "X": 39,
+            "Y": 303,
+            "Width": 188,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 323,
+            "CenterX": 133,
+            "CenterY": 313
+          },
+          "Confidence": 0.9986473321914673,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【野狼正正】月错0蛇",
+          "Box": {
+            "X": 39,
+            "Y": 328,
+            "Width": 188,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 348,
+            "CenterX": 133,
+            "CenterY": 338
+          },
+          "Confidence": 0.9867140054702759,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【兴旺正正】月错0蛇",
+          "Box": {
+            "X": 39,
+            "Y": 353,
+            "Width": 188,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 373,
+            "CenterX": 133,
+            "CenterY": 363
+          },
+          "Confidence": 0.993674099445343,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【川普正正】月错1猪",
+          "Box": {
+            "X": 39,
+            "Y": 378,
+            "Width": 188,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 398,
+            "CenterX": 133,
+            "CenterY": 388
+          },
+          "Confidence": 0.9963328242301941,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【小灰灰正】月错1牛",
+          "Box": {
+            "X": 39,
+            "Y": 403,
+            "Width": 188,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 423,
+            "CenterX": 133,
+            "CenterY": 413
+          },
+          "Confidence": 0.9652997851371765,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【小枪手正】月错1猴",
+          "Box": {
+            "X": 38,
+            "Y": 428,
+            "Width": 190,
+            "Height": 20,
+            "Right": 228,
+            "Bottom": 448,
+            "CenterX": 133,
+            "CenterY": 438
+          },
+          "Confidence": 0.9486246109008789,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【烟雨沫沫】月错1龙",
+          "Box": {
+            "X": 38,
+            "Y": 453,
+            "Width": 189,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 473,
+            "CenterX": 132.5,
+            "CenterY": 463
+          },
+          "Confidence": 0.9992419481277466,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【心灵驿站】月错1鸡",
+          "Box": {
+            "X": 38,
+            "Y": 478,
+            "Width": 189,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 498,
+            "CenterX": 132.5,
+            "CenterY": 488
+          },
+          "Confidence": 0.9997212290763855,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "灰灰团",
+          "Box": {
+            "X": 311,
+            "Y": 487,
+            "Width": 107,
+            "Height": 307,
+            "Right": 418,
+            "Bottom": 794,
+            "CenterX": 364.5,
+            "CenterY": 640.5
+          },
+          "Confidence": 0.9998223185539246,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【苹果熟了】月错1马",
+          "Box": {
+            "X": 38,
+            "Y": 503,
+            "Width": 189,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 523,
+            "CenterX": 132.5,
+            "CenterY": 513
+          },
+          "Confidence": 0.9995565414428711,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【小红马正】月错1羊",
+          "Box": {
+            "X": 38,
+            "Y": 528,
+            "Width": 189,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 548,
+            "CenterX": 132.5,
+            "CenterY": 538
+          },
+          "Confidence": 0.9506528973579407,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【甜心正正】月错1鸡",
+          "Box": {
+            "X": 39,
+            "Y": 553,
+            "Width": 188,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 573,
+            "CenterX": 133,
+            "CenterY": 563
+          },
+          "Confidence": 0.9983237385749817,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【小米正正】月错1鸡",
+          "Box": {
+            "X": 39,
+            "Y": 578,
+            "Width": 188,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 598,
+            "CenterX": 133,
+            "CenterY": 588
+          },
+          "Confidence": 0.9984596371650696,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【飞跃正正】月错1鼠",
+          "Box": {
+            "X": 38,
+            "Y": 603,
+            "Width": 189,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 623,
+            "CenterX": 132.5,
+            "CenterY": 613
+          },
+          "Confidence": 0.9967803955078125,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【柠檬茶茶】月错1票虎",
+          "Box": {
+            "X": 39,
+            "Y": 628,
+            "Width": 188,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 648,
+            "CenterX": 133,
+            "CenterY": 638
+          },
+          "Confidence": 0.9542194604873657,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【芦苇正正】月错1鼠",
+          "Box": {
+            "X": 39,
+            "Y": 653,
+            "Width": 188,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 673,
+            "CenterX": 133,
+            "CenterY": 663
+          },
+          "Confidence": 0.9985840916633606,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【傻丫头正】月错1蛇",
+          "Box": {
+            "X": 38,
+            "Y": 678,
+            "Width": 189,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 698,
+            "CenterX": 132.5,
+            "CenterY": 688
+          },
+          "Confidence": 0.9626519083976746,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【金刚刀】月错1鸡",
+          "Box": {
+            "X": 38,
+            "Y": 703,
+            "Width": 189,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 723,
+            "CenterX": 132.5,
+            "CenterY": 713
+          },
+          "Confidence": 0.9997574687004089,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "友谊下架游戏规则：",
+          "Box": {
+            "X": 30,
+            "Y": 755,
+            "Width": 150,
+            "Height": 17,
+            "Right": 180,
+            "Bottom": 772,
+            "CenterX": 105,
+            "CenterY": 763.5
+          },
+          "Confidence": 0.9968736171722412,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "10内错2，20内错3，30内错4，",
+          "Box": {
+            "X": 30,
+            "Y": 780,
+            "Width": 240,
+            "Height": 17,
+            "Right": 270,
+            "Bottom": 797,
+            "CenterX": 150,
+            "CenterY": 788.5
+          },
+          "Confidence": 0.9970009326934814,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "请大家开奖日10点前提交完毕。",
+          "Box": {
+            "X": 30,
+            "Y": 805,
+            "Width": 239,
+            "Height": 17,
+            "Right": 269,
+            "Bottom": 822,
+            "CenterX": 149.5,
+            "CenterY": 813.5
+          },
+          "Confidence": 0.9999642968177795,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "第314期统计(24人):",
+          "Box": {
+            "X": 29,
+            "Y": 853,
+            "Width": 159,
+            "Height": 20,
+            "Right": 188,
+            "Bottom": 873,
+            "CenterX": 108.5,
+            "CenterY": 863
+          },
+          "Confidence": 0.9914814233779907,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "〖0次】兔",
+          "Box": {
+            "X": 37,
+            "Y": 878,
+            "Width": 84,
+            "Height": 21,
+            "Right": 121,
+            "Bottom": 899,
+            "CenterX": 79,
+            "CenterY": 888.5
+          },
+          "Confidence": 0.9318403005599976,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "〖1次】牛虎马羊狗猪",
+          "Box": {
+            "X": 37,
+            "Y": 903,
+            "Width": 171,
+            "Height": 20,
+            "Right": 208,
+            "Bottom": 923,
+            "CenterX": 122.5,
+            "CenterY": 913
+          },
+          "Confidence": 0.9464988708496094,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "〖2次】龙猴",
+          "Box": {
+            "X": 37,
+            "Y": 928,
+            "Width": 102,
+            "Height": 20,
+            "Right": 139,
+            "Bottom": 948,
+            "CenterX": 88,
+            "CenterY": 938
+          },
+          "Confidence": 0.9375126957893372,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "〖3次】",
+          "Box": {
+            "X": 37,
+            "Y": 952,
+            "Width": 56,
+            "Height": 22,
+            "Right": 93,
+            "Bottom": 974,
+            "CenterX": 65,
+            "CenterY": 963
+          },
+          "Confidence": 0.852559506893158,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "〖4次】蛇鼠",
+          "Box": {
+            "X": 37,
+            "Y": 978,
+            "Width": 102,
+            "Height": 21,
+            "Right": 139,
+            "Bottom": 999,
+            "CenterX": 88,
+            "CenterY": 988.5
+          },
+          "Confidence": 0.9228870272636414,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "〖5次】鸡",
+          "Box": {
+            "X": 37,
+            "Y": 1003,
+            "Width": 85,
+            "Height": 21,
+            "Right": 122,
+            "Bottom": 1024,
+            "CenterX": 79.5,
+            "CenterY": 1013.5
+          },
+          "Confidence": 0.910854160785675,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "〖6次〗",
+          "Box": {
+            "X": 37,
+            "Y": 1027,
+            "Width": 56,
+            "Height": 22,
+            "Right": 93,
+            "Bottom": 1049,
+            "CenterX": 65,
+            "CenterY": 1038
+          },
+          "Confidence": 0.829312264919281,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "〖7次】",
+          "Box": {
+            "X": 36,
+            "Y": 1052,
+            "Width": 57,
+            "Height": 22,
+            "Right": 93,
+            "Bottom": 1074,
+            "CenterX": 64.5,
+            "CenterY": 1063
+          },
+          "Confidence": 0.8817616105079651,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "11月份历史战绩(开出次数):",
+          "Box": {
+            "X": 30,
+            "Y": 1105,
+            "Width": 211,
+            "Height": 17,
+            "Right": 241,
+            "Bottom": 1122,
+            "CenterX": 135.5,
+            "CenterY": 1113.5
+          },
+          "Confidence": 0.9924240112304688,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "123214513",
+          "Box": {
+            "X": 32,
+            "Y": 1130,
+            "Width": 156,
+            "Height": 17,
+            "Right": 188,
+            "Bottom": 1147,
+            "CenterX": 110,
+            "CenterY": 1138.5
+          },
+          "Confidence": 0.9999940395355225,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "一对是必然，错是偶然",
+          "Box": {
+            "X": 60,
+            "Y": 1180,
+            "Width": 167,
+            "Height": 17,
+            "Right": 227,
+            "Bottom": 1197,
+            "CenterX": 143.5,
+            "CenterY": 1188.5
+          },
+          "Confidence": 0.9598113894462585,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "取舍自由，不喜勿喷",
+          "Box": {
+            "X": 64,
+            "Y": 1205,
+            "Width": 163,
+            "Height": 17,
+            "Right": 227,
+            "Bottom": 1222,
+            "CenterX": 145.5,
+            "CenterY": 1213.5
+          },
+          "Confidence": 0.9990524649620056,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "12:58",
+          "Box": {
+            "X": 254,
+            "Y": 1248,
+            "Width": 31,
+            "Height": 16,
+            "Right": 285,
+            "Bottom": 1264,
+            "CenterX": 269.5,
+            "CenterY": 1256
+          },
+          "Confidence": 0.999933123588562,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        }
+      ]
+    },
+    "Small": {
+      "SourcePath": "C:\\Users\\Administrator\\Desktop\\每天工具\\飞机抓图\\结果\\11.10-嫣然心水\\灰灰团\\20261110_142023_0f1e4b12_10478.jpg",
+      "InputPath": "C:\\Users\\Administrator\\Desktop\\每天工具\\飞机抓图\\结果\\11.10-嫣然心水\\灰灰团\\20261110_142023_0f1e4b12_10478.jpg",
+      "SourceHash": "476357732C88E2B6166BA5A3CA1A172F5E2542BFCD8A16BA0F354B707B2F0627",
+      "InputHash": "476357732C88E2B6166BA5A3CA1A172F5E2542BFCD8A16BA0F354B707B2F0627",
+      "ViewId": "paddle",
+      "Items": [
+        {
+          "Text": "wilie985团队",
+          "Box": {
+            "X": 61,
+            "Y": 27,
+            "Width": 180,
+            "Height": 20,
+            "Right": 241,
+            "Bottom": 47,
+            "CenterX": 151,
+            "CenterY": 37
+          },
+          "Confidence": 0.9994798898696899,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "appapapappo",
+          "Box": {
+            "X": 32,
+            "Y": 56,
+            "Width": 194,
+            "Height": 13,
+            "Right": 226,
+            "Bottom": 69,
+            "CenterX": 129,
+            "CenterY": 62.5
+          },
+          "Confidence": 0.3074309825897217,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "新澳11月份(杀错排名推后)",
+          "Box": {
+            "X": 30,
+            "Y": 78,
+            "Width": 210,
+            "Height": 20,
+            "Right": 240,
+            "Bottom": 98,
+            "CenterX": 135,
+            "CenterY": 88
+          },
+          "Confidence": 0.9770183563232422,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【淡紫幽夜】月错0禁狗",
+          "Box": {
+            "X": 39,
+            "Y": 127,
+            "Width": 188,
+            "Height": 21,
+            "Right": 227,
+            "Bottom": 148,
+            "CenterX": 133,
+            "CenterY": 137.5
+          },
+          "Confidence": 0.9855431914329529,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【淡淡烟草】月错0猴",
+          "Box": {
+            "X": 39,
+            "Y": 152,
+            "Width": 188,
+            "Height": 21,
+            "Right": 227,
+            "Bottom": 173,
+            "CenterX": 133,
+            "CenterY": 162.5
+          },
+          "Confidence": 0.9856556057929993,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【乐彦正正】月错0禁蛇",
+          "Box": {
+            "X": 39,
+            "Y": 177,
+            "Width": 188,
+            "Height": 21,
+            "Right": 227,
+            "Bottom": 198,
+            "CenterX": 133,
+            "CenterY": 187.5
+          },
+          "Confidence": 0.9943532943725586,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【景逸一正】月错0禁鸡",
+          "Box": {
+            "X": 39,
+            "Y": 202,
+            "Width": 188,
+            "Height": 21,
+            "Right": 227,
+            "Bottom": 223,
+            "CenterX": 133,
+            "CenterY": 212.5
+          },
+          "Confidence": 0.9887964129447937,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【紫琼正正】月错0禁龙",
+          "Box": {
+            "X": 39,
+            "Y": 227,
+            "Width": 188,
+            "Height": 21,
+            "Right": 227,
+            "Bottom": 248,
+            "CenterX": 133,
+            "CenterY": 237.5
+          },
+          "Confidence": 0.956416130065918,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【赛华佗正】月错0禁鼠",
+          "Box": {
+            "X": 38,
+            "Y": 251,
+            "Width": 189,
+            "Height": 22,
+            "Right": 227,
+            "Bottom": 273,
+            "CenterX": 132.5,
+            "CenterY": 262
+          },
+          "Confidence": 0.9942721724510193,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【宁静正正】月错0禁鼠",
+          "Box": {
+            "X": 39,
+            "Y": 277,
+            "Width": 188,
+            "Height": 21,
+            "Right": 227,
+            "Bottom": 298,
+            "CenterX": 133,
+            "CenterY": 287.5
+          },
+          "Confidence": 0.9973835349082947,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【疲惫身躯】月错0鸡",
+          "Box": {
+            "X": 39,
+            "Y": 303,
+            "Width": 188,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 323,
+            "CenterX": 133,
+            "CenterY": 313
+          },
+          "Confidence": 0.999282717704773,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【野狼正正】月错0禁蛇",
+          "Box": {
+            "X": 39,
+            "Y": 328,
+            "Width": 188,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 348,
+            "CenterX": 133,
+            "CenterY": 338
+          },
+          "Confidence": 0.9939774870872498,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【兴旺正正】月错0禁蛇",
+          "Box": {
+            "X": 39,
+            "Y": 352,
+            "Width": 188,
+            "Height": 21,
+            "Right": 227,
+            "Bottom": 373,
+            "CenterX": 133,
+            "CenterY": 362.5
+          },
+          "Confidence": 0.997244656085968,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【川普正正】月错1禁猪",
+          "Box": {
+            "X": 39,
+            "Y": 377,
+            "Width": 188,
+            "Height": 21,
+            "Right": 227,
+            "Bottom": 398,
+            "CenterX": 133,
+            "CenterY": 387.5
+          },
+          "Confidence": 0.9977258443832397,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【小灰灰正】月错1禁牛",
+          "Box": {
+            "X": 39,
+            "Y": 403,
+            "Width": 188,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 423,
+            "CenterX": 133,
+            "CenterY": 413
+          },
+          "Confidence": 0.9892337918281555,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【小枪手正】月错1禁猴",
+          "Box": {
+            "X": 39,
+            "Y": 427,
+            "Width": 189,
+            "Height": 21,
+            "Right": 228,
+            "Bottom": 448,
+            "CenterX": 133.5,
+            "CenterY": 437.5
+          },
+          "Confidence": 0.9551942944526672,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【烟雨沫沫】月错1龙",
+          "Box": {
+            "X": 38,
+            "Y": 453,
+            "Width": 190,
+            "Height": 20,
+            "Right": 228,
+            "Bottom": 473,
+            "CenterX": 133,
+            "CenterY": 463
+          },
+          "Confidence": 0.9988581538200378,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【心灵驿站】月错1禁鸡",
+          "Box": {
+            "X": 39,
+            "Y": 478,
+            "Width": 189,
+            "Height": 20,
+            "Right": 228,
+            "Bottom": 498,
+            "CenterX": 133.5,
+            "CenterY": 488
+          },
+          "Confidence": 0.9894065260887146,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "灰灰团",
+          "Box": {
+            "X": 309,
+            "Y": 488,
+            "Width": 109,
+            "Height": 302,
+            "Right": 418,
+            "Bottom": 790,
+            "CenterX": 363.5,
+            "CenterY": 639
+          },
+          "Confidence": 0.9996106624603271,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【苹果熟了】月错1禁马",
+          "Box": {
+            "X": 38,
+            "Y": 502,
+            "Width": 189,
+            "Height": 21,
+            "Right": 227,
+            "Bottom": 523,
+            "CenterX": 132.5,
+            "CenterY": 512.5
+          },
+          "Confidence": 0.9988752603530884,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【小红马正】月错1禁羊",
+          "Box": {
+            "X": 39,
+            "Y": 527,
+            "Width": 188,
+            "Height": 21,
+            "Right": 227,
+            "Bottom": 548,
+            "CenterX": 133,
+            "CenterY": 537.5
+          },
+          "Confidence": 0.9567678570747375,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【甜心正正】月错1禁鸡",
+          "Box": {
+            "X": 39,
+            "Y": 552,
+            "Width": 188,
+            "Height": 21,
+            "Right": 227,
+            "Bottom": 573,
+            "CenterX": 133,
+            "CenterY": 562.5
+          },
+          "Confidence": 0.9972057938575745,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【小米正正】月错1禁鸡",
+          "Box": {
+            "X": 39,
+            "Y": 577,
+            "Width": 188,
+            "Height": 21,
+            "Right": 227,
+            "Bottom": 598,
+            "CenterX": 133,
+            "CenterY": 587.5
+          },
+          "Confidence": 0.9946624636650085,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【飞跃正正】月错1禁鼠",
+          "Box": {
+            "X": 39,
+            "Y": 603,
+            "Width": 188,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 623,
+            "CenterX": 133,
+            "CenterY": 613
+          },
+          "Confidence": 0.9567903876304626,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【柠檬茶茶】月错1禁虎",
+          "Box": {
+            "X": 39,
+            "Y": 627,
+            "Width": 188,
+            "Height": 21,
+            "Right": 227,
+            "Bottom": 648,
+            "CenterX": 133,
+            "CenterY": 637.5
+          },
+          "Confidence": 0.9886751174926758,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【芦苇正正】月错1禁鼠",
+          "Box": {
+            "X": 39,
+            "Y": 652,
+            "Width": 187,
+            "Height": 20,
+            "Right": 226,
+            "Bottom": 672,
+            "CenterX": 132.5,
+            "CenterY": 662
+          },
+          "Confidence": 0.9985105395317078,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【傻丫头正】月错1禁蛇",
+          "Box": {
+            "X": 39,
+            "Y": 678,
+            "Width": 188,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 698,
+            "CenterX": 133,
+            "CenterY": 688
+          },
+          "Confidence": 0.965874433517456,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【金刚刀正】月错1禁鸡",
+          "Box": {
+            "X": 38,
+            "Y": 703,
+            "Width": 189,
+            "Height": 20,
+            "Right": 227,
+            "Bottom": 723,
+            "CenterX": 132.5,
+            "CenterY": 713
+          },
+          "Confidence": 0.9874611496925354,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "d00ddddddd0",
+          "Box": {
+            "X": 31,
+            "Y": 731,
+            "Width": 195,
+            "Height": 14,
+            "Right": 226,
+            "Bottom": 745,
+            "CenterX": 128.5,
+            "CenterY": 738
+          },
+          "Confidence": 0.29398882389068604,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "友谊下架游戏规则:",
+          "Box": {
+            "X": 30,
+            "Y": 753,
+            "Width": 152,
+            "Height": 20,
+            "Right": 182,
+            "Bottom": 773,
+            "CenterX": 106,
+            "CenterY": 763
+          },
+          "Confidence": 0.9543304443359375,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "10内错2，20内错3，30内错4，",
+          "Box": {
+            "X": 30,
+            "Y": 778,
+            "Width": 241,
+            "Height": 20,
+            "Right": 271,
+            "Bottom": 798,
+            "CenterX": 150.5,
+            "CenterY": 788
+          },
+          "Confidence": 0.9608867168426514,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "请大家开奖日10点前提交完毕。",
+          "Box": {
+            "X": 30,
+            "Y": 803,
+            "Width": 240,
+            "Height": 20,
+            "Right": 270,
+            "Bottom": 823,
+            "CenterX": 150,
+            "CenterY": 813
+          },
+          "Confidence": 0.999836802482605,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "addadaddaao",
+          "Box": {
+            "X": 31,
+            "Y": 831,
+            "Width": 195,
+            "Height": 14,
+            "Right": 226,
+            "Bottom": 845,
+            "CenterX": 128.5,
+            "CenterY": 838
+          },
+          "Confidence": 0.40822485089302063,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "第314期统计(24人):",
+          "Box": {
+            "X": 30,
+            "Y": 853,
+            "Width": 160,
+            "Height": 20,
+            "Right": 190,
+            "Bottom": 873,
+            "CenterX": 110,
+            "CenterY": 863
+          },
+          "Confidence": 0.9937311410903931,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【0次〗兔",
+          "Box": {
+            "X": 36,
+            "Y": 876,
+            "Width": 87,
+            "Height": 24,
+            "Right": 123,
+            "Bottom": 900,
+            "CenterX": 79.5,
+            "CenterY": 888
+          },
+          "Confidence": 0.8412227630615234,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "〖1次〗牛虎马羊狗猪",
+          "Box": {
+            "X": 37,
+            "Y": 903,
+            "Width": 172,
+            "Height": 20,
+            "Right": 209,
+            "Bottom": 923,
+            "CenterX": 123,
+            "CenterY": 913
+          },
+          "Confidence": 0.9298803210258484,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【2次〗龙猴",
+          "Box": {
+            "X": 37,
+            "Y": 926,
+            "Width": 104,
+            "Height": 24,
+            "Right": 141,
+            "Bottom": 950,
+            "CenterX": 89,
+            "CenterY": 938
+          },
+          "Confidence": 0.8674485087394714,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【3次】",
+          "Box": {
+            "X": 36,
+            "Y": 950,
+            "Width": 59,
+            "Height": 25,
+            "Right": 95,
+            "Bottom": 975,
+            "CenterX": 65.5,
+            "CenterY": 962.5
+          },
+          "Confidence": 0.9149221181869507,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【4次】蛇鼠",
+          "Box": {
+            "X": 37,
+            "Y": 976,
+            "Width": 101,
+            "Height": 24,
+            "Right": 138,
+            "Bottom": 1000,
+            "CenterX": 87.5,
+            "CenterY": 988
+          },
+          "Confidence": 0.8937621116638184,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【5次】鸡",
+          "Box": {
+            "X": 37,
+            "Y": 1001,
+            "Width": 86,
+            "Height": 24,
+            "Right": 123,
+            "Bottom": 1025,
+            "CenterX": 80,
+            "CenterY": 1013
+          },
+          "Confidence": 0.9056704640388489,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "〖6次】",
+          "Box": {
+            "X": 37,
+            "Y": 1027,
+            "Width": 57,
+            "Height": 22,
+            "Right": 94,
+            "Bottom": 1049,
+            "CenterX": 65.5,
+            "CenterY": 1038
+          },
+          "Confidence": 0.7824512124061584,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "〖7次】",
+          "Box": {
+            "X": 37,
+            "Y": 1052,
+            "Width": 57,
+            "Height": 22,
+            "Right": 94,
+            "Bottom": 1074,
+            "CenterX": 65.5,
+            "CenterY": 1063
+          },
+          "Confidence": 0.7855693697929382,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "adddadaddda",
+          "Box": {
+            "X": 31,
+            "Y": 1081,
+            "Width": 195,
+            "Height": 14,
+            "Right": 226,
+            "Bottom": 1095,
+            "CenterX": 128.5,
+            "CenterY": 1088
+          },
+          "Confidence": 0.3614186644554138,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "11月份历史战绩(开出次数):",
+          "Box": {
+            "X": 30,
+            "Y": 1103,
+            "Width": 213,
+            "Height": 20,
+            "Right": 243,
+            "Bottom": 1123,
+            "CenterX": 136.5,
+            "CenterY": 1113
+          },
+          "Confidence": 0.9966396689414978,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "1 2 3 2 1 4 5 1 3",
+          "Box": {
+            "X": 33,
+            "Y": 1127,
+            "Width": 156,
+            "Height": 20,
+            "Right": 189,
+            "Bottom": 1147,
+            "CenterX": 111,
+            "CenterY": 1137
+          },
+          "Confidence": 0.9055739045143127,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "对是必然，错是偶然",
+          "Box": {
+            "X": 42,
+            "Y": 1178,
+            "Width": 190,
+            "Height": 21,
+            "Right": 232,
+            "Bottom": 1199,
+            "CenterX": 137,
+            "CenterY": 1188.5
+          },
+          "Confidence": 0.9961577653884888,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "取舍自由，不喜勿喷",
+          "Box": {
+            "X": 62,
+            "Y": 1203,
+            "Width": 168,
+            "Height": 20,
+            "Right": 230,
+            "Bottom": 1223,
+            "CenterX": 146,
+            "CenterY": 1213
+          },
+          "Confidence": 0.9987437725067139,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "PPPPPPP",
+          "Box": {
+            "X": 48,
+            "Y": 1228,
+            "Width": 182,
+            "Height": 21,
+            "Right": 230,
+            "Bottom": 1249,
+            "CenterX": 139,
+            "CenterY": 1238.5
+          },
+          "Confidence": 0.5004737377166748,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "12:58",
+          "Box": {
+            "X": 255,
+            "Y": 1249,
+            "Width": 30,
+            "Height": 15,
+            "Right": 285,
+            "Bottom": 1264,
+            "CenterX": 270,
+            "CenterY": 1256.5
+          },
+          "Confidence": 0.9998728036880493,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        }
+      ]
+    }
+  },
+  {
+    "Rule": "小慧慧",
+    "Issue": 314,
+    "Expected": "鸡",
+    "Medium": {
+      "SourcePath": "C:\\Users\\Administrator\\Desktop\\每天工具\\飞机抓图\\结果\\11.10-嫣然心水\\小慧慧\\20261110_172247_0f1e4b12_10511.jpg",
+      "InputPath": "C:\\Users\\Administrator\\Desktop\\每天工具\\飞机抓图\\结果\\11.10-嫣然心水\\小慧慧\\20261110_172247_0f1e4b12_10511.jpg",
+      "SourceHash": "6E328D9B0189AF8CA60CEB81083A5E47FAFE3FFC2ABE56D1C2CBE016732E2627",
+      "InputHash": "6E328D9B0189AF8CA60CEB81083A5E47FAFE3FFC2ABE56D1C2CBE016732E2627",
+      "ViewId": "paddle",
+      "Items": [
+        {
+          "Text": "小惠慧新奥杀肖团队",
+          "Box": {
+            "X": 31,
+            "Y": 10,
+            "Width": 137,
+            "Height": 14,
+            "Right": 168,
+            "Bottom": 24,
+            "CenterX": 99.5,
+            "CenterY": 17
+          },
+          "Confidence": 0.9970319271087646,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "柠檬美妞禁虎【313中295】",
+          "Box": {
+            "X": 14,
+            "Y": 58,
+            "Width": 195,
+            "Height": 17,
+            "Right": 209,
+            "Bottom": 75,
+            "CenterX": 111.5,
+            "CenterY": 66.5
+          },
+          "Confidence": 0.9817562699317932,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "烟雨沫沫禁龙【313中295】",
+          "Box": {
+            "X": 14,
+            "Y": 82,
+            "Width": 195,
+            "Height": 17,
+            "Right": 209,
+            "Bottom": 99,
+            "CenterX": 111.5,
+            "CenterY": 90.5
+          },
+          "Confidence": 0.979591965675354,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "老兵惜缘禁龙",
+          "Box": {
+            "X": 15,
+            "Y": 107,
+            "Width": 100,
+            "Height": 17,
+            "Right": 115,
+            "Bottom": 124,
+            "CenterX": 65,
+            "CenterY": 115.5
+          },
+          "Confidence": 0.9985392689704895,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【313中294】",
+          "Box": {
+            "X": 107,
+            "Y": 105,
+            "Width": 105,
+            "Height": 20,
+            "Right": 212,
+            "Bottom": 125,
+            "CenterX": 159.5,
+            "CenterY": 115
+          },
+          "Confidence": 0.9646074771881104,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "×",
+          "Box": {
+            "X": 213,
+            "Y": 109,
+            "Width": 16,
+            "Height": 12,
+            "Right": 229,
+            "Bottom": 121,
+            "CenterX": 221,
+            "CenterY": 115
+          },
+          "Confidence": 0.5646371245384216,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "清风明月禁狗",
+          "Box": {
+            "X": 15,
+            "Y": 131,
+            "Width": 100,
+            "Height": 17,
+            "Right": 115,
+            "Bottom": 148,
+            "CenterX": 65,
+            "CenterY": 139.5
+          },
+          "Confidence": 0.9986410737037659,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "[313",
+          "Box": {
+            "X": 116,
+            "Y": 132,
+            "Width": 42,
+            "Height": 15,
+            "Right": 158,
+            "Bottom": 147,
+            "CenterX": 137,
+            "CenterY": 139.5
+          },
+          "Confidence": 0.904818058013916,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "中292】",
+          "Box": {
+            "X": 154,
+            "Y": 131,
+            "Width": 55,
+            "Height": 18,
+            "Right": 209,
+            "Bottom": 149,
+            "CenterX": 181.5,
+            "CenterY": 140
+          },
+          "Confidence": 0.9841108322143555,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "木桃美妞鸡",
+          "Box": {
+            "X": 15,
+            "Y": 155,
+            "Width": 100,
+            "Height": 18,
+            "Right": 115,
+            "Bottom": 173,
+            "CenterX": 65,
+            "CenterY": 164
+          },
+          "Confidence": 0.9996053576469421,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【313",
+          "Box": {
+            "X": 116,
+            "Y": 155,
+            "Width": 45,
+            "Height": 18,
+            "Right": 161,
+            "Bottom": 173,
+            "CenterX": 138.5,
+            "CenterY": 164
+          },
+          "Confidence": 0.9744164347648621,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "中288】",
+          "Box": {
+            "X": 154,
+            "Y": 155,
+            "Width": 55,
+            "Height": 18,
+            "Right": 209,
+            "Bottom": 173,
+            "CenterX": 181.5,
+            "CenterY": 164
+          },
+          "Confidence": 0.9687454104423523,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "傻丫头妞禁蛇",
+          "Box": {
+            "X": 15,
+            "Y": 180,
+            "Width": 100,
+            "Height": 17,
+            "Right": 115,
+            "Bottom": 197,
+            "CenterX": 65,
+            "CenterY": 188.5
+          },
+          "Confidence": 0.9971826672554016,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "[313",
+          "Box": {
+            "X": 117,
+            "Y": 181,
+            "Width": 41,
+            "Height": 15,
+            "Right": 158,
+            "Bottom": 196,
+            "CenterX": 137.5,
+            "CenterY": 188.5
+          },
+          "Confidence": 0.9210021495819092,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "中288】",
+          "Box": {
+            "X": 155,
+            "Y": 180,
+            "Width": 53,
+            "Height": 16,
+            "Right": 208,
+            "Bottom": 196,
+            "CenterX": 181.5,
+            "CenterY": 188
+          },
+          "Confidence": 0.9197642207145691,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "小鱼儿妞禁猪",
+          "Box": {
+            "X": 15,
+            "Y": 204,
+            "Width": 100,
+            "Height": 18,
+            "Right": 115,
+            "Bottom": 222,
+            "CenterX": 65,
+            "CenterY": 213
+          },
+          "Confidence": 0.9910061359405518,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【313",
+          "Box": {
+            "X": 112,
+            "Y": 205,
+            "Width": 45,
+            "Height": 15,
+            "Right": 157,
+            "Bottom": 220,
+            "CenterX": 134.5,
+            "CenterY": 212.5
+          },
+          "Confidence": 0.9442871809005737,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "中287】×",
+          "Box": {
+            "X": 155,
+            "Y": 204,
+            "Width": 74,
+            "Height": 18,
+            "Right": 229,
+            "Bottom": 222,
+            "CenterX": 192,
+            "CenterY": 213
+          },
+          "Confidence": 0.9383156299591064,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "梁微微妞禁猪",
+          "Box": {
+            "X": 15,
+            "Y": 229,
+            "Width": 99,
+            "Height": 17,
+            "Right": 114,
+            "Bottom": 246,
+            "CenterX": 64.5,
+            "CenterY": 237.5
+          },
+          "Confidence": 0.9990122318267822,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【313",
+          "Box": {
+            "X": 116,
+            "Y": 230,
+            "Width": 40,
+            "Height": 15,
+            "Right": 156,
+            "Bottom": 245,
+            "CenterX": 136,
+            "CenterY": 237.5
+          },
+          "Confidence": 0.8913888335227966,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "中288】",
+          "Box": {
+            "X": 156,
+            "Y": 230,
+            "Width": 53,
+            "Height": 16,
+            "Right": 209,
+            "Bottom": 246,
+            "CenterX": 182.5,
+            "CenterY": 238
+          },
+          "Confidence": 0.9728409051895142,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "霞霞美妞禁鸡",
+          "Box": {
+            "X": 15,
+            "Y": 253,
+            "Width": 101,
+            "Height": 17,
+            "Right": 116,
+            "Bottom": 270,
+            "CenterX": 65.5,
+            "CenterY": 261.5
+          },
+          "Confidence": 0.9844388961791992,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【313",
+          "Box": {
+            "X": 110,
+            "Y": 254,
+            "Width": 47,
+            "Height": 15,
+            "Right": 157,
+            "Bottom": 269,
+            "CenterX": 133.5,
+            "CenterY": 261.5
+          },
+          "Confidence": 0.9255659580230713,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "中286】×",
+          "Box": {
+            "X": 154,
+            "Y": 253,
+            "Width": 76,
+            "Height": 18,
+            "Right": 230,
+            "Bottom": 271,
+            "CenterX": 192,
+            "CenterY": 262
+          },
+          "Confidence": 0.9920753836631775,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "东南仔帅禁马【313",
+          "Box": {
+            "X": 15,
+            "Y": 278,
+            "Width": 144,
+            "Height": 17,
+            "Right": 159,
+            "Bottom": 295,
+            "CenterX": 87,
+            "CenterY": 286.5
+          },
+          "Confidence": 0.9882809519767761,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "中286】",
+          "Box": {
+            "X": 154,
+            "Y": 277,
+            "Width": 55,
+            "Height": 18,
+            "Right": 209,
+            "Bottom": 295,
+            "CenterX": 181.5,
+            "CenterY": 286
+          },
+          "Confidence": 0.9545120000839233,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "小雨婷妞禁猪【313286】",
+          "Box": {
+            "X": 13,
+            "Y": 301,
+            "Width": 197,
+            "Height": 20,
+            "Right": 210,
+            "Bottom": 321,
+            "CenterX": 111.5,
+            "CenterY": 311
+          },
+          "Confidence": 0.9963488578796387,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "杨丽珠妞禁龙【313中285】",
+          "Box": {
+            "X": 13,
+            "Y": 325,
+            "Width": 197,
+            "Height": 20,
+            "Right": 210,
+            "Bottom": 345,
+            "CenterX": 111.5,
+            "CenterY": 335
+          },
+          "Confidence": 0.9820263981819153,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "小燕子妞禁鼠【313中279】",
+          "Box": {
+            "X": 14,
+            "Y": 351,
+            "Width": 196,
+            "Height": 17,
+            "Right": 210,
+            "Bottom": 368,
+            "CenterX": 112,
+            "CenterY": 359.5
+          },
+          "Confidence": 0.9871729612350464,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "彬彬帅哥禁鼠【273中253】",
+          "Box": {
+            "X": 13,
+            "Y": 374,
+            "Width": 198,
+            "Height": 20,
+            "Right": 211,
+            "Bottom": 394,
+            "CenterX": 112,
+            "CenterY": 384
+          },
+          "Confidence": 0.9540215134620667,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "糖宝美妞禁羊【263中244】×",
+          "Box": {
+            "X": 14,
+            "Y": 400,
+            "Width": 216,
+            "Height": 17,
+            "Right": 230,
+            "Bottom": 417,
+            "CenterX": 122,
+            "CenterY": 408.5
+          },
+          "Confidence": 0.9930468797683716,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "丫丫美妞禁猴【253",
+          "Box": {
+            "X": 15,
+            "Y": 424,
+            "Width": 145,
+            "Height": 17,
+            "Right": 160,
+            "Bottom": 441,
+            "CenterX": 87.5,
+            "CenterY": 432.5
+          },
+          "Confidence": 0.9900209307670593,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "中238】",
+          "Box": {
+            "X": 153,
+            "Y": 424,
+            "Width": 57,
+            "Height": 18,
+            "Right": 210,
+            "Bottom": 442,
+            "CenterX": 181.5,
+            "CenterY": 433
+          },
+          "Confidence": 0.9301897287368774,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "榴莲美妞禁狗【253",
+          "Box": {
+            "X": 15,
+            "Y": 449,
+            "Width": 143,
+            "Height": 17,
+            "Right": 158,
+            "Bottom": 466,
+            "CenterX": 86.5,
+            "CenterY": 457.5
+          },
+          "Confidence": 0.9956752061843872,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "中231】",
+          "Box": {
+            "X": 156,
+            "Y": 450,
+            "Width": 53,
+            "Height": 16,
+            "Right": 209,
+            "Bottom": 466,
+            "CenterX": 182.5,
+            "CenterY": 458
+          },
+          "Confidence": 0.9387804269790649,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "忘忧草妞禁龙【253",
+          "Box": {
+            "X": 15,
+            "Y": 473,
+            "Width": 143,
+            "Height": 17,
+            "Right": 158,
+            "Bottom": 490,
+            "CenterX": 86.5,
+            "CenterY": 481.5
+          },
+          "Confidence": 0.9878954887390137,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "中229】×",
+          "Box": {
+            "X": 155,
+            "Y": 473,
+            "Width": 74,
+            "Height": 17,
+            "Right": 229,
+            "Bottom": 490,
+            "CenterX": 192,
+            "CenterY": 481.5
+          },
+          "Confidence": 0.9915109276771545,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "熊猫爪爪鸡【253",
+          "Box": {
+            "X": 14,
+            "Y": 496,
+            "Width": 145,
+            "Height": 20,
+            "Right": 159,
+            "Bottom": 516,
+            "CenterX": 86.5,
+            "CenterY": 506
+          },
+          "Confidence": 0.9927159547805786,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "中",
+          "Box": {
+            "X": 157,
+            "Y": 499,
+            "Width": 19,
+            "Height": 13,
+            "Right": 176,
+            "Bottom": 512,
+            "CenterX": 166.5,
+            "CenterY": 505.5
+          },
+          "Confidence": 0.9997754693031311,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "226]",
+          "Box": {
+            "X": 169,
+            "Y": 497,
+            "Width": 41,
+            "Height": 18,
+            "Right": 210,
+            "Bottom": 515,
+            "CenterX": 189.5,
+            "CenterY": 506
+          },
+          "Confidence": 0.8667102456092834,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "小米美妞禁鸡",
+          "Box": {
+            "X": 15,
+            "Y": 522,
+            "Width": 100,
+            "Height": 17,
+            "Right": 115,
+            "Bottom": 539,
+            "CenterX": 65,
+            "CenterY": 530.5
+          },
+          "Confidence": 0.9983332753181458,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【133",
+          "Box": {
+            "X": 117,
+            "Y": 523,
+            "Width": 40,
+            "Height": 15,
+            "Right": 157,
+            "Bottom": 538,
+            "CenterX": 137,
+            "CenterY": 530.5
+          },
+          "Confidence": 0.9240395426750183,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "中120】",
+          "Box": {
+            "X": 155,
+            "Y": 522,
+            "Width": 54,
+            "Height": 18,
+            "Right": 209,
+            "Bottom": 540,
+            "CenterX": 182,
+            "CenterY": 531
+          },
+          "Confidence": 0.9799356460571289,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "阿雨帅哥禁",
+          "Box": {
+            "X": 16,
+            "Y": 548,
+            "Width": 81,
+            "Height": 14,
+            "Right": 97,
+            "Bottom": 562,
+            "CenterX": 56.5,
+            "CenterY": 555
+          },
+          "Confidence": 0.9937744140625,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "虎",
+          "Box": {
+            "X": 92,
+            "Y": 547,
+            "Width": 21,
+            "Height": 16,
+            "Right": 113,
+            "Bottom": 563,
+            "CenterX": 102.5,
+            "CenterY": 555
+          },
+          "Confidence": 0.9999324083328247,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【113",
+          "Box": {
+            "X": 116,
+            "Y": 546,
+            "Width": 42,
+            "Height": 18,
+            "Right": 158,
+            "Bottom": 564,
+            "CenterX": 137,
+            "CenterY": 555
+          },
+          "Confidence": 0.9895462989807129,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "中",
+          "Box": {
+            "X": 157,
+            "Y": 548,
+            "Width": 14,
+            "Height": 14,
+            "Right": 171,
+            "Bottom": 562,
+            "CenterX": 164,
+            "CenterY": 555
+          },
+          "Confidence": 0.9999613761901855,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "102]",
+          "Box": {
+            "X": 170,
+            "Y": 546,
+            "Width": 40,
+            "Height": 18,
+            "Right": 210,
+            "Bottom": 564,
+            "CenterX": 190,
+            "CenterY": 555
+          },
+          "Confidence": 0.8588935732841492,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "×",
+          "Box": {
+            "X": 214,
+            "Y": 549,
+            "Width": 15,
+            "Height": 12,
+            "Right": 229,
+            "Bottom": 561,
+            "CenterX": 221.5,
+            "CenterY": 555
+          },
+          "Confidence": 0.5596158504486084,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "利利美妞禁",
+          "Box": {
+            "X": 14,
+            "Y": 571,
+            "Width": 84,
+            "Height": 17,
+            "Right": 98,
+            "Bottom": 588,
+            "CenterX": 56,
+            "CenterY": 579.5
+          },
+          "Confidence": 0.9963676333427429,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "牛",
+          "Box": {
+            "X": 91,
+            "Y": 571,
+            "Width": 22,
+            "Height": 16,
+            "Right": 113,
+            "Bottom": 587,
+            "CenterX": 102,
+            "CenterY": 579
+          },
+          "Confidence": 0.9988110065460205,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【093",
+          "Box": {
+            "X": 116,
+            "Y": 570,
+            "Width": 42,
+            "Height": 18,
+            "Right": 158,
+            "Bottom": 588,
+            "CenterX": 137,
+            "CenterY": 579
+          },
+          "Confidence": 0.9406971335411072,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "中",
+          "Box": {
+            "X": 157,
+            "Y": 573,
+            "Width": 16,
+            "Height": 13,
+            "Right": 173,
+            "Bottom": 586,
+            "CenterX": 165,
+            "CenterY": 579.5
+          },
+          "Confidence": 0.9998120665550232,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "085】",
+          "Box": {
+            "X": 170,
+            "Y": 572,
+            "Width": 39,
+            "Height": 15,
+            "Right": 209,
+            "Bottom": 587,
+            "CenterX": 189.5,
+            "CenterY": 579.5
+          },
+          "Confidence": 0.8588640689849854,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "美啦美妞",
+          "Box": {
+            "X": 15,
+            "Y": 595,
+            "Width": 65,
+            "Height": 17,
+            "Right": 80,
+            "Bottom": 612,
+            "CenterX": 47.5,
+            "CenterY": 603.5
+          },
+          "Confidence": 0.9997933506965637,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "禁",
+          "Box": {
+            "X": 75,
+            "Y": 597,
+            "Width": 22,
+            "Height": 14,
+            "Right": 97,
+            "Bottom": 611,
+            "CenterX": 86,
+            "CenterY": 604
+          },
+          "Confidence": 0.9999972581863403,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "鸡",
+          "Box": {
+            "X": 94,
+            "Y": 597,
+            "Width": 19,
+            "Height": 13,
+            "Right": 113,
+            "Bottom": 610,
+            "CenterX": 103.5,
+            "CenterY": 603.5
+          },
+          "Confidence": 0.9997814297676086,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "[083",
+          "Box": {
+            "X": 117,
+            "Y": 595,
+            "Width": 41,
+            "Height": 18,
+            "Right": 158,
+            "Bottom": 613,
+            "CenterX": 137.5,
+            "CenterY": 604
+          },
+          "Confidence": 0.9293932914733887,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "中",
+          "Box": {
+            "X": 157,
+            "Y": 597,
+            "Width": 16,
+            "Height": 13,
+            "Right": 173,
+            "Bottom": 610,
+            "CenterX": 165,
+            "CenterY": 603.5
+          },
+          "Confidence": 0.9999074935913086,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "077]",
+          "Box": {
+            "X": 170,
+            "Y": 595,
+            "Width": 39,
+            "Height": 18,
+            "Right": 209,
+            "Bottom": 613,
+            "CenterX": 189.5,
+            "CenterY": 604
+          },
+          "Confidence": 0.8427623510360718,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "二维码妞禁鸡",
+          "Box": {
+            "X": 15,
+            "Y": 619,
+            "Width": 100,
+            "Height": 18,
+            "Right": 115,
+            "Bottom": 637,
+            "CenterX": 65,
+            "CenterY": 628
+          },
+          "Confidence": 0.9906557202339172,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "[073",
+          "Box": {
+            "X": 117,
+            "Y": 619,
+            "Width": 42,
+            "Height": 18,
+            "Right": 159,
+            "Bottom": 637,
+            "CenterX": 138,
+            "CenterY": 628
+          },
+          "Confidence": 0.8893183469772339,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "中065】",
+          "Box": {
+            "X": 154,
+            "Y": 619,
+            "Width": 55,
+            "Height": 18,
+            "Right": 209,
+            "Bottom": 637,
+            "CenterX": 181.5,
+            "CenterY": 628
+          },
+          "Confidence": 0.982451319694519,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "幽兰若梦禁狗",
+          "Box": {
+            "X": 15,
+            "Y": 644,
+            "Width": 100,
+            "Height": 17,
+            "Right": 115,
+            "Bottom": 661,
+            "CenterX": 65,
+            "CenterY": 652.5
+          },
+          "Confidence": 0.997596800327301,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【033",
+          "Box": {
+            "X": 117,
+            "Y": 645,
+            "Width": 42,
+            "Height": 15,
+            "Right": 159,
+            "Bottom": 660,
+            "CenterX": 138,
+            "CenterY": 652.5
+          },
+          "Confidence": 0.9029127359390259,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "中031】×",
+          "Box": {
+            "X": 154,
+            "Y": 644,
+            "Width": 76,
+            "Height": 17,
+            "Right": 230,
+            "Bottom": 661,
+            "CenterX": 192,
+            "CenterY": 652.5
+          },
+          "Confidence": 0.9897344708442688,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "第314期：",
+          "Box": {
+            "X": 14,
+            "Y": 693,
+            "Width": 65,
+            "Height": 18,
+            "Right": 79,
+            "Bottom": 711,
+            "CenterX": 46.5,
+            "CenterY": 702
+          },
+          "Confidence": 0.9584634304046631,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【0次】祝兔",
+          "Box": {
+            "X": 21,
+            "Y": 716,
+            "Width": 87,
+            "Height": 21,
+            "Right": 108,
+            "Bottom": 737,
+            "CenterX": 64.5,
+            "CenterY": 726.5
+          },
+          "Confidence": 0.9771029949188232,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【1次】",
+          "Box": {
+            "X": 21,
+            "Y": 741,
+            "Width": 45,
+            "Height": 19,
+            "Right": 66,
+            "Bottom": 760,
+            "CenterX": 43.5,
+            "CenterY": 750.5
+          },
+          "Confidence": 0.9991740584373474,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "祝牛蛇马羊猴",
+          "Box": {
+            "X": 69,
+            "Y": 742,
+            "Width": 98,
+            "Height": 17,
+            "Right": 167,
+            "Bottom": 759,
+            "CenterX": 118,
+            "CenterY": 750.5
+          },
+          "Confidence": 0.9985623955726624,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【2次】祝鼠虎",
+          "Box": {
+            "X": 22,
+            "Y": 766,
+            "Width": 99,
+            "Height": 18,
+            "Right": 121,
+            "Bottom": 784,
+            "CenterX": 71.5,
+            "CenterY": 775
+          },
+          "Confidence": 0.9919208884239197,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【3次】",
+          "Box": {
+            "X": 22,
+            "Y": 790,
+            "Width": 44,
+            "Height": 18,
+            "Right": 66,
+            "Bottom": 808,
+            "CenterX": 44,
+            "CenterY": 799
+          },
+          "Confidence": 0.9986398220062256,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "禁狗猪",
+          "Box": {
+            "X": 66,
+            "Y": 790,
+            "Width": 56,
+            "Height": 18,
+            "Right": 122,
+            "Bottom": 808,
+            "CenterX": 94,
+            "CenterY": 799
+          },
+          "Confidence": 0.9986727833747864,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【4次】禁龙",
+          "Box": {
+            "X": 22,
+            "Y": 815,
+            "Width": 85,
+            "Height": 18,
+            "Right": 107,
+            "Bottom": 833,
+            "CenterX": 64.5,
+            "CenterY": 824
+          },
+          "Confidence": 0.9942665100097656,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【5次】",
+          "Box": {
+            "X": 20,
+            "Y": 838,
+            "Width": 72,
+            "Height": 21,
+            "Right": 92,
+            "Bottom": 859,
+            "CenterX": 56,
+            "CenterY": 848.5
+          },
+          "Confidence": 0.998867392539978,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【6次】禁鸡",
+          "Box": {
+            "X": 21,
+            "Y": 864,
+            "Width": 85,
+            "Height": 18,
+            "Right": 106,
+            "Bottom": 882,
+            "CenterX": 63.5,
+            "CenterY": 873
+          },
+          "Confidence": 0.9980577826499939,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "统计结果（共26人）",
+          "Box": {
+            "X": 15,
+            "Y": 913,
+            "Width": 132,
+            "Height": 17,
+            "Right": 147,
+            "Bottom": 930,
+            "CenterX": 81,
+            "CenterY": 921.5
+          },
+          "Confidence": 0.9273127317428589,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "按道理主少次.杀多次",
+          "Box": {
+            "X": 14,
+            "Y": 937,
+            "Width": 148,
+            "Height": 17,
+            "Right": 162,
+            "Bottom": 954,
+            "CenterX": 88,
+            "CenterY": 945.5
+          },
+          "Confidence": 0.9910875558853149,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "开次数排序肖",
+          "Box": {
+            "X": 16,
+            "Y": 986,
+            "Width": 132,
+            "Height": 17,
+            "Right": 148,
+            "Bottom": 1003,
+            "CenterX": 82,
+            "CenterY": 994.5
+          },
+          "Confidence": 0.9996632933616638,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "311期开3次第10肖",
+          "Box": {
+            "X": 15,
+            "Y": 1012,
+            "Width": 150,
+            "Height": 14,
+            "Right": 165,
+            "Bottom": 1026,
+            "CenterX": 90,
+            "CenterY": 1019
+          },
+          "Confidence": 0.9999145865440369,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "312期开2次第6肖",
+          "Box": {
+            "X": 14,
+            "Y": 1035,
+            "Width": 143,
+            "Height": 17,
+            "Right": 157,
+            "Bottom": 1052,
+            "CenterX": 85.5,
+            "CenterY": 1043.5
+          },
+          "Confidence": 0.9999602437019348,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "313期开8次尽位",
+          "Box": {
+            "X": 14,
+            "Y": 1059,
+            "Width": 135,
+            "Height": 17,
+            "Right": 149,
+            "Bottom": 1076,
+            "CenterX": 81.5,
+            "CenterY": 1067.5
+          },
+          "Confidence": 0.9999845027923584,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "281期起3511224132次",
+          "Box": {
+            "X": 15,
+            "Y": 1110,
+            "Width": 167,
+            "Height": 14,
+            "Right": 182,
+            "Bottom": 1124,
+            "CenterX": 98.5,
+            "CenterY": 1117
+          },
+          "Confidence": 0.9988083839416504,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "291期起3323331320次",
+          "Box": {
+            "X": 15,
+            "Y": 1134,
+            "Width": 167,
+            "Height": 14,
+            "Right": 182,
+            "Bottom": 1148,
+            "CenterX": 98.5,
+            "CenterY": 1141
+          },
+          "Confidence": 0.9999905824661255,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "301期起3024317203次",
+          "Box": {
+            "X": 15,
+            "Y": 1159,
+            "Width": 166,
+            "Height": 14,
+            "Right": 181,
+            "Bottom": 1173,
+            "CenterX": 98,
+            "CenterY": 1166
+          },
+          "Confidence": 0.9999938011169434,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "311期起328次",
+          "Box": {
+            "X": 15,
+            "Y": 1183,
+            "Width": 101,
+            "Height": 14,
+            "Right": 116,
+            "Bottom": 1197,
+            "CenterX": 65.5,
+            "CenterY": 1190
+          },
+          "Confidence": 0.999995231628418,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "會",
+          "Box": {
+            "X": 16,
+            "Y": 1208,
+            "Width": 189,
+            "Height": 14,
+            "Right": 205,
+            "Bottom": 1222,
+            "CenterX": 110.5,
+            "CenterY": 1215
+          },
+          "Confidence": 0.27640852332115173,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "感谢各位老师辛勤付出",
+          "Box": {
+            "X": 16,
+            "Y": 1232,
+            "Width": 152,
+            "Height": 14,
+            "Right": 168,
+            "Bottom": 1246,
+            "CenterX": 92,
+            "CenterY": 1239
+          },
+          "Confidence": 0.9995096921920776,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "上错打上×，空打",
+          "Box": {
+            "X": 15,
+            "Y": 1255,
+            "Width": 135,
+            "Height": 17,
+            "Right": 150,
+            "Bottom": 1272,
+            "CenterX": 82.5,
+            "CenterY": 1263.5
+          },
+          "Confidence": 0.9499901533126831,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        }
+      ]
+    },
+    "Small": {
+      "SourcePath": "C:\\Users\\Administrator\\Desktop\\每天工具\\飞机抓图\\结果\\11.10-嫣然心水\\小慧慧\\20261110_172247_0f1e4b12_10511.jpg",
+      "InputPath": "C:\\Users\\Administrator\\Desktop\\每天工具\\飞机抓图\\结果\\11.10-嫣然心水\\小慧慧\\20261110_172247_0f1e4b12_10511.jpg",
+      "SourceHash": "6E328D9B0189AF8CA60CEB81083A5E47FAFE3FFC2ABE56D1C2CBE016732E2627",
+      "InputHash": "6E328D9B0189AF8CA60CEB81083A5E47FAFE3FFC2ABE56D1C2CBE016732E2627",
+      "ViewId": "paddle",
+      "Items": [
+        {
+          "Text": "小惠慧新奥杀肖团队",
+          "Box": {
+            "X": 16,
+            "Y": 6,
+            "Width": 173,
+            "Height": 21,
+            "Right": 189,
+            "Bottom": 27,
+            "CenterX": 102.5,
+            "CenterY": 16.5
+          },
+          "Confidence": 0.9986388087272644,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "柠檬美妞禁虎【313中295】",
+          "Box": {
+            "X": 14,
+            "Y": 56,
+            "Width": 196,
+            "Height": 20,
+            "Right": 210,
+            "Bottom": 76,
+            "CenterX": 112,
+            "CenterY": 66
+          },
+          "Confidence": 0.997447669506073,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "烟雨沫沫禁龙【313中295】",
+          "Box": {
+            "X": 15,
+            "Y": 82,
+            "Width": 194,
+            "Height": 17,
+            "Right": 209,
+            "Bottom": 99,
+            "CenterX": 112,
+            "CenterY": 90.5
+          },
+          "Confidence": 0.9926433563232422,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "老兵惜缘禁龙【313中294】×",
+          "Box": {
+            "X": 14,
+            "Y": 105,
+            "Width": 217,
+            "Height": 20,
+            "Right": 231,
+            "Bottom": 125,
+            "CenterX": 122.5,
+            "CenterY": 115
+          },
+          "Confidence": 0.994166374206543,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "清风明月禁狗【313中292】",
+          "Box": {
+            "X": 15,
+            "Y": 130,
+            "Width": 193,
+            "Height": 17,
+            "Right": 208,
+            "Bottom": 147,
+            "CenterX": 111.5,
+            "CenterY": 138.5
+          },
+          "Confidence": 0.9962906241416931,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "木桃美妞禁鸡【313中288】",
+          "Box": {
+            "X": 15,
+            "Y": 155,
+            "Width": 193,
+            "Height": 17,
+            "Right": 208,
+            "Bottom": 172,
+            "CenterX": 111.5,
+            "CenterY": 163.5
+          },
+          "Confidence": 0.9931146502494812,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "傻丫头妞禁蛇【313中288】",
+          "Box": {
+            "X": 15,
+            "Y": 179,
+            "Width": 193,
+            "Height": 17,
+            "Right": 208,
+            "Bottom": 196,
+            "CenterX": 111.5,
+            "CenterY": 187.5
+          },
+          "Confidence": 0.9979308247566223,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "小鱼儿妞禁猪【313中287】×",
+          "Box": {
+            "X": 15,
+            "Y": 204,
+            "Width": 215,
+            "Height": 17,
+            "Right": 230,
+            "Bottom": 221,
+            "CenterX": 122.5,
+            "CenterY": 212.5
+          },
+          "Confidence": 0.9986225366592407,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "梁微微妞禁猪【313中288】",
+          "Box": {
+            "X": 15,
+            "Y": 229,
+            "Width": 193,
+            "Height": 17,
+            "Right": 208,
+            "Bottom": 246,
+            "CenterX": 111.5,
+            "CenterY": 237.5
+          },
+          "Confidence": 0.9988910555839539,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "霞霞美妞禁鸡【313中286】×",
+          "Box": {
+            "X": 15,
+            "Y": 253,
+            "Width": 216,
+            "Height": 17,
+            "Right": 231,
+            "Bottom": 270,
+            "CenterX": 123,
+            "CenterY": 261.5
+          },
+          "Confidence": 0.9961560368537903,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "东南仔帅禁马【313中286】",
+          "Box": {
+            "X": 14,
+            "Y": 276,
+            "Width": 195,
+            "Height": 19,
+            "Right": 209,
+            "Bottom": 295,
+            "CenterX": 111.5,
+            "CenterY": 285.5
+          },
+          "Confidence": 0.9980061650276184,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "小雨婷妞禁猪【313中286】",
+          "Box": {
+            "X": 15,
+            "Y": 302,
+            "Width": 194,
+            "Height": 17,
+            "Right": 209,
+            "Bottom": 319,
+            "CenterX": 112,
+            "CenterY": 310.5
+          },
+          "Confidence": 0.9925918579101562,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "杨丽珠妞禁龙【313中285】",
+          "Box": {
+            "X": 14,
+            "Y": 325,
+            "Width": 195,
+            "Height": 19,
+            "Right": 209,
+            "Bottom": 344,
+            "CenterX": 111.5,
+            "CenterY": 334.5
+          },
+          "Confidence": 0.9955424070358276,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "小燕子妞禁鼠【313中279】",
+          "Box": {
+            "X": 14,
+            "Y": 351,
+            "Width": 195,
+            "Height": 17,
+            "Right": 209,
+            "Bottom": 368,
+            "CenterX": 111.5,
+            "CenterY": 359.5
+          },
+          "Confidence": 0.9982861280441284,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "彬彬帅哥禁鼠【273中253】",
+          "Box": {
+            "X": 15,
+            "Y": 375,
+            "Width": 194,
+            "Height": 17,
+            "Right": 209,
+            "Bottom": 392,
+            "CenterX": 112,
+            "CenterY": 383.5
+          },
+          "Confidence": 0.9988065361976624,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "糖宝美妞禁羊【263中244】×",
+          "Box": {
+            "X": 14,
+            "Y": 400,
+            "Width": 217,
+            "Height": 17,
+            "Right": 231,
+            "Bottom": 417,
+            "CenterX": 122.5,
+            "CenterY": 408.5
+          },
+          "Confidence": 0.9975860118865967,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "丫丫美妞禁猴【253中238】",
+          "Box": {
+            "X": 16,
+            "Y": 424,
+            "Width": 193,
+            "Height": 17,
+            "Right": 209,
+            "Bottom": 441,
+            "CenterX": 112.5,
+            "CenterY": 432.5
+          },
+          "Confidence": 0.9932851791381836,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "榴莲美妞禁狗【253中231】",
+          "Box": {
+            "X": 15,
+            "Y": 448,
+            "Width": 194,
+            "Height": 17,
+            "Right": 209,
+            "Bottom": 465,
+            "CenterX": 112,
+            "CenterY": 456.5
+          },
+          "Confidence": 0.9682900309562683,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "忘忧草妞禁龙【253中229】×",
+          "Box": {
+            "X": 15,
+            "Y": 473,
+            "Width": 215,
+            "Height": 17,
+            "Right": 230,
+            "Bottom": 490,
+            "CenterX": 122.5,
+            "CenterY": 481.5
+          },
+          "Confidence": 0.9941325187683105,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "熊猫爪爪禁鸡【253中226】",
+          "Box": {
+            "X": 15,
+            "Y": 497,
+            "Width": 194,
+            "Height": 17,
+            "Right": 209,
+            "Bottom": 514,
+            "CenterX": 112,
+            "CenterY": 505.5
+          },
+          "Confidence": 0.9698749780654907,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "小米美妞禁鸡【133中120】",
+          "Box": {
+            "X": 15,
+            "Y": 522,
+            "Width": 194,
+            "Height": 17,
+            "Right": 209,
+            "Bottom": 539,
+            "CenterX": 112,
+            "CenterY": 530.5
+          },
+          "Confidence": 0.9838942885398865,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "阿雨帅哥禁虎【113中102】×",
+          "Box": {
+            "X": 14,
+            "Y": 545,
+            "Width": 217,
+            "Height": 20,
+            "Right": 231,
+            "Bottom": 565,
+            "CenterX": 122.5,
+            "CenterY": 555
+          },
+          "Confidence": 0.997330904006958,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "利利美妞禁牛【093中085】",
+          "Box": {
+            "X": 11,
+            "Y": 568,
+            "Width": 199,
+            "Height": 21,
+            "Right": 210,
+            "Bottom": 589,
+            "CenterX": 110.5,
+            "CenterY": 578.5
+          },
+          "Confidence": 0.990314245223999,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "美啦美妞禁鸡【083中077】",
+          "Box": {
+            "X": 15,
+            "Y": 595,
+            "Width": 194,
+            "Height": 17,
+            "Right": 209,
+            "Bottom": 612,
+            "CenterX": 112,
+            "CenterY": 603.5
+          },
+          "Confidence": 0.9948321580886841,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "二维码妞禁鸡【073中065】",
+          "Box": {
+            "X": 14,
+            "Y": 618,
+            "Width": 196,
+            "Height": 20,
+            "Right": 210,
+            "Bottom": 638,
+            "CenterX": 112,
+            "CenterY": 628
+          },
+          "Confidence": 0.9990026354789734,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "幽兰若梦禁狗【033中031】×",
+          "Box": {
+            "X": 14,
+            "Y": 642,
+            "Width": 216,
+            "Height": 20,
+            "Right": 230,
+            "Bottom": 662,
+            "CenterX": 122,
+            "CenterY": 652
+          },
+          "Confidence": 0.9976401329040527,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "第314期:",
+          "Box": {
+            "X": 15,
+            "Y": 692,
+            "Width": 65,
+            "Height": 18,
+            "Right": 80,
+            "Bottom": 710,
+            "CenterX": 47.5,
+            "CenterY": 701
+          },
+          "Confidence": 0.9407663345336914,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【0次】祝兔",
+          "Box": {
+            "X": 21,
+            "Y": 715,
+            "Width": 87,
+            "Height": 21,
+            "Right": 108,
+            "Bottom": 736,
+            "CenterX": 64.5,
+            "CenterY": 725.5
+          },
+          "Confidence": 0.9971758723258972,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【1次】祝牛蛇马羊猴",
+          "Box": {
+            "X": 21,
+            "Y": 740,
+            "Width": 148,
+            "Height": 20,
+            "Right": 169,
+            "Bottom": 760,
+            "CenterX": 95,
+            "CenterY": 750
+          },
+          "Confidence": 0.999468207359314,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【2次】祝鼠虎",
+          "Box": {
+            "X": 21,
+            "Y": 764,
+            "Width": 102,
+            "Height": 21,
+            "Right": 123,
+            "Bottom": 785,
+            "CenterX": 72,
+            "CenterY": 774.5
+          },
+          "Confidence": 0.9992170333862305,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【3次】禁狗猪",
+          "Box": {
+            "X": 22,
+            "Y": 790,
+            "Width": 100,
+            "Height": 18,
+            "Right": 122,
+            "Bottom": 808,
+            "CenterX": 72,
+            "CenterY": 799
+          },
+          "Confidence": 0.9974276423454285,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【4次】禁龙",
+          "Box": {
+            "X": 21,
+            "Y": 813,
+            "Width": 88,
+            "Height": 21,
+            "Right": 109,
+            "Bottom": 834,
+            "CenterX": 65,
+            "CenterY": 823.5
+          },
+          "Confidence": 0.998594343662262,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【5次】禁",
+          "Box": {
+            "X": 22,
+            "Y": 839,
+            "Width": 69,
+            "Height": 18,
+            "Right": 91,
+            "Bottom": 857,
+            "CenterX": 56.5,
+            "CenterY": 848
+          },
+          "Confidence": 0.9868408441543579,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "【6次】禁鸡",
+          "Box": {
+            "X": 21,
+            "Y": 862,
+            "Width": 87,
+            "Height": 21,
+            "Right": 108,
+            "Bottom": 883,
+            "CenterX": 64.5,
+            "CenterY": 872.5
+          },
+          "Confidence": 0.9979829788208008,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "统计结果(共26人)",
+          "Box": {
+            "X": 14,
+            "Y": 911,
+            "Width": 135,
+            "Height": 20,
+            "Right": 149,
+            "Bottom": 931,
+            "CenterX": 81.5,
+            "CenterY": 921
+          },
+          "Confidence": 0.9683045148849487,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "按道理主少次.杀多次.",
+          "Box": {
+            "X": 13,
+            "Y": 933,
+            "Width": 150,
+            "Height": 22,
+            "Right": 163,
+            "Bottom": 955,
+            "CenterX": 88,
+            "CenterY": 944
+          },
+          "Confidence": 0.9950667023658752,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "开次数排序肖",
+          "Box": {
+            "X": 15,
+            "Y": 984,
+            "Width": 150,
+            "Height": 20,
+            "Right": 165,
+            "Bottom": 1004,
+            "CenterX": 90,
+            "CenterY": 994
+          },
+          "Confidence": 0.999722957611084,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "311期开3次第10肖",
+          "Box": {
+            "X": 14,
+            "Y": 1010,
+            "Width": 152,
+            "Height": 17,
+            "Right": 166,
+            "Bottom": 1027,
+            "CenterX": 90,
+            "CenterY": 1018.5
+          },
+          "Confidence": 0.9998586177825928,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "312期开2次第6肖",
+          "Box": {
+            "X": 13,
+            "Y": 1032,
+            "Width": 145,
+            "Height": 20,
+            "Right": 158,
+            "Bottom": 1052,
+            "CenterX": 85.5,
+            "CenterY": 1042
+          },
+          "Confidence": 0.9997571706771851,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "313期开8次尽位",
+          "Box": {
+            "X": 13,
+            "Y": 1058,
+            "Width": 139,
+            "Height": 20,
+            "Right": 152,
+            "Bottom": 1078,
+            "CenterX": 82.5,
+            "CenterY": 1068
+          },
+          "Confidence": 0.9998490214347839,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "281期起3511224132次",
+          "Box": {
+            "X": 14,
+            "Y": 1108,
+            "Width": 168,
+            "Height": 17,
+            "Right": 182,
+            "Bottom": 1125,
+            "CenterX": 98,
+            "CenterY": 1116.5
+          },
+          "Confidence": 0.9999964833259583,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "291期起3323331320次",
+          "Box": {
+            "X": 14,
+            "Y": 1132,
+            "Width": 169,
+            "Height": 17,
+            "Right": 183,
+            "Bottom": 1149,
+            "CenterX": 98.5,
+            "CenterY": 1140.5
+          },
+          "Confidence": 0.9999964237213135,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "301期起3024317203次",
+          "Box": {
+            "X": 14,
+            "Y": 1157,
+            "Width": 169,
+            "Height": 17,
+            "Right": 183,
+            "Bottom": 1174,
+            "CenterX": 98.5,
+            "CenterY": 1165.5
+          },
+          "Confidence": 0.9999951124191284,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "311期起328次",
+          "Box": {
+            "X": 14,
+            "Y": 1181,
+            "Width": 104,
+            "Height": 17,
+            "Right": 118,
+            "Bottom": 1198,
+            "CenterX": 66,
+            "CenterY": 1189.5
+          },
+          "Confidence": 0.9999949932098389,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "BSLLSEEILE",
+          "Box": {
+            "X": 15,
+            "Y": 1208,
+            "Width": 190,
+            "Height": 14,
+            "Right": 205,
+            "Bottom": 1222,
+            "CenterX": 110,
+            "CenterY": 1215
+          },
+          "Confidence": 0.2123829424381256,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "感谢各位老师辛勤付出",
+          "Box": {
+            "X": 14,
+            "Y": 1229,
+            "Width": 157,
+            "Height": 20,
+            "Right": 171,
+            "Bottom": 1249,
+            "CenterX": 92.5,
+            "CenterY": 1239
+          },
+          "Confidence": 0.9994863271713257,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        },
+        {
+          "Text": "上错打上×，空打",
+          "Box": {
+            "X": 13,
+            "Y": 1251,
+            "Width": 140,
+            "Height": 23,
+            "Right": 153,
+            "Bottom": 1274,
+            "CenterX": 83,
+            "CenterY": 1262.5
+          },
+          "Confidence": 0.9920711517333984,
+          "ViewId": "paddle/original",
+          "RegionId": "main"
+        }
+      ]
+    }
+  }
+]

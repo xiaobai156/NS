@@ -77,6 +77,9 @@ public sealed record OcrEvidence(
     IReadOnlyList<OcrLineEvidence> Items,
     [property: JsonIgnore] IReadOnlyList<OcrLineEvidence>? TokenItems = null)
 {
+    public string Reader { get; init; } = "";
+    public StatisticsCheck? StatisticsCheck { get; init; }
+
     [JsonIgnore]
     public IReadOnlyList<string> Lines => SafeLines(Items);
 
@@ -173,7 +176,7 @@ public sealed record OcrEvidence(
             identity.InputHash,
             identity.ViewId,
             boundItems,
-            boundTokens);
+            boundTokens) { Reader = Reader, StatisticsCheck = StatisticsCheck };
     }
 }
 

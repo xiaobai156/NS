@@ -11,7 +11,8 @@ public sealed record CloudOcrCacheEntry(
     string? InputFingerprint = null,
     string? ViewId = null,
     IReadOnlyList<OcrLineEvidence>? Items = null,
-    IReadOnlyList<OcrLineEvidence>? TokenItems = null);
+    IReadOnlyList<OcrLineEvidence>? TokenItems = null,
+    StatisticsCheck? StatisticsCheck = null);
 
 public static class CloudOcrCacheStore
 {
@@ -48,7 +49,7 @@ public static class CloudOcrCacheStore
                         entry.InputFingerprint,
                         entry.ViewId,
                         entry.Items.ToArray(),
-                        entry.TokenItems?.ToArray());
+                        entry.TokenItems?.ToArray()) { Reader = "cloud", StatisticsCheck = entry.StatisticsCheck };
                 }
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException) { }
@@ -79,7 +80,8 @@ public static class CloudOcrCacheStore
                         evidence.InputHash,
                         evidence.ViewId,
                         evidence.Items.ToArray(),
-                        evidence.TokenItems?.ToArray()));
+                        evidence.TokenItems?.ToArray(),
+                        evidence.StatisticsCheck));
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException or ArgumentException)
             {

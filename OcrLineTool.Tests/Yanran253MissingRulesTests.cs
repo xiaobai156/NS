@@ -300,7 +300,11 @@ public sealed class Yanran253MissingRulesTests
             "09月份历史战绩(开出次数):", "212 4 0 2 5 42"
         ];
         OcrRule grayGroup = Rule("灰灰团");
-        Assert.Equal("鼠蛇", RuleEngine.ExtractFinalValue(grayGroupLines, 253, grayGroup));
+        // The wrapped 龙马鸡 belongs to the 2-count bucket: the true sum is 22,
+        // not the printed 16. Bare text cannot independently resolve that discrepancy.
+        Assert.Null(RuleEngine.ExtractFinalValue(grayGroupLines, 253, grayGroup));
+        Assert.Equal("鼠蛇", RuleEngine.ExtractFinalValue(grayGroupLines
+            .Select(s => s.Replace("统计(16人)", "统计(22人)")), 253, grayGroup));
 
         string[] xiaohuiLines =
         [
@@ -369,5 +373,115 @@ public sealed class Yanran253MissingRulesTests
         Assert.Equal("绿单", RuleEngine.ExtractFinalValue(halfWaveLines, 253, halfWave));
         Assert.Equal("04合", RuleEngine.ExtractFinalValue(combineLines, 253, tailNumber));
         Assert.Equal("0头", RuleEngine.ExtractFinalValue(halfWaveLines, 253, head));
+    }
+
+    // 314 期真实回归素材（嫣然心水本地 medium 行，1 倍整图、3 倍统计块放大、6 倍数字放大三遍读数一致）：
+    // 三张卡的总量都和逐行次数之和对不上 1——品鉴印 43 而 12 行相加 44，小慧慧印 26 而 Σ=25，
+    // 灰灰团印 24 而 Σ=23。行、次数、生肖都没有漏读或跨行错配，差 1 出在卡面自己，
+    // 所以允许 |Σ − 卡面| ≤ 1 且最高次数行唯一时取最高次数的生肖（这里三张都是鸡）。
+    // 断言的是鸡而不是第一个出现的猴/兔/牛虎……：放行后仍必须走最高次数分支。
+    [Fact]
+    public void SummarySheetsRequireIndependentEvidenceWhenPrintedTotalDisagrees()
+    {
+        string[] pinjian =
+        [
+            "314期您的统计结果", "【生肖统计】(总次数:43次)",
+            "[01次】猴×××××", "[02次]鼠牛兔马", "[04次】虎蛇羊",
+            "[05次】猪狗×××××", "[06次】龙×××××", "[07次】鸡×××××"
+        ];
+        string[] xiaohuihui =
+        [
+            "第314期：",
+            "【0次】祝兔", "【1次】", "祝牛蛇马羊猴", "【2次】祝鼠虎", "【3次】", "禁狗猪",
+            "【4次】禁龙", "【5次】", "【6次】禁鸡",
+            "统计结果（共26人）"
+        ];
+        string[] huihuituan =
+        [
+            "第314期统计(24人):",
+            "【0次】兔", "【1次】牛虎马羊狗猪", "【2次】龙猴", "【3次】",
+            "【4次】蛇鼠", "【5次】鸡", "【6次】", "【7次】"
+        ];
+
+        Assert.Null(RuleEngine.ExtractFinalValue(pinjian, 314, Rule("品鉴")));
+        Assert.Null(RuleEngine.ExtractFinalValue(xiaohuihui, 314, Rule("小慧慧")));
+        Assert.Null(RuleEngine.ExtractFinalValue(huihuituan, 314, Rule("灰灰团")));
+
+        // Raw text never resolves a printed-total discrepancy, whatever its size.
+        string[] offByTwo =
+        [
+            "314期您的统计结果", "【生肖统计】(总次数:46次)",
+            "[01次】猴×××××", "[02次]鼠牛兔马", "[04次】虎蛇羊",
+            "[05次】猪狗×××××", "[06次】龙×××××", "[07次】鸡×××××"
+        ];
+        Assert.Null(RuleEngine.ExtractFinalValue(offByTwo, 314, Rule("品鉴")));
+        Assert.Equal("已找到314期文字，但次数合计与卡面总量不符（卡面46，合计44，6行）；需独立完整统计复核",
+            RuleEngine.DescribeExtractionFailure(offByTwo, 314, Rule("品鉴")));
+    }
+
+    // Ties themselves are valid. A mismatched total requires independent evidence.
+    [Fact]
+    public void SummarySheetsRejectOffByOneWhenTheTopCountIsSharedAndStillJoinTiesThatAddUp()
+    {
+        OcrRule pinjian = Rule("品鉴");
+        string[] tiedOffByOne =
+        [
+            "314期您的统计结果", "【生肖统计】(总次数:7次)", "[3次]鼠", "[3次]牛"
+        ];
+        string[] tiedExact =
+        [
+            "314期您的统计结果", "【生肖统计】(总次数:6次)", "[3次]鼠", "[3次]牛"
+        ];
+
+        Assert.Null(RuleEngine.ExtractFinalValue(tiedOffByOne, 314, pinjian));
+        Assert.Equal("已找到314期文字，但次数合计与卡面总量不符（卡面7，合计6，2行）；需独立完整统计复核",
+            RuleEngine.DescribeExtractionFailure(tiedOffByOne, 314, pinjian));
+        Assert.Equal("鼠牛", RuleEngine.ExtractFinalValue(tiedExact, 314, pinjian));
+    }
+
+    // A higher missing bucket before a later populated bucket remains evidence of an incomplete read.
+    [Fact]
+    public void SummarySheetsStillRejectAGapAboveTheTopCountInsideTheTolerance()
+    {
+        OcrRule pinjian = Rule("品鉴");
+        string[] lines =
+        [
+            "314期您的统计结果", "【生肖统计】(总次数:6次)",
+            "[1次]兔", "[3次]", "[2次]龙", "[1次]马", "[1次]羊"
+        ];
+
+        Assert.Null(RuleEngine.ExtractFinalValue(lines, 314, pinjian));
+        Assert.Equal("已找到314期文字，但最高次数之上存在空档（第3次无生肖）",
+            RuleEngine.DescribeExtractionFailure(lines, 314, pinjian));
+    }
+
+    // 非总量分支也要各自可区分：没有次数行、次数行没生肖、区段词缺失、最高档之上有空档。
+    [Fact]
+    public void SummarySheetsReportWhichStepFailedInsteadOfOneGenericSentence()
+    {
+        OcrRule pinjian = Rule("品鉴");
+        var sectioned = new OcrRule("品鉴", "统计生肖", "品鉴", Section: "生肖统计");
+
+        string noRows = RuleEngine.DescribeExtractionFailure(
+            ["314期您的统计结果", "本期暂无表格"], 314, pinjian);
+        string noZodiac = RuleEngine.DescribeExtractionFailure(
+            ["314期您的统计结果", "【0次】", "【1次】", "【2次】"], 314, pinjian);
+        string noSection = RuleEngine.DescribeExtractionFailure(
+            ["314期您的统计结果", "【1次】猴"], 314, sectioned);
+        string totalMismatch = RuleEngine.DescribeExtractionFailure(
+            ["314期您的统计结果", "【生肖统计】(总次数:43次)", "[01次】猴", "[02次]鼠牛"], 314, pinjian);
+        string gap = RuleEngine.DescribeExtractionFailure(
+            ["314期您的统计结果", "【1次】兔", "【3次】", "【2次】龙"], 314, pinjian);
+
+        Assert.Equal("已找到314期文字，但统计块内没有可解析的次数行", noRows);
+        Assert.Equal("已找到314期文字，但统计行里没有生肖", noZodiac);
+        Assert.Equal("已找到314期文字，但最高次数之上存在空档（第3次无生肖）", gap);
+        Assert.Equal("已找到314期文字，但次数合计与卡面总量不符（卡面43，合计5，2行）；需独立完整统计复核", totalMismatch);
+        Assert.StartsWith("已找到314期文字，但未定位到本期统计块", noSection);
+        Assert.Contains("生肖统计", noSection);
+        Assert.Equal(5, new[] { noRows, noZodiac, noSection, totalMismatch, gap }
+            .Distinct(StringComparer.Ordinal).Count());
+        // 非总量分支同样不能再吐出旧的那一句笼统文案。
+        Assert.DoesNotContain("未提取到最高次数生肖", noRows + noZodiac + noSection + gap);
     }
 }

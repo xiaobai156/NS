@@ -1328,6 +1328,10 @@ public sealed class MainForm : Form
                     LocalEvidence = BindPaddleEvidence(localClient, candidate, "local-primary/medium")
                 })
                 .ToArray();
+            IReadOnlyList<OcrEvidence> verifiedStatistics = await PrepareStatisticsEvidenceBatchAsync(
+                candidates.Where(c => c.LocalEvidence is not null).Select(c => c.LocalEvidence!).ToArray(), rules, issue);
+            candidates = candidates.Select(c => c with { LocalEvidence = verifiedStatistics.FirstOrDefault(e =>
+                e.SourcePath == c.SourcePath && e.InputPath == c.OcrPath) ?? c.LocalEvidence }).ToArray();
             var values = new ResultValues(StringComparer.Ordinal);
             var evidenceLedger = new ResultEvidenceLedger();
             var recognizedRuleIds = new HashSet<string>(StringComparer.Ordinal);
@@ -1479,7 +1483,7 @@ public sealed class MainForm : Form
                                 statusLabel.Text = $"本地主识别：云 OCR 兜底 {credential.DisplayName} · {completed + 1}/{cloudCandidates.Length} · 当前：{ShortPath(candidate.SourcePath)}";
                                 return await client.RecognizeEvidenceAsync(candidate.OcrPath, ActiveToken);
                             });
-                        return evidence.Bind(identity);
+                        return evidence.Bind(identity) with { Reader = "cloud" };
                     }
                     catch (OcrException exception) when (CloudOcrPolicy.IsRateLimit(credential.Provider, exception))
                     {
@@ -1545,6 +1549,8 @@ public sealed class MainForm : Form
                     }
                 }
 
+                if (cloudEvidence is not null)
+                    cloudEvidence = await PrepareStatisticsEvidenceAsync(cloudEvidence, evidenceRules, issue);
                 IReadOnlyList<string> cloudLines = cloudEvidence?.Lines ?? [];
                 if (cloudEvidence is not null)
                 {
@@ -1609,7 +1615,11 @@ public sealed class MainForm : Form
                     ? (failedCandidate is null && selection.NoCandidateReason is not null
                         ? selection.NoCandidateReason
                         : RuleEngine.DescribeMissing(failedCandidate is not null, recognizedText: false))
-                    : RuleEngine.DescribeExtractionFailure(failedLines, issue, rule);
+                    : rule.Type == "统计生肖"
+                        ? RuleEngine.DescribeExtractionFailure(failedCandidate is not null
+                            && cloudEvidenceByCandidate.TryGetValue(failedCandidate.SourcePath, out var failedEvidence)
+                                ? failedEvidence : failedCandidate?.LocalEvidence, issue, rule)
+                        : RuleEngine.DescribeExtractionFailure(failedLines, issue, rule);
             }
             ApplyGapFillNotes(gapFillNotes, missingReasons);
 
@@ -2313,7 +2323,7 @@ public sealed class MainForm : Form
                     try
                     {
                         OcrEvidence evidence = await cloudClient.RecognizeEvidenceAsync(candidate.OcrPath, ActiveToken);
-                        return evidence.Bind(identity);
+                        return evidence.Bind(identity) with { Reader = "cloud" };
                     }
                     catch (OcrException exception) when (CloudOcrPolicy.IsRateLimit(credential.Provider, exception))
                     {
@@ -2373,7 +2383,7 @@ public sealed class MainForm : Form
                     try
                     {
                         OcrEvidence evidence = await fallbackClient.RecognizeEvidenceAsync(candidate.SourcePath, ActiveToken);
-                        return evidence.Bind(identity);
+                        return evidence.Bind(identity) with { Reader = "cloud" };
                     }
                     catch (OcrException exception) when (CloudOcrPolicy.IsRateLimit(fallbackCredential.Provider, exception))
                     {
@@ -2443,6 +2453,7 @@ public sealed class MainForm : Form
                     cloudEvidence = await RecognizePrimaryDeduplicatedAsync(
                         candidate, cloudIndex, plannedCloudImages, "云 OCR");
                 }
+                cloudEvidence = await PrepareStatisticsEvidenceAsync(cloudEvidence, activeRules, issue);
                 IReadOnlyList<string> cloudLines = cloudEvidence.Lines;
 
                 SetProgress(cloudIndex, plannedCloudImages);
@@ -2476,6 +2487,7 @@ public sealed class MainForm : Form
                         async () => await RecognizeFallbackAsync(candidate, cloudIndex, error => fallbackError = error)
                             ?? OcrEvidence.FromLines(candidate.SourcePath, [], "fallback-empty"));
 
+                    fallbackEvidence = await PrepareStatisticsEvidenceAsync(fallbackEvidence, activeRules, issue);
                     if (fallbackEvidence.Items.Count > 0)
                     {
                         foreach (OcrRule rule in activeRules)
@@ -2509,7 +2521,7 @@ public sealed class MainForm : Form
                         missingReasons.Remove(rule.Id);
                     else
                         missingReasons[rule.Id] = textRecognizedRuleIds.Contains(rule.Id)
-                            ? RuleEngine.DescribeExtractionFailure(cloudLines, issue, rule)
+                            ? RuleEngine.DescribeExtractionFailure(cloudEvidence, issue, rule)
                             : RuleEngine.DescribeMissing(foundImage: true, recognizedText: false);
                 }
 
@@ -2777,11 +2789,14 @@ public sealed class MainForm : Form
                 ReportRecognitionStage(localStageToken, stageName, batchDone, batchSize, workDone, workTotal);
             });
 
+        var verifiedRetryInputs = new Dictionary<string, OcrEvidence>(StringComparer.OrdinalIgnoreCase);
+
         async Task RecognizeRetryBatchAsync(IReadOnlyList<string> inputs, IProgress<LocalOcrProgress> progress)
         {
             if (inputs.Count == 0)
                 return;
             cancellationToken.ThrowIfCancellationRequested();
+            verifiedRetryInputs.Clear();
             try
             {
                 await client.RecognizeBatchAsync(
@@ -2792,8 +2807,18 @@ public sealed class MainForm : Form
                     useCache: true,
                     cancellationToken: cancellationToken,
                     model: PaddleOcrModels.LocalPrimary);
+                var bound = client.LastEvidence.Select(pair =>
+                {
+                    var candidate = candidates.First(c => c.OcrPath == pair.Key || c.SourcePath == pair.Key);
+                    return pair.Value.Bind(RequirePinnedCandidateIdentity(candidate.PinnedIdentity,
+                        candidate.SourcePath, pair.Key, "retry/local-medium"));
+                }).ToArray();
+                foreach (var evidence in await PrepareStatisticsEvidenceBatchAsync(bound,
+                    candidates.SelectMany(c => RetryEvidenceRules(c, lastRules)).Distinct().ToArray(), issue))
+                    verifiedRetryInputs[evidence.InputPath] = evidence;
             }
-            catch (OcrException exception) when (PaddleLocalOcrClient.IsCudaUnavailable(exception))
+            catch (OcrException exception) when (PaddleLocalOcrClient.IsCudaUnavailable(exception)
+                || exception.Code == "OCR_IMAGE_CHANGED")
             {
                 throw;
             }
@@ -2808,7 +2833,7 @@ public sealed class MainForm : Form
         {
             cancellationToken.ThrowIfCancellationRequested();
             SetStageStatus(localStageToken, $"复抓本机 OCR：{phase}结果应用 {Math.Min(phaseCompleted + 1, phaseTotal)}/{phaseTotal} · {ShortPath(candidate.SourcePath)}");
-            client.LastEvidence.TryGetValue(inputPath, out OcrEvidence? evidence);
+            verifiedRetryInputs.TryGetValue(inputPath, out OcrEvidence? evidence);
             IReadOnlyDictionary<string, string>? gapFillNotes = null;
             if (evidence is not null)
             {
@@ -2827,7 +2852,7 @@ public sealed class MainForm : Form
                 else
                     lastMissingReasons[rule.Id] = UnreadImageReason(rule, client.LastImageErrors)
                         ?? (lastTextRecognizedRuleIds.Contains(rule.Id)
-                            ? RuleEngine.DescribeExtractionFailure(evidence?.Lines ?? [], issue, rule)
+                            ? RuleEngine.DescribeExtractionFailure(evidence, issue, rule)
                             : RuleEngine.DescribeMissing(foundImage: true, recognizedText: false));
             }
             if (gapFillNotes is not null)
@@ -3087,7 +3112,10 @@ public sealed class MainForm : Form
                 int cloudRequestsBeforeCandidate = cloudRequests;
 
                 OcrEvidence? primaryEvidence = null;
-                bool reusedCache = retryCloudEvidence.TryGetValue(candidate.SourcePath, out OcrEvidence? cachedEvidence)
+                retryCloudEvidence.TryGetValue(candidate.SourcePath, out OcrEvidence? cachedEvidence);
+                if (cachedEvidence is not null)
+                    cachedEvidence = await PrepareStatisticsEvidenceAsync(cachedEvidence, evidenceRules, lastIssue);
+                bool reusedCache = cachedEvidence is not null
                     && CanReuseRetryCloudEvidence(lastValues, candidateMissing, cachedEvidence, lastIssue);
                 if (reusedCache)
                 {
@@ -3126,6 +3154,7 @@ public sealed class MainForm : Form
                                         cloudClient, credential, retryIdentity,
                                         completed + 1, cloudTotal);
                                 });
+                            primaryEvidence = await PrepareStatisticsEvidenceAsync(primaryEvidence, evidenceRules, lastIssue);
                             AddExtractedEvidenceValues(primaryEvidence, evidenceRules, lastIssue, lastValues, lastEvidenceLedger);
                             break;
                         }
@@ -3139,6 +3168,11 @@ public sealed class MainForm : Form
                             credential = retryRotation.Current;
                             cloudClient = OcrClientFactory.CreateDeferred(credential);
                             statusLabel.Text = $"复抓主云 {credential.DisplayName} 无权限/无额度，切换下一个账号…";
+                        }
+                        catch (OcrException exception) when (PaddleLocalOcrClient.IsCudaUnavailable(exception)
+                            || exception.Code == "OCR_IMAGE_CHANGED")
+                        {
+                            throw;
                         }
                         catch (OcrException exception)
                         {
@@ -3179,7 +3213,13 @@ public sealed class MainForm : Form
                                     fallbackClient, fallbackCredential, retryIdentity,
                                     completed + 1, cloudTotal);
                             });
+                        fallbackEvidence = await PrepareStatisticsEvidenceAsync(fallbackEvidence, evidenceRules, lastIssue);
                         AddExtractedEvidenceValues(fallbackEvidence, evidenceRules, lastIssue, lastValues, lastEvidenceLedger);
+                    }
+                    catch (OcrException exception) when (PaddleLocalOcrClient.IsCudaUnavailable(exception)
+                        || exception.Code == "OCR_IMAGE_CHANGED")
+                    {
+                        throw;
                     }
                     catch (OcrException)
                     {
@@ -3211,7 +3251,7 @@ public sealed class MainForm : Form
                     else
                         lastMissingReasons[rule.Id] = lastTextRecognizedRuleIds.Contains(rule.Id)
                             ? RuleEngine.DescribeExtractionFailure(
-                                primaryEvidence?.Lines ?? fallbackEvidence?.Lines ?? [], lastIssue, rule)
+                                primaryEvidence ?? fallbackEvidence, lastIssue, rule)
                             : RuleEngine.DescribeMissing(foundImage: true, recognizedText: false);
                 }
                 ApplyGapFillNotes(gapFillNotes, lastMissingReasons);
@@ -3378,7 +3418,7 @@ public sealed class MainForm : Form
         OcrEvidence evidence = await RecognizeWithCloudRetryAsync(
             credential, current, total, sourcePath,
             () => client.RecognizeEvidenceAsync(inputPath, ActiveToken));
-        return evidence.Bind(identity);
+        return evidence.Bind(identity) with { Reader = "cloud" };
     }
 
     private async Task<IReadOnlyList<string>> RecognizeRetryAsync(
@@ -3608,9 +3648,12 @@ public sealed class MainForm : Form
             return;
         }
 
+        var verifiedSources = await PrepareStatisticsEvidenceBatchAsync(sources
+            .Select(source => BindPaddleEvidence(client, source, source, "local-primary/source"))
+            .Where(e => e is not null).Cast<OcrEvidence>().ToArray(), pending, issue);
         foreach (string source in sources)
         {
-            OcrEvidence? evidence = BindPaddleEvidence(client, source, source, "local-primary/source");
+            OcrEvidence? evidence = verifiedSources.FirstOrDefault(e => e.SourcePath == source);
             if (evidence is null)
                 continue;
             OcrRule[] needed = pending
@@ -4567,6 +4610,20 @@ public sealed class MainForm : Form
         candidateRules.Any(rule => !acceptedValues.ContainsKey(rule.Id))
             ? candidateRules
             : Array.Empty<OcrRule>();
+
+    private async Task<IReadOnlyList<OcrEvidence>> PrepareStatisticsEvidenceBatchAsync(
+        IReadOnlyList<OcrEvidence> evidence, IReadOnlyList<OcrRule> rules, int issue)
+    {
+        if (!evidence.Any(e => rules.Any(r => RuleEngine.NeedsStatisticsVerification(e, issue, r))))
+            return evidence;
+        var client = new PaddleLocalOcrClient(ocrDevice);
+        TrackLocalOcrClient("统计表独立核对（small）", client);
+        statusLabel.Text = "正在独立核对统计表的生肖和次数……";
+        return await StatisticsVerification.VerifyBatchAsync(evidence, rules, issue, client, ActiveToken);
+    }
+
+    private async Task<OcrEvidence> PrepareStatisticsEvidenceAsync(OcrEvidence evidence, IReadOnlyList<OcrRule> rules, int issue) =>
+        (await PrepareStatisticsEvidenceBatchAsync([evidence], rules, issue))[0];
 
     private static OcrEvidence? BindPaddleEvidence(
         PaddleLocalOcrClient client,

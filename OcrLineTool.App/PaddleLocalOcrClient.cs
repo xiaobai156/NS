@@ -257,7 +257,7 @@ public sealed class PaddleLocalOcrClient
                 if (cache.TryGetValue(key, out CacheEntry? entry))
                 {
                     results[path] = entry.Texts;
-                    imageEvidence[path] = BuildEvidence(path, entry.Texts, entry.Items, hash);
+                    imageEvidence[path] = BuildEvidence(path, entry.Texts, entry.Items, hash) with { Reader = "paddle/" + model.ToString().ToLowerInvariant() };
                     cached.Add(path);
                 }
                 else
@@ -398,7 +398,7 @@ public sealed class PaddleLocalOcrClient
                             string[] texts = result.Texts ?? [];
                             PaddleItem[] items = result.Items ?? [];
                             results[result.Path] = texts;
-                            imageEvidence[result.Path] = BuildEvidence(result.Path, texts, items, hash);
+                            imageEvidence[result.Path] = BuildEvidence(result.Path, texts, items, hash) with { Reader = "paddle/" + model.ToString().ToLowerInvariant() };
                             // Empty results are not durable success-cache entries.
                             if (texts.Any(line => !string.IsNullOrWhiteSpace(line)))
                                 cache[key] = new CacheEntry(key, texts, items, batchDate);
