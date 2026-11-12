@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="..\OcrLineTool.App\OcrLineTool.App.csproj" />
     <Content Include="Fixtures\statistics-314.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Fixtures\zhansha-halfwave-316.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Fixtures\dayingjia-two-balls.*" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Fixtures\red-dragonfly-waves.*" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Fixtures\shensuanzu-309.json" CopyToOutputDirectory="PreserveNewest" />

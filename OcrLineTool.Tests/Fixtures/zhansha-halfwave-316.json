@@ -1,0 +1,294 @@
+{
+  "Small": [
+    {
+      "Text": "斩杀半波",
+      "Box": {
+        "X": 171,
+        "Y": 13,
+        "Width": 113,
+        "Height": 36,
+        "Right": 284,
+        "Bottom": 49,
+        "CenterX": 227.5,
+        "CenterY": 31
+      },
+      "Confidence": 0.9990640878677368,
+      "ViewId": "paddle/original",
+      "RegionId": "main"
+    },
+    {
+      "Text": "314期(红单)√",
+      "Box": {
+        "X": 147,
+        "Y": 56,
+        "Width": 163,
+        "Height": 31,
+        "Right": 310,
+        "Bottom": 87,
+        "CenterX": 228.5,
+        "CenterY": 71.5
+      },
+      "Confidence": 0.9969033002853394,
+      "ViewId": "paddle/original",
+      "RegionId": "main"
+    },
+    {
+      "Text": "315期(红双)√",
+      "Box": {
+        "X": 146,
+        "Y": 94,
+        "Width": 165,
+        "Height": 35,
+        "Right": 311,
+        "Bottom": 129,
+        "CenterX": 228.5,
+        "CenterY": 111.5
+      },
+      "Confidence": 0.9963786005973816,
+      "ViewId": "paddle/original",
+      "RegionId": "main"
+    },
+    {
+      "Text": "316期(红单)√",
+      "Box": {
+        "X": 147,
+        "Y": 135,
+        "Width": 163,
+        "Height": 35,
+        "Right": 310,
+        "Bottom": 170,
+        "CenterX": 228.5,
+        "CenterY": 152.5
+      },
+      "Confidence": 0.9962397813796997,
+      "ViewId": "paddle/original",
+      "RegionId": "main"
+    },
+    {
+      "Text": "317期(研究)√",
+      "Box": {
+        "X": 146,
+        "Y": 175,
+        "Width": 162,
+        "Height": 34,
+        "Right": 308,
+        "Bottom": 209,
+        "CenterX": 227,
+        "CenterY": 192
+      },
+      "Confidence": 0.9972429275512695,
+      "ViewId": "paddle/original",
+      "RegionId": "main"
+    },
+    {
+      "Text": "318期(研究)√",
+      "Box": {
+        "X": 146,
+        "Y": 216,
+        "Width": 164,
+        "Height": 35,
+        "Right": 310,
+        "Bottom": 251,
+        "CenterX": 228,
+        "CenterY": 233.5
+      },
+      "Confidence": 0.9968827366828918,
+      "ViewId": "paddle/original",
+      "RegionId": "main"
+    },
+    {
+      "Text": "319期(研究)√",
+      "Box": {
+        "X": 146,
+        "Y": 257,
+        "Width": 165,
+        "Height": 34,
+        "Right": 311,
+        "Bottom": 291,
+        "CenterX": 228.5,
+        "CenterY": 274
+      },
+      "Confidence": 0.9973335266113281,
+      "ViewId": "paddle/original",
+      "RegionId": "main"
+    },
+    {
+      "Text": "320期(研究)√",
+      "Box": {
+        "X": 145,
+        "Y": 298,
+        "Width": 167,
+        "Height": 34,
+        "Right": 312,
+        "Bottom": 332,
+        "CenterX": 228.5,
+        "CenterY": 315
+      },
+      "Confidence": 0.9943170547485352,
+      "ViewId": "paddle/original",
+      "RegionId": "main"
+    },
+    {
+      "Text": "321期(研究)√",
+      "Box": {
+        "X": 147,
+        "Y": 338,
+        "Width": 162,
+        "Height": 35,
+        "Right": 309,
+        "Bottom": 373,
+        "CenterX": 228,
+        "CenterY": 355.5
+      },
+      "Confidence": 0.9969704747200012,
+      "ViewId": "paddle/original",
+      "RegionId": "main"
+    }
+  ],
+  "Medium": [
+    {
+      "Text": "斩杀半波",
+      "Box": {
+        "X": 174,
+        "Y": 15,
+        "Width": 109,
+        "Height": 33,
+        "Right": 283,
+        "Bottom": 48,
+        "CenterX": 228.5,
+        "CenterY": 31.5
+      },
+      "Confidence": 0.9997036457061768,
+      "ViewId": "paddle/original",
+      "RegionId": "main"
+    },
+    {
+      "Text": "314期(红单)√",
+      "Box": {
+        "X": 149,
+        "Y": 58,
+        "Width": 159,
+        "Height": 28,
+        "Right": 308,
+        "Bottom": 86,
+        "CenterX": 228.5,
+        "CenterY": 72
+      },
+      "Confidence": 0.9919858574867249,
+      "ViewId": "paddle/original",
+      "RegionId": "main"
+    },
+    {
+      "Text": "315期(红双)√",
+      "Box": {
+        "X": 149,
+        "Y": 99,
+        "Width": 159,
+        "Height": 27,
+        "Right": 308,
+        "Bottom": 126,
+        "CenterX": 228.5,
+        "CenterY": 112.5
+      },
+      "Confidence": 0.9982112050056458,
+      "ViewId": "paddle/original",
+      "RegionId": "main"
+    },
+    {
+      "Text": "316期(红单)√",
+      "Box": {
+        "X": 149,
+        "Y": 139,
+        "Width": 159,
+        "Height": 29,
+        "Right": 308,
+        "Bottom": 168,
+        "CenterX": 228.5,
+        "CenterY": 153.5
+      },
+      "Confidence": 0.9932936429977417,
+      "ViewId": "paddle/original",
+      "RegionId": "main"
+    },
+    {
+      "Text": "317期(研究)√",
+      "Box": {
+        "X": 150,
+        "Y": 180,
+        "Width": 158,
+        "Height": 28,
+        "Right": 308,
+        "Bottom": 208,
+        "CenterX": 229,
+        "CenterY": 194
+      },
+      "Confidence": 0.9952349066734314,
+      "ViewId": "paddle/original",
+      "RegionId": "main"
+    },
+    {
+      "Text": "318期(研究)√",
+      "Box": {
+        "X": 149,
+        "Y": 220,
+        "Width": 160,
+        "Height": 29,
+        "Right": 309,
+        "Bottom": 249,
+        "CenterX": 229,
+        "CenterY": 234.5
+      },
+      "Confidence": 0.9947277903556824,
+      "ViewId": "paddle/original",
+      "RegionId": "main"
+    },
+    {
+      "Text": "319期(研究)√",
+      "Box": {
+        "X": 148,
+        "Y": 261,
+        "Width": 160,
+        "Height": 28,
+        "Right": 308,
+        "Bottom": 289,
+        "CenterX": 228,
+        "CenterY": 275
+      },
+      "Confidence": 0.9938980937004089,
+      "ViewId": "paddle/original",
+      "RegionId": "main"
+    },
+    {
+      "Text": "320期(研究)√",
+      "Box": {
+        "X": 147,
+        "Y": 302,
+        "Width": 163,
+        "Height": 28,
+        "Right": 310,
+        "Bottom": 330,
+        "CenterX": 228.5,
+        "CenterY": 316
+      },
+      "Confidence": 0.9966923594474792,
+      "ViewId": "paddle/original",
+      "RegionId": "main"
+    },
+    {
+      "Text": "321期(研究)√",
+      "Box": {
+        "X": 147,
+        "Y": 338,
+        "Width": 162,
+        "Height": 34,
+        "Right": 309,
+        "Bottom": 372,
+        "CenterX": 228,
+        "CenterY": 355
+      },
+      "Confidence": 0.9822714328765869,
+      "ViewId": "paddle/original",
+      "RegionId": "main"
+    }
+  ]
+}

@@ -281,6 +281,10 @@ public static partial class RuleEngine
             : [];
         return requestedRules.Where(rule =>
         {
+            if (IsZhanShaHalfWave(rule))
+                return RuleCatalog.PathBelongsToGroup(imagePath, "新澳高手")
+                    && MatchesRuleFolder(imagePath, rule)
+                    && ZhanShaHalfWaveRows(lines, rule) is not null;
             // These full titles must also guard folder/value-only retry paths.
             if (FullCardIdentity(rawText, rule) is bool exactCardIdentity)
                 return exactCardIdentity && MatchesText(rawText, rule)
@@ -550,6 +554,7 @@ public static partial class RuleEngine
         string keyword = Normalize(rule.Keyword);
         string? title = (rule.Id, keyword, rule.Type) switch
         {
+            ("斩杀半波", _, "色单双") when IsZhanShaHalfWave(rule) => "斩杀半波",
             ("超级赢家半波波", "绝杀半波", "色单双") => "大赢家绝杀半波",
             ("黄大仙半波", "杀半个波色", "色单双") => "黄大仙杀半个波色",
             (_, "唐朝杀一肖", "生肖") when rule.StrictIssueBlock => keyword,
@@ -1156,6 +1161,9 @@ public static partial class RuleEngine
         if (!rule.IgnoreIssue)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(issue);
         string[] lines = cloudLines.Select(line => rule.StrictIssueBlock ? SimplifyFixedCardText(line) : line).ToArray();
+
+        if (IsZhanShaHalfWave(rule))
+            return ExtractZhanShaHalfWave(lines, issue, rule);
 
         if (TryReadIdentity(lines, issue, rule, out string? identityValue))
             return identityValue;
@@ -3284,6 +3292,8 @@ public static partial class RuleEngine
         ArgumentNullException.ThrowIfNull(evidence);
         if (!rule.IgnoreIssue)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(issue);
+        if (IsZhanShaHalfWave(rule))
+            return ExtractZhanShaHalfWaveEvidence(evidence, issue, rule);
         if (rule.Type == "统计生肖")
             return ExtractStatisticsEvidence(evidence, issue, rule, out _);
         if (rule.Extractor == "rui_er_team_card")
