@@ -1,4 +1,4 @@
-﻿using OcrLineTool;
+using OcrLineTool;
 using Xunit;
 
 namespace OcrLineTool.Tests;
@@ -266,26 +266,6 @@ public sealed class Yanran253MissingRulesTests
         ];
 
         Assert.Equal("蛇", RuleEngine.ExtractFinalValue(lines, 253, rule));
-    }
-
-    [Fact]
-    public void ExtractsAlianZodiacAndTailFromTheNineMonthBlock()
-    {
-        OcrRule zodiac = Rule("阿莲杀肖肖");
-        OcrRule tail = Rule("阿莲杀尾尾");
-        string[] lines =
-        [
-            "啊莲", "9月份杀料",
-            "244期禁狗开46[666]", "245期禁羊开18[666]", "246期禁龙开30[666]", "247期禁猪开40[666]",
-            "248期禁虎开20[666]", "249期禁虎开23[666]", "250期禁猪开14[666]", "251期禁鸡开30[666]",
-            "252期禁牛开22[666]", "253期禁鼠开？？",
-            "244期禁6尾开46[裂开]", "245期禁8尾开18[裂开]", "246期禁9尾开30[666]", "247期禁1尾开40[666]",
-            "248期禁1尾开20[666]", "249期禁8尾开23[666]", "250期禁8尾开14[666]", "251期禁9尾开30[666]",
-            "252期禁3尾开22[666]", "253期禁7尾开？?"
-        ];
-
-        Assert.Equal("鼠", RuleEngine.ExtractFinalValue(lines, 253, zodiac));
-        Assert.Equal("7尾", RuleEngine.ExtractFinalValue(lines, 253, tail));
     }
 
     [Fact]

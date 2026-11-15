@@ -1,4 +1,4 @@
-﻿using OcrLineTool;
+using OcrLineTool;
 
 namespace OcrLineTool.Tests;
 
@@ -51,7 +51,7 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
 
-        Assert.Equal(107, rules.Count);
+        Assert.Equal(105, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.Contains(rules, rule => rule.Id == "钦差大臣公式一" && rule.Section == "公式一");
         Assert.Contains(rules, rule => rule.Id == "君军两尾" && rule.Type == "尾数组合");
@@ -88,12 +88,7 @@ public sealed class RuleCatalogTests
             && rule.Folder == "独傲洒脱" && rule.RequiredKeyword == "一特肖");
         Assert.Contains(rules, rule => rule.Id == "独傲洒脱杀二肖" && rule.Type == "生肖组合"
             && rule.Folder == "独傲洒脱" && rule.RequiredKeyword == "双规");
-        Assert.Contains(rules, rule => rule.Id == "阿莲杀肖肖" && rule.Type == "生肖"
-            && rule.Folder == "阿莲" && rule.RequiredKeyword == "阿莲"
-            && string.IsNullOrWhiteSpace(rule.Section));
-        Assert.Contains(rules, rule => rule.Id == "阿莲杀尾尾" && rule.Type == "尾"
-            && rule.Folder == "阿莲" && rule.RequiredKeyword == "阿莲"
-            && string.IsNullOrWhiteSpace(rule.Section));
+        Assert.DoesNotContain(rules, rule => rule.Id == "阿莲杀肖肖");
         Assert.DoesNotContain(rules, rule => rule.Id == "大中华杀肖肖");
         Assert.Contains(rules, rule => rule.Id == "借花献佛" && rule.Type == "统计生肖"
             && rule.Folder == "六扇门" && rule.RequiredKeyword == "借花献佛");

@@ -1,4 +1,4 @@
-﻿using OcrLineTool;
+using OcrLineTool;
 
 namespace OcrLineTool.Tests;
 
@@ -250,37 +250,6 @@ public sealed class RuleEngineTests
         Assert.Equal(["独傲洒脱杀肖肖", "独傲洒脱杀二肖"], actual.Select(rule => rule.Id));
     }
 
-    [Fact]
-    public void ExtractsAlianZodiacAndTailForTheTargetIssue()
-    {
-        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
-            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
-        OcrRule zodiac = Assert.Single(rules, rule => rule.Id == "阿莲杀肖肖");
-        OcrRule tail = Assert.Single(rules, rule => rule.Id == "阿莲杀尾尾");
-        string[] lines = ["阿莲", "9月份杀号", "247期禁猪开??", "247期禁1尾开??"];
-
-        Assert.Equal("猪", RuleEngine.ExtractValue(lines, 247, zodiac));
-        Assert.Equal("1尾", RuleEngine.ExtractValue(lines, 247, tail));
-    }
-
-    // 阿莲的卡每月换标题（9月份/10月份/11月份…）：身份由 folder 和资料名确定，
-    // 不能再把某个月份写死，否则换月后整条资料静默缺失。
-    [Theory]
-    [InlineData("9月份杀号")]
-    [InlineData("10月份杀号")]
-    [InlineData("11月份杀号")]
-    public void ReadsTheAlianCardInAnyMonth(string heading)
-    {
-        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
-            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
-        OcrRule zodiac = Assert.Single(rules, rule => rule.Id == "阿莲杀肖肖");
-        OcrRule tail = Assert.Single(rules, rule => rule.Id == "阿莲杀尾尾");
-        string[] lines = ["阿莲", heading, "312期禁猪开??", "312期禁4尾开??"];
-
-        Assert.Equal("猪", RuleEngine.ExtractValue(lines, 312, zodiac));
-        Assert.Equal("4尾", RuleEngine.ExtractValue(lines, 312, tail));
-    }
-
     // 女人味一张卡同时印「杀2肖 / ⑥肖 / ③肖 / ①肖」四段（10.23 真实 medium 证据）。
     // 只允许读杀2肖段；六肖、三肖、一肖段的生肖不能凑成这条资料的两肖。
     [Fact]
@@ -331,22 +300,6 @@ public sealed class RuleEngineTests
             ["完美杀肖心水料", "296期：绝杀2肖(鸡鸡】开？00准"], 296, rule));
         Assert.Null(RuleEngine.ExtractValue(
             ["完美杀肖心水料", "296期：绝杀2肖(鸡龙狗】开？00准"], 296, rule));
-    }
-
-    [Fact]
-    public void UsesTheAlianFolderAndTitleToAvoidAnotherCardInTheFolder()    {
-        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
-            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
-        OcrRule[] alianRules = rules.Where(rule => rule.Id is "阿莲杀肖肖" or "阿莲杀尾尾").ToArray();
-        string image = @"C:\结果\9.4-嫣然心水\阿莲\sample.jpg";
-
-        Assert.Equal(
-            ["阿莲杀肖肖", "阿莲杀尾尾"],
-            RuleEngine.FindMatches(image,
-                ["阿莲", "9月份杀号", "247期禁猪开??", "247期禁1尾开??"], alianRules)
-                .Select(rule => rule.Id));
-        Assert.Empty(RuleEngine.FindMatches(image,
-            ["绿来如此【新澳门】综合料", "247期杀一肖【羊】开00"], alianRules));
     }
 
     [Fact]

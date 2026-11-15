@@ -1,4 +1,4 @@
-﻿{
+{
   "version": 1,
   "group": "嫣然心水",
   "rules": [
@@ -310,12 +310,14 @@
       "folder": "傻丫头"
     },
     {
-      "keyword": "东南仔",
+      "keyword": "独行客",
       "type": "生肖",
-      "required_keyword": "东南仔",
+      "label": "东南仔",
+      "required_keyword": "独行客",
       "folder": "东南仔",
       "allow_folder_identity": true,
-      "require_folder_name": true
+      "require_folder_name": false,
+      "stop_at_plus": true
     },
     {
       "keyword": "梁微微",
@@ -566,7 +568,6 @@
       "label": "欧阳半波",
       "extractor": "ouyang_half_wave",
       "required_keyword": "欧阳",
-      "section": "欧阳",
       "folder": "乖乖团队"
     },
     {
@@ -683,20 +684,6 @@
       "section": "双规",
       "required_keyword": "双规",
       "folder": "独傲洒脱"
-    },
-    {
-      "keyword": "阿莲",
-      "type": "生肖",
-      "label": "阿莲杀肖肖",
-      "required_keyword": "阿莲",
-      "folder": "阿莲"
-    },
-    {
-      "keyword": "阿莲",
-      "type": "尾",
-      "label": "阿莲杀尾尾",
-      "required_keyword": "阿莲",
-      "folder": "阿莲"
     },
     {
       "keyword": "借花献佛",

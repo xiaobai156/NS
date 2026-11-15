@@ -144,7 +144,8 @@ public sealed class YanranCardIdentityTests
     }
 
     [Theory]
-    [InlineData("东南仔")]
+    // 东南仔 现在按卡面标题「独行客」认卡（作者名竖排常被读成「东/南/用仔」），
+    // 不再要求卡面读出夹子名，所以不在这组里。
     [InlineData("送钱宝宝")]
     [InlineData("缘来如此杀一肖")]
     [InlineData("缘来如此尾")]
