@@ -74,6 +74,7 @@ public sealed class MainForm : Form
     private readonly Button localPrimaryButton = new DarkButton() { Text = "本地主识别", AutoSize = true, Padding = new Padding(12, 5, 12, 5), Enabled = false };
     private readonly Button retryMissingButton = new DarkButton() { Text = "手动复抓缺失", AutoSize = true, Padding = new Padding(12, 5, 12, 5), Enabled = false };
     private readonly Button manualDistributeButton = new DarkButton() { Text = "手动分流", AutoSize = true, Padding = new Padding(12, 5, 12, 5), Enabled = false };
+    private readonly Button batchDistributeButton = new DarkButton() { Text = "一键分流", AutoSize = true, Padding = new Padding(12, 5, 12, 5) };
     private readonly Button continueButton = new DarkButton() { Text = "继续云 OCR", AutoSize = true, Padding = new Padding(12, 5, 12, 5), Enabled = false, Visible = false };
     private readonly Button openGroupResultsButton = new DarkButton() { Text = "打开群结果", AutoSize = true, Padding = new Padding(12, 5, 12, 5) };
     private readonly Button clearResultsButton = new DarkButton() { Text = "清除", AutoSize = true, Padding = new Padding(12, 5, 12, 5) };
@@ -222,6 +223,7 @@ public sealed class MainForm : Form
         localPrimaryButton.Click += RecognizeLocalPrimaryAsync;
         retryMissingButton.Click += RetryMissingAsync;
         manualDistributeButton.Click += ManualDistributeAsync;
+        batchDistributeButton.Click += BatchDistributeAsync;
         continueButton.Click += ContinueCloudOcr;
         openGroupResultsButton.Click += (_, _) => OpenGroupResults();
         clearResultsButton.Click += ClearOutputFiles;
@@ -451,33 +453,31 @@ public sealed class MainForm : Form
         var content = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 6,
-            Padding = new Padding(18, 14, 18, 22), BackColor = CardBackground,
+            Padding = new Padding(18, 10, 18, 22), BackColor = CardBackground,
             Margin = Padding.Empty
         };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        // The spare height sits above the title so the tool column bottoms out on
-        // the same line as the middle column's primary button.
+        // 不显示「工具」标题：这一行留给“一键分流”，按钮组整体也向上提了一点。
         content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-        content.Controls.Add(SectionTitle("工具"), 0, 1);
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
 
         settingsButton.Dock = DockStyle.Fill;
-        settingsButton.Margin = new Padding(0, 0, 0, 16);
-        content.Controls.Add(settingsButton, 0, 2);
+        settingsButton.Margin = new Padding(0, 0, 0, 10);
+        content.Controls.Add(settingsButton, 0, 1);
         missingSummaryButton.Dock = DockStyle.Fill;
-        missingSummaryButton.Margin = new Padding(0, 0, 0, 16);
-        content.Controls.Add(missingSummaryButton, 0, 3);
+        missingSummaryButton.Margin = new Padding(0, 0, 0, 10);
+        content.Controls.Add(missingSummaryButton, 0, 2);
         retryMissingButton.Dock = DockStyle.Fill;
-        retryMissingButton.Margin = new Padding(0, 0, 0, 16);
-        content.Controls.Add(retryMissingButton, 0, 4);
+        retryMissingButton.Margin = new Padding(0, 0, 0, 10);
+        content.Controls.Add(retryMissingButton, 0, 3);
 
         var distributeAction = new Panel
         {
-            Dock = DockStyle.Fill, Margin = Padding.Empty, BackColor = CardBackground
+            Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 10), BackColor = CardBackground
         };
         manualDistributeButton.Dock = DockStyle.Fill;
         manualDistributeButton.Margin = Padding.Empty;
@@ -485,7 +485,11 @@ public sealed class MainForm : Form
         continueButton.Margin = Padding.Empty;
         distributeAction.Controls.Add(manualDistributeButton);
         distributeAction.Controls.Add(continueButton);
-        content.Controls.Add(distributeAction, 0, 5);
+        content.Controls.Add(distributeAction, 0, 4);
+
+        batchDistributeButton.Dock = DockStyle.Fill;
+        batchDistributeButton.Margin = new Padding(0, 10, 0, 0);
+        content.Controls.Add(batchDistributeButton, 0, 5);
 
         card.Controls.Add(content);
         return card;
@@ -721,6 +725,7 @@ public sealed class MainForm : Form
         ConfigureButton(missingSummaryButton, "统计缺失", CardBackground, PrimaryText, BorderColor, 13);
         ConfigureButton(retryMissingButton, "手动复抓缺失", CardBackground, PrimaryText, BorderColor, 10);
         ConfigureButton(manualDistributeButton, "手动分流", CardBackground, PrimaryText, BorderColor, 12);
+        ConfigureButton(batchDistributeButton, "一键分流", CardBackground, PrimaryText, BorderColor, 15);
         ConfigureButton(continueButton, "继续云 OCR", CardBackground, AccentAmber, AccentAmber, 11);
         ConfigureButton(openGroupResultsButton, "打开群结果", CardBackground, PrimaryText, BorderColor, 6);
         ConfigureButton(settingsButton, "设置", CardBackground, PrimaryText, BorderColor, 14);
@@ -1137,6 +1142,7 @@ public sealed class MainForm : Form
             (localPrimaryButton, "本地主识别"),
             (retryMissingButton, "手动复抓缺失"),
             (manualDistributeButton, "手动分流"),
+            (batchDistributeButton, "一键分流"),
             (continueButton, "继续云OCR"),
             (openGroupResultsButton, "打开群结果"),
             (clearResultsButton, "清除"),
@@ -2692,6 +2698,89 @@ public sealed class MainForm : Form
         {
             SetBusy(false);
             // 分流刚写完盘：立刻重算群名标记，绿色要马上变回红色，不等 2 秒轮询。
+            RefreshFolderResultMarkers();
+        }
+    }
+
+    // 「一键分流」：按当前期号把所有群的结果各分流一遍，没有当期结果的群跳过。
+    private async void BatchDistributeAsync(object? sender, EventArgs e)
+    {
+        if (isBusy)
+            return;
+
+        int issue = Decimal.ToInt32(issueInput.Value);
+        SetBusy(true);
+        try
+        {
+            CaptureSettings capture = CurrentCaptureSettings();
+            string[] groupFolders = ImageFolderScanner.ListSubfolders(imageRootDirectory);
+            int groupCount = 0;
+            int lineCount = 0;
+            int skipped = 0;
+            int failed = 0;
+            var problems = new List<string>();
+            foreach (string folder in groupFolders)
+            {
+                string groupName = RuleCatalog.GroupNameForFolder(AppContext.BaseDirectory, folder);
+                if (!capture.IsGroupEnabled(groupName))
+                    continue;
+
+                string groupOutputPath = ResultFilePaths.ForGroup(AppContext.BaseDirectory, folder, issue);
+                if (!File.Exists(groupOutputPath))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                groupCount++;
+                try
+                {
+                    string[] editedLines = File.ReadAllLines(groupOutputPath, Encoding.UTF8)
+                        .Select(GroupResultFormatter.RemoveLegacySourceSuffix)
+                        .ToArray();
+                    string[] baseLines = editedLines.Select(RemoveDistributedSuffix).ToArray();
+                    DistributionResult distribution = await ResultDistributor.DistributeAllAsync(
+                        folder, issue, baseLines,
+                        nativeOcrStorePath: NativeOcrDirectoryMirror.DefaultStorePath);
+                    string[] updatedLines = editedLines
+                        .Select((line, index) => line.EndsWith("（已分流）", StringComparison.Ordinal)
+                            || !distribution.DistributedLines.Contains(baseLines[index])
+                                ? line
+                                : line + "（已分流）")
+                        .ToArray();
+                    await AtomicFile.WriteAllLinesAsync(groupOutputPath, updatedLines, new UTF8Encoding(true));
+                    lineCount += distribution.DistributedLines.Count;
+                    if (distribution.UndistributedLines.Count > 0 || distribution.Errors.Count > 0)
+                    {
+                        problems.Add($"{groupName}：未分发 {distribution.UndistributedLines.Count} 行，错误 {distribution.Errors.Count} 个");
+                    }
+                }
+                catch (Exception exception) when (exception is OcrException or IOException or UnauthorizedAccessException)
+                {
+                    failed++;
+                    problems.Add($"{groupName}：{exception.Message}");
+                }
+            }
+
+            statusLabel.Text = $"一键分流完成：处理 {groupCount} 个群，成功 {lineCount} 条，{skipped} 个群没有当期结果，{failed} 个群失败。";
+            if (problems.Count > 0)
+            {
+                MessageBox.Show(
+                    this,
+                    string.Join(Environment.NewLine, problems.Take(20)),
+                    "一键分流：部分群未完成",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+        catch (Exception exception)
+        {
+            OperationLog.AppendException(AppContext.BaseDirectory, "一键分流", string.Empty, issue, exception);
+            statusLabel.Text = "一键分流失败，请稍后重试。";
+        }
+        finally
+        {
+            SetBusy(false);
             RefreshFolderResultMarkers();
         }
     }
@@ -4827,6 +4916,7 @@ public sealed class MainForm : Form
         credentialSelector.Enabled = !busy;
         retryMissingButton.Enabled = !busy && CanRetryMissing();
         manualDistributeButton.Enabled = !busy && CanManualDistribute();
+        batchDistributeButton.Enabled = !busy;
         clearResultsButton.Enabled = !busy;
         missingSummaryButton.Enabled = !busy;
         settingsButton.Enabled = !busy;

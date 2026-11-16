@@ -996,10 +996,10 @@ public sealed class MainFormTests
         PerformLayoutRecursively(form);
 
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
-        var manual = (Button)typeof(MainForm).GetField("manualDistributeButton", flags)!.GetValue(form)!;
+        var batch = (Button)typeof(MainForm).GetField("batchDistributeButton", flags)!.GetValue(form)!;
         var localPrimary = (Button)typeof(MainForm).GetField("localPrimaryButton", flags)!.GetValue(form)!;
 
-        int manualBottom = manual.RectangleToScreen(manual.ClientRectangle).Bottom;
+        int manualBottom = batch.RectangleToScreen(batch.ClientRectangle).Bottom;
         int primaryBottom = localPrimary.RectangleToScreen(localPrimary.ClientRectangle).Bottom;
         Assert.Equal(primaryBottom, manualBottom);
     }
