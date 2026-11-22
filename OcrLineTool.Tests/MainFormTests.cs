@@ -131,27 +131,9 @@ public sealed class MainFormTests
 
     [Theory]
     [InlineData("9.2-新澳六合彩资料", false, true)]
-    [InlineData("新澳六合彩资料_245期", false, true)]
-    [InlineData("新澳六合彩资料", true, false)]
+    [InlineData("新澳六合彩资料_245期", true, true)]
     [InlineData("9.2-新澳高级会员", false, false)]
-    [InlineData("新澳六合彩资料备份", false, false)]
-    [InlineData("嫣然心水", false, false)]
-    public void DefersUnmatchedTemplatesOnlyOnLiuCaiFirstRun(string folder, bool retry, bool expected)
-    {
-        using var form = new MainForm();
-        typeof(MainForm).GetField("selectedImageDirectory", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(form, Path.Combine(@"C:\图片", folder));
-        var method = typeof(MainForm).GetMethod("DeferUnmatchedTemplates", BindingFlags.Instance | BindingFlags.NonPublic);
-
-        Assert.NotNull(method);
-        Assert.Equal(expected, method.Invoke(form, [retry]));
-    }
-
-    [Theory]
-    [InlineData("9.2-新澳六合彩资料", false, true)]
-    [InlineData("9.2-新澳六合彩资料", true, false)]
-    [InlineData("9.2-新澳高级会员", false, false)]
-    public async Task NoTemplateMatchesWaitForManualRetryOnlyOnLiuCaiFirstRun(string folder, bool retry, bool deferred)
+    public async Task EmptyTitleScanHasAnExplicitReasonForMacauOnly(string folder, bool retry, bool indexed)
     {
         using var form = new MainForm();
         var context = SynchronizationContext.Current;
@@ -169,8 +151,7 @@ public sealed class MainFormTests
             await task;
             object selection = task.GetType().GetProperty("Result")!.GetValue(task)!;
             string name = (string)selection.GetType().GetProperty("DisplayName")!.GetValue(selection)!;
-            Assert.Equal(deferred, name.Contains("待手动复抓", StringComparison.Ordinal));
-            Assert.Equal(!deferred, name == "本地OCR");
+            Assert.Equal(indexed ? MacauTitleIndex.SelectionName : "本地OCR", name);
             Assert.Empty((System.Collections.IEnumerable)selection.GetType().GetProperty("Candidates")!.GetValue(selection)!);
         }
         finally

@@ -3298,6 +3298,11 @@ public static partial class RuleEngine
             return ExtractStatisticsEvidence(evidence, issue, rule, out _);
         if (rule.Extractor == "rui_er_team_card")
             return ExtractRuiErTeamEvidence(evidence, issue, rule);
+        if (rule.Id == "天线宝杀" && rule.Type == "号码:12" && rule.StrictIssueBlock
+            && RuleCatalog.PathBelongsToGroup(evidence.SourcePath, "新澳六合彩资料")
+            && evidence.HasCompleteGeometry
+            && ExtractFixedWrappedTableRows(evidence, issue, rule) is { } antenna)
+            return antenna;
         if (UsesBoundedTableCell(evidence.SourcePath, rule))
             return ExtractBoundedTableCell(evidence, issue, rule);
         if (rule.Id == "黑客半波" && rule.Type == "缺半波")
@@ -3916,6 +3921,12 @@ public static partial class RuleEngine
                     continue;
                 string? value = complement ? MissingNumbersFromCompleteCell(field, rule)
                     : ExtractStrictTableValue(SimplifyFixedCardText(field), rule);
+                if (value is null && rule.Id == "天线宝杀" && rule.Type == "号码:12")
+                {
+                    Match payload = Regex.Match(field, @"^\s*12[码碼]\s*[→➡\-]+\s*(?<digits>[0-9\s]+)\s*[←⬅\-]*\s*(?:[精精选選杀殺]\s*)*$");
+                    if (payload.Success)
+                        value = FormatNumbers(ParseNumbers(payload.Groups["digits"].Value), 12);
+                }
                 if (value == ConflictMarker)
                     return RuleExtractionResult.Conflict;
                 if (value is not null)
@@ -7461,7 +7472,7 @@ public static partial class RuleEngine
             && yearIssueNumber == issue;
     }
 
-    private static string SimplifyFixedCardText(string text) => SimplifyOcrText(text)
+    internal static string SimplifyFixedCardText(string text) => SimplifyOcrText(text)
         .Replace('圖', '图').Replace('帥', '帅').Replace('鐵', '铁')
         .Replace('殺', '杀').Replace('碼', '码').Replace('頭', '头')
         .Replace('開', '开').Replace('獎', '奖').Replace('結', '结')

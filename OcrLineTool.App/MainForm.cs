@@ -1357,10 +1357,11 @@ public sealed class MainForm : Form
             }
 
             ApplyLocalValues(candidates);
-
-            // 模板裁剪图取不到的规则，用原图再本地识别一次（与云兜底默认用原图一致）。
-            await ApplyLocalSourceRetryAsync(
-                candidates, rules, issue, values, evidenceLedger, recognizedRuleIds, localClient);
+            if (RuleCatalog.IsGroupFolder(selectedImageDirectory!, "新澳六合彩资料"))
+                await RecoverMacauCandidateValuesAsync(candidates, issue, values, evidenceLedger, recognizedRuleIds);
+            else
+                await ApplyLocalSourceRetryAsync(
+                    candidates, rules, issue, values, evidenceLedger, recognizedRuleIds, localClient);
 
             IReadOnlyList<IReadOnlyList<string>> localSamples = candidates
                 .Where(candidate => candidate.IsPrimary)
@@ -3694,6 +3695,41 @@ public sealed class MainForm : Form
         }
     }
 
+    private async Task RecoverMacauCandidateValuesAsync(IReadOnlyList<RecognitionCandidate> candidates,
+        int issue, ResultValues values, ResultEvidenceLedger ledger, HashSet<string> recognized)
+    {
+        // A successful sibling must not hide a conflicting result on this card.
+        var pending = candidates.SelectMany(c => c.Rules.Where(rule => c.LocalEvidence is null ||
+            RuleEngine.ExtractFinalResult(c.LocalEvidence, issue, rule).Status == RuleExtractionStatus.Missing)
+            .Select(rule => (Candidate: c, Rule: rule))).ToList();
+        foreach (var (model, original) in new[] { (PaddleOcrModel.Medium, true),
+            (PaddleOcrModel.Small, false), (PaddleOcrModel.Small, true) })
+        {
+            if (pending.Count == 0) return;
+            string Input(RecognitionCandidate c) => original ? c.SourcePath : c.OcrPath;
+            var client = new PaddleLocalOcrClient(ocrDevice);
+            TrackLocalOcrClient("本地补读当前资料", client);
+            await client.RecognizeBatchAsync(pending.Select(item => Input(item.Candidate))
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), model: model, cancellationToken: ActiveToken);
+            foreach (var (candidate, rule) in pending.ToArray())
+            {
+                ActiveToken.ThrowIfCancellationRequested();
+                if (!client.LastEvidence.TryGetValue(Input(candidate), out var raw)) continue;
+                var pinned = candidate.PinnedIdentity;
+                if (pinned is null) continue;
+                string view = $"local-recovery/{model}/{(original ? "original" : "crop")}";
+                var evidence = raw.Bind(new(candidate.SourcePath, Input(candidate), pinned.SourceHash,
+                    original ? pinned.SourceHash : pinned.InputHash, view));
+                if (evidence.Items.Count > 0) recognized.Add(rule.Id);
+                var result = RuleEngine.ExtractFinalResult(evidence, issue, rule);
+                if (result.Status == RuleExtractionStatus.Missing) continue;
+                if (result.Status == RuleExtractionStatus.Conflict) ledger.ObserveConflict(values, rule, evidence);
+                else ledger.Observe(values, rule, result.Value!, evidence);
+                pending.Remove((candidate, rule));
+            }
+        }
+    }
+
     private async Task ApplyLocalSourceRetryAsync(
         IReadOnlyList<RecognitionCandidate> candidates,
         IReadOnlyList<OcrRule> rules,
@@ -4316,6 +4352,49 @@ public sealed class MainForm : Form
         manualDistributeButton.Enabled = CanManualDistribute();
     }
 
+    private async Task<IReadOnlyList<VisualTemplateMatch>> MatchMacauTitlesAsync(
+        IReadOnlyList<VisualTemplateDefinition> templates, MacauTitleIndex index,
+        IReadOnlyList<VisualTemplateMatch> visual, int issue, CancellationToken token)
+    {
+        var requested = templates.ToDictionary(t => t.Id, StringComparer.Ordinal);
+        var reader = new PaddleLocalOcrClient(ocrDevice);
+        TrackLocalOcrClient("本地资料标题", reader);
+        var unresolved = new List<string>();
+        var progress = new Progress<LocalOcrProgress>(p =>
+        {
+            if (!IsCurrentRun(token)) return;
+            SetProgress(p.Completed, p.Total);
+            statusLabel.Text = $"核对资料标题 {p.Completed}/{p.Total} · {p.Stage}";
+        });
+        async Task Read(IReadOnlyList<string> paths, double ratio)
+        {
+            await reader.RecognizeBatchAsync(paths, progress, titleRatio: ratio,
+                model: PaddleOcrModel.Medium, cancellationToken: token);
+            foreach (var error in reader.LastImageErrors) RecordUnreadImage(error.Key, error.Value);
+            await Task.Run(() =>
+            {
+                foreach (var evidence in reader.LastEvidence.Values)
+                {
+                    token.ThrowIfCancellationRequested();
+                    TryRunForSingleImage(() =>
+                    {
+                        using var image = Image.FromFile(evidence.SourcePath);
+                        if (!index.Read(evidence, image.Width, issue) && ratio < 1) unresolved.Add(evidence.SourcePath);
+                    }, out _);
+                }
+            }, token);
+        }
+        await Read(imagePaths, .4);
+        var matches = index.Combine(visual);
+        if (unresolved.Count > 0 && templates.Any(t => !matches.Any(m => m.Template.Id == t.Id)))
+        {
+            await Read(unresolved, 1);
+            matches = index.Combine(visual);
+        }
+        return matches.Where(m => requested.ContainsKey(m.Template.Id))
+            .Select(m => m with { Template = requested[m.Template.Id] }).ToArray();
+    }
+
     private async Task<CandidateSelection> SelectCandidatesAsync(
         IReadOnlyList<OcrRule> rules,
         int issue,
@@ -4330,12 +4409,12 @@ public sealed class MainForm : Form
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            bool deferUnmatchedTemplates = DeferUnmatchedTemplates(allowTemplateSubset);
+            bool useMacauTitles = selectedImageDirectory is not null && RuleCatalog.IsGroupFolder(selectedImageDirectory, "新澳六合彩资料");
             if (selectedImageDirectory is not null && VisualTemplateMatcher.Supports(selectedImageDirectory))
             {
                 string templatePath = VisualTemplateMatcher.ConfigPath(
                     AppContext.BaseDirectory, selectedImageDirectory);
-                if (File.Exists(templatePath) || deferUnmatchedTemplates)
+                if (File.Exists(templatePath) || useMacauTitles)
                 {
                     try
                     {
@@ -4343,16 +4422,18 @@ public sealed class MainForm : Form
                         var ruleMap = rules.ToDictionary(rule => rule.Id, StringComparer.Ordinal);
                         string[] configuredIds = catalog.Templates.SelectMany(item => item.RuleIds).ToArray();
                         HashSet<string> configuredRuleIds = configuredIds.ToHashSet(StringComparer.Ordinal);
+                        var identityMap = useMacauTitles && selectedRulePath is not null
+                            ? RuleCatalog.Load(selectedRulePath).ToDictionary(rule => rule.Id, StringComparer.Ordinal) : ruleMap;
                         if (configuredIds.Distinct(StringComparer.Ordinal).Count() != configuredIds.Length ||
-                            !configuredRuleIds.SetEquals(completeRuleIds))
+                            !(useMacauTitles ? configuredRuleIds.SetEquals(identityMap.Keys) : configuredRuleIds.SetEquals(completeRuleIds)))
                             throw new OcrException($"{catalog.Folder}标题模板与规则不一致。");
 
-                        IReadOnlyList<VisualTemplateDefinition> templates = allowTemplateSubset
+                        IReadOnlyList<VisualTemplateDefinition> templates = allowTemplateSubset || useMacauTitles
                             ? VisualTemplateMatcher.SelectForRules(
                                 catalog.Templates,
                                 ruleMap.Keys.ToHashSet(StringComparer.Ordinal))
                             : catalog.Templates;
-                        if ((!allowTemplateSubset && !configuredRuleIds.SetEquals(ruleMap.Keys)) ||
+                        if ((!allowTemplateSubset && !useMacauTitles && !configuredRuleIds.SetEquals(ruleMap.Keys)) ||
                             templates.Count == 0)
                             throw new OcrException($"{catalog.Folder}标题模板与规则不一致。");
 
@@ -4370,15 +4451,17 @@ public sealed class MainForm : Form
                                 .Where(match => match.Template.RuleIds.All(ruleMap.ContainsKey))
                                 .ToArray(), cancellationToken);
                         cancellationToken.ThrowIfCancellationRequested();
+                        if (useMacauTitles)
+                            matches = await MatchMacauTitlesAsync(templates, new MacauTitleIndex(catalog.Templates, identityMap),
+                                matches, issue, cancellationToken);
                         bool hasCompleteTemplateMatches = VisualTemplateMatcher.HasUsableMatches(
                             matches,
                             templates,
                             ruleMap.Keys.ToHashSet(StringComparer.Ordinal));
-                        if (deferUnmatchedTemplates && matches.Count == 0)
-                            return new CandidateSelection([], null, "标题模板（未命中，待手动复抓）",
-                                RuleEngine.TemplateUnmatchedReason);
+                        if (useMacauTitles && matches.Count == 0)
+                            return new CandidateSelection([], null, MacauTitleIndex.SelectionName, MacauTitleIndex.MissingReason);
 
-                        if (hasCompleteTemplateMatches || ((allowTemplateSubset || deferUnmatchedTemplates) && matches.Count > 0))
+                        if (hasCompleteTemplateMatches || ((allowTemplateSubset || useMacauTitles) && matches.Count > 0))
                         {
                             templateCropFolder = Path.Combine(
                                 Path.GetTempPath(), "OcrLineTool", "visual-templates-" + Guid.NewGuid().ToString("N"));
@@ -4426,8 +4509,8 @@ public sealed class MainForm : Form
                                                 ocrPath,
                                                 match.Template.RuleIds.Select(id => ruleMap[id]).ToArray(),
                                                 true,
-                                                "标题模板",
-                                                match.Distance,
+                                                match.Distance < 0 ? "完整资料标题" : "标题模板",
+                                                match.Distance < 0 ? null : match.Distance,
                                                 CreationIdentity: creationIdentity,
                                                 DeclaredRuleIds: declaredRuleIds);
                                         }, out string? matchError))
@@ -4449,18 +4532,11 @@ public sealed class MainForm : Form
                             // 覆盖情况必须按实际创建成功的候选重算，不能沿用丢弃坏图之前的判断。
                             hasCompleteTemplateMatches = VisualTemplateMatcher.HasUsableMatches(
                                 createdMatches, templates, ruleMap.Keys.ToHashSet(StringComparer.Ordinal));
+                            if (useMacauTitles)
+                                return new CandidateSelection(templateCandidates, templateCropFolder,
+                                    MacauTitleIndex.SelectionName, MacauTitleIndex.MissingReason);
                             if (hasCompleteTemplateMatches)
                                 return new CandidateSelection(templateCandidates, templateCropFolder, "标题模板");
-
-                            // 模板命中但候选全部因单图失败被丢弃：与「模板未命中」同等对待，
-                            // 不得报成部分命中；缩范围模式仍按原样回退本地 OCR。
-                            if (deferUnmatchedTemplates && templateCandidates.Count == 0)
-                                return new CandidateSelection(templateCandidates, templateCropFolder,
-                                    "标题模板（未命中，待手动复抓）");
-
-                            if (deferUnmatchedTemplates)
-                                return new CandidateSelection(templateCandidates, templateCropFolder,
-                                    "标题模板（部分命中，未匹配项待手动复抓）", RuleEngine.TemplateUnmatchedReason);
 
                             if (!allowTemplateSubset)
                             {
@@ -4488,7 +4564,7 @@ public sealed class MainForm : Form
                     }
                     catch (OcrException exception)
                     {
-                        if (deferUnmatchedTemplates || PaddleLocalOcrClient.IsCudaUnavailable(exception))
+                        if (useMacauTitles || PaddleLocalOcrClient.IsCudaUnavailable(exception))
                             throw;
                         statusLabel.Text = $"标题模板不可用（{exception.Message}），正在回退本地 OCR……";
                     }
@@ -4835,10 +4911,6 @@ public sealed class MainForm : Form
             return sourcePath;
         }
     }
-
-    private bool DeferUnmatchedTemplates(bool allowTemplateSubset) =>
-        !allowTemplateSubset && selectedImageDirectory is not null &&
-        RuleCatalog.IsGroupFolder(selectedImageDirectory, "新澳六合彩资料");
 
     private IReadOnlySet<string> LimitedLocalRetryRuleIds(IReadOnlyList<OcrRule> missingRules)
     {

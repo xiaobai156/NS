@@ -27,7 +27,7 @@ public sealed class TemplateSelectionTests
         using var crop = new Bitmap((string)Get(candidate, "OcrPath"));
         Assert.Equal(source.Height - 200, crop.Height);
         Assert.Equal(Color.Red.ToArgb(), crop.GetPixel(20, crop.Height - 10).ToArgb());
-        Assert.Equal("标题模板", Get(selection, "DisplayName"));
+        Assert.Equal(premium ? "标题模板" : MacauTitleIndex.SelectionName, Get(selection, "DisplayName"));
     }
 
     [Fact]
@@ -39,16 +39,16 @@ public sealed class TemplateSelectionTests
         Assert.Equal(fixture.ImagePath, Get(candidate, "SourcePath"));
         Assert.Equal("标题模板", Get(candidate, "SelectionMode"));
         Assert.Equal(["已匹配"], ((IReadOnlyList<OcrRule>)Get(candidate, "Rules")).Select(rule => rule.Id));
-        Assert.Contains("待手动复抓", (string)Get(selection, "DisplayName"));
-        // 部分命中时未匹配的规则必须是「模板未命中」，不能退化成「未找到对应图片」。
+        Assert.Equal(MacauTitleIndex.SelectionName, Get(selection, "DisplayName"));
+        // 两种选图方式都查过才记录缺失。
         string noCandidateReason = (string)Get(selection, "NoCandidateReason");
-        Assert.Equal(RuleEngine.TemplateUnmatchedReason, noCandidateReason);
+        Assert.Equal(MacauTitleIndex.MissingReason, noCandidateReason);
         string crop = (string)Get(candidate, "OcrPath");
         Assert.True(File.Exists(crop));
         Assert.NotEqual(fixture.ImagePath, crop);
         var values = new Dictionary<string, string> { ["已匹配"] = "牛" };
         var reasons = new Dictionary<string, string> { ["未匹配"] = noCandidateReason };
-        Assert.Contains("缺失（模板未命中） 未匹配", RuleEngine.FormatOutput(fixture.Rules, values, reasons));
+        Assert.Contains($"缺失（{MacauTitleIndex.MissingReason}） 未匹配", RuleEngine.FormatOutput(fixture.Rules, values, reasons));
     }
 
     [Theory]
@@ -89,7 +89,7 @@ public sealed class TemplateSelectionTests
         Assert.Equal(["已匹配"], ((IReadOnlyList<OcrRule>)Get(candidate, "Rules")).Select(rule => rule.Id));
         string display = (string)Get(selection, "DisplayName");
         Assert.NotEqual("标题模板", display);
-        Assert.Contains("待手动复抓", display);
+        Assert.Equal(MacauTitleIndex.SelectionName, display);
     }
 
     // 模板全部命中但候选全部创建失败：与「模板未命中」同等对待，不得报成部分命中。
@@ -101,7 +101,7 @@ public sealed class TemplateSelectionTests
 
         Assert.Empty(((IEnumerable)Get(selection, "Candidates")).Cast<object>());
         string display = (string)Get(selection, "DisplayName");
-        Assert.Contains("未命中", display);
+        Assert.Equal(MacauTitleIndex.SelectionName, display);
         Assert.DoesNotContain("部分命中", display);
     }
 
