@@ -148,6 +148,7 @@ public sealed class MainForm : Form
     private bool showRecognizeButton;
     private bool retryUsesLocalOcr;
     private LocalOcrDevice ocrDevice;
+    private bool useDualLocalOcr;
     private TableLayoutPanel? settingsContent;
     private bool closeWhenIdle;
     private bool automaticLocalOcrRunning;
@@ -217,6 +218,7 @@ public sealed class MainForm : Form
         ApplyShowRecognizeButton(initialSettings.ShowRecognizeButton);
         retryUsesLocalOcr = initialSettings.RetryUsesLocalOcr;
         ocrDevice = initialSettings.OcrDevice;
+        useDualLocalOcr = initialSettings.UseDualLocalOcr;
 
         folderList.Click += SelectFolderListItem;
         recognizeButton.Click += RecognizeImagesAsync;
@@ -1258,7 +1260,7 @@ public sealed class MainForm : Form
         {
             RefreshImagesForRetry();
             if (imagePaths.Length == 0) throw new OcrException("所选目录没有可识别图片。");
-            var localClient = new PaddleLocalOcrClient(ocrDevice);
+            var localClient = CreateLocalOcrClient();
             TrackLocalOcrClient("本地主识别（medium）", localClient);
             if (ocrDevice == LocalOcrDevice.Gpu)
                 await localClient.EnsureCudaAvailableAsync(ActiveToken);
@@ -2852,7 +2854,7 @@ public sealed class MainForm : Form
         int issue,
         CancellationToken cancellationToken)
     {
-        var client = new PaddleLocalOcrClient(ocrDevice);
+        var client = CreateLocalOcrClient();
         TrackLocalOcrClient("复抓本机 OCR（medium，裁剪图→原图）", client);
         string[] retryRuleIds = candidates
             .SelectMany(candidate => candidate.Rules)
@@ -3585,6 +3587,8 @@ public sealed class MainForm : Form
 
     private string LocalDeviceName => ocrDevice == LocalOcrDevice.Gpu ? "GPU" : "CPU";
 
+    private PaddleLocalOcrClient CreateLocalOcrClient() => new(ocrDevice, useDualLocalOcr);
+
     /// <summary>
     /// 中止诊断只写安全错误分类：异常原文可能带外部请求正文、路径或凭据，一律不写入。
     /// 类型与 HResult 由 OperationLog.AppendException 单独记录。
@@ -3707,7 +3711,7 @@ public sealed class MainForm : Form
         {
             if (pending.Count == 0) return;
             string Input(RecognitionCandidate c) => original ? c.SourcePath : c.OcrPath;
-            var client = new PaddleLocalOcrClient(ocrDevice);
+            var client = CreateLocalOcrClient();
             TrackLocalOcrClient("本地补读当前资料", client);
             await client.RecognizeBatchAsync(pending.Select(item => Input(item.Candidate))
                 .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), model: model, cancellationToken: ActiveToken);
@@ -3834,7 +3838,7 @@ public sealed class MainForm : Form
                 .Select(rule => (candidate.SourcePath, rule))).Distinct().ToArray();
         if (ownedRequests.Length > 0)
         {
-            var ownedClient = new PaddleLocalOcrClient(ocrDevice);
+            var ownedClient = CreateLocalOcrClient();
             TrackLocalOcrClient("蕊儿团队：本人区域复核", ownedClient);
             var progress = new Progress<LocalOcrProgress>(item =>
                 statusLabel.Text = $"蕊儿团队：本人区域复核 {item.Completed}/{item.Total}");
@@ -3885,7 +3889,7 @@ public sealed class MainForm : Form
             && issueRowNumberRules.Length == 0 && rightBlockRules.Length == 0 && tailTableRules.Length == 0)
             return;
 
-        var client = new PaddleLocalOcrClient(ocrDevice);
+        var client = CreateLocalOcrClient();
         TrackLocalOcrClient("复抓补读（medium，定位+裁剪重读）", client);
         double titleRatio = PaddleLocalOcrClient.TitleRatioFor(selectedImageDirectory);
         int? detectionMaxSide = PaddleLocalOcrClient.DetectionMaxSideFor(selectedImageDirectory);
@@ -4357,7 +4361,7 @@ public sealed class MainForm : Form
         IReadOnlyList<VisualTemplateMatch> visual, int issue, CancellationToken token)
     {
         var requested = templates.ToDictionary(t => t.Id, StringComparer.Ordinal);
-        var reader = new PaddleLocalOcrClient(ocrDevice);
+        var reader = CreateLocalOcrClient();
         TrackLocalOcrClient("本地资料标题", reader);
         var unresolved = new List<string>();
         var progress = new Progress<LocalOcrProgress>(p =>
@@ -4599,7 +4603,7 @@ public sealed class MainForm : Form
             if (localLimitedRuleIds is not null && rules.All(rule => localLimitedRuleIds.Contains(rule.Id)))
                 localImagePaths = imagePaths.Take(60).ToArray();
 
-            var localClient = new PaddleLocalOcrClient(ocrDevice);
+            var localClient = CreateLocalOcrClient();
             TrackLocalOcrClient("候选筛选（small）", localClient);
             IReadOnlyDictionary<string, IReadOnlyList<string>> localResults =
                 await localClient.RecognizeBatchAsync(
@@ -4623,7 +4627,7 @@ public sealed class MainForm : Form
             {
                 IReadOnlyList<LocalCandidatePlan> plans = LocalCandidatePlanner.Build(
                     imagePaths, localResults, rules, issue, completeIdentityRules);
-                var reviewClient = new PaddleLocalOcrClient(ocrDevice);
+                var reviewClient = CreateLocalOcrClient();
                 TrackLocalOcrClient("选图复核（medium）", reviewClient);
                 IReadOnlyList<LocalCandidatePlan> reviewedPlans = [];
                 try
@@ -4781,7 +4785,7 @@ public sealed class MainForm : Form
     {
         if (!evidence.Any(e => rules.Any(r => RuleEngine.NeedsStatisticsVerification(e, issue, r))))
             return evidence;
-        var client = new PaddleLocalOcrClient(ocrDevice);
+        var client = CreateLocalOcrClient();
         TrackLocalOcrClient("统计表独立核对（small）", client);
         statusLabel.Text = "正在独立核对统计表的生肖和次数……";
         return await StatisticsVerification.VerifyBatchAsync(evidence, rules, issue, client, ActiveToken);
@@ -5030,7 +5034,8 @@ public sealed class MainForm : Form
             ApplyShowRecognizeButton(dialog.Result.ShowRecognizeButton);
             retryUsesLocalOcr = dialog.Result.RetryUsesLocalOcr;
             ocrDevice = dialog.Result.OcrDevice;
-            string deviceName = ocrDevice == LocalOcrDevice.Gpu ? "GPU" : "CPU";
+            useDualLocalOcr = dialog.Result.UseDualLocalOcr;
+            string deviceName = $"{LocalDeviceName}（{(useDualLocalOcr ? "双路" : "单路")}）";
             string rootNote = ApplyImageRootDirectory(dialog.Result.EffectiveImageRootDirectory());
             statusLabel.Text = (showRecognizeButton
                 ? $"已显示“开始识别”按钮；本地 OCR 使用{deviceName}，手动复抓使用{(retryUsesLocalOcr ? "本地 OCR" : "云 OCR")}。"
@@ -5051,7 +5056,7 @@ public sealed class MainForm : Form
     /// 用户改别的选项再保存时会把自定义路径静默清回默认。
     /// </summary>
     internal UiSettings CurrentUiSettings() =>
-        new(showRecognizeButton, retryUsesLocalOcr, ocrDevice, imageRootDirectory);
+        new(showRecognizeButton, retryUsesLocalOcr, ocrDevice, imageRootDirectory, useDualLocalOcr);
 
     /// <summary>
     /// 应用新的抓取路径：路径变化时立即刷新群列表并清空当前选择，返回可拼到状态栏的说明。

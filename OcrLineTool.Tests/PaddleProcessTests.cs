@@ -10,6 +10,44 @@ namespace OcrLineTool.Tests;
 public sealed class PaddleProcessTests
 {
     [Theory]
+    [InlineData(LocalOcrDevice.Gpu)]
+    [InlineData(LocalOcrDevice.Cpu)]
+    public async Task DualWorkersReadSeparateImagesAndPublishEvidenceInInputOrder(LocalOcrDevice device)
+    {
+        string[] images = [CreateImagePath(), CreateImagePath(), CreateImagePath()];
+        var bothStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int started = 0;
+        var texts = images.Select((path, index) => (path, text: $"image {index}"))
+            .ToDictionary(item => item.path, item => item.text);
+        var requested = new List<string>();
+        var runner = new FakeProcessRunner(async (info, _, token) =>
+        {
+            RecordRequestedImages(info, requested);
+            if (Interlocked.Increment(ref started) == 2)
+                bothStarted.SetResult();
+            await bothStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), token);
+            WriteBatchResult(info, texts);
+            return new ProcessResult(true, 0, "", "");
+        });
+
+        try
+        {
+            var client = new PaddleLocalOcrClient(runner, device: device, useDualLocalOcr: true);
+            var result = await client.RecognizeBatchAsync(images, useCache: false);
+
+            Assert.Equal(2, runner.Requests.Count);
+            Assert.Equal(images.Order(), requested.Order());
+            Assert.Equal(images, client.LastEvidence.Keys);
+            Assert.All(images, image => Assert.Equal([texts[image]], result[image]));
+        }
+        finally
+        {
+            foreach (string image in images)
+                DeleteIfExists(image);
+        }
+    }
+
+    [Theory]
     [InlineData(LocalOcrDevice.Cpu)]
     [InlineData(LocalOcrDevice.Gpu)]
     public async Task CacheRollsOverWithoutRestartingClient(LocalOcrDevice device)
@@ -216,7 +254,7 @@ public sealed class PaddleProcessTests
         Assert.Contains("pending.Add(path); } }, cancellationToken);", compact);
 
         // 识别后的身份复核与证据构造同样在后台并带令牌，且写缓存前再确认一次取消。
-        Assert.Contains("await Task.Run(() => { foreach (PaddleResult result in response.Results)", compact);
+        Assert.Contains("await Task.Run(() => { foreach (string path in pending)", compact);
         Assert.Contains(
             "cancellationToken.ThrowIfCancellationRequested(); if (useCache) await WriteCacheAsync(cache, cancellationToken);",
             compact);

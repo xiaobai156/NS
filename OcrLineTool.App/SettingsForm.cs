@@ -92,15 +92,27 @@ internal sealed class SettingsForm : Form
 
     private readonly Button saveButton = new DarkButton() { Text = "保存" };
     private readonly Button cancelButton = new DarkButton() { Text = "取消" };
-    private readonly CheckBox autoVisibleLocalOcrCheckBox = new()
+    private readonly RadioButton localOcrSingleRadio = new()
     {
-        Name = "autoVisibleLocalOcr",
-        Text = "资料群出现后自动本地主识别（五个群，图片稳定 1 分钟后执行）",
+        Name = "localOcrSingle",
+        Text = "单路（默认）",
         AutoSize = true,
         ForeColor = MainForm.PrimaryText,
         BackColor = MainForm.CardBackground,
         FlatStyle = FlatStyle.Flat,
-        AccessibleName = "资料群出现后自动本地主识别"
+        AccessibleName = "本地 OCR 单路",
+        Margin = new Padding(0, 2, 18, 0)
+    };
+    private readonly RadioButton localOcrDualRadio = new()
+    {
+        Name = "localOcrDual",
+        Text = "双路",
+        AutoSize = true,
+        ForeColor = MainForm.PrimaryText,
+        BackColor = MainForm.CardBackground,
+        FlatStyle = FlatStyle.Flat,
+        AccessibleName = "本地 OCR 双路",
+        Margin = new Padding(0, 2, 0, 0)
     };
     private readonly Button autoRecognizeButton = new DarkButton() { Text = "自动识别" };
     private readonly Button captureSettingsButton = new DarkButton() { Text = "抓取设置" };
@@ -126,12 +138,13 @@ internal sealed class SettingsForm : Form
     {
         this.appDirectory = appDirectory;
         Result = current;
-        autoVisibleLocalOcrCheckBox.Checked = AutoLocalOcrSettings.Load(appDirectory).Enabled;
         showRecognizeCheckBox.Checked = current.ShowRecognizeButton;
         retryLocalOcrRadio.Checked = current.RetryUsesLocalOcr;
         retryCloudOcrRadio.Checked = !current.RetryUsesLocalOcr;
         localOcrGpuRadio.Checked = current.OcrDevice == LocalOcrDevice.Gpu;
         localOcrCpuRadio.Checked = current.OcrDevice == LocalOcrDevice.Cpu;
+        localOcrSingleRadio.Checked = !current.UseDualLocalOcr;
+        localOcrDualRadio.Checked = current.UseDualLocalOcr;
         imageRootDirectory = current.EffectiveImageRootDirectory();
         imageRootLabel.Text = imageRootDirectory;
 
@@ -212,18 +225,24 @@ internal sealed class SettingsForm : Form
         localOcrHost.Controls.Add(localOcrGpuRadio);
         localOcrHost.Controls.Add(localOcrCpuRadio);
 
-        var autoHost = new Panel
+        var concurrencyHost = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
             BackColor = MainForm.CardBackground,
-            Padding = new Padding(12, 5, 12, 5),
+            Padding = new Padding(12, 8, 12, 4),
             Margin = Padding.Empty
         };
-        // 自动识别改由主界面「自动识别」窗口按群勾选，这里不再显示旧的全局开关；
-        // 控件与配置字段保留，避免旧设置文件失配。
-        autoVisibleLocalOcrCheckBox.Visible = false;
-        autoVisibleLocalOcrCheckBox.Location = new Point(12, 6);
-        autoHost.Controls.Add(autoVisibleLocalOcrCheckBox);
+        concurrencyHost.Controls.Add(new Label
+        {
+            AutoSize = true,
+            ForeColor = MainForm.PrimaryText,
+            BackColor = MainForm.CardBackground,
+            Text = "本地 OCR 并发："
+        });
+        concurrencyHost.Controls.Add(localOcrSingleRadio);
+        concurrencyHost.Controls.Add(localOcrDualRadio);
 
         // 抓取路径只在这里改：主界面的群列表仍只按当前路径的一级子目录显示，不弹任意路径浏览器。
         var imageRootHost = new Panel
@@ -291,7 +310,8 @@ internal sealed class SettingsForm : Form
                 // 选回默认目录时存 null，默认值仍由代码决定，不被旧设置固化。
                 string.Equals(imageRootDirectory, UiSettings.DefaultImageRootDirectory, StringComparison.OrdinalIgnoreCase)
                     ? null
-                    : imageRootDirectory);
+                    : imageRootDirectory,
+                localOcrDualRadio.Checked);
             DialogResult = DialogResult.OK;
             Close();
         };
@@ -305,7 +325,7 @@ internal sealed class SettingsForm : Form
         layout.Controls.Add(checkHost, 0, 1);
         layout.Controls.Add(retryHost, 0, 2);
         layout.Controls.Add(localOcrHost, 0, 3);
-        layout.Controls.Add(autoHost, 0, 4);
+        layout.Controls.Add(concurrencyHost, 0, 4);
         layout.Controls.Add(imageRootHost, 0, 5);
         layout.Controls.Add(hintLabel, 0, 6);
         layout.Controls.Add(buttonHost, 0, 7);

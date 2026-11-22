@@ -14,7 +14,8 @@ internal sealed record UiSettings(
     bool ShowRecognizeButton,
     bool RetryUsesLocalOcr = true,
     LocalOcrDevice OcrDevice = LocalOcrDevice.Gpu,
-    string? ImageRootDirectory = null)
+    string? ImageRootDirectory = null,
+    bool UseDualLocalOcr = false)
 {
     /// <summary>默认抓取路径（每日图片根目录）；用户未自定义时使用。</summary>
     internal const string DefaultImageRootDirectory =

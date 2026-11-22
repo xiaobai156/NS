@@ -1492,13 +1492,16 @@ public sealed class MainFormTests
         {
             Assert.False(UiSettings.Load(directory).ShowRecognizeButton);
             Assert.Equal(LocalOcrDevice.Gpu, UiSettings.Load(directory).OcrDevice);
+            Assert.False(UiSettings.Load(directory).UseDualLocalOcr);
 
-            UiSettings.Save(directory, new UiSettings(true));
+            File.WriteAllText(UiSettings.PathFor(directory), """{"ShowRecognizeButton":true}""");
             Assert.True(UiSettings.Load(directory).ShowRecognizeButton);
             Assert.Equal(LocalOcrDevice.Gpu, UiSettings.Load(directory).OcrDevice);
+            Assert.False(UiSettings.Load(directory).UseDualLocalOcr);
 
-            UiSettings.Save(directory, new UiSettings(false, true, LocalOcrDevice.Cpu));
+            UiSettings.Save(directory, new UiSettings(false, true, LocalOcrDevice.Cpu, UseDualLocalOcr: true));
             Assert.Equal(LocalOcrDevice.Cpu, UiSettings.Load(directory).OcrDevice);
+            Assert.True(UiSettings.Load(directory).UseDualLocalOcr);
 
             UiSettings.Save(directory, new UiSettings(false));
             Assert.False(UiSettings.Load(directory).ShowRecognizeButton);
@@ -1587,7 +1590,6 @@ public sealed class MainFormTests
     {
         using var dialog = new SettingsForm(new UiSettings(false));
         RadioButton[] radios = Descendants(dialog).OfType<RadioButton>().ToArray();
-        Assert.Equal(4, radios.Length);
         Assert.True(Assert.Single(radios, radio => radio.Name == "retryUsesLocalOcr").Checked);
         Assert.False(Assert.Single(radios, radio => radio.Name == "retryUsesCloudOcr").Checked);
 
@@ -1630,7 +1632,7 @@ public sealed class MainFormTests
             Assert.True(dialog.ClientSize.Height >= 340, $"Settings height {dialog.ClientSize.Height} is too short for the hint and buttons.");
 
             RadioButton[] radios = Descendants(dialog).OfType<RadioButton>().ToArray();
-            Assert.Equal(4, radios.Length);
+            Assert.Equal(6, radios.Length);
             Assert.All(radios, radio =>
             {
                 Assert.True(radio.Visible && radio.Enabled, $"{radio.Name} must be visible and enabled.");
@@ -1686,14 +1688,21 @@ public sealed class MainFormTests
         try
         {
             RadioButton cpu = Assert.Single(Descendants(dialog).OfType<RadioButton>(), radio => radio.Name == "localOcrCpu");
+            RadioButton single = Assert.Single(Descendants(dialog).OfType<RadioButton>(), radio => radio.Name == "localOcrSingle");
+            RadioButton dual = Assert.Single(Descendants(dialog).OfType<RadioButton>(), radio => radio.Name == "localOcrDual");
             Button save = Assert.Single(Descendants(dialog).OfType<Button>(), button => button.Text == "保存");
 
+            Assert.True(single.Checked);
             cpu.PerformClick();
+            dual.PerformClick();
             Assert.True(cpu.Checked);
+            Assert.True(dual.Checked);
+            Assert.False(single.Checked);
             save.PerformClick();
 
             Assert.Equal(DialogResult.OK, dialog.DialogResult);
             Assert.Equal(LocalOcrDevice.Cpu, dialog.Result.OcrDevice);
+            Assert.True(dialog.Result.UseDualLocalOcr);
         }
         finally
         {

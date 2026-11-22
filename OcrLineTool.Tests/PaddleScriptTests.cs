@@ -68,9 +68,18 @@ public sealed class PaddleScriptTests
     [InlineData(19, 1)]
     [InlineData(20, 1)]
     [InlineData(800, 1)]
-    public void UsesOneGpuWorkerForEveryBatch(int imageCount, int expected)
+    public void UsesOneWorkerByDefault(int imageCount, int expected)
     {
         Assert.Equal(expected, PaddleLocalOcrClient.WorkerCountFor(imageCount));
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 1)]
+    [InlineData(2, 2)]
+    public void DualModeOnlyStartsTwoWorkersWhenThereAreTwoPendingImages(int imageCount, int expected)
+    {
+        Assert.Equal(expected, PaddleLocalOcrClient.WorkerCountFor(imageCount, useDualLocalOcr: true));
     }
 
     [Theory]

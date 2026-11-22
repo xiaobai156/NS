@@ -118,6 +118,7 @@ public sealed class PaddleLocalOcrClient
     private readonly string cachePath;
     private readonly IProcessRunner processRunner;
     private readonly LocalOcrDevice device;
+    private readonly bool useDualLocalOcr;
     private readonly Func<DateOnly> currentDate;
     private readonly Dictionary<string, string> imageErrors = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, OcrEvidence> imageEvidence = new(StringComparer.OrdinalIgnoreCase);
@@ -157,8 +158,8 @@ public sealed class PaddleLocalOcrClient
     {
     }
 
-    internal PaddleLocalOcrClient(LocalOcrDevice device)
-        : this(new SystemProcessRunner(), null, device)
+    internal PaddleLocalOcrClient(LocalOcrDevice device, bool useDualLocalOcr = false)
+        : this(new SystemProcessRunner(), null, device, useDualLocalOcr: useDualLocalOcr)
     {
     }
 
@@ -166,10 +167,12 @@ public sealed class PaddleLocalOcrClient
         IProcessRunner processRunner,
         string? cachePath = null,
         LocalOcrDevice device = LocalOcrDevice.Gpu,
-        Func<DateOnly>? currentDate = null)
+        Func<DateOnly>? currentDate = null,
+        bool useDualLocalOcr = false)
     {
         this.processRunner = processRunner ?? throw new ArgumentNullException(nameof(processRunner));
         this.device = device;
+        this.useDualLocalOcr = useDualLocalOcr;
         this.cachePath = cachePath ?? DefaultCachePath;
         this.currentDate = currentDate ?? CredentialSchedule.TodayInBeijing;
     }
@@ -288,7 +291,7 @@ public sealed class PaddleLocalOcrClient
             Directory.CreateDirectory(tempFolder);
             try
             {
-                int workerCount = WorkerCountFor(pending.Count);
+                int workerCount = WorkerCountFor(pending.Count, useDualLocalOcr);
                 int cpuThreads = workerCount == 1 ? 6 : 3;
                 var jobs = new List<(string ListPath, string OutputPath, HashSet<string> Allowed)>();
                 for (int worker = 0; worker < workerCount; worker++)
@@ -302,21 +305,25 @@ public sealed class PaddleLocalOcrClient
 
                 int completed = 0;
                 var inferredImages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                object progressLock = new();
                 object inferenceLock = new();
                 await Task.WhenAll(jobs.Select(job => RunPaddleAsync(
                     scriptPath, job.ListPath, job.OutputPath, cpuThreads, titleRatio, detectionMaxSide, model, item =>
                     {
-                        int current = Interlocked.Increment(ref completed);
-                        progress?.Report(new LocalOcrProgress(
-                            cached.Count + current,
-                            imagePaths.Count,
-                            item.Path,
-                            "正在使用本机 PaddleOCR 识别……")
+                        lock (progressLock)
                         {
-                            // 非缓存处理量：这一批的缓存基线就是 cached.Count，不需要调用方累计推算。
-                            BatchCompleted = Math.Min(current, pending.Count),
-                            BatchTotal = pending.Count
-                        });
+                            int current = ++completed;
+                            progress?.Report(new LocalOcrProgress(
+                                cached.Count + current,
+                                imagePaths.Count,
+                                item.Path,
+                                "正在使用本机 PaddleOCR 识别……")
+                            {
+                                // 非缓存处理量：这一批的缓存基线就是 cached.Count，不需要调用方累计推算。
+                                BatchCompleted = Math.Min(current, pending.Count),
+                                BatchTotal = pending.Count
+                            });
+                        }
                     },
                     // 推理图片数只认 worker 自己报告的“进入 predict”事件：只接受本清单内的路径并去重，
                     // 图片解码失败或进程来不及报告都不会被算成已推理；并发 worker 下计数仍要线程安全。
@@ -332,7 +339,8 @@ public sealed class PaddleLocalOcrClient
                     () => Interlocked.Increment(ref workerStartCount),
                     cancellationToken)));
 
-                foreach ((_, string outputPath, _) in jobs)
+                var returned = new Dictionary<string, PaddleResult>(pending.Count, StringComparer.OrdinalIgnoreCase);
+                foreach ((_, string outputPath, HashSet<string> allowed) in jobs)
                 {
                     PaddleResponse response;
                     try
@@ -359,52 +367,56 @@ public sealed class PaddleLocalOcrClient
                         throw InfrastructureError("PaddleOCR 返回结果缺少 results。");
                     if (response.Timing is not null)
                         workerTimings.Add(response.Timing);
-                    // 识别后的身份复核与证据构造也要逐张读盘：和识别前校验一样放到后台、
-                    // 支持取消，界面不必在这里同步等读盘。只碰本批自己的数据
-                    // （results/imageEvidence/imageErrors/cache），不接触任何界面控件。
-                    await Task.Run(() =>
+                    foreach (PaddleResult result in response.Results)
                     {
-                        foreach (PaddleResult result in response.Results)
-                        {
-                            cancellationToken.ThrowIfCancellationRequested();
-                            if (result is null || string.IsNullOrWhiteSpace(result.Path))
-                                throw InfrastructureError("PaddleOCR 返回结果缺少图片路径。");
-                            if (!initialKeys.TryGetValue(result.Path, out string? initialKey))
-                                throw InfrastructureError("PaddleOCR 返回了未请求的图片路径。");
-                            if (!string.IsNullOrWhiteSpace(result.Error))
-                            {
-                                imageErrors[result.Path] = result.Error;
-                                if (device == LocalOcrDevice.Gpu && ErrorCodeFor(result.Error) == CudaUnavailableCode)
-                                    throw new OcrException(result.Error, CudaUnavailableCode);
-                                continue;
-                            }
-                            // 识别后的身份复核与证据构造同样逐图隔离：读不到或已变化只丢这一张，
-                            // 既不用新图片的指纹给旧文字背书，也不写成功缓存。
-                            if (!TryComputeKey(result.Path, titleRatio, detectionMaxSide, model, pipeline, device,
-                                    cancellationToken, out string key, out string hash, out string error))
-                            {
-                                imageErrors[result.Path] = error;
-                                invalidImagePaths.Add(result.Path);
-                                continue;
-                            }
-
-                            if (key != initialKey)
-                            {
-                                imageErrors[result.Path] = "图片在识别过程中发生变化，请重新识别。";
-                                invalidImagePaths.Add(result.Path);
-                                continue;
-                            }
-
-                            string[] texts = result.Texts ?? [];
-                            PaddleItem[] items = result.Items ?? [];
-                            results[result.Path] = texts;
-                            imageEvidence[result.Path] = BuildEvidence(result.Path, texts, items, hash) with { Reader = "paddle/" + model.ToString().ToLowerInvariant() };
-                            // Empty results are not durable success-cache entries.
-                            if (texts.Any(line => !string.IsNullOrWhiteSpace(line)))
-                                cache[key] = new CacheEntry(key, texts, items, batchDate);
-                        }
-                    }, cancellationToken);
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (result is null || string.IsNullOrWhiteSpace(result.Path))
+                            throw InfrastructureError("PaddleOCR 返回结果缺少图片路径。");
+                        if (!allowed.Contains(result.Path))
+                            throw InfrastructureError("PaddleOCR 返回了未请求的图片路径。");
+                        if (device == LocalOcrDevice.Gpu && result.Error is { } error
+                            && ErrorCodeFor(error) == CudaUnavailableCode)
+                            throw new OcrException(error, CudaUnavailableCode);
+                        returned[result.Path] = result;
+                    }
                 }
+
+                // 按待识别图片原顺序复核和写入证据，不受两个 worker 分片及完成顺序影响。
+                await Task.Run(() =>
+                {
+                    foreach (string path in pending)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (!returned.Remove(path, out PaddleResult? result))
+                            continue;
+                        if (!string.IsNullOrWhiteSpace(result.Error))
+                        {
+                            imageErrors[path] = result.Error;
+                            continue;
+                        }
+                        // 读不到或已经变化的图片不构造证据，也不写成功缓存。
+                        if (!TryComputeKey(path, titleRatio, detectionMaxSide, model, pipeline, device,
+                                cancellationToken, out string key, out string hash, out string error))
+                        {
+                            imageErrors[path] = error;
+                            invalidImagePaths.Add(path);
+                            continue;
+                        }
+                        if (key != initialKeys[path])
+                        {
+                            imageErrors[path] = "图片在识别过程中发生变化，请重新识别。";
+                            invalidImagePaths.Add(path);
+                            continue;
+                        }
+
+                        string[] texts = result.Texts ?? [];
+                        PaddleItem[] items = result.Items ?? [];
+                        results[path] = texts;
+                        imageEvidence[path] = BuildEvidence(path, texts, items, hash) with { Reader = "paddle/" + model.ToString().ToLowerInvariant() };
+                        if (texts.Any(line => !string.IsNullOrWhiteSpace(line)))
+                            cache[key] = new CacheEntry(key, texts, items, batchDate);
+                    }
+                }, cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 if (useCache)
                     await WriteCacheAsync(cache, cancellationToken);
@@ -673,7 +685,8 @@ public sealed class PaddleLocalOcrClient
     internal const double TileAspectRatio = 1.4;
     internal const int TileCount = 3;
 
-    public static int WorkerCountFor(int imageCount) => 1;
+    public static int WorkerCountFor(int imageCount, bool useDualLocalOcr = false) =>
+        useDualLocalOcr && imageCount > 1 ? 2 : 1;
 
     public static bool IsCudaUnavailable(OcrException exception) =>
         exception.Code == CudaUnavailableCode;
