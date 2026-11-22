@@ -22,6 +22,29 @@ public sealed class VisualTemplateMatcherTests
     }
 
     [Fact]
+    [Trait("Category", "CUDA")]
+    public void BatchedGpuFingerprintsEqualEachSingleRegionAndShift()
+    {
+        using var files = new ImageFixture();
+        string path = files.CreateWithTwoTitles("batch.png", upperKind: 1, lowerKind: 2);
+        using var image = new Bitmap(path);
+        VisualTemplateMatcher.FingerprintRegion[] regions = [new(0, .01), new(.1125, .2125), new(.30, .40), new(.96, 1)];
+        double[] shifts = [-.02, -.01, 0, .01, .02];
+        ulong[] batch = VisualTemplateMatcher.CreateBatchGpuFingerprints(image,
+            VisualTemplateMatcher.BatchPositions(regions, shifts));
+
+        Assert.Equal(regions.Length * shifts.Length * 16, batch.Length);
+        for (int region = 0; region < regions.Length; region++)
+        for (int shift = 0; shift < shifts.Length; shift++)
+        {
+            int offset = (region * shifts.Length + shift) * 16;
+            Assert.Equal(VisualTemplateMatcher.CreateFingerprint(path, regions[region].Top,
+                    regions[region].Bottom, shifts[shift]),
+                string.Concat(batch.AsSpan(offset, 16).ToArray().Select(word => word.ToString("X16"))));
+        }
+    }
+
+    [Fact]
     public void CancellationDuringFingerprintingStopsBeforeReturningMatches()
     {
         using var files = new ImageFixture();
@@ -276,9 +299,11 @@ public sealed class VisualTemplateMatcherTests
         Assert.InRange(match.VerticalShiftWidthRatio, -0.021, 0.021);
     }
 
-    [Fact]
+    [Theory]
+    [InlineData("新澳高级会员")]
+    [InlineData("新澳六合彩资料")]
     [Trait("Category", "CUDA")]
-    public void MatchesTemplatesUsingCatalogAndPerTemplateFingerprintRegions()
+    public void MatchesTemplatesUsingCatalogAndPerTemplateFingerprintRegions(string group)
     {
         using var files = new ImageFixture();
         string upperReference = files.CreateWithTwoTitles("upper-reference.png", upperKind: 1, lowerKind: 2);
@@ -296,7 +321,7 @@ public sealed class VisualTemplateMatcherTests
             FingerprintTopWidthRatio: 0.30,
             FingerprintBottomWidthRatio: 0.40);
         var catalog = new VisualTemplateSet(
-            1, "新澳高级会员", 20, [upperTemplate, lowerTemplate],
+            1, group, 20, [upperTemplate, lowerTemplate],
             FingerprintTopWidthRatio: 0.1125,
             FingerprintBottomWidthRatio: 0.2125);
 

@@ -17,14 +17,15 @@ __global__ void horizontal(const unsigned char* src, int w, int h, float* tmp) {
     tmp[i] = (float)(sum / weight);
 }
 
-__global__ void vertical(const float* tmp, int w, int h, double topRatio,
-    double bottomRatio, const double* shifts, int count, unsigned char* reduced) {
+__global__ void vertical(const float* tmp, int w, int h, const double* positions,
+    int count, unsigned char* reduced) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= count * 65 * 16 * 3) return;
     int c = i % 3, x = (i / 3) % 65, y = (i / (3 * 65)) % 16;
     int s = i / (3 * 65 * 16);
-    int top = max(0, min(h - 1, __double2int_rn(w * (topRatio + shifts[s]))));
-    int bottom = max(top + 1, min(h, __double2int_rn(w * (bottomRatio + shifts[s]))));
+    const double* position = positions + s * 3;
+    int top = max(0, min(h - 1, __double2int_rn(w * (position[0] + position[2]))));
+    int bottom = max(top + 1, min(h, __double2int_rn(w * (position[1] + position[2]))));
     double scale = (bottom - top) / 16., radius = fmax(1., scale);
     double center = top + (y + .5) * scale - .5, sum = 0, weight = 0;
     for (int sy = (int)ceil(center - radius); sy <= (int)floor(center + radius); ++sy) {
@@ -48,28 +49,41 @@ __global__ void hash_rows(const unsigned char* pixels, int count, uint64_t* hash
     hashes[row] = bits;
 }
 
-extern "C" __declspec(dllexport) int cuda_fingerprints(const unsigned char* src, int w, int h,
-    double top, double bottom, const double* shifts, int count, uint64_t* result) {
-    if (!src || !shifts || !result || w < 1 || h < 1 || count < 1 || count > 241) return -1;
+extern "C" __declspec(dllexport) int cuda_fingerprints_batch(const unsigned char* src, int w, int h,
+    const double* positions, int count, uint64_t* result) {
+    // Each position has its own top, bottom and shift. All positions share one horizontal pass.
+    if (!src || !positions || !result || w < 1 || h < 1 || count < 1 || count > 4096) return -1;
     unsigned char *image=nullptr, *pixels=nullptr;
-    float* tmp=nullptr; double* ds=nullptr; uint64_t* hashes=nullptr;
+    float* tmp=nullptr; double* device_positions=nullptr; uint64_t* hashes=nullptr;
     cudaError_t error=cudaSuccess;
     #define RUN(call) if ((error=(call)) != cudaSuccess) goto cleanup
     RUN(cudaMalloc(&image,(size_t)w*h*3));
     RUN(cudaMalloc(&tmp,(size_t)h*65*3*sizeof(float)));
-    RUN(cudaMalloc(&ds,(size_t)count*sizeof(double)));
+    RUN(cudaMalloc(&device_positions,(size_t)count*3*sizeof(double)));
     RUN(cudaMalloc(&pixels,(size_t)count*65*16*3));
     RUN(cudaMalloc(&hashes,(size_t)count*16*sizeof(uint64_t)));
     RUN(cudaMemcpy(image,src,(size_t)w*h*3,cudaMemcpyHostToDevice));
-    RUN(cudaMemcpy(ds,shifts,(size_t)count*sizeof(double),cudaMemcpyHostToDevice));
+    RUN(cudaMemcpy(device_positions,positions,(size_t)count*3*sizeof(double),cudaMemcpyHostToDevice));
     horizontal<<<(h*65*3+255)/256,256>>>(image,w,h,tmp);
     RUN(cudaGetLastError());
-    vertical<<<(count*65*16*3+255)/256,256>>>(tmp,w,h,top,bottom,ds,count,pixels);
+    vertical<<<(count*65*16*3+255)/256,256>>>(tmp,w,h,device_positions,count,pixels);
     RUN(cudaGetLastError());
     hash_rows<<<(count*16+255)/256,256>>>(pixels,count,hashes);
     RUN(cudaGetLastError());
     RUN(cudaMemcpy(result,hashes,(size_t)count*16*sizeof(uint64_t),cudaMemcpyDeviceToHost));
 cleanup:
-    cudaFree(image); cudaFree(tmp); cudaFree(ds); cudaFree(pixels); cudaFree(hashes);
+    cudaFree(image); cudaFree(tmp); cudaFree(device_positions); cudaFree(pixels); cudaFree(hashes);
     return (int)error;
+}
+
+extern "C" __declspec(dllexport) int cuda_fingerprints(const unsigned char* src, int w, int h,
+    double top, double bottom, const double* shifts, int count, uint64_t* result) {
+    if (!shifts || count < 1 || count > 241) return -1;
+    double positions[241 * 3];
+    for (int i = 0; i < count; ++i) {
+        positions[i * 3] = top;
+        positions[i * 3 + 1] = bottom;
+        positions[i * 3 + 2] = shifts[i];
+    }
+    return cuda_fingerprints_batch(src, w, h, positions, count, result);
 }

@@ -47,6 +47,11 @@ public static class VisualTemplateMatcher
         int shiftCount,
         [Out] ulong[] output);
 
+    [DllImport("cuda_hash.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "cuda_fingerprints_batch")]
+    private static extern int CudaFingerprintsBatch(
+        byte[] bgr, int width, int height, double[] positions, int count, [Out] ulong[] output);
+
+    private const int MaxCudaBatchPositions = 4096;
     private const string DefaultFolder = "新澳六合彩资料";
     private const double TitleTopWidthRatio = 0.1125;
     private const double TitleBottomWidthRatio = 0.2125;
@@ -153,13 +158,14 @@ public static class VisualTemplateMatcher
         int maxDistance,
         IProgress<VisualTemplateProgress>? progress = null,
         LocalOcrDevice device = LocalOcrDevice.Gpu,
-        CancellationToken cancellationToken = default) =>
+        CancellationToken cancellationToken = default,
+        bool batchGpuRegions = false) =>
         Match(
             imagePaths,
             templates,
             maxDistance,
             template => ResolveRegion(template, null, null),
-            progress, device, cancellationToken);
+            progress, device, cancellationToken, batchGpuRegions);
 
     public static IReadOnlyList<VisualTemplateMatch> Match(
         IReadOnlyList<string> imagePaths,
@@ -175,7 +181,8 @@ public static class VisualTemplateMatcher
                 template,
                 catalog.FingerprintTopWidthRatio,
                 catalog.FingerprintBottomWidthRatio),
-            progress, device, cancellationToken);
+            progress, device, cancellationToken,
+            RuleCatalog.IsGroupFolder(catalog.Folder, DefaultFolder));
 
     public static bool HasUsableMatches(
         IReadOnlyList<VisualTemplateMatch> matches,
@@ -270,7 +277,8 @@ public static class VisualTemplateMatcher
         Func<VisualTemplateDefinition, FingerprintRegion> regionSelector,
         IProgress<VisualTemplateProgress>? progress,
         LocalOcrDevice device,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool batchGpuRegions)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (imagePaths.Count == 0 || templates.Count == 0)
@@ -279,6 +287,9 @@ public static class VisualTemplateMatcher
         ulong[][] templateHashes = templates.Select(item => ParseFingerprint(item.Fingerprint)).ToArray();
         FingerprintRegion[] templateRegions = templates.Select(regionSelector).ToArray();
         FingerprintRegion[] regions = templateRegions.Distinct().ToArray();
+        double[]? batch = batchGpuRegions && device == LocalOcrDevice.Gpu && regions.Length > 1
+            && regions.Length <= MaxCudaBatchPositions / ShiftRatios.Length
+            ? BatchPositions(regions, ShiftRatios) : null;
         var imageHashes = new (string Path, string SourceHash, Dictionary<FingerprintRegion, ulong[][]> Hashes)[imagePaths.Count];
         // 同一张图被重复下载（内容完全相同）时只保留一份匹配，并固定取排序最靠前的那一份，
         // 保证结果可复现；否则两份副本距离完全相同，会被下面"次佳与最佳距离差 <4
@@ -298,13 +309,16 @@ public static class VisualTemplateMatcher
                     string contentHash = Convert.ToHexString(SHA256.HashData(bytes));
                     using var stream = new MemoryStream(bytes, writable: false);
                     using var image = new Bitmap(stream);
-                    imageHashes[index] = (path, contentHash, regions.ToDictionary(
-                        region => region,
-                        region =>
-                        {
-                            cancellationToken.ThrowIfCancellationRequested();
-                            return CreateFingerprints(image, region, ShiftRatios, device);
-                        }));
+                    var hashes = new Dictionary<FingerprintRegion, ulong[][]>(regions.Length);
+                    ulong[]? batched = batch is null ? null : CreateBatchGpuFingerprints(image, batch);
+                    for (int region = 0; region < regions.Length; region++)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        hashes.Add(regions[region], batched is null
+                            ? CreateFingerprints(image, regions[region], ShiftRatios, device)
+                            : SplitFingerprints(batched, region * ShiftRatios.Length, ShiftRatios.Length));
+                    }
+                    imageHashes[index] = (path, contentHash, hashes);
                 }
                 catch (Exception exception) when (exception is ArgumentException or IOException)
                 {
@@ -449,38 +463,84 @@ public static class VisualTemplateMatcher
         enlarged.Save(destinationPath, ImageFormat.Png);
     }
 
+    internal static double[] BatchPositions(FingerprintRegion[] regions, double[] shifts)
+    {
+        var positions = new double[regions.Length * shifts.Length * 3];
+        int index = 0;
+        foreach (var region in regions)
+        foreach (double shift in shifts)
+        {
+            positions[index++] = region.Top;
+            positions[index++] = region.Bottom;
+            positions[index++] = shift;
+        }
+        return positions;
+    }
+
+    internal static ulong[] CreateBatchGpuFingerprints(Bitmap source, double[] positions)
+    {
+        byte[] bgr = ReadPackedBgr(source);
+        int count = positions.Length / 3;
+        var output = new ulong[count * 16];
+        try
+        {
+            RequireCudaFingerprintSuccess(CudaFingerprintsBatch(bgr, source.Width, source.Height, positions, count, output));
+        }
+        catch (Exception exception) when (exception is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
+        {
+            throw CudaFingerprintLoadError();
+        }
+        return output;
+    }
+
     private static ulong[][] CreateFingerprints(Bitmap source, FingerprintRegion region,
         double[] shifts, LocalOcrDevice device)
     {
-        using Bitmap packed = source.Clone(
-            new Rectangle(0, 0, source.Width, source.Height), PixelFormat.Format24bppRgb);
-        Rectangle bounds = new(0, 0, packed.Width, packed.Height);
+        byte[] bgr = ReadPackedBgr(source);
+        var output = new ulong[shifts.Length * 16];
+        if (device == LocalOcrDevice.Cpu)
+            CpuFingerprints(bgr, source.Width, source.Height, region, shifts, output);
+        else
+        {
+            try
+            {
+                RequireCudaFingerprintSuccess(CudaFingerprints(bgr, source.Width, source.Height,
+                    region.Top, region.Bottom, shifts, shifts.Length, output));
+            }
+            catch (Exception exception) when (exception is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
+            {
+                throw CudaFingerprintLoadError();
+            }
+        }
+        return SplitFingerprints(output, 0, shifts.Length);
+    }
+
+    private static ulong[][] SplitFingerprints(ulong[] words, int firstPosition, int count)
+    {
+        var result = new ulong[count][];
+        for (int index = 0; index < count; index++)
+            result[index] = words.AsSpan((firstPosition + index) * 16, 16).ToArray();
+        return result;
+    }
+
+    private static void RequireCudaFingerprintSuccess(int status)
+    {
+        if (status != 0)
+            throw new OcrException($"CUDA 标题指纹计算失败（代码 {status}），请在设置中手动切换 CPU。",
+                PaddleLocalOcrClient.CudaUnavailableCode);
+    }
+
+    private static OcrException CudaFingerprintLoadError() =>
+        new("无法加载 CUDA 标题指纹组件，请在设置中手动切换 CPU。", PaddleLocalOcrClient.CudaUnavailableCode);
+
+    private static byte[] ReadPackedBgr(Bitmap source)
+    {
+        Rectangle bounds = new(0, 0, source.Width, source.Height);
+        using Bitmap packed = source.Clone(bounds, PixelFormat.Format24bppRgb);
         BitmapData data = packed.LockBits(bounds, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
         try
         {
-            byte[] bgr = CopyTopDownBgr(data, packed.Width, packed.Height);
-            var output = new ulong[shifts.Length * 16];
-            if (device == LocalOcrDevice.Cpu)
-                CpuFingerprints(bgr, packed.Width, packed.Height, region, shifts, output);
-            else
-            {
-                try
-                {
-                    int status = CudaFingerprints(bgr, packed.Width, packed.Height,
-                        region.Top, region.Bottom, shifts, shifts.Length, output);
-                    if (status != 0)
-                        throw new OcrException($"CUDA 标题指纹计算失败（代码 {status}），请在设置中手动切换 CPU。",
-                            PaddleLocalOcrClient.CudaUnavailableCode);
-                }
-                catch (Exception exception) when (exception is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
-                {
-                    throw new OcrException("无法加载 CUDA 标题指纹组件，请在设置中手动切换 CPU。",
-                        PaddleLocalOcrClient.CudaUnavailableCode);
-                }
-            }
-            return Enumerable.Range(0, shifts.Length)
-                .Select(shift => output.Skip(shift * 16).Take(16).ToArray())
-                .ToArray();
+            return CopyTopDownBgr(data, packed.Width, packed.Height);
         }
         finally
         {
@@ -636,5 +696,5 @@ public static class VisualTemplateMatcher
         double.IsFinite(top) && double.IsFinite(bottom) && top >= 0 && bottom > top;
 
     private sealed record Score(int TemplateIndex, int ImageIndex, int Distance, int ShiftIndex);
-    private readonly record struct FingerprintRegion(double Top, double Bottom);
+    internal readonly record struct FingerprintRegion(double Top, double Bottom);
 }

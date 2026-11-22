@@ -1,7 +1,11 @@
 # Native CUDA dependency
 
-The Windows x64 `cuda_hash.dll` is retained byte-for-byte from the audited repository, not silently rebuilt or downloaded. Both projects now reference this explicit path instead of a temporary validation directory.
+The Windows x64 `cuda_hash.dll` is built from `tools/CudaImage/cuda_image.cu` with CUDA 12.6 and Visual C++ from an x64 developer command prompt.
 
-SHA-256: `481a198f6739938a485323f430dc33f728dd4a3cd410cabe19e9fbc84e72e874`
+```powershell
+nvcc -std=c++17 -O2 --shared --cudart=static -Xcompiler=/MT '-gencode=arch=compute_52,code=[sm_52,compute_52]' -o native/win-x64/cuda_hash.dll tools/CudaImage/cuda_image.cu
+```
 
-This change verifies packaging identity only. It does not claim CUDA execution, driver compatibility, model accuracy, or native ABI validation on a GPU. Keep the binary and native source changes reviewed together; a future native rebuild must use the CUDA/Visual C++ toolchain and run the CUDA-tagged tests.
+SHA-256 `844f88ec7ca0b83661e9f48c90f8bb841592946dac26a1d042022aab7aee1bc8`
+
+The DLL exports `cuda_fingerprints` for a single title region and `cuda_fingerprints_batch` for several regions of one image. Run the CUDA-tagged matcher tests and compare fingerprints with the previous binary when changing the kernels or build flags.

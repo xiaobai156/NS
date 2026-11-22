@@ -4447,7 +4447,7 @@ public sealed class MainForm : Form
                             statusLabel.Text = $"标题模板：{item.Completed}/{item.Total}（{percent}%） · 当前：{ShortPath(item.Path)} · 已用 {FormatDuration(watch.Elapsed)}";
                         });
                         IReadOnlyList<VisualTemplateMatch> matches = await Task.Run(() =>
-                            VisualTemplateMatcher.Match(imagePaths, templates, catalog.MaxDistance, progress, ocrDevice, cancellationToken)
+                            VisualTemplateMatcher.Match(imagePaths, templates, catalog.MaxDistance, progress, ocrDevice, cancellationToken, batchGpuRegions: useMacauTitles)
                                 .Where(match => match.Template.RuleIds.All(ruleMap.ContainsKey))
                                 .ToArray(), cancellationToken);
                         cancellationToken.ThrowIfCancellationRequested();
