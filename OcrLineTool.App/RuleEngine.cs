@@ -258,7 +258,8 @@ public static partial class RuleEngine
         IEnumerable<string> localLines,
         IEnumerable<OcrRule> rules,
         IEnumerable<OcrRule>? completeRules = null,
-        IReadOnlyDictionary<string, int>? folderImageCounts = null)
+        IReadOnlyDictionary<string, int>? folderImageCounts = null,
+        int? issue = null)
     {
         string[] lines = localLines.ToArray();
         OcrRule[] requestedRules = rules.ToArray();
@@ -285,6 +286,9 @@ public static partial class RuleEngine
                 return RuleCatalog.PathBelongsToGroup(imagePath, "新澳高手")
                     && MatchesRuleFolder(imagePath, rule)
                     && ZhanShaHalfWaveRows(lines, rule) is not null;
+            if (rule is { Id: "祥瑞阁二肖", Type: "生肖组合", StrictIssueBlock: true })
+                return RuleCatalog.PathBelongsToGroup(imagePath, "新澳高级会员")
+                    && MatchesXiangruigeTwoZodiac(lines, rule, issue);
             // These full titles must also guard folder/value-only retry paths.
             if (FullCardIdentity(rawText, rule) is bool exactCardIdentity)
                 return exactCardIdentity && MatchesText(rawText, rule)
@@ -548,10 +552,44 @@ public static partial class RuleEngine
                 || rule.RequiredKeywordsAny.Any(value => RequiredKeywordMatches(text, value, rule)));
     }
 
+    // When decorative text is missed, use the named pair field beside its own period.
+    private static bool MatchesXiangruigeTwoZodiac(string[] lines, OcrRule rule, int? issue)
+    {
+        string[] simplified = lines.Select(line => SimplifyFixedCardText(line).Replace('閣', '阁')).ToArray();
+        string text = string.Concat(simplified);
+        if (HasXiangruigeNumberTitle(text))
+            return false;
+        if (MatchesText(text, rule))
+            return true;
+
+        string pairField = $@"祥瑞阁杀\s*[:：]\s*(?<first>[{Zodiac}])\s*(?<second>[{Zodiac}])\s*准[!！]?(?:\s*开[?？]+)?\s*$";
+        for (int index = 0; index < simplified.Length; index++)
+        {
+            Match row = Regex.Match(simplified[index], $@"^\s*(?:(?<period>\d{{1,6}})\s*期\s*)?{pairField}");
+            if (!row.Success || row.Groups["first"].Value == row.Groups["second"].Value)
+                continue;
+            string period = row.Groups["period"].Value;
+            if (period.Length == 0 && index > 0)
+                period = Regex.Match(simplified[index - 1], @"^\s*(\d{1,6})\s*期\s*$").Groups[1].Value;
+            if (int.TryParse(period, out int posted) && posted > 0 && (issue is null || posted == issue))
+                return true;
+        }
+        return false;
+    }
+
+    private static bool HasXiangruigeNumberTitle(string text) =>
+        text.Split(OcrLayoutMarkers.RegionBoundary, StringSplitOptions.None)
+            .Select(part => Normalize(SimplifyFixedCardText(part)).Replace('閣', '阁'))
+            .Any(part => part.Contains("祥瑞阁王中王包围36码", StringComparison.Ordinal)
+                || part.Contains("祥瑞阁主大包围36码", StringComparison.Ordinal));
+
     // 完整资料名和类型共同确定候选；不得跨物理区域拼标题或用一字容错串入别人的卡。
     internal static bool? FullCardIdentity(string text, OcrRule rule)
     {
         string keyword = Normalize(rule.Keyword);
+        if (rule is { Id: "祥瑞阁", Type: "号码:36", StrictIssueBlock: true }
+            && keyword == "祥瑞阁王中王包围36码")
+            return HasXiangruigeNumberTitle(text);
         string? title = (rule.Id, keyword, rule.Type) switch
         {
             ("斩杀半波", _, "色单双") when IsZhanShaHalfWave(rule) => "斩杀半波",

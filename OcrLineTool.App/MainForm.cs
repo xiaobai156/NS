@@ -4680,7 +4680,7 @@ public sealed class MainForm : Form
             {
                 if (!localResults.TryGetValue(path, out IReadOnlyList<string>? lines))
                     continue;
-                IReadOnlyList<OcrRule> matched = RuleEngine.FindMatches(path, lines, rules, completeIdentityRules, folderImageCounts);
+                IReadOnlyList<OcrRule> matched = RuleEngine.FindMatches(path, lines, rules, completeIdentityRules, folderImageCounts, issue);
                 if (localLimitedRuleIds is not null && limitedImagePaths.Count > 0 &&
                     !limitedImagePaths.Contains(path))
                 {

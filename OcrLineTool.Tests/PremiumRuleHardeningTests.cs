@@ -8,6 +8,25 @@ public sealed class PremiumRuleHardeningTests
         ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "新澳高级会员.json"))
         .Single(rule => rule.Id == id);
 
+    [Fact]
+    public void XiangruigeCandidatesUseThePrintedCardTypeAndTheRequestedPeriod()
+    {
+        OcrRule[] rules = [Rule("祥瑞阁"), Rule("祥瑞阁二肖")];
+        const string path = @"C:\图片\11.22-新澳高级会员\全部图片\card.jpg";
+        string[] numberCard = ["祥瑞閣", "祥瑞閣主大包圍36碼", "326期"];
+        string[] zodiacCard = ["325期开奖", "326期", "祥瑞阁杀：兔 雞 准！", "开??",
+            "325期", "祥瑞阁杀：雞 猴 准！", "龍03中"];
+        Assert.Equal("祥瑞阁", Assert.Single(RuleEngine.FindMatches(path, numberCard, rules, rules, issue: 326)).Id);
+        Assert.Equal("祥瑞阁二肖", Assert.Single(RuleEngine.FindMatches(path, zodiacCard, rules, rules, issue: 326)).Id);
+        Assert.Empty(RuleEngine.FindMatches(path, zodiacCard, rules, rules, issue: 327));
+        Assert.Empty(RuleEngine.FindMatches(path, ["祥瑞阁", "326期", "开??", "325期", "祥瑞阁杀：鸡猴 准！"],
+            rules, rules, issue: 326));
+        Assert.Empty(RuleEngine.FindMatches(path, ["祥瑞阁", "326期 公子杀一肖：兔鸡 准！"], rules, rules, issue: 326));
+        Assert.Empty(RuleEngine.FindMatches(path, ["326期", "祥瑞阁杀：兔 兔 准！"], rules, rules, issue: 326));
+        Assert.Empty(RuleEngine.FindMatches(path, ["祥瑞阁主大包围36码", .. zodiacCard], [rules[1]], rules, issue: 326));
+        Assert.Empty(RuleEngine.FindMatches(@"C:\图片\新澳六合彩资料\card.jpg", zodiacCard, rules, rules, issue: 326));
+    }
+
     public static IEnumerable<object[]> Samples()
     {
         yield return ["会员特供杀十码", "绝杀:05 07 10 16 26 33 35 37 42 49", "05 07 10 16 26 33 35 37 42 49"];
