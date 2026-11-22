@@ -271,12 +271,6 @@
       "allow_folder_identity": true
     },
     {
-      "keyword": "大酒窝",
-      "type": "生肖",
-      "required_keyword": "大酒窝",
-      "folder": "大酒窝"
-    },
-    {
       "keyword": "君军",
       "type": "生肖组合",
       "label": "君军两肖",
