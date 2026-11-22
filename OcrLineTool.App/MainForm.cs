@@ -4451,17 +4451,19 @@ public sealed class MainForm : Form
                             statusLabel.Text = $"标题模板：{item.Completed}/{item.Total}（{percent}%） · 当前：{ShortPath(item.Path)} · 已用 {FormatDuration(watch.Elapsed)}";
                         });
                         IReadOnlyList<VisualTemplateMatch> matches = await Task.Run(() =>
-                            VisualTemplateMatcher.Match(imagePaths, templates, catalog.MaxDistance, progress, ocrDevice, cancellationToken, batchGpuRegions: useMacauTitles)
+                            VisualTemplateMatcher.Match(imagePaths, templates, catalog.MaxDistance, progress, ocrDevice, cancellationToken,
+                                    batchGpuRegions: useMacauTitles, useBackups: useMacauTitles)
                                 .Where(match => match.Template.RuleIds.All(ruleMap.ContainsKey))
                                 .ToArray(), cancellationToken);
                         cancellationToken.ThrowIfCancellationRequested();
-                        if (useMacauTitles)
+                        var requestedRuleIds = ruleMap.Keys.ToHashSet(StringComparer.Ordinal);
+                        bool hasCompleteTemplateMatches = VisualTemplateMatcher.HasUsableMatches(matches, templates, requestedRuleIds);
+                        if (useMacauTitles && !hasCompleteTemplateMatches)
+                        {
                             matches = await MatchMacauTitlesAsync(templates, new MacauTitleIndex(catalog.Templates, identityMap),
                                 matches, issue, cancellationToken);
-                        bool hasCompleteTemplateMatches = VisualTemplateMatcher.HasUsableMatches(
-                            matches,
-                            templates,
-                            ruleMap.Keys.ToHashSet(StringComparer.Ordinal));
+                            hasCompleteTemplateMatches = VisualTemplateMatcher.HasUsableMatches(matches, templates, requestedRuleIds);
+                        }
                         if (useMacauTitles && matches.Count == 0)
                             return new CandidateSelection([], null, MacauTitleIndex.SelectionName, MacauTitleIndex.MissingReason);
 
@@ -4513,7 +4515,7 @@ public sealed class MainForm : Form
                                                 ocrPath,
                                                 match.Template.RuleIds.Select(id => ruleMap[id]).ToArray(),
                                                 true,
-                                                match.Distance < 0 ? "完整资料标题" : "标题模板",
+                                                match.Distance < 0 ? "完整资料标题" : match.UsedBackup ? "备用标题模板" : "标题模板",
                                                 match.Distance < 0 ? null : match.Distance,
                                                 CreationIdentity: creationIdentity,
                                                 DeclaredRuleIds: declaredRuleIds);

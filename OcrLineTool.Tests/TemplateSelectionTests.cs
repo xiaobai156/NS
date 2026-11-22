@@ -31,6 +31,19 @@ public sealed class TemplateSelectionTests
     }
 
     [Fact]
+    public async Task CompleteOldAndBackupMatchesSkipTheTitleOcrClient()
+    {
+        using var fixture = new SelectionFixture(complete: true, useBackup: true);
+        object selection = await fixture.SelectAsync(expectNoTitleOcr: true);
+        var candidates = ((IEnumerable)Get(selection, "Candidates")).Cast<object>()
+            .ToDictionary(candidate => (string)Get(candidate, "SourcePath"));
+
+        Assert.Equal(2, candidates.Count);
+        Assert.Equal("标题模板", Get(candidates[fixture.ImagePath], "SelectionMode"));
+        Assert.Equal("备用标题模板", Get(candidates[fixture.SecondImagePath], "SelectionMode"));
+    }
+
+    [Fact]
     public async Task PartialFirstRunKeepsMatchedCandidateAndLeavesOtherRuleMissing()
     {
         using var fixture = new SelectionFixture();
@@ -135,7 +148,7 @@ public sealed class TemplateSelectionTests
         public string SecondImagePath => Path.Combine(folder, "second.png");
         public OcrRule[] Rules { get; }
 
-        public SelectionFixture(bool premium = false, bool strict = false, bool complete = false)
+        public SelectionFixture(bool premium = false, bool strict = false, bool complete = false, bool useBackup = false)
         {
             this.complete = complete;
             group = premium ? "新澳高级会员" : "新澳六合彩资料";
@@ -169,17 +182,21 @@ public sealed class TemplateSelectionTests
             string second = complete
                 ? VisualTemplateMatcher.CreateFingerprint(SecondImagePath)
                 : Convert.ToHexString(Convert.FromHexString(fingerprint).Select(value => (byte)~value).ToArray());
+            string secondPrimary = useBackup
+                ? Convert.ToHexString(Convert.FromHexString(second).Select(value => (byte)~value).ToArray()) : second;
             var catalog = new VisualTemplateSet(1, group, 1,
             [
                 new("已匹配", ["已匹配"], fingerprint, 0.25, 0.55),
-                new("未匹配", ["未匹配"], second, 0.25, 0.55)
+                new("未匹配", ["未匹配"], secondPrimary, 0.25, 0.55,
+                    Backup: useBackup ? new(second, .1125, .2125) : null)
             ]);
             if (strict)
                 catalog.Templates.RemoveAt(1);
             File.WriteAllText(CatalogPath, JsonSerializer.Serialize(catalog));
         }
 
-        public async Task<object> SelectAsync(bool retry = false, Action<string>? checkpoint = null)
+        public async Task<object> SelectAsync(bool retry = false, Action<string>? checkpoint = null,
+            bool expectNoTitleOcr = false)
         {
             using var form = new MainForm();
             var context = SynchronizationContext.Current;
@@ -198,6 +215,8 @@ public sealed class TemplateSelectionTests
                 var task = (Task)typeof(MainForm).GetMethod("SelectCandidatesAsync", flags)!
                     .Invoke(form, [Rules, 318, retry, Rules.Select(rule => rule.Id).ToHashSet(StringComparer.Ordinal), null, null])!;
                 await task;
+                if (expectNoTitleOcr)
+                    Assert.Empty((IEnumerable)typeof(MainForm).GetField("localOcrClients", flags)!.GetValue(form)!);
                 object result = Get(task, "Result");
                 cropFolder = (string?)result.GetType().GetProperty("TemporaryCropFolder")!.GetValue(result);
                 return result;

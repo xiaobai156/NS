@@ -369,6 +369,49 @@ public sealed class VisualTemplateMatcherTests
     }
 
     [Fact]
+    public void BackupCannotDisplaceAnOldMatchOrClaimAnotherRulesImage()
+    {
+        using var files = new ImageFixture();
+        string oldImage = files.Create("old.png", titleKind: 1, rowKind: 1);
+        string backupImage = files.Create("backup.png", titleKind: 2, rowKind: 1);
+        string oldFingerprint = VisualTemplateMatcher.CreateFingerprint(oldImage, device: LocalOcrDevice.Cpu);
+        string backupFingerprint = VisualTemplateMatcher.CreateFingerprint(backupImage, device: LocalOcrDevice.Cpu);
+        var backup = new VisualTemplateBackup(backupFingerprint, .1125, .2125);
+        var rule = new VisualTemplateDefinition("本人", ["本人"], oldFingerprint, .25, .55, Backup: backup);
+        var catalog = new VisualTemplateSet(1, "新澳六合彩资料", 1, [rule]);
+
+        VisualTemplateMatch preferred = Assert.Single(VisualTemplateMatcher.Match(
+            [backupImage, oldImage], catalog, device: LocalOcrDevice.Cpu));
+        Assert.Equal(oldImage, preferred.SourcePath);
+        Assert.False(preferred.UsedBackup);
+        VisualTemplateMatch recovered = Assert.Single(VisualTemplateMatcher.Match(
+            [backupImage], catalog, device: LocalOcrDevice.Cpu));
+        Assert.True(recovered.UsedBackup);
+        Assert.Equal(backupImage, recovered.SourcePath);
+        var other = new VisualTemplateDefinition("其他", ["其他"], backupFingerprint, .25, .55);
+        Assert.Equal("其他", Assert.Single(VisualTemplateMatcher.Match(
+            [backupImage], catalog with { Templates = [rule, other] }, device: LocalOcrDevice.Cpu)).Template.Id);
+    }
+
+    [Fact]
+    public void FirstOnlyCardUsesItsEarlierBackupInsteadOfTheLaterOldPrint()
+    {
+        using var files = new ImageFixture();
+        string later = files.Create("100.jpg", titleKind: 1, rowKind: 1);
+        string earlier = files.Create("99.jpg", titleKind: 2, rowKind: 1);
+        string oldFingerprint = VisualTemplateMatcher.CreateFingerprint(later, device: LocalOcrDevice.Cpu);
+        string backupFingerprint = VisualTemplateMatcher.CreateFingerprint(earlier, device: LocalOcrDevice.Cpu);
+        string id = MacauTitleIndex.FirstOnly;
+        var rule = new VisualTemplateDefinition(id, [id], oldFingerprint, .25, .55,
+            Backup: new(backupFingerprint, .1125, .2125));
+        var catalog = new VisualTemplateSet(1, "新澳六合彩资料", 1, [rule]);
+
+        Assert.Equal(earlier, Assert.Single(VisualTemplateMatcher.Match(
+            [later, earlier], catalog, device: LocalOcrDevice.Cpu)).SourcePath);
+        Assert.Empty(VisualTemplateMatcher.Match([later], catalog, device: LocalOcrDevice.Cpu));
+    }
+
+    [Fact]
     [Trait("Category", "CUDA")]
     public void ProductionCatalogCoversAllConfiguredRules()
     {
@@ -378,6 +421,7 @@ public sealed class VisualTemplateMatcherTests
         Assert.Equal("新澳六合彩资料", catalog.Folder);
         Assert.Equal(107, catalog.Templates.Count);
         Assert.Equal(110, catalog.Templates.SelectMany(item => item.RuleIds).Distinct(StringComparer.Ordinal).Count());
+        Assert.All(catalog.Templates, template => Assert.NotNull(template.Backup));
         Assert.Contains(catalog.Templates, item =>
             item.Id == "藏宝杀一肖" && item.RuleIds.SequenceEqual(["藏宝杀一肖"], StringComparer.Ordinal));
         Assert.Contains(catalog.Templates, item =>

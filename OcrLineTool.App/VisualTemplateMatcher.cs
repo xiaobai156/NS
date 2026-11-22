@@ -7,6 +7,8 @@ using System.Text.Json;
 
 namespace OcrLineTool;
 
+public sealed record VisualTemplateBackup(string Fingerprint, double TopWidthRatio, double BottomWidthRatio);
+
 public sealed record VisualTemplateDefinition(
     string Id,
     string[] RuleIds,
@@ -15,7 +17,8 @@ public sealed record VisualTemplateDefinition(
     double CropBottomWidthRatio,
     double? FingerprintTopWidthRatio = null,
     double? FingerprintBottomWidthRatio = null,
-    string? SourceFolder = null);
+    string? SourceFolder = null,
+    VisualTemplateBackup? Backup = null);
 
 public sealed record VisualTemplateSet(
     int Version,
@@ -30,7 +33,8 @@ public sealed record VisualTemplateMatch(
     VisualTemplateDefinition Template,
     int Distance,
     double VerticalShiftWidthRatio,
-    string SourceHash = "");
+    string SourceHash = "",
+    bool UsedBackup = false);
 
 public sealed record VisualTemplateProgress(int Completed, int Total, string Path);
 
@@ -52,6 +56,7 @@ public static class VisualTemplateMatcher
         byte[] bgr, int width, int height, double[] positions, int count, [Out] ulong[] output);
 
     private const int MaxCudaBatchPositions = 4096;
+    private const int MaxBackupDistance = 20;
     private const string DefaultFolder = "新澳六合彩资料";
     private const double TitleTopWidthRatio = 0.1125;
     private const double TitleBottomWidthRatio = 0.2125;
@@ -159,13 +164,14 @@ public static class VisualTemplateMatcher
         IProgress<VisualTemplateProgress>? progress = null,
         LocalOcrDevice device = LocalOcrDevice.Gpu,
         CancellationToken cancellationToken = default,
-        bool batchGpuRegions = false) =>
+        bool batchGpuRegions = false,
+        bool useBackups = false) =>
         Match(
             imagePaths,
             templates,
             maxDistance,
             template => ResolveRegion(template, null, null),
-            progress, device, cancellationToken, batchGpuRegions);
+            progress, device, cancellationToken, batchGpuRegions, useBackups);
 
     public static IReadOnlyList<VisualTemplateMatch> Match(
         IReadOnlyList<string> imagePaths,
@@ -182,6 +188,7 @@ public static class VisualTemplateMatcher
                 catalog.FingerprintTopWidthRatio,
                 catalog.FingerprintBottomWidthRatio),
             progress, device, cancellationToken,
+            RuleCatalog.IsGroupFolder(catalog.Folder, DefaultFolder),
             RuleCatalog.IsGroupFolder(catalog.Folder, DefaultFolder));
 
     public static bool HasUsableMatches(
@@ -278,7 +285,8 @@ public static class VisualTemplateMatcher
         IProgress<VisualTemplateProgress>? progress,
         LocalOcrDevice device,
         CancellationToken cancellationToken,
-        bool batchGpuRegions)
+        bool batchGpuRegions,
+        bool useBackups)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (imagePaths.Count == 0 || templates.Count == 0)
@@ -286,7 +294,9 @@ public static class VisualTemplateMatcher
 
         ulong[][] templateHashes = templates.Select(item => ParseFingerprint(item.Fingerprint)).ToArray();
         FingerprintRegion[] templateRegions = templates.Select(regionSelector).ToArray();
-        FingerprintRegion[] regions = templateRegions.Distinct().ToArray();
+        var backups = templates.Select(template => useBackups ? template.Backup : null).ToArray();
+        FingerprintRegion[] regions = templateRegions.Concat(backups.OfType<VisualTemplateBackup>()
+            .Select(backup => CreateRegion(backup.TopWidthRatio, backup.BottomWidthRatio))).Distinct().ToArray();
         double[]? batch = batchGpuRegions && device == LocalOcrDevice.Gpu && regions.Length > 1
             && regions.Length <= MaxCudaBatchPositions / ShiftRatios.Length
             ? BatchPositions(regions, ShiftRatios) : null;
@@ -335,9 +345,9 @@ public static class VisualTemplateMatcher
                 .First(PaddleLocalOcrClient.IsCudaUnavailable);
         }
 
-        var pairs = new List<Score>(templates.Count * imagePaths.Count);
-        for (int templateIndex = 0; templateIndex < templates.Count; templateIndex++)
+        List<Score> FindPairs(int templateIndex, FingerprintRegion region, ulong[] fingerprint, int limit)
         {
+            var pairs = new List<Score>();
             var seenContent = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             for (int imageIndex = 0; imageIndex < imageHashes.Length; imageIndex++)
             {
@@ -346,8 +356,7 @@ public static class VisualTemplateMatcher
                 if (templates[templateIndex].SourceFolder is { Length: > 0 } folder
                     && !RuleEngine.MatchesFolder(imageHashes[imageIndex].Path, folder))
                     continue;
-                if (!imageHashes[imageIndex].Hashes.TryGetValue(
-                    templateRegions[templateIndex], out ulong[][]? variants))
+                if (!imageHashes[imageIndex].Hashes.TryGetValue(region, out ulong[][]? variants))
                     continue;
                 if (!seenContent.Add(imageHashes[imageIndex].SourceHash))
                     continue;
@@ -356,60 +365,105 @@ public static class VisualTemplateMatcher
                 int bestShift = 0;
                 for (int shiftIndex = 0; shiftIndex < variants.Length; shiftIndex++)
                 {
-                    int distance = HammingDistance(templateHashes[templateIndex], variants[shiftIndex]);
+                    int distance = HammingDistance(fingerprint, variants[shiftIndex]);
                     if (distance < bestDistance)
                     {
                         bestDistance = distance;
                         bestShift = shiftIndex;
                     }
                 }
-                if (bestDistance <= maxDistance)
+                if (bestDistance <= limit)
                     pairs.Add(new Score(templateIndex, imageIndex, bestDistance, bestShift));
             }
-        }
 
-        // Do not force a deterministic choice when several images are equally close.
-        // An ambiguous template must fall back to OCR instead of selecting a wrong image.
-        const int minimumDistanceMargin = 4;
-        pairs = pairs
-            .GroupBy(item => item.TemplateIndex)
-            .SelectMany(group =>
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                Score[] ordered = group.OrderBy(item => item.Distance)
-                    .ThenBy(item => imageHashes[item.ImageIndex].Path, StringComparer.OrdinalIgnoreCase)
-                    .ToArray();
-                if (ordered.Length > 1 &&
-                    ordered[1].Distance - ordered[0].Distance < minimumDistanceMargin)
-                    return [];
+            // Leave close calls to the printed title check.
+            const int minimumDistanceMargin = 4;
+            var ordered = pairs.OrderBy(item => item.Distance)
+                .ThenBy(item => imageHashes[item.ImageIndex].Path, StringComparer.OrdinalIgnoreCase).ToList();
+            if (ordered.Count <= 1)
                 return ordered;
-            })
-            .ToList();
+            if (ordered[1].Distance - ordered[0].Distance < minimumDistanceMargin)
+                return [];
+            if (useBackups && templates[templateIndex].Id == MacauTitleIndex.FirstOnly)
+            {
+                long? first = MacauTitleIndex.PostId(imageHashes[ordered[0].ImageIndex].Path);
+                if (first is null || ordered.Skip(1).Any(item =>
+                    MacauTitleIndex.PostId(imageHashes[item.ImageIndex].Path) is not { } id || id <= first.Value))
+                    return [];
+                // Do not let a different template's assignment promote a later first-only card.
+                return [ordered[0]];
+            }
+            return ordered;
+        }
 
         var usedTemplates = new HashSet<int>();
         var usedImages = new HashSet<int>();
         var usedContent = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var matches = new List<VisualTemplateMatch>();
-        foreach (Score score in pairs
+        void Assign(IEnumerable<Score> pairs, bool usedBackup)
+        {
+            foreach (Score score in pairs
             .OrderBy(item => item.Distance)
             .ThenBy(item => item.TemplateIndex)
             .ThenBy(item => Math.Abs(ShiftRatios[item.ShiftIndex]))
             .ThenBy(item => imageHashes[item.ImageIndex].Path, StringComparer.OrdinalIgnoreCase))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (usedTemplates.Contains(score.TemplateIndex) || usedImages.Contains(score.ImageIndex)
-                || usedContent.Contains(imageHashes[score.ImageIndex].SourceHash))
-                continue;
-            usedTemplates.Add(score.TemplateIndex);
-            usedImages.Add(score.ImageIndex);
-            usedContent.Add(imageHashes[score.ImageIndex].SourceHash);
-            matches.Add(new VisualTemplateMatch(
-                imageHashes[score.ImageIndex].Path,
-                templates[score.TemplateIndex],
-                score.Distance,
-                ShiftRatios[score.ShiftIndex],
-                imageHashes[score.ImageIndex].SourceHash));
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (usedTemplates.Contains(score.TemplateIndex) || usedImages.Contains(score.ImageIndex)
+                    || usedContent.Contains(imageHashes[score.ImageIndex].SourceHash))
+                    continue;
+                usedTemplates.Add(score.TemplateIndex);
+                usedImages.Add(score.ImageIndex);
+                usedContent.Add(imageHashes[score.ImageIndex].SourceHash);
+                matches.Add(new VisualTemplateMatch(
+                    imageHashes[score.ImageIndex].Path,
+                    templates[score.TemplateIndex],
+                    score.Distance,
+                    ShiftRatios[score.ShiftIndex],
+                    imageHashes[score.ImageIndex].SourceHash,
+                    usedBackup));
+            }
         }
+
+        List<Score> BackupMatches(int index, VisualTemplateBackup backup) => FindPairs(index,
+            CreateRegion(backup.TopWidthRatio, backup.BottomWidthRatio), ParseFingerprint(backup.Fingerprint),
+            Math.Min(maxDistance, MaxBackupDistance));
+        var primaryPairs = Enumerable.Range(0, templates.Count).SelectMany(index =>
+            FindPairs(index, templateRegions[index], templateHashes[index], maxDistance)).ToList();
+        var backupPairs = new List<Score>();
+        int firstOnlyIndex = Enumerable.Range(0, templates.Count)
+            .FirstOrDefault(i => backups[i] is not null && templates[i].Id == MacauTitleIndex.FirstOnly, -1);
+        if (firstOnlyIndex >= 0)
+        {
+            Score? oldCard = primaryPairs.FirstOrDefault(score => score.TemplateIndex == firstOnlyIndex);
+            Score? firstCard = BackupMatches(firstOnlyIndex, backups[firstOnlyIndex]!).FirstOrDefault();
+            // The old print can be the later post. With no reliable match for the first print, use OCR.
+            long? MessageId(Score score) => MacauTitleIndex.PostId(imageHashes[score.ImageIndex].Path);
+            if (firstCard is null || MessageId(firstCard) is not { } firstId)
+                primaryPairs.RemoveAll(score => score.TemplateIndex == firstOnlyIndex);
+            else if (oldCard is null || MessageId(oldCard) is { } oldId && firstId < oldId)
+            {
+                primaryPairs.RemoveAll(score => score.TemplateIndex == firstOnlyIndex);
+                backupPairs.Add(firstCard);
+            }
+            else if (oldCard.ImageIndex != firstCard.ImageIndex &&
+                (MessageId(oldCard) is not { } oldOrder || oldOrder == firstId))
+                primaryPairs.RemoveAll(score => score.TemplateIndex == firstOnlyIndex);
+        }
+
+        Assign(primaryPairs, usedBackup: false);
+        for (int index = 0; index < backups.Length; index++)
+        {
+            if (index == firstOnlyIndex || usedTemplates.Contains(index) || backups[index] is not { } backup)
+                continue;
+            var pairs = BackupMatches(index, backup);
+            // A claimed best image must never promote this backup's runner-up.
+            if (pairs.Count > 0)
+                backupPairs.Add(pairs[0]);
+        }
+        Assign(backupPairs.GroupBy(score => imageHashes[score.ImageIndex].SourceHash)
+            .Where(group => group.Count() == 1).Select(group => group.Single()), usedBackup: true);
+
         cancellationToken.ThrowIfCancellationRequested();
         return matches.OrderBy(item => item.Template.Id, StringComparer.Ordinal).ToArray();
     }
@@ -665,7 +719,12 @@ public static class VisualTemplateMatcher
                 !IsValidRegionPair(
                     template.FingerprintTopWidthRatio,
                     template.FingerprintBottomWidthRatio,
-                    allowBothMissing: true))
+                    allowBothMissing: true) ||
+                template.Backup is { } backup &&
+                    (!RuleCatalog.IsGroupFolder(catalog.Folder, DefaultFolder) ||
+                     backup.Fingerprint is not { Length: 256 } ||
+                     !backup.Fingerprint.All(Uri.IsHexDigit) ||
+                     !IsValidRegion(backup.TopWidthRatio, backup.BottomWidthRatio)))
                 throw new OcrException($"{fileName} 中的模板 {template.Id} 无效。");
         }
     }
