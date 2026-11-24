@@ -132,6 +132,90 @@ public sealed class PremiumRuleHardeningTests
             RuleEngine.ExtractFinalResult(lines, 263, Rule("藏宝九肖")).Status);
     }
 
+    private static OcrRule DragonKingEastSouthRule() =>
+        new("龙王庙", "方位", "龙王东南", RequiredKeyword: "东南西北", StrictIssueBlock: true);
+
+    [Theory]
+    [InlineData("东肖 南肖 北肖", "兔虎龙马蛇羊鼠猪牛")]
+    [InlineData("西肖 南肖 北肖", "鸡猴狗马蛇羊鼠猪牛")]
+    [InlineData("东肖 西肖 南肖", "兔虎龙鸡猴狗马蛇羊")]
+    [InlineData("东肖 西肖 北肖", "兔虎龙鸡猴狗鼠猪牛")]
+    public void DragonKingEastSouthExpandsTheTargetIssueDirections(string directions, string expected)
+    {
+        string[] lines =
+        [
+            "新澳327期开奖",
+            "龙王庙【东南西北】付费版",
+            "东：兔虎龙/西：鸡猴狗/南：马蛇羊/北肖：鼠猪牛",
+            "328期",
+            $"重砸：{directions}",
+            "开??",
+            "327期",
+            "重砸：西肖 南肖 北肖",
+            "狗45错"
+        ];
+
+        RuleExtractionResult result = RuleEngine.ExtractFinalResult(
+            lines, 328, DragonKingEastSouthRule());
+
+        Assert.Equal(RuleExtractionStatus.Success, result.Status);
+        Assert.Equal(expected, result.Value);
+    }
+
+    [Fact]
+    public void DragonKingEastSouthRejectsIncompleteDuplicateAndConflictingDirections()
+    {
+        OcrRule rule = DragonKingEastSouthRule();
+        string[] Card(string directions) =>
+        [
+            "龙王庙【东南西北】付费版",
+            "328期",
+            $"重砸：{directions}",
+            "开??"
+        ];
+
+        Assert.Equal(RuleExtractionStatus.Missing,
+            RuleEngine.ExtractFinalResult(Card("东肖 南肖"), 328, rule).Status);
+        Assert.Equal(RuleExtractionStatus.Missing,
+            RuleEngine.ExtractFinalResult(Card("东肖 东肖 北肖"), 328, rule).Status);
+        Assert.Equal(RuleExtractionStatus.Missing,
+            RuleEngine.ExtractFinalResult(Card("东肖 西肖 南肖 北肖"), 328, rule).Status);
+        Assert.Equal(RuleExtractionStatus.Missing,
+            RuleEngine.ExtractFinalResult(Card("东肖 南肖 北肖"), 329, rule).Status);
+        Assert.Equal(RuleExtractionStatus.Conflict,
+            RuleEngine.ExtractFinalResult(
+                [
+                    "龙王庙【东南西北】付费版",
+                    "328期重砸：东肖 南肖 北肖 开??",
+                    "328期重砸：西肖 南肖 北肖 开??"
+                ],
+                328,
+                rule).Status);
+    }
+
+    [Fact]
+    public void DragonKingEastSouthRuleIsIsolatedToItsFullPrintedIdentity()
+    {
+        OcrRule rule = DragonKingEastSouthRule();
+        OcrRule[] rules = [rule];
+        const string path = @"C:\图片\11.24-嫣然六合彩大全\全部图片\龙王东南.jpg";
+
+        Assert.Equal(
+            ["龙王东南"],
+            RuleEngine.FindMatches(
+                path,
+                ["龙王庙【东南西北】付费版", "328期", "重砸：东肖 南肖 北肖"],
+                rules,
+                rules,
+                issue: 328).Select(match => match.Id));
+        Assert.Empty(RuleEngine.FindMatches(
+            path,
+            ["其他卡【东西南北】", "328期", "东肖 南肖 北肖"],
+            rules,
+            rules,
+            issue: 328));
+    }
+
     [Theory]
     [InlineData("翩翩公子头", "公子禁止1头：准！")]
     [InlineData("翩翩公子头", "公子禁止1头：四头 二头 准！")]

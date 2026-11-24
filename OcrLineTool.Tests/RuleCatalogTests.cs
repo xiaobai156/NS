@@ -51,7 +51,7 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "嫣然心水.json"));
 
-        Assert.Equal(104, rules.Count);
+        Assert.Equal(107, rules.Count);
         Assert.DoesNotContain(rules, rule => rule.Id == "大酒窝" || rule.Folder == "大酒窝");
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.Contains(rules, rule => rule.Id == "钦差大臣公式一" && rule.Section == "公式一");
@@ -103,6 +103,12 @@ public sealed class RuleCatalogTests
             && rule.Folder == "火狼女" && rule.Section == "禁" && rule.RequiredKeyword == "禁");
         Assert.Contains(rules, rule => rule.Id == "火狼女两尾" && rule.Type == "尾数组合"
             && rule.Folder == "火狼女" && rule.Section == "二尾" && rule.RequiredKeyword == "二尾");
+        Assert.Contains(rules, rule => rule.Id == "冷酷女王杀一肖" && rule.Type == "生肖"
+            && rule.Folder == "冷酷女王" && rule.Section == "①肖" && rule.RequiredKeyword == "①肖");
+        Assert.Contains(rules, rule => rule.Id == "冷酷女王两肖" && rule.Type == "生肖组合"
+            && rule.Folder == "冷酷女王" && rule.Section == "②肖" && rule.RequiredKeyword == "②肖");
+        Assert.Contains(rules, rule => rule.Id == "忘忧草杀一肖" && rule.Type == "生肖"
+            && rule.Folder == "忘忧草");
         Assert.DoesNotContain(rules, rule => rule.Id == "冷酷女王");
         string[] newNames =
         [
@@ -283,7 +289,7 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "新澳六合彩资料.json"));
 
-        Assert.Equal(110, rules.Count);
+        Assert.Equal(111, rules.Count);
         Assert.Equal(rules.Count, rules.Select(rule => rule.Id).Distinct(StringComparer.Ordinal).Count());
         // v1.5.189 新增、现已撤回的 15 条资料：Id 一旦回流就报错。
         string[] removed =
@@ -403,7 +409,7 @@ public sealed class RuleCatalogTests
             "曾道人小杀肖", "心水杀肖肖肖", "聚彩堂一肖", "聚彩堂一尾", "姨妈肖杀", "姨妈尾杀",
             "彩虹半波", "超级赢家半波波", "黄大仙半波", "王不王一头", "神算子避头", "财神一头",
             "近期开奖员", "毛老二", "通天九九肖", "大赢家九肖", "亮剑九肖",
-            "白小姐四季", "白小姐来钱", "慈善四季", "神算子四码"
+            "白小姐四季", "白小姐来钱", "慈善四季", "神算子四码", "太极九肖"
         ], rules.Select(rule => rule.Id));
     }
 
@@ -778,7 +784,7 @@ public sealed class RuleCatalogTests
     [Theory]
     [InlineData("黑色六合彩", 11)]
     [InlineData("嫣然电报", 7)]
-    [InlineData("嫣然六合彩大全", 4)]
+    [InlineData("嫣然六合彩大全", 5)]
     public void LoadsTheTwoNewTemplateGroupsWithMatchingTemplates(string group, int expectedCount)
     {
         string configuration = ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory);
@@ -799,6 +805,21 @@ public sealed class RuleCatalogTests
         });
         // 模板只在当前所选群的目录里加载，两个新群必须各自被认作独立群。
         Assert.True(VisualTemplateMatcher.Supports($@"C:\结果\9.19-{group}"));
+    }
+
+    [Fact]
+    public void DragonKingEastSouthIsConfiguredAsAStandaloneNineZodiacCard()
+    {
+        string configuration = ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory);
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(configuration, "嫣然六合彩大全.json"));
+        OcrRule rule = Assert.Single(rules, item => item.Id == "龙王东南");
+
+        Assert.Equal("龙王庙", rule.Keyword);
+        Assert.Equal("方位", rule.Type);
+        Assert.Equal("东南西北", rule.RequiredKeyword);
+        Assert.Equal("九肖", GroupResultFormatter.CategoryFor(rule.Type));
+        Assert.True(RuleEngine.IsFormattedOutputValueValid(rule, "兔虎龙马蛇羊鼠猪牛"));
     }
 
     // 嫣然电报 292 期真实版式：期号在下、数据在上/下的四种排列都必须正确出值，

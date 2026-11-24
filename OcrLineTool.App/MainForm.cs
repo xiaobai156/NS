@@ -1530,10 +1530,12 @@ public sealed class MainForm : Form
             {
                 // The candidate list was frozen while these rules were missing. Do not
                 // drop a rule merely because an earlier competing candidate succeeded;
-                // compare every already-planned observation so conflicts stay visible.
-                OcrRule[] evidenceRules = candidate.Rules.ToArray();
+                // 三怪肖肖 is the exception: accept the first valid card only.
+                OcrRule[] evidenceRules = candidate.Rules
+                    .Where(rule => ShouldProcessCandidateRule(rule, values)).ToArray();
                 if (evidenceRules.Length == 0)
                     continue;
+                RecognitionCandidate observationCandidate = candidate with { Rules = evidenceRules };
 
                 OcrEvidence? cloudEvidence = null;
                 string? cloudProvider = null;
@@ -1549,7 +1551,7 @@ public sealed class MainForm : Form
                 {
                     try
                     {
-                        cloudEvidence = await RequestCloudFallbackAsync(candidate);
+                        cloudEvidence = await RequestCloudFallbackAsync(observationCandidate);
                         cloudProvider = "云 OCR";
                     }
                     catch (OcrException exception)
@@ -2444,10 +2446,11 @@ public sealed class MainForm : Form
             int candidateImages = 0;
             foreach (RecognitionCandidate candidate in candidates)
             {
-                // Selected competing candidates must be compared, not skipped after first success.
-                OcrRule[] activeRules = candidate.Rules.ToArray();
+                OcrRule[] activeRules = candidate.Rules
+                    .Where(rule => ShouldProcessCandidateRule(rule, values)).ToArray();
                 if (activeRules.Length == 0)
                     continue;
+                RecognitionCandidate observationCandidate = candidate with { Rules = activeRules };
 
                 candidateImages++;
                 int cloudIndex = candidateImages;
@@ -2460,7 +2463,7 @@ public sealed class MainForm : Form
                 if (!checkedCloudEvidence.TryGetValue(CloudEvidenceKey(currentPrimaryIdentity), out cloudEvidence!))
                 {
                     cloudEvidence = await RecognizePrimaryDeduplicatedAsync(
-                        candidate, cloudIndex, plannedCloudImages, "云 OCR");
+                        observationCandidate, cloudIndex, plannedCloudImages, "云 OCR");
                 }
                 cloudEvidence = await PrepareStatisticsEvidenceAsync(cloudEvidence, activeRules, issue);
                 IReadOnlyList<string> cloudLines = cloudEvidence.Lines;
@@ -2492,8 +2495,8 @@ public sealed class MainForm : Form
                 if (missingRules.Count > 0)
                 {
                     fallbackEvidence = await fallbackImageDeduplicator.RecognizeEvidenceAsync(
-                        selectedImageDirectory!, candidate.SourcePath, candidate.Rules,
-                        async () => await RecognizeFallbackAsync(candidate, cloudIndex, error => fallbackError = error)
+                        selectedImageDirectory!, candidate.SourcePath, activeRules,
+                        async () => await RecognizeFallbackAsync(observationCandidate, cloudIndex, error => fallbackError = error)
                             ?? OcrEvidence.FromLines(candidate.SourcePath, [], "fallback-empty"));
 
                     fallbackEvidence = await PrepareStatisticsEvidenceAsync(fallbackEvidence, activeRules, issue);
@@ -3702,13 +3705,15 @@ public sealed class MainForm : Form
     private async Task RecoverMacauCandidateValuesAsync(IReadOnlyList<RecognitionCandidate> candidates,
         int issue, ResultValues values, ResultEvidenceLedger ledger, HashSet<string> recognized)
     {
-        // A successful sibling must not hide a conflicting result on this card.
-        var pending = candidates.SelectMany(c => c.Rules.Where(rule => c.LocalEvidence is null ||
-            RuleEngine.ExtractFinalResult(c.LocalEvidence, issue, rule).Status == RuleExtractionStatus.Missing)
+        // Keep retrying missing cards, but never merge separate 三怪肖肖 cards into one conflict.
+        var pending = candidates.SelectMany(c => c.Rules.Where(rule =>
+            ShouldProcessCandidateRule(rule, values) && (c.LocalEvidence is null ||
+            RuleEngine.ExtractFinalResult(c.LocalEvidence, issue, rule).Status == RuleExtractionStatus.Missing))
             .Select(rule => (Candidate: c, Rule: rule))).ToList();
         foreach (var (model, original) in new[] { (PaddleOcrModel.Medium, true),
             (PaddleOcrModel.Small, false), (PaddleOcrModel.Small, true) })
         {
+            pending.RemoveAll(item => !ShouldProcessCandidateRule(item.Rule, values));
             if (pending.Count == 0) return;
             string Input(RecognitionCandidate c) => original ? c.SourcePath : c.OcrPath;
             var client = CreateLocalOcrClient();
@@ -3718,6 +3723,7 @@ public sealed class MainForm : Form
             foreach (var (candidate, rule) in pending.ToArray())
             {
                 ActiveToken.ThrowIfCancellationRequested();
+                if (!ShouldProcessCandidateRule(rule, values)) continue;
                 if (!client.LastEvidence.TryGetValue(Input(candidate), out var raw)) continue;
                 var pinned = candidate.PinnedIdentity;
                 if (pinned is null) continue;
@@ -4006,6 +4012,8 @@ public sealed class MainForm : Form
     {
         foreach (OcrRule rule in rules)
         {
+            if (!ShouldProcessCandidateRule(rule, values))
+                continue;
             RuleExtractionResult result = RuleEngine.ExtractFinalResult(evidence, issue, rule);
             if (result.Status == RuleExtractionStatus.Conflict)
                 ledger.ObserveConflict(values, rule, evidence);
@@ -4013,6 +4021,12 @@ public sealed class MainForm : Form
                 ledger.Observe(values, rule, result.Value!, evidence);
         }
     }
+
+    internal static bool ShouldProcessCandidateRule(
+        OcrRule rule,
+        IReadOnlyDictionary<string, string> acceptedValues) =>
+        rule.Id != MacauTitleIndex.SingleCardRule ||
+        (!acceptedValues.ContainsKey(rule.Id) && !ResultValues.IsConflict(acceptedValues, rule.Id));
 
     // “宝典”固定海报的单缺格补读：候选图已有本机读数，再用同一候选的另一视图
     //（云兜底或另一模型）做邻位佐证。规则统一，任何流程只要两路证据齐全都走这里。
@@ -4441,6 +4455,8 @@ public sealed class MainForm : Form
                             templates.Count == 0)
                             throw new OcrException($"{catalog.Folder}标题模板与规则不一致。");
 
+                        IReadOnlyList<VisualTemplateDefinition> matchingTemplates =
+                            useMacauTitles ? catalog.Templates : templates;
                         var watch = Stopwatch.StartNew();
                         var progress = new Progress<VisualTemplateProgress>(item =>
                         {
@@ -4451,9 +4467,16 @@ public sealed class MainForm : Form
                             statusLabel.Text = $"标题模板：{item.Completed}/{item.Total}（{percent}%） · 当前：{ShortPath(item.Path)} · 已用 {FormatDuration(watch.Elapsed)}";
                         });
                         IReadOnlyList<VisualTemplateMatch> matches = await Task.Run(() =>
-                            VisualTemplateMatcher.Match(imagePaths, templates, catalog.MaxDistance, progress, ocrDevice, cancellationToken,
+                            VisualTemplateMatcher.Match(imagePaths, matchingTemplates, catalog.MaxDistance, progress, ocrDevice, cancellationToken,
                                     batchGpuRegions: useMacauTitles, useBackups: useMacauTitles)
-                                .Where(match => match.Template.RuleIds.All(ruleMap.ContainsKey))
+                                .Where(match => match.Template.RuleIds.Any(ruleMap.ContainsKey))
+                                .Select(match => match with
+                                {
+                                    Template = match.Template with
+                                    {
+                                        RuleIds = match.Template.RuleIds.Where(ruleMap.ContainsKey).ToArray()
+                                    }
+                                })
                                 .ToArray(), cancellationToken);
                         cancellationToken.ThrowIfCancellationRequested();
                         var requestedRuleIds = ruleMap.Keys.ToHashSet(StringComparer.Ordinal);

@@ -15,6 +15,17 @@
       "FingerprintBottomWidthRatio": 0.26
     },
     {
+      "Id": "龙王东南",
+      "RuleIds": [
+        "龙王东南"
+      ],
+      "Fingerprint": "CF359B1BC98CE79FC2359B199D8C671FC63595B98D8E4717C6349B288D8C661FC6539B3A9D86663FC335993A8D8E473FCB759DA98D8E473FC7578F6AD99CEF7FFF5AA7F7FC9FAE77DF6EDA72D29ADE67DB6EDA72D312DE46DB6EDA6AD352CE46DA6D586ADB52CA64DB6D58CCD6229AE4DB5956CD46279A617B797DFDFFEEFAEF",
+      "CropTopWidthRatio": 0.125,
+      "CropBottomWidthRatio": 0.41,
+      "FingerprintTopWidthRatio": 0.14,
+      "FingerprintBottomWidthRatio": 0.26
+    },
+    {
       "Id": "唐朝杀尾",
       "RuleIds": [
         "唐朝杀尾"

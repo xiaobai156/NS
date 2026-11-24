@@ -10,7 +10,9 @@ internal sealed class MacauTitleIndex
     private readonly Title[] titles;
     private readonly Dictionary<string, (VisualTemplateMatch Match, bool OtherIssue)> entries = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> rejected = new(StringComparer.OrdinalIgnoreCase);
-    internal const string FirstOnly = "三怪肖肖";
+    private readonly Dictionary<string, HashSet<int>> observedIssues = new(StringComparer.OrdinalIgnoreCase);
+    private int? targetIssue;
+    internal const string SingleCardRule = "三怪肖肖";
     internal const string SelectionName = "标题模板及本地标题核对";
     internal const string MissingReason = "未找到完整资料标题或对应模板";
 
@@ -44,8 +46,18 @@ internal sealed class MacauTitleIndex
 
     public bool Read(OcrEvidence image, int width, int issue)
     {
+        targetIssue = issue;
         var tokens = (image.TokenItems ?? image.Items).Where(t => t.Box != null && t.Box.CenterY <= width * .55)
             .Select(t => (Text: Normalize(t.Text), Box: t.Box!, t.ViewId)).Where(t => t.Text.Length > 0).ToArray();
+        int[] issues = tokens.SelectMany(x => Regex.Matches(x.Text, @"^第?(?:20\d{2})?(\d{1,3})期$")
+            .Select(m => int.Parse(m.Groups[1].Value))).Distinct().ToArray();
+        if (issues.Length > 0)
+        {
+            if (!observedIssues.TryGetValue(image.SourcePath, out HashSet<int>? observed))
+                observedIssues[image.SourcePath] = observed = [];
+            observed.UnionWith(issues);
+        }
+
         var matches = new List<Title>();
         foreach (var title in titles)
         {
@@ -84,8 +96,9 @@ internal sealed class MacauTitleIndex
             return false;
         }
         var template = matches[0].Template;
-        int[] issues = template.Id == FirstOnly ? tokens.SelectMany(x => Regex.Matches(x.Text, @"^第?(?:20\d{2})?(\d{1,3})期$").Select(m => int.Parse(m.Groups[1].Value))).Distinct().ToArray() : [];
-        bool otherIssue = issues.Length > 0 && !issues.Contains(issue);
+        bool otherIssue = template.Id == SingleCardRule &&
+            observedIssues.TryGetValue(image.SourcePath, out HashSet<int>? issueValues) &&
+            issueValues.Count > 0 && !issueValues.Contains(issue);
         entries[image.SourcePath] = (new(image.SourcePath, template, -1, 0, image.SourceHash), otherIssue);
         return true;
     }
@@ -94,22 +107,29 @@ internal sealed class MacauTitleIndex
     {
         var all = new List<VisualTemplateMatch>();
         foreach (var m in visual)
-            if (!rejected.Contains(m.SourcePath) && (!entries.TryGetValue(m.SourcePath, out var entry) || !entry.OtherIssue && entry.Match.Template.Id == m.Template.Id)) all.Add(m);
+        {
+            bool otherIssue = m.Template.Id == SingleCardRule &&
+                targetIssue is int issue &&
+                observedIssues.TryGetValue(m.SourcePath, out HashSet<int>? observed) &&
+                observed.Count > 0 && !observed.Contains(issue);
+            if (rejected.Contains(m.SourcePath) || otherIssue)
+                continue;
+            if (entries.TryGetValue(m.SourcePath, out var entry))
+            {
+                if (!entry.OtherIssue && entry.Match.Template.Id == m.Template.Id)
+                    all.Add(m with { RequiresTitleVerification = false });
+            }
+            else if (!m.RequiresTitleVerification)
+            {
+                all.Add(m);
+            }
+        }
         foreach (var entry in entries.Values.Where(e => !e.OtherIssue && !rejected.Contains(e.Match.SourcePath)))
             if (!all.Any(m => m.Template.Id == entry.Match.Template.Id && StringComparer.OrdinalIgnoreCase.Equals(m.SourcePath, entry.Match.SourcePath))) all.Add(entry.Match);
-        var first = all.Where(m => m.Template.Id == FirstOnly).ToArray();
-        if (first.Length > 1)
-        {
-            var ordered = first.Select(m => (Match: m, Id: PostId(m.SourcePath))).OrderBy(x => x.Id).ToArray();
-            all.RemoveAll(m => m.Template.Id == FirstOnly);
-            if (ordered.All(x => x.Id.HasValue) && ordered.Where(x => x.Id == ordered[0].Id).Select(x => x.Match.SourceHash).Distinct().Count() == 1) all.Add(ordered[0].Match);
-        }
-        return all;
-    }
-
-    internal static long? PostId(string path)
-    {
-        var m = Regex.Match(Path.GetFileNameWithoutExtension(path), @"^(?:\d{8}_\d{6}_[a-fA-F0-9]+_)?(\d+)$");
-        return m.Success && long.TryParse(m.Groups[1].Value, out long id) ? id : null;
+        HashSet<string> singleCardPaths = all.Where(match => match.Template.Id == SingleCardRule)
+            .Select(match => match.SourcePath).Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(2).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return all.Where(match => match.Template.Id != SingleCardRule || singleCardPaths.Contains(match.SourcePath))
+            .ToArray();
     }
 }

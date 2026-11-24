@@ -216,6 +216,9 @@ public sealed class VisualTemplateMatcherTests
             [firstMatch, secondMatch], [first, second], new HashSet<string>(["其他"], StringComparer.Ordinal)));
         Assert.False(VisualTemplateMatcher.HasUsableMatches(
             [firstMatch, firstMatch], [first, first], new HashSet<string>(["规则一"], StringComparer.Ordinal)));
+        Assert.False(VisualTemplateMatcher.HasUsableMatches(
+            [firstMatch with { RequiresTitleVerification = true }, secondMatch],
+            [first, second], requested));
     }
 
     [Fact]
@@ -394,21 +397,70 @@ public sealed class VisualTemplateMatcherTests
     }
 
     [Fact]
-    public void FirstOnlyCardUsesItsEarlierBackupInsteadOfTheLaterOldPrint()
+    public void ContestedTemplatesRequireIdentityVerificationInsteadOfPromotingRunnerUp()
+    {
+        using var files = new ImageFixture();
+        string preferred = files.Create("preferred.png", titleKind: 1, rowKind: 1);
+        string runnerUp = Path.Combine(files.Folder, "runner-up.png");
+        using (var image = new Bitmap(preferred))
+        using (Graphics graphics = Graphics.FromImage(image))
+        {
+            graphics.FillRectangle(Brushes.Black, 40, 120, 2, 2);
+            image.Save(runnerUp, System.Drawing.Imaging.ImageFormat.Png);
+        }
+
+        const double top = 0.1125;
+        const double bottom = 0.2125;
+        string preferredFingerprint = VisualTemplateMatcher.CreateFingerprint(
+            preferred, top, bottom, device: LocalOcrDevice.Cpu);
+        string runnerUpFingerprint = FlipFingerprintBit(preferredFingerprint, wordIndex: 0, bitIndex: 0);
+        var first = new VisualTemplateDefinition(
+            "甲", ["甲"], preferredFingerprint, 0.25, 0.55, top, bottom);
+        var second = new VisualTemplateDefinition(
+            "乙", ["乙"], runnerUpFingerprint, 0.25, 0.55, top, bottom);
+        var templates = new[] { first, second };
+        var requested = new HashSet<string>(["甲", "乙"], StringComparer.Ordinal);
+
+        IReadOnlyList<VisualTemplateMatch> matches = VisualTemplateMatcher.Match(
+            [preferred, runnerUp], templates, 60,
+            device: LocalOcrDevice.Cpu, useBackups: true);
+
+        Assert.Equal(preferred, Assert.Single(matches, match => match.Template.Id == "甲").SourcePath);
+        VisualTemplateMatch promoted = Assert.Single(matches, match => match.Template.Id == "乙");
+        Assert.Equal(runnerUp, promoted.SourcePath);
+        Assert.All(matches, match => Assert.True(match.RequiresTitleVerification));
+        Assert.False(VisualTemplateMatcher.HasUsableMatches(matches, templates, requested));
+
+        // A retry still matches the full catalog so the requested rule keeps the competing owner's claim.
+        IReadOnlyList<VisualTemplateMatch> retryAllTemplates = VisualTemplateMatcher.Match(
+            [preferred, runnerUp], templates, 60,
+            device: LocalOcrDevice.Cpu, useBackups: true);
+        VisualTemplateMatch retrySecond = Assert.Single(retryAllTemplates, match => match.Template.Id == "乙");
+        Assert.True(retrySecond.RequiresTitleVerification);
+    }
+
+    [Fact]
+    public void SingleCardRuleKeepsCurrentAndBackupMatchesAsFallbackCandidates()
     {
         using var files = new ImageFixture();
         string later = files.Create("100.jpg", titleKind: 1, rowKind: 1);
         string earlier = files.Create("99.jpg", titleKind: 2, rowKind: 1);
         string oldFingerprint = VisualTemplateMatcher.CreateFingerprint(later, device: LocalOcrDevice.Cpu);
         string backupFingerprint = VisualTemplateMatcher.CreateFingerprint(earlier, device: LocalOcrDevice.Cpu);
-        string id = MacauTitleIndex.FirstOnly;
+        string id = MacauTitleIndex.SingleCardRule;
         var rule = new VisualTemplateDefinition(id, [id], oldFingerprint, .25, .55,
             Backup: new(backupFingerprint, .1125, .2125));
         var catalog = new VisualTemplateSet(1, "新澳六合彩资料", 1, [rule]);
 
+        Assert.Equal(later, Assert.Single(VisualTemplateMatcher.Match(
+            [later], catalog, device: LocalOcrDevice.Cpu)).SourcePath);
         Assert.Equal(earlier, Assert.Single(VisualTemplateMatcher.Match(
-            [later, earlier], catalog, device: LocalOcrDevice.Cpu)).SourcePath);
-        Assert.Empty(VisualTemplateMatcher.Match([later], catalog, device: LocalOcrDevice.Cpu));
+            [earlier], catalog, device: LocalOcrDevice.Cpu)).SourcePath);
+        IReadOnlyList<VisualTemplateMatch> both = VisualTemplateMatcher.Match(
+            [later, earlier], catalog, device: LocalOcrDevice.Cpu);
+        Assert.Equal(2, both.Count);
+        Assert.Contains(both, match => match.SourcePath == later);
+        Assert.Contains(both, match => match.SourcePath == earlier);
     }
 
     [Fact]
@@ -419,8 +471,8 @@ public sealed class VisualTemplateMatcherTests
             VisualTemplateMatcher.ConfigPath(AppContext.BaseDirectory));
 
         Assert.Equal("新澳六合彩资料", catalog.Folder);
-        Assert.Equal(107, catalog.Templates.Count);
-        Assert.Equal(110, catalog.Templates.SelectMany(item => item.RuleIds).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(108, catalog.Templates.Count);
+        Assert.Equal(111, catalog.Templates.SelectMany(item => item.RuleIds).Distinct(StringComparer.Ordinal).Count());
         Assert.All(catalog.Templates, template => Assert.NotNull(template.Backup));
         Assert.Contains(catalog.Templates, item =>
             item.Id == "藏宝杀一肖" && item.RuleIds.SequenceEqual(["藏宝杀一肖"], StringComparer.Ordinal));
@@ -601,5 +653,14 @@ public sealed class VisualTemplateMatcherTests
         }
 
         public void Dispose() => Directory.Delete(Folder, recursive: true);
+    }
+
+    private static string FlipFingerprintBit(string fingerprint, int wordIndex, int bitIndex)
+    {
+        var words = Enumerable.Range(0, 16)
+            .Select(index => Convert.ToUInt64(fingerprint.Substring(index * 16, 16), 16))
+            .ToArray();
+        words[wordIndex] ^= 1UL << bitIndex;
+        return string.Concat(words.Select(word => word.ToString("X16")));
     }
 }

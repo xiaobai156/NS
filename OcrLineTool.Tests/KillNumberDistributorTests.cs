@@ -63,9 +63,9 @@ public sealed class ResultDistributorTests
                 "傻丫头", "东南仔", "梁微微", "烟草味", "辣椒炒肉肖肖", "钦差大臣公式一", "钦差大臣公式二", "苏柒若",
                 "小灰灰一肖", "阿尔法", "柳叶刀", "华林肖", "小雨婷", "简单爱", "月来月好", "欧阳肖", "陈思思",
                 "独傲洒脱杀肖肖", "借花献佛", "品鉴", "小慧慧", "灰灰团", "雁塔题名杀肖肖",
-                "青苹果杀一肖"
+                "青苹果杀一肖", "冷酷女王杀一肖", "忘忧草杀一肖"
             ],
-            ["二肖分发规则.json"] = ["沁园春", "君军两肖", "恩平公式", "小黄人两肖", "傻丫头二肖", "独傲洒脱杀二肖", "火狼女两肖", "品鉴", "小慧慧", "灰灰团", "借花献佛"],
+            ["二肖分发规则.json"] = ["沁园春", "君军两肖", "恩平公式", "小黄人两肖", "傻丫头二肖", "独傲洒脱杀二肖", "火狼女两肖", "品鉴", "小慧慧", "灰灰团", "借花献佛", "冷酷女王两肖"],
             ["头分发规则.json"] = ["齐天大圣", "九王爷", "辣椒炒肉头", "小黄人头", "雁塔题名杀头", "永卟弃杀头", "恩平杀头", "东哥四头"],
             ["半头分发规则.json"] = ["白少华半头", "东哥半头"],
             ["尾分发规则.json"] = ["凌志", "紫燕儿尾", "大小姐", "缘来如此尾", "君军两尾", "辣椒炒肉尾", "小黄人两尾", "华林尾", "恩平杀一尾", "杰少杀一尾", "杰少禁一尾", "火狼女两尾"],
@@ -80,6 +80,11 @@ public sealed class ResultDistributorTests
         foreach ((string configName, string[] labels) in expected)
             Assert.Equal(labels, ReadSourceLabels(configName, "嫣然心水"));
 
+        Assert.Equal(
+            ["龙王东南"],
+            ReadSourceLabels("生肖分发规则.json", "嫣然六合彩大全"));
+        Assert.False(HasSourceLabel("肖新增分发规则.json", "嫣然六合彩大全", "龙王东南"));
+        Assert.False(HasSourceLabel("二肖分发规则.json", "嫣然六合彩大全", "龙王东南"));
         Assert.Equal(["跑狗", "高山流水"], ReadSourceLabels("生肖分发规则.json", "新澳高手"));
     }
 
@@ -908,7 +913,7 @@ public sealed class ResultDistributorTests
         Assert.Single(ReadSourceLabels("杀数字分发规则.json", "新澳六合彩资料"), label => label == "小马哥");
         Assert.Contains("龙王杀两肖", ReadSourceLabels("二肖分发规则.json", "新澳六合彩资料"));
         Assert.Equal(
-            ["近期开奖员", "毛老二", "通天九九肖", "大赢家九肖", "亮剑九肖", "白小姐四季", "白小姐来钱", "慈善四季"],
+            ["近期开奖员", "毛老二", "通天九九肖", "大赢家九肖", "亮剑九肖", "白小姐四季", "白小姐来钱", "慈善四季", "太极九肖"],
             ReadSourceLabels("生肖分发规则.json", "新澳六合彩资料"));
         Assert.Equal(["藏宝杀一肖"], ReadSourceLabels("肖新增分发规则.json", "新澳六合彩资料"));
         Assert.DoesNotContain("慈善四季", ReadSourceLabels("肖新增分发规则.json", "新澳六合彩资料"));
@@ -1097,6 +1102,17 @@ public sealed class ResultDistributorTests
             .EnumerateArray()
             .Single(item => item.GetProperty("sourceGroup").GetString() == sourceGroup);
         return source.GetProperty("labels").EnumerateArray().Select(item => item.GetString()!).ToArray();
+    }
+
+    private static bool HasSourceLabel(string configName, string sourceGroup, string label)
+    {
+        using JsonDocument document = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(ProductionConfigDirectory, configName)));
+        return document.RootElement.GetProperty("sources")
+            .EnumerateArray()
+            .Any(source => source.GetProperty("sourceGroup").GetString() == sourceGroup
+                && source.GetProperty("labels").EnumerateArray()
+                    .Any(item => item.GetString() == label));
     }
 
     private static string CreateConfig(string targetFile, params string[] labels) =>

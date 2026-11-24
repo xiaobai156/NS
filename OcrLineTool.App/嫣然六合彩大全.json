@@ -6,6 +6,7 @@
     { "keyword": "唐朝杀一肖", "type": "生肖", "label": "唐朝杀肖", "required_keyword": "唐朝杀一肖" },
     { "keyword": "唐朝杀一尾", "type": "尾", "label": "唐朝杀尾", "required_keyword": "唐朝杀一尾" },
     { "keyword": "唐朝杀一头", "type": "头", "label": "唐朝杀头", "required_keyword": "唐朝杀一头" },
-    { "keyword": "唐朝杀一行", "type": "单五行", "label": "唐朝杀行", "required_keyword": "唐朝杀一行" }
+    { "keyword": "唐朝杀一行", "type": "单五行", "label": "唐朝杀行", "required_keyword": "唐朝杀一行" },
+    { "keyword": "龙王庙", "type": "方位", "label": "龙王东南", "required_keyword": "东南西北" }
   ]
 }

@@ -34,7 +34,8 @@ public sealed record VisualTemplateMatch(
     int Distance,
     double VerticalShiftWidthRatio,
     string SourceHash = "",
-    bool UsedBackup = false);
+    bool UsedBackup = false,
+    bool RequiresTitleVerification = false);
 
 public sealed record VisualTemplateProgress(int Completed, int Total, string Path);
 
@@ -196,12 +197,15 @@ public static class VisualTemplateMatcher
         IReadOnlyList<VisualTemplateDefinition> templates,
         IReadOnlySet<string> requestedRuleIds)
     {
-        if (matches.Count == 0 || !HasExactRuleCoverage(templates, requestedRuleIds))
+        if (matches.Count == 0 ||
+            matches.Any(match => match.RequiresTitleVerification) ||
+            !HasExactRuleCoverage(templates, requestedRuleIds))
             return false;
 
         Dictionary<string, VisualTemplateDefinition> templateById = templates
             .ToDictionary(template => template.Id, StringComparer.Ordinal);
-        if (matches.Select(match => match.Template.Id).Distinct(StringComparer.Ordinal).Count() != matches.Count)
+        if (matches.GroupBy(match => match.Template.Id, StringComparer.Ordinal)
+            .Any(group => group.Key != MacauTitleIndex.SingleCardRule && group.Skip(1).Any()))
             return false;
         if (matches.GroupBy(match => match.SourcePath, StringComparer.OrdinalIgnoreCase)
             .Any(group => group.Select(match => match.Template.Id).Distinct(StringComparer.Ordinal).Count() > 1))
@@ -301,9 +305,7 @@ public static class VisualTemplateMatcher
             && regions.Length <= MaxCudaBatchPositions / ShiftRatios.Length
             ? BatchPositions(regions, ShiftRatios) : null;
         var imageHashes = new (string Path, string SourceHash, Dictionary<FingerprintRegion, ulong[][]> Hashes)[imagePaths.Count];
-        // 同一张图被重复下载（内容完全相同）时只保留一份匹配，并固定取排序最靠前的那一份，
-        // 保证结果可复现；否则两份副本距离完全相同，会被下面"次佳与最佳距离差 <4
-        // 就整条丢弃"的规则否掉，把明明存在的卡判成缺失。
+        // Duplicate downloads share one content identity so matching stays deterministic.
         int completed = 0;
         try
         {
@@ -376,31 +378,35 @@ public static class VisualTemplateMatcher
                     pairs.Add(new Score(templateIndex, imageIndex, bestDistance, bestShift));
             }
 
-            // Leave close calls to the printed title check.
-            const int minimumDistanceMargin = 4;
-            var ordered = pairs.OrderBy(item => item.Distance)
+            return pairs.OrderBy(item => item.Distance)
                 .ThenBy(item => imageHashes[item.ImageIndex].Path, StringComparer.OrdinalIgnoreCase).ToList();
-            if (ordered.Count <= 1)
-                return ordered;
-            if (ordered[1].Distance - ordered[0].Distance < minimumDistanceMargin)
-                return [];
-            if (useBackups && templates[templateIndex].Id == MacauTitleIndex.FirstOnly)
-            {
-                long? first = MacauTitleIndex.PostId(imageHashes[ordered[0].ImageIndex].Path);
-                if (first is null || ordered.Skip(1).Any(item =>
-                    MacauTitleIndex.PostId(imageHashes[item.ImageIndex].Path) is not { } id || id <= first.Value))
-                    return [];
-                // Do not let a different template's assignment promote a later first-only card.
-                return [ordered[0]];
-            }
-            return ordered;
         }
+
+        const int minimumDistanceMargin = 4;
+        bool ClearBest(List<Score> scores) => scores.Count > 0 &&
+            (scores.Count == 1 || scores[1].Distance - scores[0].Distance >= minimumDistanceMargin);
 
         var usedTemplates = new HashSet<int>();
         var usedImages = new HashSet<int>();
-        var usedContent = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var usedContent = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var matches = new List<VisualTemplateMatch>();
-        void Assign(IEnumerable<Score> pairs, bool usedBackup)
+        List<Score> BackupMatches(int index, VisualTemplateBackup backup) => FindPairs(index,
+            CreateRegion(backup.TopWidthRatio, backup.BottomWidthRatio), ParseFingerprint(backup.Fingerprint),
+            Math.Min(maxDistance, MaxBackupDistance));
+
+        var primary = Enumerable.Range(0, templates.Count).Select(index =>
+            FindPairs(index, templateRegions[index], templateHashes[index], maxDistance)).ToArray();
+        var alternate = Enumerable.Range(0, templates.Count).Select(index =>
+            backups[index] is { } backup ? BackupMatches(index, backup) : new List<Score>()).ToArray();
+
+        // Even an ambiguous template keeps its claim to a picture; duplicate files claim by content.
+        var contestedImages = (useBackups ? primary.Concat(alternate).SelectMany(scores => scores) : [])
+            .GroupBy(score => imageHashes[score.ImageIndex].SourceHash, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Select(score => score.TemplateIndex).Distinct().Skip(1).Any())
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        void Assign(IEnumerable<Score> pairs, bool usedBackup, bool singleCardAlternatives = false)
         {
             foreach (Score score in pairs
             .OrderBy(item => item.Distance)
@@ -409,60 +415,49 @@ public static class VisualTemplateMatcher
             .ThenBy(item => imageHashes[item.ImageIndex].Path, StringComparer.OrdinalIgnoreCase))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (usedTemplates.Contains(score.TemplateIndex) || usedImages.Contains(score.ImageIndex)
-                    || usedContent.Contains(imageHashes[score.ImageIndex].SourceHash))
+                string hash = imageHashes[score.ImageIndex].SourceHash;
+                if ((!singleCardAlternatives && usedTemplates.Contains(score.TemplateIndex)) ||
+                    usedImages.Contains(score.ImageIndex) || usedContent.ContainsKey(hash))
                     continue;
                 usedTemplates.Add(score.TemplateIndex);
                 usedImages.Add(score.ImageIndex);
-                usedContent.Add(imageHashes[score.ImageIndex].SourceHash);
+                usedContent.Add(hash, score.TemplateIndex);
+                List<Score> scores = usedBackup ? alternate[score.TemplateIndex] : primary[score.TemplateIndex];
+                bool requiresTitleVerification = useBackups &&
+                    (contestedImages.Contains(hash) || !ClearBest(scores) || scores[0] != score ||
+                     usedBackup && primary[score.TemplateIndex].Count > 0 &&
+                     templates[score.TemplateIndex].Id != MacauTitleIndex.SingleCardRule);
                 matches.Add(new VisualTemplateMatch(
                     imageHashes[score.ImageIndex].Path,
                     templates[score.TemplateIndex],
                     score.Distance,
                     ShiftRatios[score.ShiftIndex],
                     imageHashes[score.ImageIndex].SourceHash,
-                    usedBackup));
+                    usedBackup,
+                    requiresTitleVerification));
             }
         }
 
-        List<Score> BackupMatches(int index, VisualTemplateBackup backup) => FindPairs(index,
-            CreateRegion(backup.TopWidthRatio, backup.BottomWidthRatio), ParseFingerprint(backup.Fingerprint),
-            Math.Min(maxDistance, MaxBackupDistance));
-        var primaryPairs = Enumerable.Range(0, templates.Count).SelectMany(index =>
-            FindPairs(index, templateRegions[index], templateHashes[index], maxDistance)).ToList();
-        var backupPairs = new List<Score>();
-        int firstOnlyIndex = Enumerable.Range(0, templates.Count)
-            .FirstOrDefault(i => backups[i] is not null && templates[i].Id == MacauTitleIndex.FirstOnly, -1);
-        if (firstOnlyIndex >= 0)
+        Assign(useBackups
+                ? primary.SelectMany(scores => scores)
+                : primary.Where(ClearBest).SelectMany(scores => scores),
+            usedBackup: false);
+        Assign(alternate.Where((scores, index) => scores.Count > 0 && !usedTemplates.Contains(index))
+            .SelectMany(scores => scores), usedBackup: true);
+
+        if (useBackups)
         {
-            Score? oldCard = primaryPairs.FirstOrDefault(score => score.TemplateIndex == firstOnlyIndex);
-            Score? firstCard = BackupMatches(firstOnlyIndex, backups[firstOnlyIndex]!).FirstOrDefault();
-            // The old print can be the later post. With no reliable match for the first print, use OCR.
-            long? MessageId(Score score) => MacauTitleIndex.PostId(imageHashes[score.ImageIndex].Path);
-            if (firstCard is null || MessageId(firstCard) is not { } firstId)
-                primaryPairs.RemoveAll(score => score.TemplateIndex == firstOnlyIndex);
-            else if (oldCard is null || MessageId(oldCard) is { } oldId && firstId < oldId)
+            int singleCard = Enumerable.Range(0, templates.Count)
+                .FirstOrDefault(index => templates[index].Id == MacauTitleIndex.SingleCardRule, -1);
+            if (singleCard >= 0)
             {
-                primaryPairs.RemoveAll(score => score.TemplateIndex == firstOnlyIndex);
-                backupPairs.Add(firstCard);
+                // Keep one candidate per print style, then stop after the first valid value.
+                Assign(primary[singleCard].Take(1),
+                    usedBackup: false, singleCardAlternatives: true);
+                Assign(alternate[singleCard].Take(1),
+                    usedBackup: true, singleCardAlternatives: true);
             }
-            else if (oldCard.ImageIndex != firstCard.ImageIndex &&
-                (MessageId(oldCard) is not { } oldOrder || oldOrder == firstId))
-                primaryPairs.RemoveAll(score => score.TemplateIndex == firstOnlyIndex);
         }
-
-        Assign(primaryPairs, usedBackup: false);
-        for (int index = 0; index < backups.Length; index++)
-        {
-            if (index == firstOnlyIndex || usedTemplates.Contains(index) || backups[index] is not { } backup)
-                continue;
-            var pairs = BackupMatches(index, backup);
-            // A claimed best image must never promote this backup's runner-up.
-            if (pairs.Count > 0)
-                backupPairs.Add(pairs[0]);
-        }
-        Assign(backupPairs.GroupBy(score => imageHashes[score.ImageIndex].SourceHash)
-            .Where(group => group.Count() == 1).Select(group => group.Single()), usedBackup: true);
 
         cancellationToken.ThrowIfCancellationRequested();
         return matches.OrderBy(item => item.Template.Id, StringComparer.Ordinal).ToArray();

@@ -939,6 +939,11 @@ public static partial class RuleEngine
                 return Regex.IsMatch(value, @"^[0-9０-９][.．,，、][0-9０-９]尾$");
             case "头":
                 return Regex.IsMatch(value, @"^[0-4０-４]头$");
+            case "缺头":
+                // 无标题的四头表（东哥四头）：每期一行「323期0124头开：」，
+                // 认出「四个头号 + 头」这种行形，缺的那个头由取值阶段反推。
+                return Regex.IsMatch(value, @"^[0-4０-４]{4}头$")
+                    && value.Where(character => character is >= '0' and <= '4').Distinct().Count() == 4;
             case "生肖组合":
             case "单生肖":
                 string zodiacs = new(value.Where(Zodiac.Contains).ToArray());
@@ -1198,7 +1203,10 @@ public static partial class RuleEngine
     {
         if (!rule.IgnoreIssue)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(issue);
-        string[] lines = cloudLines.Select(line => rule.StrictIssueBlock ? SimplifyFixedCardText(line) : line).ToArray();
+        string[] lines = cloudLines
+            .Where(line => !IsEqualsNoteLine(line))
+            .Select(line => rule.StrictIssueBlock ? SimplifyFixedCardText(line) : line)
+            .ToArray();
 
         if (IsZhanShaHalfWave(rule))
             return ExtractZhanShaHalfWave(lines, issue, rule);
@@ -1217,6 +1225,19 @@ public static partial class RuleEngine
             return typedValue;
 
         return ExtractFallbackValue(state, issue, rule);
+    }
+
+    // 卡面底部「=提交牛+鼠猪兔」这类以等号开头、没有任何期号的汇总备注不是数据行，
+    // 不能被当成本期候选；「===241期紫蝴…」这种含期号的行、以及「=火狼女新澳=」这种
+    // 标题行都要保留。
+    private static bool IsEqualsNoteLine(string line)
+    {
+        string trimmed = SimplifyOcrText(line).TrimStart();
+        if (!trimmed.StartsWith('=') && !trimmed.StartsWith('＝'))
+            return false;
+        if (ContainsAnyIssue(line))
+            return false;
+        return trimmed.Where(character => Zodiac.Contains(character)).Distinct().Count() >= 3;
     }
 
     // 跨段共享的提取状态：当前行、别名、区段起点、本期候选行。
@@ -1263,6 +1284,13 @@ public static partial class RuleEngine
             value = ExtractNineZodiacsBeforeOpening(lines, issue);
             return true;
         }
+        // 新澳六合彩资料「太极九肖」：九个生肖各占一个圆盘、被 OCR 拆成九个独立框，
+        // 整卡只有这九个生肖字，按整页顺读拼齐再校验。
+        if (rule.Extractor == "taiji_nine_zodiacs")
+        {
+            value = ExtractTaijiNineZodiacs(lines, issue);
+            return true;
+        }
         // 嫣然电报「十码必杀」：号码行被期号格和「直接不要」标签切断，必须按原始行序读。
         if (rule.Extractor == "ten_numbers_across_issue_cell")
         {
@@ -1301,13 +1329,16 @@ public static partial class RuleEngine
         "missing_wave_balls",
         "red_dragonfly_two_waves",
         "missing_numbers_from_49",
+        "taiji_nine_zodiacs",
     };
 
     // 这些解析器必须拿到整张表的连续文字才能算：49 码减补集要收集 45 个号码，
     // 九肖要跨期号行两侧拼；单行输入一律凑不出值，所以证据聚合时不能再用
     // 「逐行原子值」去否决整页结果。
     private static bool ReadsWholeTable(OcrRule rule) =>
-        rule.Extractor is "missing_numbers_from_49" or "nine_zodiacs_before_opening";
+        rule.Extractor is "missing_numbers_from_49" or "nine_zodiacs_before_opening"
+            or "taiji_nine_zodiacs"
+        || rule is { MatchByRowStructure: true, Type: "缺头" };
 
     private static bool TryExtractOwnCard(
         string[] lines, int issue, OcrRule rule, bool requireCloudKeyword,
@@ -2244,6 +2275,31 @@ public static partial class RuleEngine
                 observed.Add(string.Concat(zodiacs));
         }
         return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    // 新澳六合彩资料「太极九肖」：标题 +「第327期」+ 上期开奖结果，下面两排九个圆盘
+    // 各印一个生肖，OCR 把它们拆成九个独立框。整张卡只有这九个生肖字，所以先认本期
+    // 期号，再把各行的生肖字按原序拼起来，恰好九个且互不相同才算值；缺一个、多一个
+    // 或重复都判缺失，绝不拿邻期的九个字充数。
+    private static string? ExtractTaijiNineZodiacs(string[] lines, int issue)
+    {
+        string[] normalized = lines.Select(SimplifyOcrText).ToArray();
+        if (!normalized.Any(line => ContainsIssue(line, issue)))
+            return null;
+        var zodiacs = new List<char>();
+        foreach (string line in normalized)
+        {
+            if (ContainsAnyIssue(line))
+                continue;
+            foreach (char character in CutBeforeOpening(line))
+            {
+                if (Zodiac.Contains(character))
+                    zodiacs.Add(character);
+            }
+        }
+        return zodiacs.Count == 9 && zodiacs.Distinct().Count() == 9
+            ? string.Concat(zodiacs)
+            : null;
     }
 
     // 开奖栏（开:虎√ / 开:猴X）一律切掉；「不会开」「不避」这类词里的开不算。
@@ -4974,10 +5030,9 @@ public static partial class RuleEngine
         return value.Length == 9 && value.Distinct().Count() == 9 ? value : null;
     }
 
-    // 新澳高级会员「藏宝九肖」：卡面每期只印三个方位，
-    // 这张卡是「九个生肖」用方位表达，按属性表还原成生肖再输出（东=兔虎龙…），
-    // 方位顺序按原图，生肖顺序按属性表；方位固定就是 东西南北（用户确认）。
-    // 本期必须恰好印三个不同方位，多/少/重复一律缺失；
+    // 方位型卡每期只印三个方位，用 ZodiacAttributes 还原成九个生肖；
+    // 方位顺序按原图，生肖顺序按属性表；本期必须恰好印三个不同方位。
+    // 多/少/重复一律缺失；
     // 同期在图上出现多次（表头“263期开…”、数据行“263期”）时只认形状完整的切片，
     // 两个不同的完整答案按冲突处理。
     private static string? ExtractMemberArts(string[] lines, int issue, OcrRule rule)
@@ -5026,7 +5081,7 @@ public static partial class RuleEngine
 
     private static string? ExtractTreasureDirections(string[] lines, int issue, OcrRule rule)
     {
-        if (rule.Id != "藏宝九肖")
+        if (rule.Type != "方位")
             return null;
 
         var observed = new HashSet<string>(StringComparer.Ordinal);
