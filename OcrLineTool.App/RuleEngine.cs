@@ -613,6 +613,12 @@ public static partial class RuleEngine
             title = keyword;
             alternate = keyword == "江西两肖必杀" ? "江西必杀两肖" : null;
         }
+        // 六合日报的绿杀卡标题抬着「六合日报 绿杀两肖」，子串包含会让他群的
+        // 同名卡被本群这条规则认领；卡面印着六合日报就不是本群的绿卡。
+        // 标题带那条通道由 MacauTitleIndex 同步排除，这里是整幅文本的第二道闸。
+        if (title == "绿杀两肖"
+            && Normalize(SimplifyFixedCardText(text)).Contains("六合日报", StringComparison.Ordinal))
+            return false;
         string[] regions = text.Split(OcrLayoutMarkers.RegionBoundary, StringSplitOptions.None)
             .Select(part => Normalize(SimplifyFixedCardText(part)).Replace('黃', '黄').Replace('個', '个'))
             .ToArray();
@@ -1328,6 +1334,7 @@ public static partial class RuleEngine
         "rui_er_team_card",
         "missing_wave_balls",
         "red_dragonfly_two_waves",
+        "shensuan_two_waves",
         "missing_numbers_from_49",
         "taiji_nine_zodiacs",
     };
@@ -1350,6 +1357,12 @@ public static partial class RuleEngine
         {
             case "red_dragonfly_two_waves":
                 value = ExtractRedDragonflyWaves(lines, issue);
+                return true;
+
+            // 蜻蜓一套「神算子双波」：卡面「329期神算双波【蓝波绿波】开0000准」，
+            // 只认本期行方头括号里那两个不同波色，反推缺的那个。
+            case "shensuan_two_waves":
+                value = ExtractShenSuanTwoWaves(lines, issue);
                 return true;
 
             case "missing_wave_balls":
@@ -3403,7 +3416,7 @@ public static partial class RuleEngine
             return ExtractPositionedHalfWaves(evidence, issue);
         if (rule.Extractor == "missing_wave_balls" && rule.Type == "波")
             return ColorBallMatcher.ExtractMissingWave(evidence, issue);
-        if (rule.Extractor == "red_dragonfly_two_waves")
+        if (rule.Extractor is "red_dragonfly_two_waves" or "shensuan_two_waves")
         {
             // Rejoin split cells only within their physical row and original view/region.
             var rows = new List<string>();
@@ -4075,6 +4088,33 @@ public static partial class RuleEngine
         return values.Count > 1 ? ConflictMarker : values.SingleOrDefault();
     }
 
+    // 蜻蜓一套「神算子双波」：卡面每行「329期神算双波【蓝波绿波】开0000准」，
+    // 只认本期这一行方头括号里那两个不同波色，从红/蓝/绿反推唯一缺项。
+    // 历期行、开奖栏和邻期都不参与；同一页读到两个不同答案保持冲突。
+    private static string? ExtractShenSuanTwoWaves(IEnumerable<string> lines, int issue)
+    {
+        var values = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string source in lines)
+        {
+            // A complete row must own its issue, identity and closed pair; no wrapped-text fallback.
+            string line = Regex.Replace(SimplifyOcrText(source).Replace('兩', '两'), @"[ \t\u3000]", "");
+            if (line.Contains('\n') || line.Contains('\r') || IssueRegex.Matches(line).Count != 1)
+                continue;
+            Match row = Regex.Match(line,
+                @"^(?<issue>\d{1,3})期[:：]?[【\[]?神算双波[】\]]?[-—:：]*[【\[（(](?<pair>[^【】\[\]（）()]*)[】\]）)][-—:：]*(?:开[^\r\n]*|)$",
+                RegexOptions.CultureInvariant, RegexTimeout);
+            if (!row.Success || !int.TryParse(row.Groups["issue"].Value, out int rowIssue) || rowIssue != issue)
+                continue;
+            Match pair = Regex.Match(row.Groups["pair"].Value, @"^(?<first>[红蓝绿])波(?<second>[红蓝绿])波$",
+                RegexOptions.CultureInvariant, RegexTimeout);
+            if (!pair.Success || pair.Groups["first"].Value == pair.Groups["second"].Value)
+                continue;
+            values.Add("红蓝绿".Single(color => color != pair.Groups["first"].Value[0]
+                && color != pair.Groups["second"].Value[0]) + "波");
+        }
+        return values.Count > 1 ? ConflictMarker : values.SingleOrDefault();
+    }
+
     // Row-major reading order with the same row tolerance the layout builder
     // uses. Cells of one visual row are joined into one physical line and only
     // split where the horizontal gap is wide or the rendered view changes, so
@@ -4345,6 +4385,8 @@ public static partial class RuleEngine
             return $"已找到{issue}期文字，但未确认当期完整表格行内的两种不同波色（期号坐标或色球校验未通过）";
         if (rule.Extractor == "red_dragonfly_two_waves")
             return $"已找到{issue}期文字，但未确认红蜻蜓两波中特同一行括号内的两个不同波色（身份、完整性或行归属校验未通过）";
+        if (rule.Extractor == "shensuan_two_waves")
+            return $"已找到{issue}期文字，但未确认神算双波同一行方括号内的两个不同波色（身份、完整性或行归属校验未通过）";
         if (rule.Folder == "杰少" && !string.IsNullOrWhiteSpace(rule.Section))
         {
             string[] rows = SplitInlineIssueRows(lines.Select(Normalize).ToArray());

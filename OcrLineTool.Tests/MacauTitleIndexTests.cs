@@ -15,6 +15,33 @@ public class MacauTitleIndexTests
     }
     private static VisualTemplateDefinition Template(string id) => new(id, [id], "", 0, .6);
 
+    // 绿杀的标题带只要出现「六合日报」就不是本群的绿卡：这张是 新澳高级会员 的
+    // 六合日报绿杀两肖，标题带命中后会跟本群的真绿卡抢同一期，值不同就成了冲突。
+    [Fact]
+    public void GreenTitleBandRejectsTheSameCardFromAnotherPublisher()
+    {
+        var t = Template("绿杀");
+        var rule = new OcrRule("绿杀两肖", "生肖组合", t.Id);
+        var index = new MacauTitleIndex([t], new Dictionary<string, OcrRule> { { rule.Id, rule } });
+        string path = "六合日报绿杀.jpg";
+
+        Assert.False(index.Read(Card(path, ("六合日报绿杀两肖", 130), ("第329期", 240), ("绿杀：雞馬", 350)), 800, 329));
+        // 争用候选还等着标题核准，标题带说不是本群的卡就必须一起丢掉。
+        Assert.Empty(index.Combine([new(path, t, 3, 0, path, RequiresTitleVerification: true)]));
+    }
+
+    [Fact]
+    public void GreenTitleBandAcceptstheOwnGreenCard()
+    {
+        var t = Template("绿杀");
+        var rule = new OcrRule("绿杀两肖", "生肖组合", t.Id);
+        var index = new MacauTitleIndex([t], new Dictionary<string, OcrRule> { { rule.Id, rule } });
+        string path = "绿杀两肖.jpg";
+
+        Assert.True(index.Read(Card(path, ("绿杀两肖", 130), ("第329期", 240), ("绿杀：鼠虎", 350)), 800, 329));
+        Assert.Equal(path, Assert.Single(index.Combine([])).SourcePath);
+    }
+
     [Fact]
     public void SingleCardRuleAcceptsAnyTitleVerifiedCurrentIssueCard()
     {

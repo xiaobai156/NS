@@ -26,7 +26,7 @@ public sealed class DragonflyRuleHardeningTests
     [Fact]
     public void CatalogHardensEveryConfirmedRuleAndUsesTheCurrentTitles()
     {
-        Assert.Equal(9, Rules.Count);
+        Assert.Equal(10, Rules.Count);
         Assert.All(Rules, rule => Assert.True(rule.StrictIssueBlock));
         Assert.Equal("红蜻蜓必中⑨肖", Assert.Single(Rules, rule => rule.Id == "红蜻蜓").Keyword);
         Assert.Equal("神秘宇宙绝杀半波", Assert.Single(Rules, rule => rule.Id == "神奇宇宙").Keyword);

@@ -72,4 +72,23 @@ public sealed class MacauTwoZodiacIdentityTests
             "新澳高级会员.json")).Single(rule => rule.Id == "六合绿杀两肖");
         Assert.Single(RuleEngine.FindMatches(["六合日报 绿杀两肖", "292期", "绿杀:兔 龙", "开??"], [rule]));
     }
+
+    // 六合日报的绿杀卡标题带着「六合日报」前缀，子串包含会被本群的绿杀规则认领。
+    // 两张卡本期值不同（雞馬 / 鼠虎）就会报「同一期结果冲突」，所以必须整张跳过。
+    [Fact]
+    public void OtherPublishersGreenCardCannotClaimTheLocalGreenRule()
+    {
+        var rule = Rules().Single(rule => rule.Id == "绿杀");
+        Assert.Empty(RuleEngine.FindMatches(["六合日报 绿杀两肖", "329期", "绿杀：雞馬", "开??"], [rule]));
+        Assert.Empty(RuleEngine.FindMatches(["六合日报绿杀两肖", "329期", "绿杀：雞馬", "开??"], [rule]));
+    }
+
+    [Fact]
+    public void LocalGreenCardStillMatchesAndKeepsItsValue()
+    {
+        var rule = Rules().Single(rule => rule.Id == "绿杀");
+        Assert.Single(RuleEngine.FindMatches(["绿杀两肖", "329期", "绿杀：鼠虎", "开??"], [rule]));
+        Assert.Equal("鼠虎", RuleEngine.ExtractFinalValue(
+            ["绿杀两肖", "329期", "绿杀：鼠虎", "开??"], 329, rule));
+    }
 }

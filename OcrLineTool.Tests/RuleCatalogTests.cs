@@ -147,11 +147,13 @@ public sealed class RuleCatalogTests
         IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
             Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "蜻蜓一套.json"));
 
-        Assert.Equal(9, rules.Count);
+        Assert.Equal(10, rules.Count);
         Assert.Equal(
-            new[] { "各种杀", "各种杀", "各种杀", "公式杀料", "公式杀料", "一套组合拳", "一套组合拳", "一套组合拳", "一套组合拳" },
+            new[] { "各种杀", "各种杀", "各种杀", "公式杀料", "公式杀料", "一套组合拳", "一套组合拳", "一套组合拳", "一套组合拳", "神算子" },
             rules.Select(rule => rule.Folder));
         Assert.DoesNotContain(rules, rule => rule.Id == "绿格子双杀");
+        Assert.Contains(rules, rule => rule.Id == "神算子双波" && rule.Type == "波"
+            && rule.Extractor == "shensuan_two_waves" && rule.Folder == "神算子");
         Assert.Contains(rules, rule => rule.Id == "红蜻蜓" && rule.Type == "九肖");
         Assert.Contains(rules, rule => rule.Id == "红蜻蜓杀一肖" && rule.Type == "生肖"
             && rule.Section == "绝杀一肖" && rule.RequiredKeyword == "红蜻蜓绝杀一肖");

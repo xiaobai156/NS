@@ -75,6 +75,9 @@ internal sealed class MacauTitleIndex
                     "伯公绝杀" => !Has("杀四个特码"),
                     "帅铁头" => !Has("富密码") || !Has("帅铁杀一头"),
                     "帅铁尾" => !Has("帅铁杀一尾"),
+                    // 六合日报的绿杀卡标题是「六合日报 绿杀两肖」，子串包含会让他群
+                    // 同名卡被这条规则认领；卡面印着六合日报就不是本群的绿卡。
+                    "绿杀" => Has("六合日报"),
                     _ => false
                 }) continue;
                 var view = sameView.Where(x => x.Box.CenterY >= width * top && x.Box.CenterY <= width * bottom);
