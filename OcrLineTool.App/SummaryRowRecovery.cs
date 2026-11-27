@@ -7,7 +7,8 @@ namespace OcrLineTool;
 
 internal enum SummaryRowRecoveryKind { Summary, IssueZodiac, IssueNumbers, RightBlock, HeikeTail }
 
-internal sealed record SummaryRowRecoveryRequest(string ImagePath, OcrRule Rule, SummaryRowRecoveryKind Kind)
+internal sealed record SummaryRowRecoveryRequest(string ImagePath, OcrRule Rule, SummaryRowRecoveryKind Kind,
+    string? ExpectedSourceHash = null)
 {
     internal string ViewId => Kind switch
     {
@@ -18,11 +19,15 @@ internal sealed record SummaryRowRecoveryRequest(string ImagePath, OcrRule Rule,
     };
 }
 
-internal sealed record SummaryRowRecoveryResult(string Value, IReadOnlyList<string> StripLines, string SourceHash,
-    OcrEvidence? StripEvidence = null, byte[]? InputBytes = null)
+internal sealed record SummaryRowRecoveryResult(RuleExtractionResult Reading, IReadOnlyList<string> StripLines, string SourceHash,
+    OcrEvidence? StripEvidence = null, byte[]? InputBytes = null, OcrEvidence? SourceView = null)
 {
+    internal string? Value => Reading.Value;
+
     internal OcrEvidence CreateEvidence(SummaryRowRecoveryRequest request, string inputFolder)
     {
+        if (SourceView is not null)
+            return SourceView.Bind(new(request.ImagePath, request.ImagePath, SourceHash, SourceHash, SourceView.ViewId));
         if (request.Kind != SummaryRowRecoveryKind.HeikeTail)
             return OcrEvidence.FromLines(request.ImagePath, StripLines, request.ViewId).Bind(
                 new(request.ImagePath, request.ImagePath, SourceHash, SourceHash, request.ViewId));
@@ -94,13 +99,23 @@ internal static class SummaryRowRecovery
                     && RuleCatalog.PathBelongsToGroup(request.ImagePath, "黑色六合彩"))).ToArray();
         var results = await RecoverOnceAsync(client, requests, catalog, issue, titleRatio, detectionMaxSide, cancellationToken,
             progress: progress);
+        if (titleRatio < 1)
+        {
+            // A template group's top view cannot locate rows below the crop. Only original coordinates can cut a strip.
+            var tails = requests.Where(r => r.Kind == SummaryRowRecoveryKind.HeikeTail && !results.ContainsKey(r)).ToArray();
+            if (tails.Length > 0)
+                foreach (var item in await RecoverOnceAsync(client, tails, catalog, issue, 1, null, cancellationToken,
+                    progress: progress, locatePrefix: "定位（原图坐标）·"))
+                    results[item.Key] = item.Value;
+        }
         if (detectionMaxSide is not null)
         {
             // 定位读带本组的 det-max（嫣然心水 960 = 0.55 横向压缩视图）；密集表
             // 在该视图里可能连目标期号锚点都读不到（杰少杀一肖），于是补读连行都
             // 裁不出来。对仍未解决的请求用原图坐标系（标准 medium 检测）再定位一次，
             // 行条取值仍由标准 medium（1440）产出，不换取值来源。
-            var remaining = requests.Where(request => !results.ContainsKey(request)).ToArray();
+            var remaining = requests.Where(request => !results.ContainsKey(request)
+                && (titleRatio >= 1 || request.Kind != SummaryRowRecoveryKind.HeikeTail)).ToArray();
             if (remaining.Length > 0)
                 foreach (var result in await RecoverOnceAsync(client, remaining, catalog, issue, titleRatio, null, cancellationToken,
                     progress: progress, locatePrefix: "定位（原图坐标）·"))
@@ -161,9 +176,18 @@ internal static class SummaryRowRecovery
                         Func<IReadOnlyList<string>, string?>? parse;
                         if (request.Kind == SummaryRowRecoveryKind.HeikeTail)
                         {
-                            if (!RuleEngine.FindMatches(request.ImagePath, original.Lines, [request.Rule], catalog)
+                            if ((request.ExpectedSourceHash != null && request.ExpectedSourceHash != source.SourceHash)
+                                || !RuleEngine.FindMatches(request.ImagePath, original.Lines, [request.Rule], catalog)
                                 .Any(rule => rule.Id == request.Rule.Id))
                                 continue;
+                            var reading = RuleEngine.ExtractFinalResult(original.Evidence, issue, request.Rule);
+                            if (reading.Status != RuleExtractionStatus.Missing)
+                            {
+                                var view = original.Evidence with { ViewId = titleRatio < 1 ? "heike-tail-top" : "heike-tail-original" };
+                                results[request] = new(reading, original.Lines, source.SourceHash, SourceView: view);
+                                continue;
+                            }
+                            if (titleRatio < 1) continue;
                             var band = ComputeHeikeTailBand(original.Evidence.TokenItems ?? original.Evidence.Items, issue);
                             rect = band is null ? null : (0, band.Value.Top, 0, band.Value.Height);
                             parse = null; // The strip must retain coordinates and confidence for the table extractor.
@@ -258,7 +282,7 @@ internal static class SummaryRowRecovery
                                         item.Request.ImagePath, item.Path, item.Source.SourceHash,
                                         strip.Evidence.InputHash, item.Request.ViewId));
                             }
-                            results[item.Request] = new SummaryRowRecoveryResult(value, lines, item.Source.SourceHash,
+                            results[item.Request] = new SummaryRowRecoveryResult(RuleExtractionResult.Success(value), lines, item.Source.SourceHash,
                                 evidence, inputBytes);
                         }
                     }

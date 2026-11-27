@@ -3926,7 +3926,8 @@ public sealed class MainForm : Form
                 foreach (var candidate in kind == SummaryRowRecoveryKind.HeikeTail
                     ? matching.DistinctBy(item => item.SourcePath, StringComparer.OrdinalIgnoreCase) : matching.Take(1))
                     if (File.Exists(candidate.SourcePath) && AllowsSummaryRowRecoveryCandidate(candidate.SourcePath, rule, kind))
-                        requests.Add(new SummaryRowRecoveryRequest(candidate.SourcePath, rule, kind));
+                        requests.Add(new SummaryRowRecoveryRequest(candidate.SourcePath, rule, kind,
+                            kind == SummaryRowRecoveryKind.HeikeTail ? candidate.PinnedIdentity.SourceHash : null));
             }
         }
 
@@ -3963,7 +3964,10 @@ public sealed class MainForm : Form
                 try
                 {
                     ApplySummaryRowRecoveryResult(request, result, recoveryInputFolder, values, evidenceLedger);
-                    missingReasons.Remove(request.Rule.Id);
+                    if (request.Kind == SummaryRowRecoveryKind.HeikeTail && ResultValues.IsConflict(values, request.Rule.Id))
+                        missingReasons[request.Rule.Id] = "同一期识别到不同的有效值";
+                    else
+                        missingReasons.Remove(request.Rule.Id);
                 }
                 catch (OcrException exception) when (!PaddleLocalOcrClient.IsCudaUnavailable(exception))
                 {
@@ -3974,8 +3978,14 @@ public sealed class MainForm : Form
     }
 
     internal static void ApplySummaryRowRecoveryResult(SummaryRowRecoveryRequest request, SummaryRowRecoveryResult result,
-        string inputFolder, ResultValues values, ResultEvidenceLedger evidenceLedger) =>
-        evidenceLedger.Observe(values, request.Rule, result.Value, result.CreateEvidence(request, inputFolder));
+        string inputFolder, ResultValues values, ResultEvidenceLedger evidenceLedger)
+    {
+        var evidence = result.CreateEvidence(request, inputFolder);
+        if (result.Reading.Status == RuleExtractionStatus.Conflict)
+            evidenceLedger.ObserveConflict(values, request.Rule, evidence);
+        else if (result.Value is { } value)
+            evidenceLedger.Observe(values, request.Rule, value, evidence);
+    }
 
     internal static int DiscardUnpersistedRecoveryValues(string inputFolder, ResultValues values,
         ResultEvidenceLedger ledger, IDictionary<string, string> missingReasons)

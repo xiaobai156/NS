@@ -65,7 +65,7 @@ public sealed class YanranRealImageTests(ITestOutputHelper output)
             Assert.Equal("猴", recovered.Value);
             Assert.Equal(recovered.Value,
                 RuleEngine.ExtractSummaryRowZodiacFromStrip(recovered.StripLines, monthly, catalog));
-            values.Add(monthly.Id, recovered.Value);
+            values.Add(monthly.Id, Assert.IsType<string>(recovered.Value));
             output.WriteLine($"GPU {monthly.Id} own row: {string.Join(" / ", recovered.StripLines)}");
         }
         foreach (var rule in rules)

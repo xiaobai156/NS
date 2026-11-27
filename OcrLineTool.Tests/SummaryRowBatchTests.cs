@@ -32,7 +32,7 @@ public sealed class SummaryRowBatchTests
             var identity = new OcrEvidenceIdentity(request.ImagePath, request.ImagePath,
                 result.SourceHash, result.SourceHash, request.ViewId);
             identity.EnsureCurrent();
-            ledger.Observe(values, request.Rule, result.Value,
+            ledger.Observe(values, request.Rule, Assert.IsType<string>(result.Value),
                 OcrEvidence.FromLines(request.ImagePath, result.StripLines, request.ViewId).Bind(identity));
             Assert.Equal(result.SourceHash, ledger.Records[request.Rule.Id].SourceHash);
             Assert.Equal(request.ViewId, ledger.Records[request.Rule.Id].ViewId);

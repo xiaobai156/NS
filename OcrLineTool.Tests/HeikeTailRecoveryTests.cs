@@ -258,11 +258,95 @@ public sealed class HeikeTailRecoveryTests
             var ledger = new ResultEvidenceLedger();
             MainForm.ApplySummaryRowRecoveryResult(request, recovered, inputs, values, ledger);
             await RecognitionStateStore.SaveAsync(report, folder, issue, [Rule], values, ledger);
-            Directory.Delete(inputs, true);
+            if (Directory.Exists(inputs)) Directory.Delete(inputs, true);
             Assert.Equal(expected, RecognitionStateStore.Load(report, folder, issue, [Rule]).Values[Rule.Id]);
         }
         Assert.Empty(await SummaryRowRecovery.TryRecoverBatchAsync(client, [request], [Rule], 311, 1, null, timeout.Token));
         Assert.Equal(hash, OcrEvidenceIdentity.Capture(input, input, "source").SourceHash);
+    }
+
+    [HeikeTailGpuFact("OCR_HEIKE_TAIL_330", "OCR_HEIKE_TAIL_331")]
+    [Trait("Category", "CUDA")]
+    public async Task Real330And331UseProductionGroupSettingsAndKeepHistoricalRowsSeparate()
+    {
+        string report = Environment.GetEnvironmentVariable("OCR_HEIKE_TAIL_REPORT")!;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(6));
+        var client = new PaddleLocalOcrClient(new SystemProcessRunner(), Path.Combine(report, "isolated-cache.json"), LocalOcrDevice.Gpu);
+        var checks = new List<string>();
+        foreach (int card in new[] { 330, 331 })
+        {
+            string original = Environment.GetEnvironmentVariable($"OCR_HEIKE_TAIL_{card}")!;
+            string folder = Path.Combine(report, $"{card}期-黑色六合彩");
+            Directory.CreateDirectory(folder);
+            string path = Path.Combine(folder, Path.GetFileName(original));
+            File.Copy(original, path, overwrite: false);
+            string hash = OcrEvidenceIdentity.Capture(path, path, "source").SourceHash;
+            var request = new SummaryRowRecoveryRequest(path, Rule, SummaryRowRecoveryKind.HeikeTail, hash);
+            var full = await client.RecognizeBatchAsync([path], model: PaddleOcrModels.LocalPrimary,
+                titleRatio: 1, cancellationToken: timeout.Token);
+            Assert.Contains(RuleEngine.FindMatches(path, full[path], [Rule], [Rule]), r => r.Id == Rule.Id);
+            var fullEvidence = client.LastEvidence[path];
+            foreach (var (issue, expected) in card == 331
+                ? new[] { (331, "3尾"), (330, "4尾"), (316, "7尾"), (332, (string?)null) }
+                : new[] { (330, "4尾"), (331, (string?)null) })
+            {
+                var values = new ResultValues(StringComparer.Ordinal);
+                var ledger = new ResultEvidenceLedger();
+                MainForm.AddExtractedEvidenceValues(fullEvidence, [Rule], issue, values, ledger);
+                if (!values.ContainsKey(Rule.Id) && !ResultValues.IsConflict(values, Rule.Id))
+                {
+                    var rows = await SummaryRowRecovery.TryRecoverBatchAsync(client, [request], [Rule], issue,
+                        PaddleLocalOcrClient.TitleRatioFor(folder), PaddleLocalOcrClient.DetectionMaxSideFor(folder), timeout.Token);
+                    foreach (var row in rows)
+                        MainForm.ApplySummaryRowRecoveryResult(row.Key, row.Value, Path.Combine(folder, "inputs"), values, ledger);
+                }
+                string? actual = values.GetValueOrDefault(Rule.Id);
+                ledger.Records.TryGetValue(Rule.Id, out var evidence);
+                checks.Add($"{card}期图，读取{issue}期：{actual ?? "缺失"}；来源视图={evidence?.ViewId ?? "无"}");
+                await File.WriteAllLinesAsync(Path.Combine(report, "黑客杀尾-原图验收.txt"), checks);
+                Assert.Equal(expected, actual);
+                Assert.False(ResultValues.IsConflict(values, Rule.Id));
+                if (expected != null)
+                {
+                    Assert.Equal(hash, evidence!.SourceHash);
+                    await RecognitionStateStore.SaveAsync(report, folder, issue, [Rule], values, ledger);
+                    Assert.Equal(expected, RecognitionStateStore.Load(report, folder, issue, [Rule]).Values[Rule.Id]);
+                }
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData("complete-top", 1, "3尾", false)]
+    [InlineData("conflicting-top", 1, null, true)]
+    [InlineData("partial-top", 3, "9尾", false)]
+    [InlineData("historical-row", 3, "9尾", false)]
+    [InlineData("short", 3, null, false)]
+    [InlineData("wrong-title", 2, null, false)]
+    public async Task ProductionTopViewValidatesItsOwnRowOrLocatesOnTheWholeCard(
+        string scenario, int calls, string? expected, bool conflict)
+    {
+        using var fixture = new Fixture(scenario);
+        double ratio = PaddleLocalOcrClient.TitleRatioFor(Path.GetDirectoryName(fixture.Request.ImagePath)!);
+        Assert.Equal(.4, ratio);
+        var results = await SummaryRowRecovery.TryRecoverBatchAsync(fixture.Client, [fixture.Request], [Rule],
+            310, ratio, null, default);
+        var values = new ResultValues(StringComparer.Ordinal);
+        var ledger = new ResultEvidenceLedger();
+        foreach (var entry in results)
+            MainForm.ApplySummaryRowRecoveryResult(entry.Key, entry.Value, Path.Combine(fixture.Root, "inputs"), values, ledger);
+        Assert.Equal(expected, values.GetValueOrDefault(Rule.Id));
+        Assert.Equal(conflict, ResultValues.IsConflict(values, Rule.Id));
+        Assert.Equal(calls, fixture.Runner.Calls);
+        if (calls == 1)
+        {
+            Assert.Empty(fixture.Runner.Strips);
+            Assert.Equal(fixture.Request.ImagePath, ledger.Records[Rule.Id].InputPath);
+            Assert.Contains("paddle/top", Assert.Single(ledger.Records[Rule.Id].RegionIds));
+            File.AppendAllText(fixture.Request.ImagePath, "changed");
+            Assert.Throws<OcrException>(() => MainForm.ApplySummaryRowRecoveryResult(fixture.Request, results[fixture.Request],
+                fixture.Root, values, ledger));
+        }
     }
 
     [Theory]
@@ -341,8 +425,17 @@ public sealed class HeikeTailRecoveryTests
                     scenario == "old-issue" ? 309 : 310)
                 : [Token(scenario == "wrong-title" ? "黑客数据灭庄七肖" : "黑客数据数据分析必中九尾", 100, 30, 600),
                     Token("310期", 13, 221, 94), Token("309期", 13, 280, 94, 37)];
+            bool top = info.Arguments.Contains("--top-ratio 0.4");
+            if (top && scenario is "complete-top" or "conflicting-top" or "partial-top")
+            {
+                tokens = [tokens[0], .. Strip(scenario == "partial-top" ? "02456789" : "012456789")
+                    .Select(t => t with { Box = t.Box! with { Y = 220 } })];
+                if (scenario == "conflicting-top")
+                    tokens = [.. tokens, Token("310期数据分析012345678尾开??", 10, 140, 750)];
+            }
+            if (top && scenario == "historical-row") tokens = [tokens[0], tokens[2]];
             var items = tokens.Select(t => new { text = t.Text, box = new[] { t.Box!.X, t.Box.Y, t.Box.Width, t.Box.Height },
-                confidence = t.Confidence, viewId = "original" });
+                confidence = t.Confidence, viewId = top ? "top" : "original" });
             File.WriteAllText(Argument("--output"), JsonSerializer.Serialize(new {
                 results = new[] { new { path, texts = tokens.Select(t => t.Text), items } } }));
             return Task.FromResult(new ProcessResult(true, 0, "", ""));
@@ -352,10 +445,11 @@ public sealed class HeikeTailRecoveryTests
 
 public sealed class HeikeTailGpuFactAttribute : FactAttribute
 {
-    public HeikeTailGpuFactAttribute()
+    public HeikeTailGpuFactAttribute(params string[] imageVariables)
     {
-        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OCR_HEIKE_TAIL_IMAGE"))
+        if ((imageVariables.Length == 0 ? new[] { "OCR_HEIKE_TAIL_IMAGE" } : imageVariables)
+                .Any(name => string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(name)))
             || string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OCR_HEIKE_TAIL_REPORT")))
-            Skip = "Set OCR_HEIKE_TAIL_IMAGE and OCR_HEIKE_TAIL_REPORT for isolated GPU acceptance.";
+            Skip = "Provide the real card image paths and OCR_HEIKE_TAIL_REPORT for isolated GPU acceptance.";
     }
 }
