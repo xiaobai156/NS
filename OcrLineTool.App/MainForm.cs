@@ -956,6 +956,8 @@ public sealed class MainForm : Form
         folderGroupNames = RuleCatalog.GroupNamesForFolders(AppContext.BaseDirectory, folders);
         // 抓取设置跟着同一节拍刷新：“抓取设置”窗口勾完立即落盘，主界面 2 秒内就按新设置置灰和拦截。
         CurrentCaptureSettings();
+        // 封存状态也跟着刷新：新图到了要立刻解封，攒满三天要立刻封存。
+        RefreshFolderArchive();
         // 当前选中的群刚被关掉：直接清掉选择，别让按钮靠抛异常兜底。
         // 识别过程中不动选择，等这一轮跑完再说。
         if (!isBusy && selectedImageDirectory is not null)
@@ -1010,6 +1012,114 @@ public sealed class MainForm : Form
         return captureSettings;
     }
 
+    // 目录封存（某些子目录连续三天没新图就临时不识别）。同样按“文件长度＋修改时间”签名缓存；
+    // 每 2 秒的群列表刷新顺带重新核对一遍封存状态，有变化才写盘。
+    private FolderArchive folderArchive = new();
+    private string folderArchiveSignature = string.Empty;
+
+    private FolderArchive CurrentFolderArchive()
+    {
+        string path = FolderArchive.PathFor(AppContext.BaseDirectory);
+        string signature;
+        try
+        {
+            var info = new FileInfo(path);
+            signature = info.Exists ? $"{info.Length}\u001e{info.LastWriteTimeUtc.Ticks}" : "missing";
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return folderArchive;
+        }
+        if (string.Equals(signature, folderArchiveSignature, StringComparison.Ordinal))
+            return folderArchive;
+        folderArchive = FolderArchive.Load(AppContext.BaseDirectory);
+        folderArchiveSignature = signature;
+        return folderArchive;
+    }
+
+    private void SaveFolderArchive(FolderArchive changed)
+    {
+        try
+        {
+            changed.Save(AppContext.BaseDirectory);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // 封存状态写不进去就当这轮没变：识别照常，下一轮刷新再试。
+            return;
+        }
+        var info = new FileInfo(FolderArchive.PathFor(AppContext.BaseDirectory));
+        folderArchiveSignature = info.Exists ? $"{info.Length}\u001e{info.LastWriteTimeUtc.Ticks}" : "missing";
+    }
+
+    // 封存判定要扫全部图片的文件名，比“读一个设置文件”贵得多；而它的最小粒度是“天”，
+    // 所以最多每分钟核对一次，界面刷新（每 2 秒）不会跟着扫盘。
+    private DateTime folderArchiveCheckedAt = DateTime.MinValue;
+
+    private void RefreshFolderArchive()
+    {
+        DateTime now = CredentialSchedule.NowInBeijing();
+        if (folderArchiveCheckedAt != DateTime.MinValue && now - folderArchiveCheckedAt < TimeSpan.FromMinutes(1))
+            return;
+        folderArchiveCheckedAt = now;
+        FolderArchive archive = CurrentFolderArchive();
+        var notices = new List<string>();
+        bool changed;
+        try
+        {
+            changed = FolderArchive.Refresh(archive, AppContext.BaseDirectory, imageRootDirectory,
+                DateOnly.FromDateTime(now), notices.Add);
+        }
+        catch (Exception exception) when (exception is OcrException or IOException or UnauthorizedAccessException
+            or JsonException or ArgumentException)
+        {
+            // 封存核对失败不能打断识别或界面：下一分钟再试。
+            return;
+        }
+        if (!changed)
+            return;
+        SaveFolderArchive(archive);
+        if (notices.Count > 0)
+        {
+            statusLabel.Text = notices[^1];
+            OperationLog.Append(AppContext.BaseDirectory, notices[^1], null, Decimal.ToInt32(issueInput.Value));
+        }
+        // 封存范围变了：当前选中的图、按钮的可用状态都要跟着重算。
+        if (selectedImageDirectory is not null && !isBusy)
+            RefreshImagesForRetry();
+        if (!isBusy)
+        {
+            bool hasRules = selectedRulePath is not null && File.Exists(selectedRulePath);
+            recognizeButton.Enabled = imagePaths.Length > 0 && hasRules;
+            localPrimaryButton.Enabled = imagePaths.Length > 0 && hasRules;
+            retryMissingButton.Enabled = CanRetryMissing();
+            manualDistributeButton.Enabled = CanManualDistribute();
+        }
+        RefreshFolderResultMarkers();
+    }
+
+    // 存下来的目录名用于判断“没有 folder 的规则”是否也失去来源：
+    // 全群目录都封了，这些条目就不该再冒出来写缺失。
+    private IReadOnlyCollection<string> ArchivedCandidateFolders(string groupName, string? groupFolder)
+    {
+        string? folder = groupFolder ?? FindGroupImageFolder(AppContext.BaseDirectory, imageRootDirectory, groupName);
+        return folder is null ? [] : CurrentFolderArchive().KnownFolders(folder, groupName);
+    }
+
+    // 真正参与识别的规则：抓取设置里关掉的、以及所在目录已被临时封存的，都要剔除。
+    // 只读路径（复抓按钮、恢复旧结果、候选复核）用这个，不抛异常。
+    private IReadOnlyList<OcrRule> EffectiveRules(string? groupName, string? groupFolder,
+        IReadOnlyList<OcrRule> rules)
+    {
+        IReadOnlyList<OcrRule> enabled = CurrentCaptureSettings().EnabledRules(groupName, rules);
+        if (string.IsNullOrWhiteSpace(groupName))
+            return enabled;
+        FolderArchive archive = CurrentFolderArchive();
+        if (archive.SealedCount(groupName) == 0)
+            return enabled;
+        return archive.FilterRules(groupName, enabled, ArchivedCandidateFolders(groupName, groupFolder));
+    }
+
     private string GroupNameForFolderItem(DirectoryInfo folder) =>
         folderGroupNames.TryGetValue(folder.FullName, out string? group)
             ? group
@@ -1022,6 +1132,17 @@ public sealed class MainForm : Form
         if (!capture.IsGroupEnabled(groupName))
             throw new OcrException($"「{groupName}」在抓取设置里已关闭：不抓取，也不识别。");
         IReadOnlyList<OcrRule> rules = capture.EnabledRules(groupName, catalogRules);
+        // 目录封存：某个子目录连续三天没新图，就先不收它的条目——不识别、也不写缺失。
+        FolderArchive archive = CurrentFolderArchive();
+        if (archive.IsSelectedFolderSealed(groupName, selectedImageDirectory))
+            throw new OcrException($"「{groupName}」的目录「{Path.GetFileName(Path.TrimEndingDirectorySeparator(selectedImageDirectory!))}」" +
+                $"连续 {FolderArchive.IdleDaysBeforeSealing} 天没有新图，已临时封存：不识别，等它出现新图会自动解封。");
+        if (archive.SealedCount(groupName) > 0)
+        {
+            rules = archive.FilterRules(groupName, rules, ArchivedCandidateFolders(groupName, selectedImageDirectory));
+            if (rules.Count == 0)
+                throw new OcrException($"「{groupName}」的资料所在目录都已被临时封存，没有要识别的资料。");
+        }
         if (rules.Count == 0)
             throw new OcrException($"「{groupName}」的资料在抓取设置里已全部关闭，没有要识别的资料。");
         return rules;
@@ -1222,19 +1343,23 @@ public sealed class MainForm : Form
         selectedRulePath = RuleCatalog.PathForFolder(AppContext.BaseDirectory, selectedImageDirectory);
         ClearRetryState();
         LoadExistingGroupResult();
+        // 点进被封存的子目录时也不许识别：它的图整块不参与，硬跑只会一路写缺失。
+        bool sealedFolder = CurrentFolderArchive().IsSelectedFolderSealed(directoryGroup, directory);
         bool hasRules = File.Exists(selectedRulePath);
-        recognizeButton.Enabled = imagePaths.Length > 0 && hasRules;
-        localPrimaryButton.Enabled = imagePaths.Length > 0 && hasRules;
+        recognizeButton.Enabled = imagePaths.Length > 0 && hasRules && !sealedFolder;
+        localPrimaryButton.Enabled = imagePaths.Length > 0 && hasRules && !sealedFolder;
         manualDistributeButton.Enabled = CanManualDistribute();
         if (imagePaths.Length > 0)
             ShowPreview(imagePaths[0]);
         else
             ClearPreview();
-        statusLabel.Text = imagePaths.Length == 0
-            ? "所选子文件夹中没有支持的图片。"
-            : hasRules
-                ? "图片和对应规则已就绪，点击“开始识别”或“本地主识别”。"
-                : $"未找到对应规则文件：{Path.GetFileName(selectedRulePath)}";
+        statusLabel.Text = sealedFolder
+            ? $"「{Path.GetFileName(directory)}」连续 {FolderArchive.IdleDaysBeforeSealing} 天没有新图，已临时封存：不识别，出现新图会自动解封。"
+            : imagePaths.Length == 0
+                ? "所选子文件夹中没有支持的图片。"
+                : hasRules
+                    ? "图片和对应规则已就绪，点击“开始识别”或“本地主识别”。"
+                    : $"未找到对应规则文件：{Path.GetFileName(selectedRulePath)}";
         SetProgress(0, imagePaths.Length);
     }
 
@@ -1625,7 +1750,9 @@ public sealed class MainForm : Form
                 missingReasons[rule.Id] = !recognizedRuleIds.Contains(rule.Id)
                     ? (failedCandidate is null && selection.NoCandidateReason is not null
                         ? selection.NoCandidateReason
-                        : RuleEngine.DescribeMissing(failedCandidate is not null, recognizedText: false))
+                        : failedCandidate is null
+                            ? NoCandidateReasonFor(rule, imagePaths)
+                            : RuleEngine.DescribeMissing(foundImage: true, recognizedText: false))
                     : rule.Type == "统计生肖"
                         ? RuleEngine.DescribeExtractionFailure(failedCandidate is not null
                             && cloudEvidenceByCandidate.TryGetValue(failedCandidate.SourcePath, out var failedEvidence)
@@ -2043,9 +2170,19 @@ public sealed class MainForm : Form
 
                 // 群在、但条目被全关，等于这个群没有要识别的资料：跳过，不能记成失败锁掉当天。
                 IReadOnlyList<OcrRule> catalog = RuleCatalog.Load(rulePath);
-                if (capture is not null && capture.EnabledRules(group, catalog).Count == 0)
+                IReadOnlyList<OcrRule> enabled = capture is null ? catalog : capture.EnabledRules(group, catalog);
+                if (capture is not null && enabled.Count == 0)
                 {
                     onSkip?.Invoke($"自动本地 OCR 已跳过 {group}：抓取设置里条目已全部关闭。");
+                    continue;
+                }
+
+                // 目录封存：可用条目全在被封存的目录里，这一轮就没有要识别的资料，跳过而不是跑空。
+                FolderArchive archive = FolderArchive.Load(appDirectory);
+                if (archive.SealedCount(group) > 0
+                    && archive.FilterRules(group, enabled, archive.KnownFolders(folder, group)).Count == 0)
+                {
+                    onSkip?.Invoke($"自动本地 OCR 已跳过 {group}：资料所在目录都已被临时封存。");
                     continue;
                 }
 
@@ -2280,7 +2417,7 @@ public sealed class MainForm : Form
                 .ToHashSet(StringComparer.Ordinal);
             foreach (OcrRule rule in rules.Where(rule => !candidateRuleIds.Contains(rule.Id)))
                 missingReasons[rule.Id] = selection.NoCandidateReason
-                    ?? RuleEngine.DescribeMissing(foundImage: false, recognizedText: false);
+                    ?? NoCandidateReasonFor(rule, imagePaths);
             var diagnostics = new List<object>();
             int cloudRequests = 0;
             var primaryImageDeduplicator = new CloudImageDeduplicator();
@@ -3020,7 +3157,8 @@ public sealed class MainForm : Form
         IDictionary<string, string> missingReasons,
         IReadOnlyDictionary<string, string> imageReadErrors,
         IReadOnlyCollection<string> rulesWithValues,
-        IReadOnlyCollection<string> conflictedRules)
+        IReadOnlyCollection<string> conflictedRules,
+        IReadOnlyList<string>? imagePaths = null)
     {
         var values = new HashSet<string>(rulesWithValues, StringComparer.Ordinal);
         var conflicts = new HashSet<string>(conflictedRules, StringComparer.Ordinal);
@@ -3030,7 +3168,9 @@ public sealed class MainForm : Form
                 continue;
 
             missingReasons[rule.Id] = UnreadImageReason(rule, imageReadErrors)
-                ?? RuleEngine.DescribeMissing(foundImage: false, recognizedText: false);
+                ?? (imagePaths is null
+                    ? RuleEngine.DescribeMissing(foundImage: false, recognizedText: false)
+                    : NoCandidateReasonFor(rule, imagePaths));
         }
     }
 
@@ -3109,7 +3249,7 @@ public sealed class MainForm : Form
                 statusLabel.Text = $"「{groupName}」在抓取设置里已关闭：不抓取，也不复抓。";
                 return false;
             }
-            IReadOnlyList<OcrRule> retryRules = capture.EnabledRules(groupName, lastRules);
+            IReadOnlyList<OcrRule> retryRules = EffectiveRules(groupName, selectedImageDirectory, lastRules);
             OcrRule[] missingRules = GroupResultFormatter.MissingRetryRules(retryRules, lastValues.Keys, concludedLines);
             if (missingRules.Length == 0)
             {
@@ -3149,7 +3289,8 @@ public sealed class MainForm : Form
                 lastMissingReasons,
                 lastLocalImageReadErrors,
                 lastValues.Keys.ToArray(),
-                lastValues.Conflicts.ToArray());
+                lastValues.Conflicts.ToArray(),
+                retryScope);
 
             // 复抓默认“本机优先”：先按本地主识别的顺序用本机 medium 出值
             //（裁剪图 → 原图），仍缺失的规则再走云兜底。
@@ -3497,8 +3638,17 @@ public sealed class MainForm : Form
         return succeeded;
     }
 
-    private void RefreshImagesForRetry() =>
-        imagePaths = ImageFolderScanner.Scan(selectedImageDirectory!);
+    private void RefreshImagesForRetry()
+    {
+        string[] all = ImageFolderScanner.Scan(selectedImageDirectory!);
+        // 被封存的子目录整块不参与识别，也不进“候选范围”统计。
+        // 直接点进被封存的子目录时这里不动它——留给规则过滤给出明确原因（否则只会报“没有可识别图片”）。
+        string groupName = RuleCatalog.GroupNameForFolder(AppContext.BaseDirectory, selectedImageDirectory!);
+        FolderArchive archive = CurrentFolderArchive();
+        imagePaths = archive.SealedCount(groupName) == 0
+            ? all
+            : archive.FilterImages(groupName, selectedImageDirectory!, all).ToArray();
+    }
 
     private async Task<OcrEvidence> RecognizeRetryEvidenceAsync(
         IOcrClient client,
@@ -4253,7 +4403,7 @@ public sealed class MainForm : Form
             return false;
         // 抓取设置里关掉的群、关掉的条目不算“还要复抓”，按钮直接置灰。
         string groupName = RuleCatalog.GroupNameForFolder(AppContext.BaseDirectory, selectedImageDirectory);
-        IReadOnlyList<OcrRule> rules = CurrentCaptureSettings().EnabledRules(groupName, lastRules);
+        IReadOnlyList<OcrRule> rules = EffectiveRules(groupName, selectedImageDirectory, lastRules);
         return rules.Any(rule =>
             !lastValues.ContainsKey(rule.Id) && !lastConcludedValueRuleIds.Contains(rule.Id));
     }
@@ -4300,9 +4450,9 @@ public sealed class MainForm : Form
         string? restoreGroupName = selectedImageDirectory is null
             ? null
             : RuleCatalog.GroupNameForFolder(AppContext.BaseDirectory, selectedImageDirectory);
-        // 恢复旧结果也按抓取设置过滤：关掉的条目当它不存在，不提示缺失。
-        // 这条路径不能抛异常打断恢复，所以只用 EnabledRules，不用 EnabledRulesOrThrow。
-        IReadOnlyList<OcrRule> rules = CurrentCaptureSettings().EnabledRules(restoreGroupName,
+        // 恢复旧结果也按抓取设置和封存状态过滤：关掉的、被封存目录的条目当它不存在，不提示缺失。
+        // 这条路径不能抛异常打断恢复，所以只用 EffectiveRules，不用 EnabledRulesOrThrow。
+        IReadOnlyList<OcrRule> rules = EffectiveRules(restoreGroupName, selectedImageDirectory,
             RuleCatalog.Load(selectedRulePath
             ?? throw new OcrException("请先选择要读取的子文件夹。")));
         lastRules = rules;
@@ -4352,6 +4502,21 @@ public sealed class MainForm : Form
         }
 
         retryMissingButton.Enabled = CanRetryMissing();
+    }
+
+    // 「一张候选都没选到」时的真实原因：图就在这个资料的文件夹里，只是版式/身份没对上，
+    // 不能报成「未找到对应图片」——那句话只留给资料夹里确实没有图的情况。
+    internal static string NoCandidateReasonFor(OcrRule rule, IReadOnlyList<string> imagePaths)
+    {
+        if (imagePaths.Count == 0)
+            return RuleEngine.DescribeMissing(foundImage: false, recognizedText: false);
+        // 没有 folder 的条目按规则自己的关键词找资料夹（与候选识别共用同一套目录判定）。
+        string expectedFolder = rule.Folder ?? rule.Keyword;
+        if (!imagePaths.Any(path => RuleEngine.MatchesFolder(path, expectedFolder)))
+            return RuleEngine.DescribeMissing(foundImage: false, recognizedText: false);
+        return string.IsNullOrWhiteSpace(rule.Folder)
+            ? "资料夹里有图片，但没有一张符合这条资料的版式（身份、期号或行归属对不上）"
+            : $"「{rule.Folder}」文件夹里有图片，但没有一张符合这条资料的版式（身份、期号或行归属对不上）";
     }
 
     private static string MissingReasonFrom(string value)
@@ -4654,8 +4819,9 @@ public sealed class MainForm : Form
             var localCandidates = new List<RecognitionCandidate>();
             IReadOnlyList<OcrRule> completeIdentityRules = selectedRulePath is null
                 ? rules
-                : CurrentCaptureSettings().EnabledRules(
+                : EffectiveRules(
                     RuleCatalog.GroupNameForFolder(AppContext.BaseDirectory, selectedImageDirectory!),
+                    selectedImageDirectory,
                     RuleCatalog.Load(selectedRulePath));
             bool isYanran = RuleCatalog.IsGroupFolder(selectedImageDirectory!, "嫣然心水");
             if (isYanran)
@@ -4900,7 +5066,7 @@ public sealed class MainForm : Form
             string reason = missingReasons is not null && missingReasons.TryGetValue(rule.Id, out string? recorded)
                 ? recorded
                 : candidate is null
-                    ? "未找到对应图片"
+                    ? NoCandidateReasonFor(rule, imagePaths)
                     : RuleEngine.DescribeExtractionFailure(lines, issue, rule);
             string file = candidate is null ? "-" : Path.GetFileName(candidate.SourcePath);
             OperationLog.Append(

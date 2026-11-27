@@ -260,6 +260,37 @@ public sealed class RetryBatchTests
     }
 
     [Fact]
+    public void NoCandidateReasonNamesTheLayoutWhenTheFolderHasImages()
+    {
+        var rule = new OcrRule("钦差大臣", "生肖", "钦差大臣公式一", Section: "公式一", RequiredKeyword: "钦差大臣", Folder: "钦差大臣");
+        string[] images =
+        [
+            @"C:\结果\11.27-嫣然心水\钦差大臣\20261127_192119_a_17560.jpg",
+            @"C:\结果\11.27-嫣然心水\钦差大臣\20261127_192120_a_17561.jpg"
+        ];
+
+        string reason = MainForm.NoCandidateReasonFor(rule, images);
+
+        // 图就在「钦差大臣」资料夹里，只是版式/身份对不上；不能报成缺图。
+        Assert.Contains("「钦差大臣」文件夹里有图片", reason);
+        Assert.DoesNotContain("未找到对应图片", reason);
+        Assert.DoesNotContain("未通过", reason);
+        Assert.Equal("版式对不上（图在资料夹里）", FailureLog.CategoryFor(reason));
+    }
+
+    [Fact]
+    public void NoCandidateReasonStillReportsMissingImagesWhenTheFolderIsEmpty()
+    {
+        var rule = new OcrRule("钦差大臣", "生肖", "钦差大臣公式一", Section: "公式一", RequiredKeyword: "钦差大臣", Folder: "钦差大臣");
+        string[] images = [@"C:\结果\11.27-嫣然心水\青玉\20261127_192119_a_1.jpg"];
+
+        // 资料夹里一张图都没有，才是真的没图。
+        Assert.Equal(
+            RuleEngine.DescribeMissing(foundImage: false, recognizedText: false),
+            MainForm.NoCandidateReasonFor(rule, images));
+    }
+
+    [Fact]
     public void RetryRefreshesOnlyItsOwnScopeAndKeepsValuesAndConflictsIntact()
     {
         var refreshed = new OcrRule("原创杰少", "九肖", "杰少九肖", Folder: "杰少");

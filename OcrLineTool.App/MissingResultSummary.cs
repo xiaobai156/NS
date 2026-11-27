@@ -32,6 +32,15 @@ public static class MissingResultSummary
             OcrRule[] catalogRules = File.Exists(rulePath) ? RuleCatalog.Load(rulePath).ToArray() : [];
             OcrRule[] rules = capture.EnabledRules(groupName, catalogRules)
                 .OrderByDescending(rule => rule.OutputLabel.Length).ToArray();
+            // 目录已被临时封存的条目，等同于关掉：群结果里不该有它的缺失行，汇总也别再列。
+            FolderArchive archive = FolderArchive.Load(appDirectory);
+            if (archive.SealedCount(groupName) > 0)
+            {
+                string? groupFolder = ResolveGroupFolder(appDirectory, imageRoot, groupName);
+                rules = archive.FilterRules(groupName, rules,
+                        archive.KnownFolders(groupFolder ?? string.Empty, groupName))
+                    .OrderByDescending(rule => rule.OutputLabel.Length).ToArray();
+            }
             HashSet<string> enabledRuleIds = rules.Select(rule => rule.Id).ToHashSet(StringComparer.Ordinal);
             string[] closedLabels = catalogRules.Where(rule => !enabledRuleIds.Contains(rule.Id))
                 .Select(rule => rule.OutputLabel).ToArray();
@@ -115,6 +124,41 @@ public static class MissingResultSummary
                 File.Delete(temporaryPath);
         }
         return (outputPath, count);
+    }
+
+    // 封存状态按群名存，这里要把群名找回它今天的图片目录；
+    // 状态里记过的目录也算，某天一张图都没下到时子目录根本不存在。
+    private static string? ResolveGroupFolder(string appDirectory, string? imageRoot, string groupName)
+    {
+        if (string.IsNullOrWhiteSpace(imageRoot) || !Directory.Exists(imageRoot))
+            return null;
+        string[] folders;
+        try
+        {
+            folders = ImageFolderScanner.ListSubfolders(imageRoot);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+        string normalized = RuleCatalog.NormalizeGroupName(groupName);
+        foreach (string folder in folders)
+        {
+            string candidate;
+            try
+            {
+                candidate = RuleCatalog.GroupNameForFolder(appDirectory, folder);
+            }
+            catch (Exception exception) when (exception is OcrException or IOException
+                or UnauthorizedAccessException or JsonException)
+            {
+                candidate = RuleCatalog.BaseGroupName(folder);
+            }
+            if (string.Equals(RuleCatalog.NormalizeGroupName(candidate), normalized,
+                StringComparison.OrdinalIgnoreCase))
+                return folder;
+        }
+        return null;
     }
 
     private static Dictionary<string, string> ResolveDiagnosticFolders(

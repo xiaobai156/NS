@@ -134,6 +134,10 @@ internal static class FailureLog
     {
         if (reason.Contains("未找到对应图片", StringComparison.Ordinal))
             return "未找到对应图片";
+        // 图就在资料夹里、只是版式/身份对不上：单独归一类，不混进「未找到对应图片」，
+        // 也不再落到下面的「未通过校验」里冒充数量校验失败。
+        if (reason.Contains("没有一张符合这条资料的版式", StringComparison.Ordinal))
+            return "版式对不上（图在资料夹里）";
         if (reason.Contains("模板未命中", StringComparison.Ordinal))
             return "标题模板未命中";
         if (reason.Contains("文字识别失败", StringComparison.Ordinal))

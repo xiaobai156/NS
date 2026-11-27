@@ -28,6 +28,64 @@ public sealed class EnpingYantaRegressionTests
     }
 
     [Fact]
+    public void EnpingNineZodiacsRestoresTheHundredsDigitFromTheTitleAnchor()
+    {
+        OcrRule rule = Rule("恩平九肖");
+        string[] lines =
+        [
+            "题:331期【恩平新澳九肖】",
+            "者:恩平公式",
+            "气:9279447/回帖:1017",
+            "平公式九肖",
+            "23期，鼠牛虎龙蛇马羊猴猪47",
+            "30期，鼠牛兔龙马羊猴鸡猪",
+            "26",
+            "31期，鼠虎兔龙蛇羊鸡狗猪"
+        ];
+
+        Assert.Equal("鼠虎兔龙蛇羊鸡狗猪", RuleEngine.ExtractFinalValue(lines, 331, rule));
+    }
+
+    [Fact]
+    public void EnpingNineZodiacsStaysMissingWithoutATargetIssueAnchor()
+    {
+        OcrRule rule = Rule("恩平九肖");
+        string[] lines =
+        [
+            "题:331期【恩平新澳九肖】",
+            "者:恩平公式",
+            "23期，鼠牛虎龙蛇马羊猴猪47",
+            "31期，鼠虎兔龙蛇羊鸡狗猪"
+        ];
+
+        // 标题只印了别的资料的期号、没有本资料身份时不得补百位：补了就是拿
+        // 猜出来的期号冒充本期数据。
+        Assert.Null(RuleEngine.ExtractFinalValue(
+            ["题:331期【别人的九肖】", "31期，鼠虎兔龙蛇羊鸡狗猪"], 331, rule));
+        Assert.Equal("鼠虎兔龙蛇羊鸡狗猪", RuleEngine.ExtractFinalValue(lines, 331, rule));
+    }
+
+    [Fact]
+    public void EnpingFormulaReadsTheTargetRowWhenTheSectionWordIsOnTheTitleRow()
+    {
+        OcrRule rule = Rule("恩平公式");
+        string[] lines =
+        [
+            "主题:331期：恩平公式杀二肖",
+            "作者:恩平公式",
+            "人气:3877030/回帖:298",
+            "2014/11/10 14:02:10",
+            "恩平公式杀二肖，321期止26期错1期",
+            "321期杀，鸡牛41",
+            "329期杀，龙蛇44",
+            "230期杀，狗鼠26",
+            "331期杀，羊牛"
+        ];
+
+        Assert.Equal("羊牛", RuleEngine.ExtractFinalValue(lines, 331, rule));
+    }
+
+    [Fact]
     public void EnpingTailStillReportsARealSameIssueConflict()
     {
         OcrRule rule = Rule("恩平杀一尾");

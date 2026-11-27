@@ -57,6 +57,8 @@ internal sealed class CaptureSettingsForm : Form
     private readonly string appDirectory;
     private readonly string imageRootDirectory;
     private CaptureSettings settings;
+    // 目录封存状态：只在界面上显示“哪些目录被临时封存了”，解封只认新图，不给手动开关。
+    private readonly FolderArchive archive;
     private readonly List<GroupData> groups = new();
     private readonly List<Row> rows = new();
     private readonly HashSet<string> expanded =
@@ -86,6 +88,8 @@ internal sealed class CaptureSettingsForm : Form
             + "不会出现在结果里、也不算缺失。群关掉时条目按上次保存的状态显示，重新勾选群就恢复。"
             + "勾选立即保存，新出现的群和新加的规则默认开启。"
             + "条目显示的是结果里的规范名。"
+            + "某个子目录连续三天没有新图会自动临时封存（条目名字后面标【临时封存】），"
+            + "识别时整块跳过；这个目录再出现新图就自动解封。"
     };
     private readonly Label summaryLabel = new()
     {
@@ -103,6 +107,7 @@ internal sealed class CaptureSettingsForm : Form
         this.appDirectory = appDirectory;
         this.imageRootDirectory = imageRootDirectory;
         settings = CaptureSettings.Load(appDirectory);
+        archive = FolderArchive.Load(appDirectory);
 
         Text = "抓取设置";
         StartPosition = FormStartPosition.CenterParent;
@@ -325,7 +330,9 @@ internal sealed class CaptureSettingsForm : Form
                         Kind = RowKind.Rule,
                         Group = group.Name,
                         Category = category,
-                        Text = rule.OutputLabel,
+                        Text = IsArchiveSealed(group.Name, rule)
+                            ? rule.OutputLabel + "（临时封存）"
+                            : rule.OutputLabel,
                         Rule = rule,
                         Indent = 2,
                         GroupEnabled = enabled
@@ -368,9 +375,52 @@ internal sealed class CaptureSettingsForm : Form
     private void UpdateSummary()
     {
         int closed = groups.Count(group => !settings.IsGroupEnabled(group.Name));
-        summaryLabel.Text = closed == 0
+        int sealedFolders = groups.Sum(group => archive.SealedCount(group.Name));
+        string text = closed == 0
             ? $"共 {groups.Count} 个群，全部开启。"
             : $"共 {groups.Count} 个群，已关闭 {closed} 个。";
+        summaryLabel.Text = sealedFolders == 0
+            ? text
+            : text + $"有 {sealedFolders} 个目录连续三天没新图，已临时封存。";
+    }
+
+    // 这条规则所在的子目录是不是已经被临时封存：只是显示，勾选框仍然只表示“抓取设置”的开关。
+    private bool IsArchiveSealed(string groupName, OcrRule rule)
+    {
+        if (archive.SealedCount(groupName) == 0)
+            return false;
+        IReadOnlySet<string> sealedFolders = archive.SealedFolders(groupName);
+        IReadOnlyCollection<string> knownFolders = FolderNamesForGroup(groupName);
+        return FolderArchive.IsRuleArchived(rule, sealedFolders, knownFolders);
+    }
+
+    private IReadOnlyCollection<string> FolderNamesForGroup(string groupName)
+    {
+        string? groupFolder = null;
+        try
+        {
+            string[] folders = ImageFolderScanner.ListSubfolders(imageRootDirectory);
+            IReadOnlyDictionary<string, string> names = RuleCatalog.GroupNamesForFolders(appDirectory, folders);
+            string normalized = RuleCatalog.NormalizeGroupName(groupName);
+            foreach (string folder in folders)
+            {
+                if (names.TryGetValue(folder, out string? group)
+                    && string.Equals(RuleCatalog.NormalizeGroupName(group), normalized,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    groupFolder = folder;
+                    break;
+                }
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            or OcrException or JsonException)
+        {
+            // 抓图目录暂时不可访问：只按历史记录判断。
+        }
+        return groupFolder is null
+            ? archive.FolderNames(groupName)
+            : archive.KnownFolders(groupFolder, groupName);
     }
 
     // 分类口径与写结果 TXT 完全一致（GroupResultFormatter），顺序也照它的固定顺序。

@@ -1214,6 +1214,12 @@ public static partial class RuleEngine
             .Select(line => rule.StrictIssueBlock ? SimplifyFixedCardText(line) : line)
             .ToArray();
 
+        // 恩平九肖：数据行整列被裁掉百位（「31期，鼠虎兔龙蛇羊鸡狗猪」= 331 期）。
+        // 同图标题行印着带百位的完整目标期（「主题:331期【恩平新澳九肖】」）时才补回，
+        // 标题里没有目标百位的锚点就照旧判缺失，绝不拿「只剩两位」硬凑期号。
+        if (rule.Type == "九肖")
+            lines = RepairTruncatedIssueDigits(lines, issue, rule);
+
         if (IsZhanShaHalfWave(rule))
             return ExtractZhanShaHalfWave(lines, issue, rule);
 
@@ -2889,6 +2895,48 @@ public static partial class RuleEngine
             && normalized.Contains(requiredKeyword, StringComparison.Ordinal);
     }
 
+    // 历史表整列被裁掉最左一位期号时的补回：只在同图存在“带目标百位的完整期号锚点”
+    // （标题行同时出现目标期号与本资料名）时生效，且只补行首那两位与目标期后两位相同的
+    // 数据行。没有锚点、后两位对不上、或者行首本来就是三位以上，一律原样返回。
+    private static string[] RepairTruncatedIssueDigits(string[] lines, int issue, OcrRule rule)
+    {
+        if (issue < 100)
+            return lines;
+        // 锚点要求：同一行既印着目标期号，又印着本资料的作者名或所属文件夹名。
+        // 恩平九肖的标题是「主题:331期【恩平新澳九肖】」——资料名被改写成「恩平新澳九肖」，
+        // 只有文件夹名「恩平」能对上，所以两种身份都认。
+        string[] identities = new[] { rule.Keyword, rule.Folder ?? string.Empty }
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => Normalize(value))
+            .Where(value => value.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        bool anchored = lines.Any(line => ContainsIssue(line, issue)
+            && identities.Any(identity => Normalize(line).Contains(identity, StringComparison.Ordinal)));
+        if (!anchored)
+            return lines;
+        int suffix = issue % 100;
+        var repaired = new string[lines.Length];
+        for (int index = 0; index < lines.Length; index++)
+        {
+            string line = lines[index];
+            Match head = Regex.Match(
+                line, @"^(?<lead>\s*[【\[（({]?\s*)(?<issue>\d{2})(?<glue>\s*期)");
+            if (!head.Success
+                || !int.TryParse(head.Groups["issue"].Value, out int printed)
+                || printed != suffix)
+            {
+                repaired[index] = line;
+                continue;
+            }
+            // 三位以上的完整期号（「231期」）根本匹配不到上面的两位正则，天然不会
+            // 被当成截断行改写；这里只需按后两位相等来判断是不是本期的截断行。
+            repaired[index] = head.Groups["lead"].Value + issue.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                + head.Groups["glue"].Value + line[(head.Index + head.Length)..];
+        }
+        return repaired;
+    }
+
     private static bool HasSectionForIssueRow(
         string[] lines, int issueIndex, int scopeStart, int issue, OcrRule rule)
     {
@@ -2926,8 +2974,17 @@ public static partial class RuleEngine
                 && !ContainsAnyIssue(lines[index + 1])
                 && ContainsSectionMarker(lines[index] + lines[index + 1], rule.Section))
                 return true;
+            // 卡面主标题常与目标期号同处一行（「主题:331期：恩平公式杀二肖」），
+            // 旧逻辑见到带期号的行就直接跳过，主标题里的区段词永远看不到，目标期
+            // 数据行因此被判成不属于该区段。只有同时出现本资料身份与区段词的行才
+            // 算区段来源，别的资料的期号行不会被借来当本资料的区段。
             if (ContainsIssue(lines[index], issue))
+            {
+                if (ContainsSectionMarker(lines[index], rule.Section)
+                    && identity.Any(item => Normalize(lines[index]).Contains(item, StringComparison.Ordinal)))
+                    return true;
                 continue;
+            }
             // Other-period rows of the same section are data, not a section
             // boundary. Only an ambiguous standalone number (or a real heading
             // without this section) closes the scope; a historical year label
