@@ -20,6 +20,8 @@ public static partial class RuleEngine
 
     private static bool UsesBoundedTableCell(string path, OcrRule rule) =>
         rule.Id == "唐朝杀头" && rule.Type == "头" && RuleCatalog.PathBelongsToGroup(path, "嫣然六合彩大全")
+        || rule.Id == "翩翩公子尾" && rule.Type == "缺尾" && rule.StrictIssueBlock
+            && RuleCatalog.PathBelongsToGroup(path, "新澳高级会员")
         || RuleCatalog.PathBelongsToGroup(path, "黑色六合彩")
             && (rule.Id == "天宫杀头" && rule.Type == "头"
                 || rule.Extractor is "nine_zodiacs_across_wrapped_rows" or "heike_nine_tails" or "kill_two_zodiacs");
@@ -37,6 +39,8 @@ public static partial class RuleEngine
 
     private static RuleExtractionResult ExtractBoundedTableCell(OcrEvidence evidence, int issue, OcrRule rule)
     {
+        bool memberTail = rule.Id == "翩翩公子尾" && rule.Type == "缺尾";
+        bool Trusted(OcrLineEvidence item) => (!memberTail || item.Confidence.HasValue) && HasTableConfidence(item);
         var observed = new HashSet<string>(StringComparer.Ordinal);
         bool unresolvedInline = false;
         foreach (var region in (evidence.TokenItems ?? evidence.Items).GroupBy(item => (item.ViewId, item.RegionId)))
@@ -45,16 +49,16 @@ public static partial class RuleEngine
             // A whole row in one original token proves ownership without guessing adjacent boxes.
             foreach (var item in items)
             {
-                string text = SimplifyOcrText(item.Text);
+                string text = memberTail ? SimplifyFixedCardText(item.Text) : SimplifyOcrText(item.Text);
                 Match prefix = Regex.Match(text, TableIssuePrefix);
-                if (!prefix.Success || int.Parse(prefix.Groups["issue"].Value) != issue)
+                if (!prefix.Success || !int.TryParse(prefix.Groups["issue"].Value, out int printedIssue) || printedIssue != issue)
                     continue;
                 string tail = text[prefix.Length..].Trim();
                 if (tail.Length == 0 || tail.StartsWith('开'))
                     continue;
                 Match row = Regex.Match(tail,
                     $@"^(?<field>.+?)(?<opening>开\s*[:：]?\s*[?？]+|[{Zodiac}]\s*\d{{1,2}}\s*[中错准赢√×✗])$");
-                if (HasTableConfidence(item) && row.Success
+                if (Trusted(item) && row.Success
                     && BoundedTableValue(row.Groups["field"].Value, rule) is string value)
                     observed.Add(value);
                 else
@@ -65,13 +69,15 @@ public static partial class RuleEngine
                 continue;
             var boundaries = items.Where(item => Regex.IsMatch(SimplifyOcrText(item.Text), TableIssuePrefix)).ToArray();
             foreach (var anchor in boundaries.Where(item => Regex.IsMatch(SimplifyOcrText(item.Text), TableIssuePrefix + @"\s*$")
-                && ContainsIssue(item.Text, issue) && HasTableConfidence(item)))
+                && ContainsIssue(item.Text, issue) && Trusted(item)))
             {
                 OcrBox box = anchor.Box!;
                 var openings = items.Where(item => item.Box!.X > box.Right
                     && Math.Abs(item.Box.CenterY - box.CenterY) <= Math.Min(box.Height, item.Box.Height) * .6
                     && IsTableOpening(item.Text)).ToArray();
                 if (openings.Length != 1)
+                    continue;
+                if (memberTail && !Trusted(openings[0]))
                     continue;
                 double top = box.CenterY - box.Height * 1.5;
                 double bottom = box.CenterY + box.Height * 1.5;
@@ -93,7 +99,7 @@ public static partial class RuleEngine
                     && item.Box.Bottom > top && item.Box.Y < bottom).ToArray();
                 // A box straddling an edge cannot be silently discarded to obtain the expected count.
                 if (cell.Any(item => item.Box!.X < box.Right || item.Box.Right > right
-                    || item.Box.Y < top || item.Box.Bottom > bottom || !HasTableConfidence(item)))
+                    || item.Box.Y < top || item.Box.Bottom > bottom || !Trusted(item)))
                     continue;
                 string field = string.Join(" ", GroupVisualRows(cell)
                     .Select(row => string.Join(" ", row.OrderBy(item => item.Box!.X).Select(item => item.Text))));
@@ -107,6 +113,13 @@ public static partial class RuleEngine
 
     private static string? BoundedTableValue(string field, OcrRule rule)
     {
+        if (rule.Id == "翩翩公子尾" && rule.Type == "缺尾")
+        {
+            // Both printed lines must belong to this issue's cell; never fill digits from the next row.
+            string compact = Regex.Replace(SimplifyFixedCardText(field), @"\s+", "");
+            Match tailMatch = Regex.Match(compact, @"\A公子送尾数[:：]?(?<tails>[0-9]{9})(?:[准準][!！]?)?\z");
+            return tailMatch.Success ? MemberNineTails(tailMatch.Groups["tails"].Value) : null;
+        }
         string text = Regex.Replace(SimplifyOcrText(field), @"\s+", "");
         if (rule.Id == "唐朝杀头")
         {

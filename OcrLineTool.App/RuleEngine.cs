@@ -4458,6 +4458,8 @@ public static partial class RuleEngine
             return "云 OCR 未返回有效文字";
         if (!FindIssues(lines).Contains(issue) && !rule.IgnoreIssue)
             return $"已找到图片和文字，但未识别到第{issue}期";
+        if (rule.Id == "翩翩公子尾" && rule.Type == "缺尾" && rule.StrictIssueBlock)
+            return $"已找到{issue}期文字，但未确认当期数据格内完整的9个不同尾数（标签、坐标、置信度或数字完整性校验未通过）";
         if (rule.Extractor == "missing_wave_balls")
             return $"已找到{issue}期文字，但未确认当期完整表格行内的两种不同波色（期号坐标或色球校验未通过）";
         if (rule.Extractor == "red_dragonfly_two_waves")
