@@ -1042,6 +1042,19 @@ public sealed class RuleCatalogTests
             ["锦胜", "锦囊杀10码：(05 08 10 22 25 26", "293期", "开??", "28 39 43 45)"], 293, ten));
     }
 
+    // 332 期实测：OCR 把后半段号码切成「2038)」，行首 2038 被当成期号 2038，
+    // 前向收集误判成邻期边界，只收到前 8 个号。纯数字残行必须继续当本期号码。
+    [Fact]
+    public void NumberCardsKeepTheContinuationSegmentThatLooksLikeABareIssueNumber()
+    {
+        IReadOnlyList<OcrRule> rules = RuleCatalog.Load(
+            Path.Combine(ResultFilePaths.ConfigurationDirectory(AppContext.BaseDirectory), "黑色六合彩.json"));
+        OcrRule ten = rules.Single(rule => rule.Id == "锦囊杀十码");
+
+        Assert.Equal("05 07 13 14 15 17 18 19 20 38", RuleEngine.ExtractFinalValue(
+            ["锦囊杀10码：(050713 14 15 1718 19", "332期", "开??", "2038)"], 332, ten));
+    }
+
     // 开奖格印在号码行同一行时，开奖号绝不能补成本期的杀号。
     // OCR 常把「开」和「中/错」都丢掉，只剩一个孤立两位数，所以不能只靠字面标记判边界。
     [Theory]

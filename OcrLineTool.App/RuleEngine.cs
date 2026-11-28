@@ -2574,7 +2574,9 @@ public static partial class RuleEngine
             for (int forward = index + 1; forward < normalized.Length && forward - index <= 4 && !full; forward++)
             {
                 string line = normalized[forward];
-                if (ContainsOtherIssue(line, issue))
+                // OCR 常把本期跨行的号码段切成「2038)」这种纯数字残行，行首的 2038
+                // 会被 BareIssueRegex 当成「2038 期」，误判成邻期边界后整段号码丢掉。
+                if (ContainsOtherIssue(line, issue) && !IsNumberContinuationLine(line))
                     break;
                 // 「开??」是开奖占位，不结束收集：这张卡的号码段排在它后面。
                 if (line.TrimStart().StartsWith('开') && Regex.IsMatch(line, @"开\s*[?？]"))
@@ -2589,6 +2591,24 @@ public static partial class RuleEngine
                 observed.Add(string.Join(' ', numbers.Order().Select(n => n.ToString("00"))));
         }
         return observed.Count == 0 ? null : observed.Count == 1 ? observed.Single() : ConflictMarker;
+    }
+
+    // 号码段被 OCR 拆行后可能只剩「2038)」这种纯数字残行，BareIssueRegex 会把行首的
+    // 2038 当成「2038 期」。纯数字残行不是期号，应继续当本期号码收集。
+    private static bool IsNumberContinuationLine(string line)
+    {
+        string trimmed = line.Trim();
+        if (trimmed.Length == 0)
+            return false;
+        foreach (char character in trimmed)
+        {
+            if (char.IsDigit(character) || char.IsWhiteSpace(character))
+                continue;
+            if (character is '（' or '(' or '【' or '[' or '）' or ')' or '】' or ']' or ',' or '，' or '、')
+                continue;
+            return false;
+        }
+        return trimmed.Any(char.IsDigit);
     }
 
     // 新澳六合彩资料「神算子【无错45码】付费版」：每期印出 45 个号码，没印出来的
