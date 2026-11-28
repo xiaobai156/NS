@@ -123,7 +123,8 @@ public static partial class RuleEngine
 
     private static RuleExtractionResult ExtractRuiErTeamEvidence(OcrEvidence evidence, int issue, OcrRule rule)
     {
-        var values = new HashSet<string>(StringComparer.Ordinal);
+        var cardValues = new HashSet<string>(StringComparer.Ordinal);
+        var summaryValues = new HashSet<string>(StringComparer.Ordinal);
         foreach (var area in RuiErAreas(evidence, rule))
         {
             if (area.Summary)
@@ -141,14 +142,14 @@ public static partial class RuleEngine
                     string cellText = author.Text + string.Concat(row.Where(t => t != author
                         && t.Box!.X >= b.Right).Select(t => t.Text));
                     Match answer = RuiErSummaryCell(cellText, rule.Keyword);
-                    if (answer.Success) values.Add(answer.Groups["value"].Value);
+                    if (answer.Success) summaryValues.Add(answer.Groups["value"].Value);
                 }
                 // A crop may contain the entire named cell in one token, including its counter.
                 foreach (var item in area.Items.Where(t => RuiErSummaryAuthor(t.Text, rule.Keyword)))
                 {
                     Match cell = RuiErSummaryCell(item.Text, rule.Keyword);
                     if (cell.Success && RuiErConfidence(item))
-                        values.Add(cell.Groups["value"].Value);
+                        summaryValues.Add(cell.Groups["value"].Value);
                 }
             }
             else
@@ -172,10 +173,13 @@ public static partial class RuleEngine
                         _ => false
                     };
                     if (correctType && ParseRuiErTeamPayload(rule.Type, payload.Groups["value"].Value) is { } value)
-                        values.Add(value);
+                        cardValues.Add(value);
                 }
             }
         }
+        // An author's dated personal card is the primary source. The shared
+        // summary table fills a gap, but cannot contradict a valid personal card.
+        HashSet<string> values = cardValues.Count > 0 ? cardValues : summaryValues;
         return values.Count > 1 ? RuleExtractionResult.Conflict
             : values.Count == 1 ? RuleExtractionResult.Success(values.Single()) : RuleExtractionResult.Missing;
     }

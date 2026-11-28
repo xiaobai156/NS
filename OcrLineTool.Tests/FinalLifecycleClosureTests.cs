@@ -158,6 +158,52 @@ public sealed class FinalLifecycleClosureTests
         Assert.Equal([$"缺失（同一期结果冲突，待核对） {rule.OutputLabel}"], output);
     }
 
+    [Fact]
+    public async Task MoyuManualRereadCanResolveAnOldConflictFromTheSameUnchangedImage()
+    {
+        using var temp = new Fixture("蜻蜓一套");
+        OcrRule rule = Rule("蜻蜓一套", "墨羽");
+        string source = temp.File(Path.Combine("一套组合拳", "moyu.png"), [2, 4, 6, 8]);
+        OcrEvidence evidence = Evidence(source, source, "332期墨羽尘曦精杀一肖蛇开00准");
+        var oldValues = new ResultValues(StringComparer.Ordinal);
+        var oldLedger = new ResultEvidenceLedger();
+        oldLedger.ObserveConflict(oldValues, rule, evidence);
+        await RecognitionStateStore.SaveAsync(temp.Root, temp.Group, 332, [rule], oldValues, oldLedger);
+
+        RecognitionStateLoad restored = RecognitionStateStore.Load(temp.Root, temp.Group, 332, [rule]);
+        Assert.True(ResultValues.IsConflict(restored.Values, rule.Id));
+        Assert.Equal(RuleExtractionStatus.Success, RuleEngine.ExtractFinalResult(evidence, 332, rule).Status);
+
+        MainForm.AddExtractedEvidenceValues(
+            evidence, [rule], 332, restored.Values, restored.Evidence, manualRetry: true);
+
+        Assert.False(ResultValues.IsConflict(restored.Values, rule.Id));
+        Assert.Equal("蛇", restored.Values[rule.Id]);
+        Assert.Equal("success", restored.Evidence.Records[rule.Id].Status);
+    }
+
+    [Fact]
+    public async Task MoyuManualRereadCannotResolveAConflictAfterTheSamePathImageChanges()
+    {
+        using var temp = new Fixture("蜻蜓一套");
+        OcrRule rule = Rule("蜻蜓一套", "墨羽");
+        string conflictedSource = temp.File(Path.Combine("一套组合拳", "moyu.png"), [2, 4, 6, 8]);
+        var oldValues = new ResultValues(StringComparer.Ordinal);
+        var oldLedger = new ResultEvidenceLedger();
+        oldLedger.ObserveConflict(oldValues, rule,
+            Evidence(conflictedSource, conflictedSource, "332期墨羽尘曦精杀一肖蛇开00准"));
+        await RecognitionStateStore.SaveAsync(temp.Root, temp.Group, 332, [rule], oldValues, oldLedger);
+
+        System.IO.File.WriteAllBytes(conflictedSource, [1, 3, 5, 7]);
+        RecognitionStateLoad restored = RecognitionStateStore.Load(temp.Root, temp.Group, 332, [rule]);
+        OcrEvidence retryEvidence = Evidence(conflictedSource, conflictedSource, "332期墨羽尘曦精杀一肖蛇开00准");
+        MainForm.AddExtractedEvidenceValues(
+            retryEvidence, [rule], 332, restored.Values, restored.Evidence, manualRetry: true);
+
+        Assert.True(ResultValues.IsConflict(restored.Values, rule.Id));
+        Assert.False(restored.Values.ContainsKey(rule.Id));
+    }
+
     private static OcrEvidence Evidence(string source, string input, string text) => new(
         Path.GetFullPath(source), Path.GetFullPath(input),
         LocalOcrIdentity.Image(source), LocalOcrIdentity.Image(input), "test",
@@ -177,6 +223,7 @@ public sealed class FinalLifecycleClosureTests
         public string File(string name, byte[] bytes)
         {
             string path = Path.Combine(Group, name);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             System.IO.File.WriteAllBytes(path, bytes);
             return path;
         }

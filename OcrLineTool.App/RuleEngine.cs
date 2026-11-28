@@ -3480,6 +3480,8 @@ public static partial class RuleEngine
             return ExtractZhanShaHalfWaveEvidence(evidence, issue, rule);
         if (rule.Type == "统计生肖")
             return ExtractStatisticsEvidence(evidence, issue, rule, out _);
+        if (rule.Extractor == "taiji_nine_zodiacs")
+            return ExtractFinalResult(evidence.Lines, issue, rule);
         if (rule.Extractor == "rui_er_team_card")
             return ExtractRuiErTeamEvidence(evidence, issue, rule);
         if (rule.Id == "天线宝杀" && rule.Type == "号码:12" && rule.StrictIssueBlock

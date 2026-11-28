@@ -38,6 +38,12 @@ internal sealed class ResultValues : Dictionary<string, string>
             guarded.Conflicts.Add(id);
     }
 
+    internal static void ClearConflict(IDictionary<string, string> values, string id)
+    {
+        if (values is ResultValues guarded)
+            guarded.Conflicts.Remove(id);
+    }
+
     internal static bool IsConflict(IReadOnlyDictionary<string, string> values, string id) =>
         values is ResultValues guarded && guarded.Conflicts.Contains(id);
 

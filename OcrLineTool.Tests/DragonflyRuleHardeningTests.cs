@@ -183,4 +183,85 @@ public sealed class DragonflyRuleHardeningTests
             ["245期墨羽尘曦精杀一肖【鸡】开00准", "245期墨羽尘曦精杀一肖【兔】开00准"],
             245, rule));
     }
+
+    [Fact]
+    public void MoyuKeepsTheSingleCurrentValueWhenOcrRowsContainHistoricalEntries()
+    {
+        OcrRule rule = Assert.Single(Rules, rule => rule.Id == "墨羽");
+        string[] lines =
+        [
+            "310期墨羽尘曦精杀一肖[蛇]开 46准,耶稣也留不住",
+            "311期墨羽尘曦精杀一肖[马]开34准,耶稣也留不住",
+            "312期墨羽尘曦精杀一肖[猴]开38准,耶稣也留不住",
+            "313期墨羽尘曦精杀一肖[鼠]开 43错",
+            "[羊]开31准,耶稣也留不住314期墨羽尘曦精杀一肖",
+            "315期墨羽尘曦精杀一肖[猪]开48准,耶稣也留不住",
+            "316期墨羽尘曦精杀一肖[牛]开03准,耶稣也留不住",
+            "317期墨羽尘曦精杀一肖[龙]开 26准，耶稣也留不住",
+            "318期墨羽尘曦精杀一肖[龙]开38准,耶稣也留不住",
+            "319期319期墨羽尘曦精杀一肖[龙]开05准,耶稣也留不住",
+            "320期320期墨羽尘曦精杀一肖鸡开20准，耶稣也留不住",
+            "321期墨羽尘曦精杀一肖狗开41准，耶稣也留不住",
+            "322期墨羽尘曦精杀一肖[牛]开07准，耶稣也留不住",
+            "墨羽尘曦精杀一肖[猪]开47准，耶稣也留不住",
+            "324期墨羽尘曦精杀一肖[狗]开43准，耶稣也留不住",
+            "[猴]开03准，耶稣也留不住325期墨羽尘曦精杀一肖",
+            "326期墨羽尘曦精杀一肖[鸡]开23准,耶稣也留不住",
+            "327期墨羽尘曦精杀一肖[羊]开45准，耶稣也留不住",
+            "328期墨羽尘曦精杀一肖[龙]开06准,耶稣也留不住",
+            "[蛇]开44准,耶稣也留不住329期墨羽尘曦精杀一肖",
+            "330期墨羽尘曦精杀一肖[狗]开26准，耶稣也留不住",
+            "331期墨羽尘曦精杀一肖[猪]开13准，耶稣也留不住",
+            "332期墨羽尘曦精杀一肖蛇开00准,耶稣也留不住"
+        ];
+
+        Assert.Equal("蛇", RuleEngine.ExtractFinalValue(lines, 332, rule));
+    }
+
+    [Fact]
+    public void MoyuEvidenceKeepsTheTargetValueWhenTheTargetRowIsSplitIntoTokens()
+    {
+        OcrRule rule = Assert.Single(Rules, rule => rule.Id == "墨羽");
+        string[] lines =
+        [
+            "310期墨羽尘曦精杀一肖[蛇]开 46准,耶稣也留不住",
+            "311期墨羽尘曦精杀一肖[马]开34准,耶稣也留不住",
+            "312期墨羽尘曦精杀一肖[猴]开38准,耶稣也留不住",
+            "313期墨羽尘曦精杀一肖[鼠]开 43错",
+            "[羊]开31准,耶稣也留不住314期墨羽尘曦精杀一肖",
+            "315期墨羽尘曦精杀一肖[猪]开48准,耶稣也留不住",
+            "316期墨羽尘曦精杀一肖[牛]开03准,耶稣也留不住",
+            "317期墨羽尘曦精杀一肖[龙]开 26准，耶稣也留不住",
+            "318期墨羽尘曦精杀一肖[龙]开38准,耶稣也留不住",
+            "319期319期墨羽尘曦精杀一肖[龙]开05准,耶稣也留不住",
+            "320期320期墨羽尘曦精杀一肖鸡开20准，耶稣也留不住",
+            "321期墨羽尘曦精杀一肖狗开41准，耶稣也留不住",
+            "322期墨羽尘曦精杀一肖[牛]开07准，耶稣也留不住",
+            "墨羽尘曦精杀一肖[猪]开47准，耶稣也留不住",
+            "324期墨羽尘曦精杀一肖[狗]开43准，耶稣也留不住",
+            "[猴]开03准，耶稣也留不住325期墨羽尘曦精杀一肖",
+            "326期墨羽尘曦精杀一肖[鸡]开23准,耶稣也留不住",
+            "327期墨羽尘曦精杀一肖[羊]开45准，耶稣也留不住",
+            "328期墨羽尘曦精杀一肖[龙]开06准,耶稣也留不住",
+            "[蛇]开44准,耶稣也留不住329期墨羽尘曦精杀一肖",
+            "330期墨羽尘曦精杀一肖[狗]开26准，耶稣也留不住",
+            "331期墨羽尘曦精杀一肖[猪]开13准，耶稣也留不住",
+            "332期墨羽尘曦精杀一肖蛇开00准,耶稣也留不住"
+        ];
+        OcrLineEvidence[] items = lines.Select((text, index) => new OcrLineEvidence(
+            text, new OcrBox(2, index * 27, 435, 21), 94, "retry/Tencent/tencent", "main")).ToArray();
+        OcrLineEvidence[] tokenItems = items[..^1].Concat(
+        [
+            new OcrLineEvidence("332期", new OcrBox(2, 598, 48, 19), 97, "retry/Tencent/tencent", "main"),
+            new OcrLineEvidence("墨羽尘曦精杀一肖蛇开00准,耶稣也留不住",
+                new OcrBox(50, 597, 388, 20), 88, "retry/Tencent/tencent", "main")
+        ]).ToArray();
+        var evidence = new OcrEvidence("source", "input", "hash", "hash",
+            "retry/Tencent", items, tokenItems);
+
+        Assert.Equal(RuleExtractionStatus.Success,
+            RuleEngine.ExtractFinalResult(evidence, 332, rule).Status);
+        Assert.Equal("蛇", RuleEngine.ExtractFinalResult(evidence, 332, rule).Value);
+    }
+
 }

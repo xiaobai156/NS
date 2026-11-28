@@ -66,4 +66,133 @@ public sealed class TaijiNineZodiacsTests
         Assert.Equal("taiji_nine_zodiacs", Rule.Extractor);
         Assert.Equal("太极九肖", Rule.OutputLabel);
     }
+
+    [Fact]
+    public void DiscCropsTrackThePrintedRowsAndMayPadPastImageEdges()
+    {
+        Rectangle firstTopDisc = TaijiNineZodiacsRecovery.DiscBounds(750, 375, 0);
+        Rectangle firstBottomDisc = TaijiNineZodiacsRecovery.DiscBounds(750, 375, 4);
+        Rectangle lastBottomDisc = TaijiNineZodiacsRecovery.DiscBounds(750, 375, 8);
+
+        Assert.Equal(new Rectangle(65, 159, 100, 100), firstTopDisc);
+        Assert.Equal(new Rectangle(13, 268, 100, 100), firstBottomDisc);
+        Assert.Equal(new Rectangle(648, 268, 100, 100), lastBottomDisc);
+    }
+
+    [Fact]
+    public void RecoveryBindsNineDiscReadsToTheRequestedIssueFromTheSameSourceImage()
+    {
+        using var sourceImage = new Bitmap(16, 16);
+        string sourcePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".png");
+        sourceImage.Save(sourcePath);
+        var cropPaths = new List<string>();
+        try
+        {
+            OcrEvidenceIdentity identity = OcrEvidenceIdentity.Capture(sourcePath, sourcePath, "candidate");
+            OcrEvidence sourceEvidence = OcrEvidence.FromLines(sourcePath,
+                ["第331期", "第332期", "开奖栏"], "source");
+            string[] zodiacs = ["鸡", "猪", "马", "鼠", "猴", "兔", "蛇", "狗", "牛"];
+            var discEvidence = new List<OcrEvidence>();
+            for (int index = 0; index < zodiacs.Length; index++)
+            {
+                string cropPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".png");
+                cropPaths.Add(cropPath);
+                using var cropImage = new Bitmap(16, 16);
+                cropImage.Save(cropPath);
+                OcrEvidenceIdentity cropIdentity = OcrEvidenceIdentity.Capture(
+                    sourcePath, cropPath, $"disc-{index}");
+                OcrEvidence rawCropEvidence = OcrEvidence.FromLines(cropPath, [zodiacs[index]], "crop");
+                discEvidence.Add(rawCropEvidence.Bind(cropIdentity));
+            }
+
+            OcrEvidence? combined = TaijiNineZodiacsRecovery.CombineWithSourceIssueEvidence(
+                sourceEvidence, discEvidence, identity, 332);
+
+            Assert.NotNull(combined);
+            RuleExtractionResult result = RuleEngine.ExtractFinalResult(combined!, 332, Rule);
+            Assert.Equal(RuleExtractionStatus.Success, result.Status);
+            Assert.Equal("鸡猪马鼠猴兔蛇狗牛", result.Value);
+            Assert.Equal(RuleExtractionStatus.Missing,
+                RuleEngine.ExtractFinalResult(combined!, 331, Rule).Status);
+        }
+        finally
+        {
+            File.Delete(sourcePath);
+            foreach (string cropPath in cropPaths)
+                File.Delete(cropPath);
+        }
+    }
+
+    [Fact]
+    public void RecoveryRejectsDiscReadsWithoutTheRequestedIssueOnTheSourceImage()
+    {
+        using var sourceImage = new Bitmap(16, 16);
+        string sourcePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".png");
+        sourceImage.Save(sourcePath);
+        var cropPaths = new List<string>();
+        try
+        {
+            OcrEvidenceIdentity identity = OcrEvidenceIdentity.Capture(sourcePath, sourcePath, "candidate");
+            OcrEvidence sourceEvidence = OcrEvidence.FromLines(sourcePath, ["第331期"], "source");
+            string[] zodiacs = ["鸡", "猪", "马", "鼠", "猴", "兔", "蛇", "狗", "牛"];
+            var discEvidence = new List<OcrEvidence>();
+            foreach (string zodiac in zodiacs)
+            {
+                string cropPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".png");
+                cropPaths.Add(cropPath);
+                using var cropImage = new Bitmap(16, 16);
+                cropImage.Save(cropPath);
+                OcrEvidenceIdentity cropIdentity = OcrEvidenceIdentity.Capture(
+                    sourcePath, cropPath, "disc");
+                OcrEvidence rawCropEvidence = OcrEvidence.FromLines(cropPath, [zodiac], "crop");
+                discEvidence.Add(rawCropEvidence.Bind(cropIdentity));
+            }
+
+            Assert.Null(TaijiNineZodiacsRecovery.CombineWithSourceIssueEvidence(
+                sourceEvidence, discEvidence, identity, 332));
+        }
+        finally
+        {
+            File.Delete(sourcePath);
+            foreach (string cropPath in cropPaths)
+                File.Delete(cropPath);
+        }
+    }
+
+    [Fact]
+    public void RecoveryRejectsDiscWithMultipleZodiacCharacters()
+    {
+        using var sourceImage = new Bitmap(16, 16);
+        string sourcePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".png");
+        sourceImage.Save(sourcePath);
+        var cropPaths = new List<string>();
+        try
+        {
+            OcrEvidenceIdentity identity = OcrEvidenceIdentity.Capture(sourcePath, sourcePath, "candidate");
+            OcrEvidence sourceEvidence = OcrEvidence.FromLines(sourcePath, ["第332期"], "source");
+            string[] zodiacs = ["鸡", "猪", "马", "鼠", "猴", "兔", "蛇", "狗", "牛"];
+            var discEvidence = new List<OcrEvidence>();
+            for (int index = 0; index < zodiacs.Length; index++)
+            {
+                string cropPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".png");
+                cropPaths.Add(cropPath);
+                using var cropImage = new Bitmap(16, 16);
+                cropImage.Save(cropPath);
+                OcrEvidenceIdentity cropIdentity = OcrEvidenceIdentity.Capture(
+                    sourcePath, cropPath, $"disc-{index}");
+                string text = index == 4 ? "猴牛" : zodiacs[index];
+                OcrEvidence rawCropEvidence = OcrEvidence.FromLines(cropPath, [text], "crop");
+                discEvidence.Add(rawCropEvidence.Bind(cropIdentity));
+            }
+
+            Assert.Null(TaijiNineZodiacsRecovery.CombineWithSourceIssueEvidence(
+                sourceEvidence, discEvidence, identity, 332));
+        }
+        finally
+        {
+            File.Delete(sourcePath);
+            foreach (string cropPath in cropPaths)
+                File.Delete(cropPath);
+        }
+    }
 }

@@ -117,6 +117,31 @@ public sealed class RuiErTeamOwnershipTests
     }
 
     [Fact]
+    public void BlueSpacePersonalCardTakesPriorityOverConflictingSummaryRow()
+    {
+        OcrRule blueSpace = Rule("蓝色空间");
+        var personalCard = Card("蓝色空间", "310期杀①肖【龙+7尾】");
+        var summary = new[]
+        {
+            T("新澳统计310期", 400, 600, 160),
+            T("【蓝色空间05:01】蛇", 400, 640, 190)
+        };
+
+        Assert.Equal("龙", RuleEngine.ExtractFinalValue(E([..personalCard, ..summary]), 310, blueSpace));
+    }
+
+    [Fact]
+    public void BlueSpaceStillConflictsWhenItsPersonalCardsDisagree()
+    {
+        OcrRule blueSpace = Rule("蓝色空间");
+        var first = Card("蓝色空间", "310期杀①肖【龙+7尾】");
+        var second = Card("蓝色空间", "310期杀①肖【虎+7尾】", 330);
+
+        Assert.Equal(RuleExtractionStatus.Conflict,
+            RuleEngine.ExtractFinalResult(E([..first, ..second]), 310, blueSpace).Status);
+    }
+
+    [Fact]
     public void MissingOldTableTitleDoesNotPullItsValuesIntoNewTable()
     {
         Assert.Null(RuleEngine.ExtractFinalValue(E(T("新澳统计310期", 400, 0, 100),

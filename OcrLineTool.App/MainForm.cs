@@ -3070,7 +3070,8 @@ public sealed class MainForm : Form
             if (evidence is not null)
             {
                 AddExtractedEvidenceValues(
-                    evidence, RetryEvidenceRules(candidate, lastRules), issue, lastValues, lastEvidenceLedger);
+                    evidence, RetryEvidenceRules(candidate, lastRules), issue, lastValues, lastEvidenceLedger,
+                    manualRetry: true);
                 // 本地复抓同样走统一规则：候选扫描视图 + 本次 medium 视图。
                 gapFillNotes = TryFillSingleMissingNumberCells(
                     lastRules, issue, lastValues, lastEvidenceLedger, candidate.LocalEvidence, evidence);
@@ -3356,7 +3357,8 @@ public sealed class MainForm : Form
                 if (reusedCache)
                 {
                     primaryEvidence = cachedEvidence!;
-                    AddExtractedEvidenceValues(primaryEvidence, evidenceRules, lastIssue, lastValues, lastEvidenceLedger);
+                    AddExtractedEvidenceValues(primaryEvidence, evidenceRules, lastIssue, lastValues,
+                        lastEvidenceLedger, manualRetry: true);
                     // 缓存命中没有云推理：从本阶段的工作单位里移除，避免把它算进每图均速。
                     cloudWorkTotal = Math.Max(cloudWorkDone, cloudWorkTotal - 1);
                 }
@@ -3391,7 +3393,8 @@ public sealed class MainForm : Form
                                         completed + 1, cloudTotal);
                                 });
                             primaryEvidence = await PrepareStatisticsEvidenceAsync(primaryEvidence, evidenceRules, lastIssue);
-                            AddExtractedEvidenceValues(primaryEvidence, evidenceRules, lastIssue, lastValues, lastEvidenceLedger);
+                            AddExtractedEvidenceValues(primaryEvidence, evidenceRules, lastIssue, lastValues,
+                                lastEvidenceLedger, manualRetry: true);
                             break;
                         }
                         catch (OcrException exception) when (CloudOcrPolicy.IsCredentialProblem(credential.Provider, exception))
@@ -3450,7 +3453,8 @@ public sealed class MainForm : Form
                                     completed + 1, cloudTotal);
                             });
                         fallbackEvidence = await PrepareStatisticsEvidenceAsync(fallbackEvidence, evidenceRules, lastIssue);
-                        AddExtractedEvidenceValues(fallbackEvidence, evidenceRules, lastIssue, lastValues, lastEvidenceLedger);
+                        AddExtractedEvidenceValues(fallbackEvidence, evidenceRules, lastIssue, lastValues,
+                            lastEvidenceLedger, manualRetry: true);
                     }
                     catch (OcrException exception) when (PaddleLocalOcrClient.IsCudaUnavailable(exception)
                         || exception.Code == "OCR_IMAGE_CHANGED")
@@ -3988,6 +3992,35 @@ public sealed class MainForm : Form
     {
         if (selectedImageDirectory is null)
             return;
+        var taijiRequests = candidates
+            .Where(candidate => candidate.PinnedIdentity is not null && candidate.LocalEvidence is not null)
+            .SelectMany(candidate => rules
+                .Where(rule => TaijiNineZodiacsRecovery.Supports(rule)
+                    && candidate.Rules.Any(item => item.Id == rule.Id)
+                    && !values.ContainsKey(rule.Id)
+                    && !ResultValues.IsConflict(values, rule.Id))
+                .Select(rule => (candidate.SourcePath, rule, candidate.PinnedIdentity!, candidate.LocalEvidence!)))
+            .ToArray();
+        if (taijiRequests.Length > 0)
+        {
+            var taijiClient = CreateLocalOcrClient();
+            TrackLocalOcrClient("太极九肖：圆盘区域复读", taijiClient);
+            var progress = new Progress<LocalOcrProgress>(item =>
+                statusLabel.Text = $"太极九肖：圆盘区域复读 {item.Completed}/{item.Total}");
+            try
+            {
+                foreach (var item in await TaijiNineZodiacsRecovery.ReadAsync(taijiClient,
+                    taijiRequests, issue, recoveryInputFolder, cancellationToken, progress))
+                {
+                    AddExtractedEvidenceValues(item.Evidence, [item.Rule], issue, values, evidenceLedger);
+                    if (values.ContainsKey(item.Rule.Id)) missingReasons.Remove(item.Rule.Id);
+                }
+            }
+            catch (OcrException exception) when (!PaddleLocalOcrClient.IsCudaUnavailable(exception))
+            {
+                // Keep the original missing result and allow the normal cloud fallback to continue.
+            }
+        }
         var ownedRequests = candidates.SelectMany(candidate => rules
                 .Where(rule => RuiErTeamRecovery.Supports(rule)
                     && candidate.Rules.Any(item => item.Id == rule.Id))
@@ -4014,12 +4047,14 @@ public sealed class MainForm : Form
         }
         // The generic full-width issue strip cannot establish authorship on a collage.
         OcrRule[] recoverable = rules
+            .Where(rule => !TaijiNineZodiacsRecovery.Supports(rule))
             .Where(rule => !RuiErTeamRecovery.Supports(rule))
             .Where(rule => !values.ContainsKey(rule.Id)
                 && rule.Type == "生肖"
                 && rule.AllowIssueLessSummary)
             .ToArray();
         OcrRule[] issueRowRules = rules
+            .Where(rule => !TaijiNineZodiacsRecovery.Supports(rule))
             .Where(rule => !RuiErTeamRecovery.Supports(rule))
             .Where(rule => !values.ContainsKey(rule.Id)
                 && rule.Type is "生肖" or "单生肖"
@@ -4027,16 +4062,19 @@ public sealed class MainForm : Form
                 && !rule.AllowIssueLessSummary)
             .ToArray();
         OcrRule[] issueRowNumberRules = rules
+            .Where(rule => !TaijiNineZodiacsRecovery.Supports(rule))
             .Where(rule => !values.ContainsKey(rule.Id)
                 && rule.Type.StartsWith("号码", StringComparison.Ordinal)
                 && !string.IsNullOrWhiteSpace(rule.Folder))
             .ToArray();
-        OcrRule[] tailTableRules = rules.Where(rule => !values.ContainsKey(rule.Id)
+        OcrRule[] tailTableRules = rules.Where(rule => !TaijiNineZodiacsRecovery.Supports(rule))
+            .Where(rule => !values.ContainsKey(rule.Id)
             && SummaryRowRecovery.SupportsHeikeTailRecovery(rule)).ToArray();
         // 右侧小块补读同时充当「按作者名横带」的回落：简单爱这类海报式卡面把作者名
         // 印在角落、与期号表格错位，横带算不出行距会直接跳过。它本来就在这个集合里，
         // 横带阶段没取到值时，下面的右侧批次会按目标期号那一行再裁一次。
         OcrRule[] rightBlockRules = rules
+            .Where(rule => !TaijiNineZodiacsRecovery.Supports(rule))
             .Where(rule => !values.ContainsKey(rule.Id)
                 && rule.Type == "生肖"
                 && SummaryRowRecovery.SupportsRightBlockRecovery(rule))
@@ -4168,7 +4206,8 @@ public sealed class MainForm : Form
         IEnumerable<OcrRule> rules,
         int issue,
         ResultValues values,
-        ResultEvidenceLedger ledger)
+        ResultEvidenceLedger ledger,
+        bool manualRetry = false)
     {
         foreach (OcrRule rule in rules)
         {
@@ -4178,7 +4217,12 @@ public sealed class MainForm : Form
             if (result.Status == RuleExtractionStatus.Conflict)
                 ledger.ObserveConflict(values, rule, evidence);
             else if (result.Status == RuleExtractionStatus.Success)
-                ledger.Observe(values, rule, result.Value!, evidence);
+            {
+                if (manualRetry)
+                    ledger.ObserveAfterManualRetry(values, rule, result.Value!, evidence, issue);
+                else
+                    ledger.Observe(values, rule, result.Value!, evidence);
+            }
         }
     }
 

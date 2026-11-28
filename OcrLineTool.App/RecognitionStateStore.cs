@@ -48,6 +48,71 @@ internal sealed class ResultEvidenceLedger
             evidence);
     }
 
+    internal void ObserveAfterManualRetry(
+        ResultValues values,
+        OcrRule rule,
+        string value,
+        OcrEvidence evidence,
+        int issue)
+    {
+        if (CanResolveMoyuConflict(values, rule, value, evidence, issue))
+            ResultValues.ClearConflict(values, rule.Id);
+        Observe(values, rule, value, evidence);
+    }
+
+    private bool CanResolveMoyuConflict(
+        ResultValues values,
+        OcrRule rule,
+        string value,
+        OcrEvidence evidence,
+        int issue)
+    {
+        if (!ResultValues.IsConflict(values, rule.Id)
+            || rule is not { Id: "墨羽", Type: "生肖", Folder: "一套组合拳" }
+            || !RuleCatalog.PathBelongsToGroup(evidence.SourcePath, "蜻蜓一套")
+            || !RuleEngine.MatchesRuleFolder(evidence.SourcePath, rule)
+            || !records.TryGetValue(rule.Id, out ResultEvidenceRecord? previous)
+            || previous.Status != "conflict"
+            || previous.RuleSignature != RecognitionStateStore.RuleSignature(rule)
+            || !SamePath(previous.SourcePath, evidence.SourcePath)
+            || !SamePath(previous.InputPath, evidence.InputPath)
+            || !previous.SourceHash.Equals(evidence.SourceHash, StringComparison.OrdinalIgnoreCase)
+            || !previous.InputHash.Equals(evidence.InputHash, StringComparison.OrdinalIgnoreCase)
+            || !RuleEngine.IsCanonicalValueValid(rule, value)
+            || !File.Exists(evidence.SourcePath)
+            || !File.Exists(evidence.InputPath))
+            return false;
+
+        try
+        {
+            if (!LocalOcrIdentity.Image(evidence.SourcePath)
+                    .Equals(evidence.SourceHash, StringComparison.OrdinalIgnoreCase)
+                || !LocalOcrIdentity.Image(evidence.InputPath)
+                    .Equals(evidence.InputHash, StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return false;
+        }
+
+        RuleExtractionResult checkedResult = RuleEngine.ExtractFinalResult(evidence, issue, rule);
+        return checkedResult.Status == RuleExtractionStatus.Success
+            && checkedResult.Value == value;
+    }
+
+    private static bool SamePath(string first, string second)
+    {
+        try
+        {
+            return StringComparer.OrdinalIgnoreCase.Equals(Path.GetFullPath(first), Path.GetFullPath(second));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return false;
+        }
+    }
+
     private static ResultEvidenceRecord BuildRecord(
         OcrRule rule,
         string value,
